@@ -27,6 +27,8 @@ import { es } from 'date-fns/locale';
 import { Calendar as CalendarIcon, Check, Loader2, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
+import { mockOrders } from "@/lib/data"; // Importar mockOrders
+import type { Order } from "@/types"; // Importar el tipo Order
 
 const orderFormSchema = z.object({
   clientName: z.string().min(2, "El nombre del cliente debe tener al menos 2 caracteres."),
@@ -115,7 +117,7 @@ export default function OrderFormPage() {
       visitDate: undefined,
       outcome: undefined,
       productsOrdered: "",
-      orderValue: undefined, // Changed from '' to undefined for type correctness
+      orderValue: undefined,
       reasonForFailure: "",
       nombreFiscal: "",
       cif: "",
@@ -135,18 +137,50 @@ export default function OrderFormPage() {
     setIsSubmitting(true);
     // Simular llamada a API
     await new Promise(resolve => setTimeout(resolve, 1500)); 
-    console.log(values);
-    toast({
-      title: "¡Formulario Enviado!",
-      description: (
-        <div className="flex items-start">
-          <Check className="h-5 w-5 text-green-500 mr-2 mt-1" />
-          <p>Visita al cliente {values.clientName} registrada exitosamente.</p>
-        </div>
-      ),
-      variant: "default",
-    });
+    
+    if (values.outcome === "successful" && values.visitDate && values.orderValue) {
+      const newOrder: Order = {
+        id: `ORD${Date.now()}`, // Simple unique ID for prototype
+        clientName: values.clientName,
+        visitDate: format(values.visitDate, "yyyy-MM-dd"),
+        products: values.productsOrdered?.split(/[,;\n]+/).map(p => p.trim()).filter(p => p.length > 0) || [],
+        value: values.orderValue,
+        status: 'Confirmado', // Default status for new successful orders
+        salesRep: 'Vendedor App', // Placeholder, could be dynamic in a real app
+        lastUpdated: format(new Date(), "yyyy-MM-dd"),
+      };
+      mockOrders.unshift(newOrder); // Add to the beginning of the global mockOrders array
+
+      toast({
+        title: "¡Pedido Registrado!",
+        description: (
+          <div className="flex items-start">
+            <Check className="h-5 w-5 text-green-500 mr-2 mt-1" />
+            <p>Pedido {newOrder.id} para {newOrder.clientName} registrado exitosamente.</p>
+          </div>
+        ),
+        variant: "default",
+      });
+    } else {
+      // Handle other outcomes or generic success message
+      console.log(values);
+      toast({
+        title: "¡Formulario Enviado!",
+        description: (
+          <div className="flex items-start">
+            <Check className="h-5 w-5 text-green-500 mr-2 mt-1" />
+            <p>Visita al cliente {values.clientName} registrada (Resultado: {values.outcome}).</p>
+          </div>
+        ),
+        variant: "default",
+      });
+    }
+    
     form.reset();
+    // Reset visitDate and outcome specifically if form.reset() doesn't clear them enough for controlled components
+    form.setValue("visitDate", undefined);
+    form.setValue("outcome", undefined); 
+    form.setValue("orderValue", undefined);
     setIsSubmitting(false);
   }
 
@@ -269,7 +303,7 @@ export default function OrderFormPage() {
                       <FormItem>
                         <FormLabel>Productos Pedidos</FormLabel>
                         <FormControl>
-                          <Textarea placeholder="Listar productos y cantidades..." {...field} />
+                          <Textarea placeholder="Listar productos y cantidades, separados por coma o nueva línea..." {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -287,7 +321,8 @@ export default function OrderFormPage() {
                             step="0.01"
                             placeholder="p. ej., 250.75"
                             {...field}
-                            value={field.value === undefined ? '' : field.value} // Ensure controlled input
+                            onChange={event => field.onChange(parseFloat(event.target.value))}
+                            value={field.value === undefined ? '' : field.value}
                           />
                         </FormControl>
                         <FormMessage />

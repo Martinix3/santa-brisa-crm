@@ -112,8 +112,10 @@ export default function OrderFormPage() {
     resolver: zodResolver(orderFormSchema),
     defaultValues: {
       clientName: "",
-      orderValue: '', // Initialize as empty string to make it controlled
+      visitDate: undefined,
+      outcome: undefined,
       productsOrdered: "",
+      orderValue: undefined, // Changed from '' to undefined for type correctness
       reasonForFailure: "",
       nombreFiscal: "",
       cif: "",
@@ -280,7 +282,13 @@ export default function OrderFormPage() {
                       <FormItem>
                         <FormLabel>Valor del Pedido (€)</FormLabel>
                         <FormControl>
-                          <Input type="number" step="0.01" placeholder="p. ej., 250.75" {...field} />
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="p. ej., 250.75"
+                            {...field}
+                            value={field.value === undefined ? '' : field.value} // Ensure controlled input
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

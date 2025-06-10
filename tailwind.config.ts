@@ -11,7 +11,7 @@ export default {
     extend: {
       fontFamily: {
         body: ['Inter', 'sans-serif'],
-        headline: ['Inter', 'sans-serif'],
+        headline: ['Inter', 'sans-serif'], // Using Inter for headline as specified
         code: ['monospace'],
       },
       colors: {
@@ -65,6 +65,9 @@ export default {
           border: 'hsl(var(--sidebar-border))',
           ring: 'hsl(var(--sidebar-ring))',
         },
+        'brand-turquoise': 'hsl(var(--brand-turquoise-hsl))',
+        'brand-terracotta': 'hsl(var(--brand-terracotta-hsl))',
+        'brand-yellow': 'hsl(var(--brand-yellow-hsl))',
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -88,11 +91,20 @@ export default {
             height: '0',
           },
         },
+        'subtle-pulse': {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '.7' },
+        }
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
+        'subtle-pulse': 'subtle-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
       },
+      boxShadow: {
+        'subtle': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
+        'md': '0 6px 10px -1px rgba(0, 0, 0, 0.07), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+      }
     },
   },
   plugins: [require('tailwindcss-animate')],

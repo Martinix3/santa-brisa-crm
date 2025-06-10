@@ -1,7 +1,9 @@
+"use client";
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { TeamMember } from "@/types";
+import type { TeamMember } from "@/types";
 import { mockTeamMembers } from "@/lib/data";
 import { TrendingUp, DollarSign, ShoppingCart, Users } from 'lucide-react';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";

@@ -23,7 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 const getStatusBadgeColor = (status: OrderStatus): string => {
   switch (status) {
     case 'Entregado': return 'bg-green-500 hover:bg-green-600 text-white';
-    case 'Confirmado': return 'bg-blue-500 hover:bg-blue-600 text-white';
+    case 'Confirmado': return 'bg-[hsl(var(--brand-turquoise-hsl))] hover:brightness-90 text-white';
     case 'Enviado': return 'bg-purple-500 hover:bg-purple-600 text-white';
     case 'Pendiente': return 'bg-yellow-400 hover:bg-yellow-500 text-black';
     case 'Procesando': return 'bg-orange-400 hover:bg-orange-500 text-black';

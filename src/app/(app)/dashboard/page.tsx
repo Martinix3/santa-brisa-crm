@@ -4,11 +4,12 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import type { Kpi } from "@/types";
-import { TrendingUp, Users, Briefcase, CalendarPlus, Package } from "lucide-react";
+import { TrendingUp, Users, Briefcase, CalendarPlus } from "lucide-react";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, LabelList, PieChart, Pie, Cell, Legend } from "recharts";
 import { Progress } from "@/components/ui/progress";
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
+import { cn } from "@/lib/utils";
 
 // Datos de KPI para el lanzamiento del producto
 const kpiDataLaunch: Kpi[] = [
@@ -21,19 +22,19 @@ const kpiDataLaunch: Kpi[] = [
 // Datos para el gráfico de barras "Distribución de Ventas"
 const ventasDistribucionData = [
   { name: "Ventas Equipo", value: 11200, fill: "hsl(var(--primary))" },
-  { name: "Resto Canales", value: 18500 - 11200, fill: "hsl(var(--secondary))" },
+  { name: "Resto Canales", value: 18500 - 11200, fill: "hsl(var(--brand-turquoise-hsl))" },
 ];
 
 const distributionChartConfig = {
   value: { label: "Botellas" },
   VentasEquipo: { label: "Ventas Equipo", color: "hsl(var(--primary))" },
-  RestoCanales: { label: "Resto Canales", color: "hsl(var(--secondary))" },
+  RestoCanales: { label: "Resto Canales", color: "hsl(var(--brand-turquoise-hsl))" },
 };
 
 
 // Datos para el gráfico de dona "Progreso Ventas del Equipo"
 const progresoVentasEquipoData = [
-  { name: "Alcanzado", value: 11200, color: "hsl(var(--primary))" },
+  { name: "Alcanzado", value: 11200, color: "hsl(var(--brand-turquoise-hsl))" },
   { name: "Faltante", value: 27000 - 11200, color: "hsl(var(--muted))" },
 ];
 
@@ -42,9 +43,6 @@ const progresoCuentasEquipoData = [
   { name: "Alcanzado", value: 95, color: "hsl(var(--brand-turquoise-hsl))" },
   { name: "Faltante", value: 230 - 95, color: "hsl(var(--muted))" },
 ];
-
-const PIE_COLORS = ["hsl(var(--primary))", "hsl(var(--muted))"];
-const PIE_COLORS_SECONDARY = ["hsl(var(--brand-turquoise-hsl))", "hsl(var(--muted))"];
 
 
 export default function DashboardPage() {
@@ -55,6 +53,7 @@ export default function DashboardPage() {
       <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {kpiDataLaunch.map((kpi: Kpi) => {
           const progress = kpi.targetValue > 0 ? (kpi.currentValue / kpi.targetValue) * 100 : 0;
+          const isTurquoiseKpi = ['kpi2', 'kpi3', 'kpi4'].includes(kpi.id);
           return (
             <Card key={kpi.id} className="shadow-subtle hover:shadow-md transition-shadow duration-300">
               <CardHeader className="pb-2">
@@ -70,7 +69,11 @@ export default function DashboardPage() {
                 <p className="text-xs text-muted-foreground">
                   Objetivo: <FormattedNumericValue value={kpi.targetValue} locale="es-ES" /> {kpi.unit}
                 </p>
-                <Progress value={progress} aria-label={`${progress.toFixed(0)}% completado`} className="h-2"/>
+                <Progress 
+                  value={progress} 
+                  aria-label={`${progress.toFixed(0)}% completado`} 
+                  className={cn("h-2", isTurquoiseKpi && "[&>div]:bg-[hsl(var(--brand-turquoise-hsl))]")}
+                />
               </CardContent>
             </Card>
           );

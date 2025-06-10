@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -17,16 +18,16 @@ body {
     --popover: 0 0% 100%;
     --popover-foreground: 215 25% 20%;
 
-    --primary: 30 80% 50%; /* #D97706 Terracotta Orange (adjusted for vibrancy) */
-    --primary-foreground: 30 25% 98%; /* Lighter cream for text on primary (slightly brighter than background) */
+    --primary: 45 100% 58%; /* Pantone 122 C (Yellow) */
+    --primary-foreground: 45 100% 15%; /* Darker for text on yellow */
 
-    --secondary: 174 60% 88%; /* Lighter Turquoise for secondary backgrounds */
-    --secondary-foreground: 174 75% 28%; /* Darker Turquoise text on light turquoise */
+    --secondary: 177 70% 90%; /* Lighter tint of Pantone 324 C for backgrounds */
+    --secondary-foreground: 177 100% 20%; /* Darker shade for text on light secondary */
 
     --muted: 30 25% 90%; /* Lighter cream, derived from background */
     --muted-foreground: 215 25% 45%; /* Slightly lighter dark gray for muted text */
 
-    --accent: 45 95% 58%; /* #FBBF24 Sunny Yellow */
+    --accent: 45 95% 58%; /* #FBBF24 Sunny Yellow (Note: now very similar to primary) */
     --accent-foreground: 215 25% 15%; /* Darker text on yellow for contrast */
 
     --destructive: 0 75% 55%; 
@@ -34,24 +35,24 @@ body {
 
     --border: 30 20% 88%; /* Border color, subtle, related to background */
     --input: 0 0% 100%; /* Input background, white for clarity */
-    --ring: 30 80% 55%; /* Ring color, slightly brighter terracotta for focus */
+    --ring: 45 100% 60%; /* Ring color, slightly brighter yellow for focus */
 
     --radius: 0.5rem; /* For rounded corners */
 
     /* Custom brand colors for direct use if needed, ensure HSL format for CSS vars */
-    --brand-turquoise-hsl: 174 80% 40%;
-    --brand-terracotta-hsl: 30 80% 50%; /* Same as primary */
+    --brand-turquoise-hsl: 177 100% 35%; /* Pantone 324 C (Teal) */
+    --brand-terracotta-hsl: 45 100% 58%; /* Was Terracotta, now matches new Primary Yellow */
     --brand-yellow-hsl: 45 95% 58%; /* Same as accent */
 
     /* Sidebar specific theme variables */
     --sidebar-background: 220 15% 15%; /* Darker, sophisticated sidebar bg */
     --sidebar-foreground: 30 20% 85%; /* Light text for sidebar */
-    --sidebar-primary: 30 80% 60%; /* Brighter Terracotta for active/hover in sidebar */
-    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-primary: 45 100% 65%; /* Brighter Yellow for active/hover in sidebar */
+    --sidebar-primary-foreground: 45 100% 10%;
     --sidebar-accent: 220 15% 25%; /* Hover/active background for sidebar items */
     --sidebar-accent-foreground: 0 0% 100%;
     --sidebar-border: 220 15% 30%;
-    --sidebar-ring: 30 80% 60%;
+    --sidebar-ring: 45 100% 65%;
   }
 
   .dark {
@@ -65,16 +66,16 @@ body {
     --popover: 215 28% 17%;
     --popover-foreground: 210 40% 96%;
 
-    --primary: 30 75% 58%; /* Terracotta, slightly adjusted for dark mode */
-    --primary-foreground: 210 40% 5%; /* Very dark text on primary for contrast */
+    --primary: 45 90% 60%; /* Pantone 122 C (Yellow), adjusted for dark mode */
+    --primary-foreground: 45 100% 10%; /* Very dark text on yellow for contrast */
     
-    --secondary: 174 70% 35%; /* Darker Turquoise */
-    --secondary-foreground: 174 65% 80%; /* Lighter Turquoise text */
+    --secondary: 177 80% 40%; /* Pantone 324 C (Teal), darker themed version */
+    --secondary-foreground: 177 70% 85%; /* Lighter Teal text for dark secondary */
 
     --muted: 215 28% 25%;
     --muted-foreground: 210 40% 60%; 
 
-    --accent: 45 90% 60%; /* Yellow, slightly adjusted */
+    --accent: 45 90% 60%; /* Yellow, slightly adjusted (Note: similar to primary) */
     --accent-foreground: 35 90% 10%; /* Dark brown/black text on yellow */
 
     --destructive: 0 60% 50%;
@@ -82,17 +83,17 @@ body {
 
     --border: 215 28% 28%;
     --input: 215 28% 25%;
-    --ring: 30 75% 60%;
+    --ring: 45 90% 62%; /* Ring color for dark mode, yellow */
 
     /* Sidebar specific theme variables for dark mode */
     --sidebar-background: 215 30% 12%; /* Even darker sidebar for dark mode */
     --sidebar-foreground: 210 30% 80%; 
-    --sidebar-primary: 30 75% 65%; 
-    --sidebar-primary-foreground: 0 0% 0%;
+    --sidebar-primary: 45 90% 68%; /* Yellow for sidebar in dark mode */
+    --sidebar-primary-foreground: 45 100% 5%;
     --sidebar-accent: 215 30% 20%;
     --sidebar-accent-foreground: 0 0% 100%;
     --sidebar-border: 215 30% 22%;
-    --sidebar-ring: 30 75% 65%;
+    --sidebar-ring: 45 90% 68%;
   }
 }
 

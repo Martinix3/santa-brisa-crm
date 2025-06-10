@@ -35,11 +35,7 @@ export default function TeamTrackingPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[250px]">Representante</TableHead>
-                <TableHead className="text-right">Botellas Vendidas</TableHead> {/* Encabezado actualizado */}
-                <TableHead className="text-right">Pedidos</TableHead>
-                <TableHead className="text-right">Visitas</TableHead>
-                <TableHead className="w-[200px] text-center">Tendencia Mensual (Botellas)</TableHead> {/* Encabezado actualizado */}
+                <TableHead className="w-[250px]">Representante</TableHead><TableHead className="text-right">Botellas Vendidas</TableHead><TableHead className="text-right">Pedidos</TableHead><TableHead className="text-right">Visitas</TableHead><TableHead className="w-[200px] text-center">Tendencia Mensual (Botellas)</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -123,3 +119,4 @@ export default function TeamTrackingPage() {
     </div>
   );
 }
+

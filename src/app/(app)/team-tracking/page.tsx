@@ -56,13 +56,9 @@ export default function TeamTrackingPage() {
                         <p className="text-xs text-muted-foreground">{member.role}</p>
                       </div>
                     </div>
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    <FormattedNumericValue value={member.bottlesSold} locale="es-ES" options={{ style: undefined, currency: undefined }}/> {/* bottlesSold y sin formato de moneda */}
-                  </TableCell>
-                  <TableCell className="text-right">{member.orders}</TableCell>
-                  <TableCell className="text-right">{member.visits}</TableCell>
-                  <TableCell className="p-0 h-[60px]">
+                  </TableCell><TableCell className="text-right font-medium">
+                    <FormattedNumericValue value={member.bottlesSold} locale="es-ES" options={{ style: undefined, currency: undefined }}/>
+                  </TableCell><TableCell className="text-right">{member.orders}</TableCell><TableCell className="text-right">{member.visits}</TableCell><TableCell className="p-0 h-[60px]">
                     <ChartContainer config={chartConfig('hsl(var(--primary))')} className="h-full w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={member.performanceData.map(d => ({...d, month: d.month.substring(0,3)}))} margin={{ top: 10, right: 5, left: 5, bottom: 0 }}>

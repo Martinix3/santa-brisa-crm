@@ -89,13 +89,3 @@ export const mockMarketingResources: MarketingResourceCategory[] = [
     ],
   },
 ];
-
-export const salesData = [
-  { name: 'Jan', totalSales: Math.floor(Math.random() * 50000) + 10000 },
-  { name: 'Feb', totalSales: Math.floor(Math.random() * 50000) + 10000 },
-  { name: 'Mar', totalSales: Math.floor(Math.random() * 50000) + 10000 },
-  { name: 'Apr', totalSales: Math.floor(Math.random() * 50000) + 10000 },
-  { name: 'May', totalSales: Math.floor(Math.random() * 10000) + 60000 }, // Spike in May
-  { name: 'Jun', totalSales: Math.floor(Math.random() * 50000) + 10000 },
-  { name: 'Jul', totalSales: Math.floor(Math.random() * 50000) + 10000 },
-];

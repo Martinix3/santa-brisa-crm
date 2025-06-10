@@ -1,30 +1,31 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
 
 interface FormattedNumericValueProps {
-  value: number;
+  value: number | undefined | null;
   options?: Intl.NumberFormatOptions;
   locale?: string;
+  placeholder?: string;
 }
 
-const FormattedNumericValue: React.FC<FormattedNumericValueProps> = ({ value, options, locale }) => {
+const FormattedNumericValue: React.FC<FormattedNumericValueProps> = ({ value, options, locale, placeholder = "N/A" }) => {
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    // This effect runs only on the client, after the component has mounted.
     setIsClient(true);
-  }, []); // Empty dependency array ensures this runs once on mount.
+  }, []);
+
+  if (typeof value !== 'number' || isNaN(value)) {
+    return <>{placeholder}</>;
+  }
 
   if (!isClient) {
-    // On the server, and on the client before the useEffect runs,
-    // render the value as a simple string.
+    // Render a simpler, consistent version for SSR and initial client render
+    // Or, if values are large and formatting is critical, consider rendering a placeholder/spinner initially
     return <>{value.toString()}</>;
   }
 
-  // After the component has mounted on the client (isClient is true),
-  // render the locale-formatted string.
   return <>{value.toLocaleString(locale, options)}</>;
 };
 

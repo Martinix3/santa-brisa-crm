@@ -1,11 +1,15 @@
+
 export interface Kpi {
   id: string;
   title: string;
-  value: string;
+  currentValue: number;
+  targetValue: number;
+  unit: string; // e.g., "botellas", "cuentas"
   icon?: React.ElementType;
-  trend?: 'up' | 'down' | 'neutral';
-  trendValue?: string;
-  colorClass?: string; 
+  // Remove trend-related properties if not used by new KPIs
+  // trend?: 'up' | 'down' | 'neutral';
+  // trendValue?: string;
+  // colorClass?: string; 
 }
 
 export interface StrategicObjective {

@@ -1,3 +1,4 @@
+
 import type React from 'react';
 import Image from 'next/image';
 
@@ -12,10 +13,10 @@ const Logo: React.FC<LogoProps> = (props) => (
     aria-label="Logotipo de Santa Brisa CRM"
   >
     <Image
-      src="/logo-santa-brisa-dark.png" // Assumes image is in public/logo-santa-brisa-dark.png
-      alt="Santa Brisa"
-      width={119} // Based on aspect ratio of provided image (e.g., 1190x284 -> 119x28.4)
-      height={28}
+      src="https://santabrisa.com/cdn/shop/files/clavista_300x.svg?v=1742854903"
+      alt="Santa Brisa Clavadista Logo"
+      width={30} // Adjusted for the new SVG's aspect ratio and desired display size
+      height={32} // Adjusted for the new SVG's aspect ratio and desired display size
       priority // Good for LCP if the logo is visible above the fold
       {...props} // Spread any additional props if passed
     />

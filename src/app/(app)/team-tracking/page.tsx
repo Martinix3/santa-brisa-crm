@@ -1,5 +1,7 @@
+
 "use client";
 
+import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -8,6 +10,7 @@ import { mockTeamMembers } from "@/lib/data";
 import { TrendingUp, DollarSign, ShoppingCart, Users } from 'lucide-react';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Line, LineChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
+import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 
 const chartConfig = (color: string) => ({
   sales: {
@@ -17,6 +20,9 @@ const chartConfig = (color: string) => ({
 });
 
 export default function TeamTrackingPage() {
+  const teamTotalSalesValue = useMemo(() => mockTeamMembers.reduce((sum, m) => sum + m.sales, 0), []);
+  const teamTotalOrdersValue = useMemo(() => mockTeamMembers.reduce((sum, m) => sum + m.orders, 0), []);
+
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-headline font-semibold">Team Tracking</h1>
@@ -51,7 +57,9 @@ export default function TeamTrackingPage() {
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell className="text-right font-medium">${member.sales.toLocaleString()}</TableCell>
+                  <TableCell className="text-right font-medium">
+                    $<FormattedNumericValue value={member.sales} />
+                  </TableCell>
                   <TableCell className="text-right">{member.orders}</TableCell>
                   <TableCell className="text-right">{member.visits}</TableCell>
                   <TableCell className="p-0 h-[60px]">
@@ -82,7 +90,9 @@ export default function TeamTrackingPage() {
             <DollarSign className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${mockTeamMembers.reduce((sum, m) => sum + m.sales, 0).toLocaleString()}</div>
+            <div className="text-2xl font-bold">
+              $<FormattedNumericValue value={teamTotalSalesValue} />
+            </div>
             <p className="text-xs text-muted-foreground">+12% from last month</p>
           </CardContent>
         </Card>
@@ -92,7 +102,9 @@ export default function TeamTrackingPage() {
             <ShoppingCart className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockTeamMembers.reduce((sum, m) => sum + m.orders, 0).toLocaleString()}</div>
+            <div className="text-2xl font-bold">
+              <FormattedNumericValue value={teamTotalOrdersValue} />
+            </div>
             <p className="text-xs text-muted-foreground">+8% from last month</p>
           </CardContent>
         </Card>

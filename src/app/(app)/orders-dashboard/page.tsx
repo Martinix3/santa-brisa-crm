@@ -1,3 +1,4 @@
+
 "use client";
 import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -6,15 +7,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Order, OrderStatus } from "@/types";
-import { mockOrders } from "@/lib/data";
-import { MoreHorizontal, Eye, Edit, Trash2, Filter, CalendarDays, ChevronDown } from "lucide-react";
+import type { Order, OrderStatus } from "@/types";
+import { mockOrders, orderStatusesList } from "@/lib/data";
+import { MoreHorizontal, Eye, Edit, Trash2, Filter, CalendarDays, ChevronDown, Check } from "lucide-react";
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format, addDays, parseISO } from "date-fns";
 import { es } from 'date-fns/locale';
 import { cn } from "@/lib/utils";
+import EditOrderDialog from "@/components/app/edit-order-dialog";
+import type { EditOrderFormValues } from "@/components/app/edit-order-dialog";
+import { useToast } from "@/hooks/use-toast";
 
 const getStatusBadgeColor = (status: OrderStatus): string => {
   switch (status) {
@@ -31,6 +35,7 @@ const getStatusBadgeColor = (status: OrderStatus): string => {
 
 
 export default function OrdersDashboardPage() {
+  const { toast } = useToast();
   const [orders, setOrders] = React.useState<Order[]>(mockOrders);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<OrderStatus | "Todos">("Todos");
@@ -38,6 +43,9 @@ export default function OrdersDashboardPage() {
     from: addDays(new Date(), -30),
     to: new Date(),
   });
+
+  const [editingOrder, setEditingOrder] = React.useState<Order | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
 
   const uniqueStatuses = ["Todos", ...Array.from(new Set(mockOrders.map(order => order.status)))] as (OrderStatus | "Todos")[];
 
@@ -50,11 +58,51 @@ export default function OrdersDashboardPage() {
     .filter(order => statusFilter === "Todos" || order.status === statusFilter)
     .filter(order => {
       if (!dateRange?.from) return true;
-      const orderDate = parseISO(order.visitDate);
+      const orderDate = parseISO(order.visitDate); // visitDate is already string 'yyyy-MM-dd'
       const fromDate = dateRange.from;
       const toDate = dateRange.to ? addDays(dateRange.to,1) : addDays(new Date(), 1) ; 
       return orderDate >= fromDate && orderDate < toDate;
     });
+
+  const handleEditClick = (order: Order) => {
+    setEditingOrder(order);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateOrder = (updatedData: EditOrderFormValues, orderId: string) => {
+    const orderIndex = mockOrders.findIndex(o => o.id === orderId);
+    if (orderIndex === -1) {
+      console.error("Pedido no encontrado para actualizar:", orderId);
+      toast({ title: "Error", description: "No se pudo encontrar el pedido para actualizar.", variant: "destructive" });
+      return;
+    }
+
+    const updatedOrder: Order = {
+      ...mockOrders[orderIndex],
+      clientName: updatedData.clientName,
+      products: updatedData.products.split(/[,;\n]+/).map(p => p.trim()).filter(p => p.length > 0),
+      value: updatedData.value,
+      status: updatedData.status,
+      lastUpdated: format(new Date(), "yyyy-MM-dd"),
+    };
+
+    mockOrders[orderIndex] = updatedOrder;
+    setOrders([...mockOrders]); // Actualizar el estado local para re-renderizar la tabla
+    setIsEditDialogOpen(false);
+    setEditingOrder(null);
+
+    toast({
+      title: "¡Pedido Actualizado!",
+      description: (
+        <div className="flex items-start">
+          <Check className="h-5 w-5 text-green-500 mr-2 mt-1" />
+          <p>Pedido {updatedOrder.id} actualizado exitosamente.</p>
+        </div>
+      ),
+      variant: "default",
+    });
+  };
+
 
   return (
     <div className="space-y-6">
@@ -169,7 +217,9 @@ export default function OrdersDashboardPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem><Eye className="mr-2 h-4 w-4" /> Ver Detalles</DropdownMenuItem>
-                          <DropdownMenuItem><Edit className="mr-2 h-4 w-4" /> Editar Pedido</DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => handleEditClick(order)}>
+                            <Edit className="mr-2 h-4 w-4" /> Editar Pedido
+                          </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">
                             <Trash2 className="mr-2 h-4 w-4" /> Eliminar Pedido
@@ -191,6 +241,14 @@ export default function OrdersDashboardPage() {
           </div>
         </CardContent>
       </Card>
+      {editingOrder && (
+        <EditOrderDialog
+          order={editingOrder}
+          isOpen={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          onSave={handleUpdateOrder}
+        />
+      )}
     </div>
   );
 }

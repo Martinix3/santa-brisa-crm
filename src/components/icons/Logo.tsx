@@ -15,8 +15,8 @@ const Logo: React.FC<LogoProps> = () => (
     <Image
       src="https://santabrisa.com/cdn/shop/files/clavista_300x.svg?v=1742854903"
       alt="Santa Brisa Clavadista Logo"
-      width={50} // Increased size
-      height={50} // Increased size
+      width={300} 
+      height={300}
       priority 
       unoptimized={true} // Bypass Next.js image optimization for this SVG
     />

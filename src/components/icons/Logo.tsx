@@ -6,7 +6,7 @@ interface LogoProps {
   // You can add any specific props if needed in the future
 }
 
-const Logo: React.FC<LogoProps> = (props) => (
+const Logo: React.FC<LogoProps> = () => (
   <div
     className="inline-flex items-center justify-center p-2 rounded-md"
     style={{ backgroundColor: 'hsl(var(--primary))' }}
@@ -15,10 +15,10 @@ const Logo: React.FC<LogoProps> = (props) => (
     <Image
       src="https://santabrisa.com/cdn/shop/files/clavista_300x.svg?v=1742854903"
       alt="Santa Brisa Clavadista Logo"
-      width={30} // Adjusted for the new SVG's aspect ratio and desired display size
-      height={32} // Adjusted for the new SVG's aspect ratio and desired display size
-      priority // Good for LCP if the logo is visible above the fold
-      {...props} // Spread any additional props if passed
+      width={50} // Increased size
+      height={50} // Increased size
+      priority 
+      unoptimized={true} // Bypass Next.js image optimization for this SVG
     />
   </div>
 );

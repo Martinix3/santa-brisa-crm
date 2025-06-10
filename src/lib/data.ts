@@ -18,7 +18,7 @@ export const mockStrategicObjectives: StrategicObjective[] = [
 
 export const mockTeamMembers: TeamMember[] = [
   {
-    id: 'tm1', name: 'Elena Rodriguez', avatarUrl: 'https://placehold.co/100x100.png', role: 'Rep. de Ventas Senior',
+    id: 'tm1', name: 'Nico', avatarUrl: 'https://placehold.co/100x100.png', role: 'Rep. de Ventas Senior',
     bottlesSold: 3250, orders: 120, visits: 250, 
     performanceData: [ 
       { month: 'Enero', bottles: 450 }, { month: 'Febrero', bottles: 500 }, { month: 'Marzo', bottles: 520 },
@@ -26,7 +26,7 @@ export const mockTeamMembers: TeamMember[] = [
     ],
   },
   {
-    id: 'tm2', name: 'Marcus Chen', avatarUrl: 'https://placehold.co/100x100.png', role: 'Rep. de Ventas',
+    id: 'tm2', name: 'Alfonso', avatarUrl: 'https://placehold.co/100x100.png', role: 'Rep. de Ventas',
     bottlesSold: 2800, orders: 95, visits: 180, 
     performanceData: [ 
       { month: 'Enero', bottles: 380 }, { month: 'Febrero', bottles: 420 }, { month: 'Marzo', bottles: 450 },
@@ -34,7 +34,7 @@ export const mockTeamMembers: TeamMember[] = [
     ],
   },
   {
-    id: 'tm3', name: 'Aisha Khan', avatarUrl: 'https://placehold.co/100x100.png', role: 'Rep. de Ventas Junior',
+    id: 'tm3', name: 'Federica', avatarUrl: 'https://placehold.co/100x100.png', role: 'Rep. de Ventas Junior',
     bottlesSold: 1500, orders: 60, visits: 120, 
     performanceData: [ 
       { month: 'Enero', bottles: 200 }, { month: 'Febrero', bottles: 220 }, { month: 'Marzo', bottles: 250 },
@@ -45,7 +45,7 @@ export const mockTeamMembers: TeamMember[] = [
 
 export const orderStatusesList: OrderStatus[] = ['Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Cancelado', 'Fallido'];
 const clientNames = ['Café Central', 'Restaurante del Sol', 'El Rincón Diario', 'Bistró Vista al Mar', 'Café Cima de Montaña'];
-const salesReps = ['Elena Rodriguez', 'Marcus Chen', 'Aisha Khan'];
+const salesReps = ['Nico', 'Alfonso', 'Federica'];
 
 export const mockOrders: Order[] = Array.from({ length: 25 }, (_, i) => {
   const date = new Date(2024, 5 - Math.floor(i / 5), 28 - (i % 28) + 1); 
@@ -91,3 +91,4 @@ export const mockMarketingResources: MarketingResourceCategory[] = [
     ],
   },
 ];
+

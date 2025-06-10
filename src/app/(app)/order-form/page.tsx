@@ -112,6 +112,7 @@ export default function OrderFormPage() {
     resolver: zodResolver(orderFormSchema),
     defaultValues: {
       clientName: "",
+      orderValue: '', // Initialize as empty string to make it controlled
       productsOrdered: "",
       reasonForFailure: "",
       nombreFiscal: "",

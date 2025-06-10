@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -16,7 +17,6 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -24,16 +24,29 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { es } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Check, Loader2 } from "lucide-react";
+import { Calendar as CalendarIcon, Check, Loader2, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Separator } from "@/components/ui/separator";
 
 const orderFormSchema = z.object({
   clientName: z.string().min(2, "El nombre del cliente debe tener al menos 2 caracteres."),
   visitDate: z.date({ required_error: "La fecha de visita es obligatoria." }),
   outcome: z.enum(["successful", "failed", "follow-up"], { required_error: "Por favor, seleccione un resultado." }),
+  // Campos para resultado exitoso (pedido)
   productsOrdered: z.string().optional(),
   orderValue: z.coerce.number().positive("El valor del pedido debe ser positivo.").optional(),
+  // Campos para resultado fallido
   reasonForFailure: z.string().optional(),
+  // Campos para alta de cliente (si resultado es exitoso)
+  nombreFiscal: z.string().optional(),
+  cif: z.string().optional(),
+  direccionFiscal: z.string().optional(),
+  direccionEntrega: z.string().optional(),
+  contactoNombre: z.string().optional(),
+  contactoCorreo: z.string().email("El formato del correo electrónico no es válido.").optional(),
+  contactoTelefono: z.string().optional(),
+  observacionesAlta: z.string().optional(),
+  // Notas generales
   notes: z.string().optional(),
 }).superRefine((data, ctx) => {
   if (data.outcome === "successful") {
@@ -50,6 +63,34 @@ const orderFormSchema = z.object({
         message: "El valor del pedido es obligatorio y debe ser positivo para un resultado exitoso.",
         path: ["orderValue"],
       });
+    }
+    // Validaciones para campos de alta de cliente
+    if (!data.nombreFiscal || data.nombreFiscal.trim() === "") {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El nombre fiscal es obligatorio.", path: ["nombreFiscal"] });
+    }
+    if (!data.cif || data.cif.trim() === "") {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El CIF es obligatorio.", path: ["cif"] });
+    }
+    if (!data.direccionFiscal || data.direccionFiscal.trim() === "") {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La dirección fiscal es obligatoria.", path: ["direccionFiscal"] });
+    }
+    if (!data.direccionEntrega || data.direccionEntrega.trim() === "") {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La dirección de entrega es obligatoria.", path: ["direccionEntrega"] });
+    }
+    if (!data.contactoNombre || data.contactoNombre.trim() === "") {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El nombre de contacto es obligatorio.", path: ["contactoNombre"] });
+    }
+    if (!data.contactoCorreo || data.contactoCorreo.trim() === "") {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El correo de contacto es obligatorio.", path: ["contactoCorreo"] });
+    } else {
+        // Re-validar formato email aquí porque el .email() de Zod puede no ejecutarse si el campo es opcional y está vacío inicialmente
+        const emailValidation = z.string().email().safeParse(data.contactoCorreo);
+        if (!emailValidation.success) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El formato del correo de contacto no es válido.", path: ["contactoCorreo"] });
+        }
+    }
+    if (!data.contactoTelefono || data.contactoTelefono.trim() === "") {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El teléfono de contacto es obligatorio.", path: ["contactoTelefono"] });
     }
   }
   if (data.outcome === "failed" && (!data.reasonForFailure || data.reasonForFailure.trim() === "")) {
@@ -73,6 +114,14 @@ export default function OrderFormPage() {
       clientName: "",
       productsOrdered: "",
       reasonForFailure: "",
+      nombreFiscal: "",
+      cif: "",
+      direccionFiscal: "",
+      direccionEntrega: "",
+      contactoNombre: "",
+      contactoCorreo: "",
+      contactoTelefono: "",
+      observacionesAlta: "",
       notes: "",
     },
   });
@@ -81,7 +130,8 @@ export default function OrderFormPage() {
 
   async function onSubmit(values: OrderFormValues) {
     setIsSubmitting(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // Simular llamada a API
+    await new Promise(resolve => setTimeout(resolve, 1500)); 
     console.log(values);
     toast({
       title: "¡Formulario Enviado!",
@@ -204,6 +254,11 @@ export default function OrderFormPage() {
 
               {outcome === "successful" && (
                 <>
+                  <Separator className="my-6" />
+                  <div className="space-y-1">
+                    <h3 className="text-lg font-medium">Detalles del Pedido</h3>
+                    <p className="text-sm text-muted-foreground">Información sobre los productos y valor del pedido.</p>
+                  </div>
                   <FormField
                     control={form.control}
                     name="productsOrdered"
@@ -222,10 +277,125 @@ export default function OrderFormPage() {
                     name="orderValue"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Valor del Pedido ($)</FormLabel>
+                        <FormLabel>Valor del Pedido (€)</FormLabel>
                         <FormControl>
-                          <Input type="number" placeholder="p. ej., 250.75" {...field} />
+                          <Input type="number" step="0.01" placeholder="p. ej., 250.75" {...field} />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <Separator className="my-6" />
+                  <div className="space-y-1">
+                    <h3 className="text-lg font-medium">Información de Alta del Cliente</h3>
+                    <p className="text-sm text-muted-foreground">Complete estos datos si es un cliente nuevo o necesita actualizar la información.</p>
+                  </div>
+                  
+                  <FormField
+                    control={form.control}
+                    name="nombreFiscal"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nombre Fiscal</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Nombre legal completo de la empresa" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="cif"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>CIF</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Número de Identificación Fiscal" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="direccionFiscal"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Dirección Fiscal</FormLabel>
+                        <FormControl>
+                          <Textarea placeholder="Calle, número, piso, ciudad, código postal, provincia" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="direccionEntrega"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Dirección de Entrega</FormLabel>
+                        <FormControl>
+                          <Textarea placeholder="Si es diferente a la fiscal: calle, número, piso, ciudad, código postal, provincia" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Separator className="my-4" />
+                   <h4 className="text-md font-medium mb-2">Datos de Contacto</h4>
+                  <FormField
+                    control={form.control}
+                    name="contactoNombre"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nombre de Contacto</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Persona de contacto principal" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="contactoCorreo"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Correo Electrónico de Contacto</FormLabel>
+                        <FormControl>
+                          <Input type="email" placeholder="ejemplo@empresa.com" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="contactoTelefono"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Teléfono de Contacto</FormLabel>
+                        <FormControl>
+                          <Input type="tel" placeholder="Número de teléfono" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                   <Separator className="my-4" />
+                  <FormField
+                    control={form.control}
+                    name="observacionesAlta"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Observaciones (Alta Cliente)</FormLabel>
+                        <FormControl>
+                          <Textarea placeholder="Cualquier detalle adicional para el alta del cliente..." {...field} />
+                        </FormControl>
+                        <FormDescription>Este campo es opcional.</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -254,10 +424,11 @@ export default function OrderFormPage() {
                 name="notes"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Notas Adicionales</FormLabel>
+                    <FormLabel>Notas Adicionales Generales</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Cualquier otra información relevante..." {...field} />
+                      <Textarea placeholder="Cualquier otra información relevante sobre la visita o pedido..." {...field} />
                     </FormControl>
+                     <FormDescription>Notas generales sobre la visita, independientemente del resultado.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -281,3 +452,4 @@ export default function OrderFormPage() {
     </div>
   );
 }
+

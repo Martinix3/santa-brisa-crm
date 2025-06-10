@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -10,31 +11,31 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, LabelL
 import { Progress } from "@/components/ui/progress";
 
 const chartConfig = {
-  totalSales: {
-    label: "Ventas Totales",
+  totalBottles: { // Cambiado de totalSales a totalBottles
+    label: "Botellas Vendidas", // Etiqueta actualizada
     color: "hsl(var(--primary))",
   },
 };
 
-interface SalesDataItem {
+interface BottlesDataItem { // Cambiado de SalesDataItem a BottlesDataItem
   name: string;
-  totalSales: number;
+  totalBottles: number; // Cambiado de totalSales a totalBottles
 }
 
 export default function DashboardPage() {
-  const [currentSalesData, setCurrentSalesData] = useState<SalesDataItem[]>([]);
+  const [currentBottlesData, setCurrentBottlesData] = useState<BottlesDataItem[]>([]); // Cambiado de currentSalesData
 
   useEffect(() => {
-    const generateSalesData = (): SalesDataItem[] => {
+    const generateBottlesData = (): BottlesDataItem[] => { // Cambiado de generateSalesData
       const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul'];
       return months.map(month => ({
         name: month,
-        totalSales: month === 'May' 
-                      ? Math.floor(Math.random() * 10000) + 60000 
-                      : Math.floor(Math.random() * 50000) + 10000
+        totalBottles: month === 'May' // Cambiado de totalSales
+                      ? Math.floor(Math.random() * 500) + 1200 // Valores ajustados para botellas
+                      : Math.floor(Math.random() * 1000) + 200 // Valores ajustados para botellas
       }));
     };
-    setCurrentSalesData(generateSalesData());
+    setCurrentBottlesData(generateBottlesData()); // Cambiado de setCurrentSalesData
   }, []);
 
   const completedObjectives = mockStrategicObjectives.filter(obj => obj.completed).length;
@@ -70,20 +71,20 @@ export default function DashboardPage() {
       <section className="grid gap-6 md:grid-cols-2">
         <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
           <CardHeader>
-            <CardTitle>Rendimiento Mensual de Ventas</CardTitle>
-            <CardDescription>Resumen de las ventas totales de los últimos meses.</CardDescription>
+            <CardTitle>Rendimiento Mensual de Botellas</CardTitle> {/* Título actualizado */}
+            <CardDescription>Resumen de las botellas vendidas en los últimos meses.</CardDescription> {/* Descripción actualizada */}
           </CardHeader>
           <CardContent className="h-[300px] pr-0">
-            {currentSalesData.length > 0 ? (
+            {currentBottlesData.length > 0 ? ( // Cambiado de currentSalesData
               <ChartContainer config={chartConfig} className="h-full w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={currentSalesData} margin={{ top: 20, right: 10, left: -20, bottom: 5 }}>
+                  <BarChart data={currentBottlesData} margin={{ top: 20, right: 10, left: -20, bottom: 5 }}> {/* Cambiado data */}
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} />
-                    <YAxis tickLine={false} axisLine={false} tickMargin={8} tickFormatter={(value) => `$${value / 1000}k`} />
+                    <YAxis tickLine={false} axisLine={false} tickMargin={8} tickFormatter={(value) => `${value / 1000}k`} /> {/* Formato ajustado para números grandes de botellas */}
                     <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dot" />} />
-                    <Bar dataKey="totalSales" fill="var(--color-totalSales)" radius={4}>
-                       <LabelList dataKey="totalSales" position="top" offset={8} className="fill-foreground" fontSize={12} formatter={(value: number) => `$${(value / 1000).toFixed(1)}k`} />
+                    <Bar dataKey="totalBottles" fill="var(--color-totalBottles)" radius={4}> {/* dataKey y fill actualizados */}
+                       <LabelList dataKey="totalBottles" position="top" offset={8} className="fill-foreground" fontSize={12} formatter={(value: number) => `${(value / 1000).toFixed(1)}k`} /> {/* Formato ajustado */}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>

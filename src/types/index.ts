@@ -19,10 +19,10 @@ export interface TeamMember {
   name: string;
   avatarUrl: string;
   role: string;
-  sales: number;
+  bottlesSold: number; // Cambiado de sales a bottlesSold
   orders: number;
   visits: number;
-  performanceData: { month: string; sales: number }[];
+  performanceData: { month: string; bottles: number }[]; // Cambiado de sales a bottles
 }
 
 export type OrderStatus = 'Pendiente' | 'Confirmado' | 'Enviado' | 'Procesando' | 'Entregado' | 'Cancelado' | 'Fallido';
@@ -32,7 +32,7 @@ export interface Order {
   clientName: string;
   visitDate: string;
   products: string[];
-  value: number;
+  value: number; // Esto sigue siendo valor monetario del pedido
   status: OrderStatus;
   salesRep: string;
   lastUpdated: string;

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useMemo } from 'react';
@@ -14,7 +13,7 @@ import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 
 const chartConfig = (color: string) => ({
   sales: {
-    label: "Sales",
+    label: "Ventas",
     color: color,
   },
 });
@@ -25,21 +24,21 @@ export default function TeamTrackingPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-headline font-semibold">Team Tracking</h1>
+      <h1 className="text-3xl font-headline font-semibold">Seguimiento de Equipo</h1>
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
-          <CardTitle>Sales Team Performance</CardTitle>
-          <CardDescription>Individual performance metrics for each sales representative.</CardDescription>
+          <CardTitle>Rendimiento del Equipo de Ventas</CardTitle>
+          <CardDescription>Métricas de rendimiento individual para cada representante de ventas.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[250px]">Representative</TableHead>
-                <TableHead className="text-right">Total Sales</TableHead>
-                <TableHead className="text-right">Orders</TableHead>
-                <TableHead className="text-right">Visits</TableHead>
-                <TableHead className="w-[200px] text-center">Monthly Trend</TableHead>
+                <TableHead className="w-[250px]">Representante</TableHead>
+                <TableHead className="text-right">Ventas Totales</TableHead>
+                <TableHead className="text-right">Pedidos</TableHead>
+                <TableHead className="text-right">Visitas</TableHead>
+                <TableHead className="w-[200px] text-center">Tendencia Mensual</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -58,19 +57,24 @@ export default function TeamTrackingPage() {
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-medium">
-                    $<FormattedNumericValue value={member.sales} />
+                    $<FormattedNumericValue value={member.sales} locale="es-ES" />
                   </TableCell>
                   <TableCell className="text-right">{member.orders}</TableCell>
                   <TableCell className="text-right">{member.visits}</TableCell>
                   <TableCell className="p-0 h-[60px]">
                     <ChartContainer config={chartConfig('hsl(var(--primary))')} className="h-full w-full">
                       <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={member.performanceData} margin={{ top: 10, right: 5, left: 5, bottom: 0 }}>
+                        <LineChart data={member.performanceData.map(d => ({...d, month: d.month.substring(0,3)}))} margin={{ top: 10, right: 5, left: 5, bottom: 0 }}>
                           <Line type="monotone" dataKey="sales" stroke="var(--color-sales)" strokeWidth={2} dot={false} />
                           <Tooltip 
                             cursor={{stroke: 'hsl(var(--border))', strokeWidth: 1, strokeDasharray: '3 3'}}
                             contentStyle={{backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)'}}
                             itemStyle={{color: 'hsl(var(--foreground))'}}
+                            formatter={(value: number) => [`$${value.toLocaleString('es-ES')}`, 'Ventas']}
+                            labelFormatter={(label: string) => {
+                                const monthMap: { [key: string]: string } = { Ene: 'Enero', Feb: 'Febrero', Mar: 'Marzo', Abr: 'Abril', May: 'Mayo', Jun: 'Junio', Jul: 'Julio', Ago: 'Agosto', Sep: 'Septiembre', Oct: 'Octubre', Nov: 'Noviembre', Dic: 'Diciembre'};
+                                return monthMap[label] || label;
+                            }}
                           />
                         </LineChart>
                       </ResponsiveContainer>
@@ -86,36 +90,36 @@ export default function TeamTrackingPage() {
       <div className="grid gap-6 md:grid-cols-3">
         <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Team Total Sales</CardTitle>
+            <CardTitle className="text-sm font-medium">Ventas Totales del Equipo</CardTitle>
             <DollarSign className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              $<FormattedNumericValue value={teamTotalSalesValue} />
+              $<FormattedNumericValue value={teamTotalSalesValue} locale="es-ES" />
             </div>
-            <p className="text-xs text-muted-foreground">+12% from last month</p>
+            <p className="text-xs text-muted-foreground">+12% del último mes</p>
           </CardContent>
         </Card>
         <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Team Total Orders</CardTitle>
+            <CardTitle className="text-sm font-medium">Pedidos Totales del Equipo</CardTitle>
             <ShoppingCart className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              <FormattedNumericValue value={teamTotalOrdersValue} />
+              <FormattedNumericValue value={teamTotalOrdersValue} locale="es-ES" />
             </div>
-            <p className="text-xs text-muted-foreground">+8% from last month</p>
+            <p className="text-xs text-muted-foreground">+8% del último mes</p>
           </CardContent>
         </Card>
         <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Sales Reps</CardTitle>
+            <CardTitle className="text-sm font-medium">Rep. de Ventas Activos</CardTitle>
             <Users className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{mockTeamMembers.length}</div>
-            <p className="text-xs text-muted-foreground">All reps active</p>
+            <p className="text-xs text-muted-foreground">Todos los reps activos</p>
           </CardContent>
         </Card>
       </div>

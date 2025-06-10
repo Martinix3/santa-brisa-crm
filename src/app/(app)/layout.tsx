@@ -22,18 +22,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/team-tracking', label: 'Team Tracking', icon: Users },
-  { href: '/order-form', label: 'Order Form', icon: FileText },
-  { href: '/orders-dashboard', label: 'Orders Dashboard', icon: ShoppingCart },
-  { href: '/marketing-resources', label: 'Marketing Resources', icon: Library },
+  { href: '/dashboard', label: 'Panel', icon: LayoutDashboard },
+  { href: '/team-tracking', label: 'Seguimiento de Equipo', icon: Users },
+  { href: '/order-form', label: 'Formulario de Pedido', icon: FileText },
+  { href: '/orders-dashboard', label: 'Panel de Pedidos', icon: ShoppingCart },
+  { href: '/marketing-resources', label: 'Recursos de Marketing', icon: Library },
 ];
 
 function MainAppLayout({ children }: { children: React.ReactNode }) {
-  // usePathname must be used in a client component or a component that will be part of one.
-  // The Sidebar component itself is a client component.
-  // We will wrap the navigation logic in a client component.
-
   return (
     <SidebarProvider defaultOpen>
       <Sidebar collapsible="icon" className="border-r border-sidebar-border shadow-lg">
@@ -51,17 +47,17 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
         <SidebarFooter className="p-2">
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton tooltip={{children: "Settings", side: "right"}} asChild>
+              <SidebarMenuButton tooltip={{children: "Configuración", side: "right"}} asChild>
                 <Link href="#">
                   <Settings />
-                  <span>Settings</span>
+                  <span>Configuración</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <SidebarMenuButton tooltip={{children: "Logout", side: "right"}} className="hover:bg-destructive/20 hover:text-destructive">
+              <SidebarMenuButton tooltip={{children: "Cerrar Sesión", side: "right"}} className="hover:bg-destructive/20 hover:text-destructive">
                 <LogOut />
-                <span>Logout</span>
+                <span>Cerrar Sesión</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
@@ -85,7 +81,6 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Client component for navigation to use usePathname
 function AppNavigation() {
   const pathname = usePathname();
   return (
@@ -115,7 +110,7 @@ function UserMenu() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8">
-            <AvatarImage src="https://placehold.co/40x40.png" alt="User avatar" data-ai-hint="user avatar" />
+            <AvatarImage src="https://placehold.co/40x40.png" alt="Avatar de usuario" data-ai-hint="user avatar" />
             <AvatarFallback>SB</AvatarFallback>
           </Avatar>
         </Button>
@@ -123,7 +118,7 @@ function UserMenu() {
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">Santa Brisa User</p>
+            <p className="text-sm font-medium leading-none">Usuario de Santa Brisa</p>
             <p className="text-xs leading-none text-muted-foreground">
               user@santabrisa.com
             </p>
@@ -132,16 +127,16 @@ function UserMenu() {
         <DropdownMenuSeparator />
         <DropdownMenuItem>
           <UserCircle className="mr-2 h-4 w-4" />
-          <span>Profile</span>
+          <span>Perfil</span>
         </DropdownMenuItem>
         <DropdownMenuItem>
           <Settings className="mr-2 h-4 w-4" />
-          <span>Settings</span>
+          <span>Configuración</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem>
           <LogOut className="mr-2 h-4 w-4" />
-          <span>Log out</span>
+          <span>Cerrar sesión</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

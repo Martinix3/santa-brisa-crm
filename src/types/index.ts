@@ -5,7 +5,7 @@ export interface Kpi {
   icon?: React.ElementType;
   trend?: 'up' | 'down' | 'neutral';
   trendValue?: string;
-  colorClass?: string; // e.g., 'text-brand-yellow'
+  colorClass?: string; 
 }
 
 export interface StrategicObjective {
@@ -25,7 +25,7 @@ export interface TeamMember {
   performanceData: { month: string; sales: number }[];
 }
 
-export type OrderStatus = 'Pending' | 'Confirmed' | 'Shipped' | 'Processing' | 'Delivered' | 'Cancelled' | 'Failed';
+export type OrderStatus = 'Pendiente' | 'Confirmado' | 'Enviado' | 'Procesando' | 'Entregado' | 'Cancelado' | 'Fallido';
 
 export interface Order {
   id: string;
@@ -38,12 +38,14 @@ export interface Order {
   lastUpdated: string;
 }
 
+export type MarketingResourceType = 'Folleto' | 'Presentación' | 'Imagen' | 'Guía';
+
 export interface MarketingResource {
   id: string;
   title: string;
   description: string;
   link: string;
-  type: 'Brochure' | 'Presentation' | 'Image' | 'Guideline';
+  type: MarketingResourceType;
 }
 
 export interface MarketingResourceCategory {

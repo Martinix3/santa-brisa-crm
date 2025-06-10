@@ -23,15 +23,16 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { es } from 'date-fns/locale';
 import { Calendar as CalendarIcon, Check, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const orderFormSchema = z.object({
-  clientName: z.string().min(2, "Client name must be at least 2 characters."),
-  visitDate: z.date({ required_error: "Visit date is required." }),
-  outcome: z.enum(["successful", "failed", "follow-up"], { required_error: "Please select an outcome." }),
+  clientName: z.string().min(2, "El nombre del cliente debe tener al menos 2 caracteres."),
+  visitDate: z.date({ required_error: "La fecha de visita es obligatoria." }),
+  outcome: z.enum(["successful", "failed", "follow-up"], { required_error: "Por favor, seleccione un resultado." }),
   productsOrdered: z.string().optional(),
-  orderValue: z.coerce.number().positive("Order value must be positive.").optional(),
+  orderValue: z.coerce.number().positive("El valor del pedido debe ser positivo.").optional(),
   reasonForFailure: z.string().optional(),
   notes: z.string().optional(),
 }).superRefine((data, ctx) => {
@@ -39,14 +40,14 @@ const orderFormSchema = z.object({
     if (!data.productsOrdered || data.productsOrdered.trim() === "") {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Products ordered are required for successful outcome.",
+        message: "Los productos pedidos son obligatorios para un resultado exitoso.",
         path: ["productsOrdered"],
       });
     }
     if (data.orderValue === undefined || data.orderValue <= 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Order value is required and must be positive for successful outcome.",
+        message: "El valor del pedido es obligatorio y debe ser positivo para un resultado exitoso.",
         path: ["orderValue"],
       });
     }
@@ -54,7 +55,7 @@ const orderFormSchema = z.object({
   if (data.outcome === "failed" && (!data.reasonForFailure || data.reasonForFailure.trim() === "")) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "Reason for failure is required for failed outcome.",
+      message: "El motivo del fallo es obligatorio para un resultado fallido.",
       path: ["reasonForFailure"],
     });
   }
@@ -80,15 +81,14 @@ export default function OrderFormPage() {
 
   async function onSubmit(values: OrderFormValues) {
     setIsSubmitting(true);
-    // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1500));
     console.log(values);
     toast({
-      title: "Form Submitted!",
+      title: "¡Formulario Enviado!",
       description: (
         <div className="flex items-start">
           <Check className="h-5 w-5 text-green-500 mr-2 mt-1" />
-          <p>Client visit for {values.clientName} recorded successfully.</p>
+          <p>Visita al cliente {values.clientName} registrada exitosamente.</p>
         </div>
       ),
       variant: "default",
@@ -99,11 +99,11 @@ export default function OrderFormPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-headline font-semibold">Record Client Visit / Order</h1>
+      <h1 className="text-3xl font-headline font-semibold">Registrar Visita / Pedido de Cliente</h1>
       <Card className="max-w-2xl mx-auto shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
-          <CardTitle>Client Visit Details</CardTitle>
-          <CardDescription>Fill in the details of the client interaction.</CardDescription>
+          <CardTitle>Detalles de la Visita al Cliente</CardTitle>
+          <CardDescription>Complete los detalles de la interacción con el cliente.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -113,9 +113,9 @@ export default function OrderFormPage() {
                 name="clientName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Client Name</FormLabel>
+                    <FormLabel>Nombre del Cliente</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., Cafe Central" {...field} />
+                      <Input placeholder="p. ej., Café Central" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -127,7 +127,7 @@ export default function OrderFormPage() {
                 name="visitDate"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Visit Date</FormLabel>
+                    <FormLabel>Fecha de Visita</FormLabel>
                     <Popover>
                       <PopoverTrigger asChild>
                         <FormControl>
@@ -139,9 +139,9 @@ export default function OrderFormPage() {
                             )}
                           >
                             {field.value ? (
-                              format(field.value, "PPP")
+                              format(field.value, "PPP", { locale: es })
                             ) : (
-                              <span>Pick a date</span>
+                              <span>Seleccione una fecha</span>
                             )}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                           </Button>
@@ -156,6 +156,7 @@ export default function OrderFormPage() {
                             date > new Date() || date < new Date("1900-01-01")
                           }
                           initialFocus
+                          locale={es}
                         />
                       </PopoverContent>
                     </Popover>
@@ -169,7 +170,7 @@ export default function OrderFormPage() {
                 name="outcome"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Outcome</FormLabel>
+                    <FormLabel>Resultado</FormLabel>
                     <FormControl>
                       <RadioGroup
                         onValueChange={field.onChange}
@@ -180,19 +181,19 @@ export default function OrderFormPage() {
                           <FormControl>
                             <RadioGroupItem value="successful" />
                           </FormControl>
-                          <FormLabel className="font-normal">Successful Order</FormLabel>
+                          <FormLabel className="font-normal">Pedido Exitoso</FormLabel>
                         </FormItem>
                         <FormItem className="flex items-center space-x-3 space-y-0">
                           <FormControl>
                             <RadioGroupItem value="failed" />
                           </FormControl>
-                          <FormLabel className="font-normal">Failed / No Order</FormLabel>
+                          <FormLabel className="font-normal">Fallido / Sin Pedido</FormLabel>
                         </FormItem>
                         <FormItem className="flex items-center space-x-3 space-y-0">
                           <FormControl>
                             <RadioGroupItem value="follow-up" />
                           </FormControl>
-                          <FormLabel className="font-normal">Follow-up Required</FormLabel>
+                          <FormLabel className="font-normal">Requiere Seguimiento</FormLabel>
                         </FormItem>
                       </RadioGroup>
                     </FormControl>
@@ -208,9 +209,9 @@ export default function OrderFormPage() {
                     name="productsOrdered"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Products Ordered</FormLabel>
+                        <FormLabel>Productos Pedidos</FormLabel>
                         <FormControl>
-                          <Textarea placeholder="List products and quantities..." {...field} />
+                          <Textarea placeholder="Listar productos y cantidades..." {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -221,9 +222,9 @@ export default function OrderFormPage() {
                     name="orderValue"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Order Value ($)</FormLabel>
+                        <FormLabel>Valor del Pedido ($)</FormLabel>
                         <FormControl>
-                          <Input type="number" placeholder="e.g., 250.75" {...field} />
+                          <Input type="number" placeholder="p. ej., 250.75" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -238,9 +239,9 @@ export default function OrderFormPage() {
                   name="reasonForFailure"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Reason for Failure / No Order</FormLabel>
+                      <FormLabel>Motivo del Fallo / Sin Pedido</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="e.g., Price too high, already stocked..." {...field} />
+                        <Textarea placeholder="p. ej., Precio demasiado alto, ya abastecido..." {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -253,9 +254,9 @@ export default function OrderFormPage() {
                 name="notes"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Additional Notes</FormLabel>
+                    <FormLabel>Notas Adicionales</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Any other relevant information..." {...field} />
+                      <Textarea placeholder="Cualquier otra información relevante..." {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -266,10 +267,10 @@ export default function OrderFormPage() {
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Submitting...
+                      Enviando...
                     </>
                   ) : (
-                    "Submit Record"
+                    "Enviar Registro"
                   )}
                 </Button>
               </CardFooter>

@@ -1,7 +1,6 @@
 import type React from 'react';
 
 interface LogoProps extends React.SVGProps<SVGSVGElement> {
-  // No specific props needed for this simple logo
 }
 
 const Logo: React.FC<LogoProps> = (props) => (
@@ -10,7 +9,7 @@ const Logo: React.FC<LogoProps> = (props) => (
     viewBox="0 0 100 30"
     width="120"
     height="36"
-    aria-label="Santa Brisa CRM Logo"
+    aria-label="Logotipo de Santa Brisa CRM"
     {...props}
   >
     <rect width="100" height="30" rx="5" fill="hsl(var(--primary))" />

@@ -11,7 +11,7 @@ import { Progress } from "@/components/ui/progress";
 
 const chartConfig = {
   totalSales: {
-    label: "Total Sales",
+    label: "Ventas Totales",
     color: "hsl(var(--primary))",
   },
 };
@@ -26,11 +26,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const generateSalesData = (): SalesDataItem[] => {
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'];
+      const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul'];
       return months.map(month => ({
         name: month,
         totalSales: month === 'May' 
-                      ? Math.floor(Math.random() * 10000) + 60000 // Spike in May
+                      ? Math.floor(Math.random() * 10000) + 60000 
                       : Math.floor(Math.random() * 50000) + 10000
       }));
     };
@@ -43,7 +43,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-headline font-semibold">Dashboard</h1>
+      <h1 className="text-3xl font-headline font-semibold">Panel</h1>
       
       <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {mockKpis.map((kpi: Kpi) => (
@@ -59,7 +59,7 @@ export default function DashboardPage() {
                   {kpi.trend === 'up' && <TrendingUp className="h-4 w-4 mr-1 text-green-500" />}
                   {kpi.trend === 'down' && <TrendingDown className="h-4 w-4 mr-1 text-red-500" />}
                   {kpi.trend === 'neutral' && <Minus className="h-4 w-4 mr-1 text-yellow-500" />}
-                  <span className={kpi.colorClass}>{kpi.trendValue}</span> vs last period
+                  <span className={kpi.colorClass}>{kpi.trendValue}</span> vs período anterior
                 </p>
               )}
             </CardContent>
@@ -70,8 +70,8 @@ export default function DashboardPage() {
       <section className="grid gap-6 md:grid-cols-2">
         <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
           <CardHeader>
-            <CardTitle>Monthly Sales Performance</CardTitle>
-            <CardDescription>Overview of total sales for the past months.</CardDescription>
+            <CardTitle>Rendimiento Mensual de Ventas</CardTitle>
+            <CardDescription>Resumen de las ventas totales de los últimos meses.</CardDescription>
           </CardHeader>
           <CardContent className="h-[300px] pr-0">
             {currentSalesData.length > 0 ? (
@@ -89,22 +89,22 @@ export default function DashboardPage() {
                 </ResponsiveContainer>
               </ChartContainer>
             ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">Loading chart data...</div>
+              <div className="flex items-center justify-center h-full text-muted-foreground">Cargando datos del gráfico...</div>
             )}
           </CardContent>
         </Card>
 
         <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
           <CardHeader>
-            <CardTitle>Strategic Objectives</CardTitle>
-            <CardDescription>Track progress towards key company goals.</CardDescription>
+            <CardTitle>Objetivos Estratégicos</CardTitle>
+            <CardDescription>Seguimiento del progreso hacia los objetivos clave de la empresa.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium">{completedObjectives} of {totalObjectives} objectives completed</span>
+              <span className="text-sm font-medium">{completedObjectives} de {totalObjectives} objetivos completados</span>
               <span className="text-sm font-bold text-primary">{objectivesProgress.toFixed(0)}%</span>
             </div>
-            <Progress value={objectivesProgress} aria-label={`${objectivesProgress.toFixed(0)}% of objectives completed`} className="h-3"/>
+            <Progress value={objectivesProgress} aria-label={`${objectivesProgress.toFixed(0)}% de objetivos completados`} className="h-3"/>
             <ul className="space-y-3 mt-4 max-h-[220px] overflow-y-auto pr-2">
               {mockStrategicObjectives.map((objective: StrategicObjective) => (
                 <li key={objective.id} className="flex items-start space-x-3">

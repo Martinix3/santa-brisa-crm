@@ -20,6 +20,7 @@ import EditOrderDialog from "@/components/app/edit-order-dialog";
 import type { EditOrderFormValues } from "@/components/app/edit-order-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 
 const getStatusBadgeColor = (status: OrderStatus): string => {
@@ -38,7 +39,7 @@ const getStatusBadgeColor = (status: OrderStatus): string => {
 
 export default function OrdersDashboardPage() {
   const { toast } = useToast();
-  const { userRole: currentUserRole } = useAuth(); // Get role from AuthContext
+  const { userRole: currentUserRole } = useAuth();
   const [orders, setOrders] = React.useState<Order[]>(mockOrders);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<OrderStatus | "Todos">("Todos");
@@ -49,6 +50,7 @@ export default function OrdersDashboardPage() {
 
   const [editingOrder, setEditingOrder] = React.useState<Order | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
+  const [orderToDelete, setOrderToDelete] = React.useState<Order | null>(null);
 
   const uniqueStatuses = ["Todos", ...Array.from(new Set(mockOrders.map(order => order.status)))] as (OrderStatus | "Todos")[];
 
@@ -63,7 +65,7 @@ export default function OrdersDashboardPage() {
       if (!dateRange?.from) return true;
       const orderDate = parseISO(order.visitDate);
       const fromDate = dateRange.from;
-      const toDate = dateRange.to ? addDays(dateRange.to,1) : addDays(new Date(), 1) ; // Make 'to' date inclusive
+      const toDate = dateRange.to ? addDays(dateRange.to,1) : addDays(new Date(), 1) ; 
       return orderDate >= fromDate && orderDate < toDate;
     });
 
@@ -79,12 +81,13 @@ export default function OrdersDashboardPage() {
       return;
     }
 
-    const updatedOrder: Order = {
-      ...mockOrders[orderIndex], // Spread existing fields
+    const updatedOrderData: Order = {
+      ...mockOrders[orderIndex], 
       clientName: updatedData.clientName,
       products: updatedData.products.split(/[,;\n]+/).map(p => p.trim()).filter(p => p.length > 0),
       value: updatedData.value,
       status: updatedData.status,
+      salesRep: updatedData.salesRep,
       lastUpdated: format(new Date(), "yyyy-MM-dd"),
       nombreFiscal: updatedData.nombreFiscal,
       cif: updatedData.cif,
@@ -97,7 +100,7 @@ export default function OrdersDashboardPage() {
       notes: updatedData.notes,
     };
 
-    mockOrders[orderIndex] = updatedOrder;
+    mockOrders[orderIndex] = updatedOrderData;
     setOrders([...mockOrders]);
     setIsEditDialogOpen(false);
     setEditingOrder(null);
@@ -107,12 +110,36 @@ export default function OrdersDashboardPage() {
       description: (
         <div className="flex items-start">
           <Check className="h-5 w-5 text-green-500 mr-2 mt-1" />
-          <p>Pedido {updatedOrder.id} actualizado exitosamente.</p>
+          <p>Pedido {updatedOrderData.id} actualizado exitosamente.</p>
         </div>
       ),
       variant: "default",
     });
   };
+  
+  const handleDeleteOrder = (order: Order) => {
+    if (!canDeleteOrder) return;
+    setOrderToDelete(order);
+  };
+
+  const confirmDeleteOrder = () => {
+    if (!canDeleteOrder || !orderToDelete) return;
+    
+    const updatedOrdersState = orders.filter(o => o.id !== orderToDelete.id);
+    setOrders(updatedOrdersState);
+
+    const mockIndex = mockOrders.findIndex(o => o.id === orderToDelete.id);
+    if (mockIndex !== -1) {
+      mockOrders.splice(mockIndex, 1);
+    }
+    toast({ 
+      title: "¡Pedido Eliminado!", 
+      description: `El pedido "${orderToDelete.id}" ha sido eliminado.`, 
+      variant: "destructive" 
+    });
+    setOrderToDelete(null);
+  };
+
 
   const canEditOrderDetails = currentUserRole === 'Admin';
   const canEditOrderStatus = currentUserRole === 'Admin' || currentUserRole === 'Distributor';
@@ -242,9 +269,32 @@ export default function OrdersDashboardPage() {
                           {canDeleteOrder && (
                             <>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">
-                                <Trash2 className="mr-2 h-4 w-4" /> Eliminar Pedido
-                              </DropdownMenuItem>
+                               <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <DropdownMenuItem 
+                                    className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                    onSelect={(e) => { e.preventDefault(); handleDeleteOrder(order); }}
+                                    >
+                                    <Trash2 className="mr-2 h-4 w-4" /> Eliminar Pedido
+                                  </DropdownMenuItem>
+                                </AlertDialogTrigger>
+                                {orderToDelete && orderToDelete.id === order.id && (
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                        <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            Esta acción no se puede deshacer. Esto eliminará permanentemente el pedido:
+                                            <br />
+                                            <strong className="mt-2 block">{orderToDelete.id} - {orderToDelete.clientName}</strong>
+                                        </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                        <AlertDialogCancel onClick={() => setOrderToDelete(null)}>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction onClick={confirmDeleteOrder} variant="destructive">Sí, eliminar</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                )}
+                              </AlertDialog>
                             </>
                           )}
                         </DropdownMenuContent>
@@ -276,3 +326,4 @@ export default function OrdersDashboardPage() {
     </div>
   );
 }
+

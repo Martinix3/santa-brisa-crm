@@ -43,7 +43,7 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { es } from 'date-fns/locale';
-import { Label } from "@/components/ui/label";
+// Removed generic Label import as FormLabel should be used within FormItem
 
 const eventFormSchema = z.object({
   name: z.string().min(3, "El nombre del evento debe tener al menos 3 caracteres."),
@@ -167,38 +167,55 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
             <FormField
               control={form.control}
               name="assignedTeamMemberIds"
-              render={({ field }) => (
+              render={() => ( // Note: field from outer FormField is not directly used here for Checkbox group
                 <FormItem>
                   <FormLabel>Responsables Asignados</FormLabel>
-                  {/* Removed FormControl wrapper from here. The div itself will be the child for FormItem's layout. */}
-                  <div className="rounded-md border">
-                    <ScrollArea className="h-32 w-full p-2">
-                      {assignableTeamMembers.map((member) => (
-                        <div key={member.id} className="flex flex-row items-center space-x-3 space-y-0 py-1">
-                          <Checkbox
-                            id={`member-checkbox-${member.id}`} // It's good practice to have an id for the label's htmlFor
-                            checked={field.value?.includes(member.id)}
-                            onCheckedChange={(checked) => {
-                              const currentValues = field.value || [];
-                              if (checked) {
-                                field.onChange([...currentValues, member.id]);
-                              } else {
-                                field.onChange(currentValues.filter((value) => value !== member.id));
-                              }
-                            }}
-                            disabled={isReadOnly}
-                          />
-                          <Label htmlFor={`member-checkbox-${member.id}`} className="text-sm font-normal cursor-pointer">
-                            {member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})
-                          </Label>
-                        </div>
-                      ))}
-                    </ScrollArea>
-                  </div>
-                  <FormMessage />
+                  <ScrollArea className="h-32 w-full rounded-md border p-2">
+                    {assignableTeamMembers.map((member) => (
+                      <FormField
+                        key={member.id}
+                        control={form.control}
+                        name="assignedTeamMemberIds"
+                        render={({ field }) => {
+                          return (
+                            <FormItem
+                              key={member.id} // Unique key for FormItem
+                              className="flex flex-row items-start space-x-3 space-y-0 py-1"
+                            >
+                              <FormControl>
+                                <Checkbox
+                                  id={`member-checkbox-${member.id}-${form.getValues('name') || event?.id || 'event'}`} // Ensure unique ID
+                                  checked={field.value?.includes(member.id)}
+                                  onCheckedChange={(checked) => {
+                                    const currentValues = field.value || [];
+                                    if (checked) {
+                                      field.onChange([...currentValues, member.id]);
+                                    } else {
+                                      field.onChange(
+                                        currentValues.filter((value) => value !== member.id)
+                                      );
+                                    }
+                                  }}
+                                  disabled={isReadOnly}
+                                />
+                              </FormControl>
+                              <FormLabel // Using FormLabel here is correct within its FormItem
+                                htmlFor={`member-checkbox-${member.id}-${form.getValues('name') || event?.id || 'event'}`}
+                                className="text-sm font-normal cursor-pointer"
+                              >
+                                {member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})
+                              </FormLabel>
+                            </FormItem>
+                          );
+                        }}
+                      />
+                    ))}
+                  </ScrollArea>
+                  <FormMessage /> 
                 </FormItem>
               )}
             />
+
 
             <FormField control={form.control} name="requiredMaterials" render={({ field }) => ( <FormItem> <FormLabel>Materiales Necesarios (Opcional)</FormLabel> <FormControl> <Textarea placeholder="Listar materiales: stands, folletos, muestras..." {...field} disabled={isReadOnly} className="min-h-[80px]" /> </FormControl> <FormMessage /> </FormItem> )}/>
             <FormField control={form.control} name="notes" render={({ field }) => ( <FormItem> <FormLabel>Notas Adicionales (Opcional)</FormLabel> <FormControl> <Textarea placeholder="Cualquier otra información relevante..." {...field} disabled={isReadOnly} className="min-h-[80px]" /> </FormControl> <FormMessage /> </FormItem> )}/>
@@ -221,3 +238,5 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
     </Dialog>
   );
 }
+
+    

@@ -88,17 +88,23 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   if (!order) return null;
 
   const isDistributor = currentUserRole === 'Distributor';
+  const isSalesRep = currentUserRole === 'SalesRep';
+  const canEditStatusOnly = isDistributor;
+  const isReadOnly = isSalesRep; // SalesRep can only view
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle>Editar Pedido: {order.id}</DialogTitle>
+          <DialogTitle>
+            {isReadOnly ? "Detalles del Pedido:" : "Editar Pedido:"} {order.id}
+          </DialogTitle>
           <DialogDescription>
-            {isDistributor 
+            {isReadOnly
+              ? "Viendo los detalles del pedido."
+              : canEditStatusOnly
               ? "Modifique el estado del pedido. Haga clic en guardar cuando haya terminado."
-              : "Modifique los detalles del pedido. Haga clic en guardar cuando haya terminado."
-            }
+              : "Modifique los detalles del pedido. Haga clic en guardar cuando haya terminado."}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -110,7 +116,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 <FormItem>
                   <FormLabel>Nombre del Cliente</FormLabel>
                   <FormControl>
-                    <Input placeholder="Nombre del cliente" {...field} disabled={isDistributor} />
+                    <Input placeholder="Nombre del cliente" {...field} disabled={isReadOnly || canEditStatusOnly} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -127,7 +133,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                       placeholder="Listar productos y cantidades, separados por coma o nueva línea..."
                       className="min-h-[100px]"
                       {...field}
-                      disabled={isDistributor}
+                      disabled={isReadOnly || canEditStatusOnly}
                     />
                   </FormControl>
                   <FormMessage />
@@ -148,7 +154,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                       {...field}
                       onChange={event => field.onChange(parseFloat(event.target.value))}
                       value={field.value === undefined ? '' : field.value}
-                      disabled={isDistributor}
+                      disabled={isReadOnly || canEditStatusOnly}
                     />
                   </FormControl>
                   <FormMessage />
@@ -161,7 +167,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Estado del Pedido</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isReadOnly}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccione un estado" />
@@ -185,16 +191,18 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                   Cancelar
                 </Button>
               </DialogClose>
-              <Button type="submit" disabled={isSaving}>
-                {isSaving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Guardando...
-                  </>
-                ) : (
-                  "Guardar Cambios"
-                )}
-              </Button>
+              {!isReadOnly && (
+                <Button type="submit" disabled={isSaving}>
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Guardando...
+                    </>
+                  ) : (
+                    "Guardar Cambios"
+                  )}
+                </Button>
+              )}
             </DialogFooter>
           </form>
         </Form>

@@ -224,7 +224,9 @@ export default function OrdersDashboardPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem><Eye className="mr-2 h-4 w-4" /> Ver Detalles</DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => handleEditClick(order)}>
+                            <Eye className="mr-2 h-4 w-4" /> Ver Detalles
+                          </DropdownMenuItem>
                           {canEditOrder && (
                             <DropdownMenuItem onSelect={() => handleEditClick(order)}>
                               <Edit className="mr-2 h-4 w-4" /> Editar Pedido

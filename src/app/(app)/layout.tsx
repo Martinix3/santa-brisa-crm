@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button';
 import Logo from '@/components/icons/Logo';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2, Goal } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2, Goal, Target } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { UserRole } from '@/types';
@@ -32,7 +32,8 @@ const allNavItems = [
   { href: '/orders-dashboard', label: 'Panel de Pedidos', icon: ShoppingCart, roles: ['Admin', 'SalesRep', 'Distributor'] as UserRole[] },
   { href: '/marketing-resources', label: 'Recursos de Marketing', icon: Library, roles: ['Admin', 'SalesRep', 'Distributor'] as UserRole[] },
   { href: '/admin/user-management', label: 'Gestión de Usuarios', icon: Settings, roles: ['Admin'] as UserRole[] },
-  { href: '/admin/objectives-management', label: 'Gestión de Objetivos', icon: Goal, roles: ['Admin'] as UserRole[] },
+  { href: '/admin/objectives-management', label: 'Objetivos Estratégicos', icon: Goal, roles: ['Admin'] as UserRole[] },
+  { href: '/admin/kpi-launch-targets', label: 'Metas KPIs Lanzamiento', icon: Target, roles: ['Admin'] as UserRole[] },
 ];
 
 function MainAppLayout({ children }: { children: React.ReactNode }) {

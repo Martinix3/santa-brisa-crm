@@ -4,45 +4,26 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import type { Kpi } from "@/types";
-import { TrendingUp, Users, Briefcase, CalendarPlus } from "lucide-react";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, LabelList, PieChart, Pie, Cell, Legend } from "recharts";
 import { Progress } from "@/components/ui/progress";
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 import { cn } from "@/lib/utils";
+import { 
+  kpiDataLaunch,
+  ventasDistribucionData,
+  progresoVentasEquipoData,
+  progresoCuentasEquipoData,
+  objetivoTotalVentasEquipo,
+  objetivoTotalCuentasEquipoAnual
+} from "@/lib/launch-dashboard-data";
 
-// Datos de KPI para el lanzamiento del producto
-const kpiDataLaunch: Kpi[] = [
-  { id: 'kpi1', title: 'Ventas Totales', currentValue: 18500, targetValue: 50000, unit: 'botellas', icon: TrendingUp },
-  { id: 'kpi2', title: 'Ventas del Equipo', currentValue: 11200, targetValue: 27000, unit: 'botellas', icon: Users },
-  { id: 'kpi3', title: 'Cuentas Nuevas Equipo (Anual)', currentValue: 95, targetValue: 230, unit: 'cuentas', icon: Briefcase },
-  { id: 'kpi4', title: 'Cuentas Nuevas Equipo (Mensual)', currentValue: 12, targetValue: 32, unit: 'cuentas', icon: CalendarPlus },
-];
-
-// Datos para el gráfico de barras "Distribución de Ventas"
-const ventasDistribucionData = [
-  { name: "Ventas Equipo", value: 11200, fill: "hsl(var(--primary))" },
-  { name: "Resto Canales", value: 18500 - 11200, fill: "hsl(var(--brand-turquoise-hsl))" },
-];
 
 const distributionChartConfig = {
   value: { label: "Botellas" },
   VentasEquipo: { label: "Ventas Equipo", color: "hsl(var(--primary))" },
   RestoCanales: { label: "Resto Canales", color: "hsl(var(--brand-turquoise-hsl))" },
 };
-
-
-// Datos para el gráfico de dona "Progreso Ventas del Equipo"
-const progresoVentasEquipoData = [
-  { name: "Alcanzado", value: 11200, color: "hsl(var(--brand-turquoise-hsl))" },
-  { name: "Faltante", value: 27000 - 11200, color: "hsl(var(--muted))" },
-];
-
-// Datos para el gráfico de dona "Progreso Cuentas del Equipo (Anual)"
-const progresoCuentasEquipoData = [
-  { name: "Alcanzado", value: 95, color: "hsl(var(--brand-turquoise-hsl))" },
-  { name: "Faltante", value: 230 - 95, color: "hsl(var(--muted))" },
-];
 
 
 export default function DashboardPage() {
@@ -54,6 +35,15 @@ export default function DashboardPage() {
         {kpiDataLaunch.map((kpi: Kpi) => {
           const progress = kpi.targetValue > 0 ? (kpi.currentValue / kpi.targetValue) * 100 : 0;
           const isTurquoiseKpi = ['kpi2', 'kpi3', 'kpi4'].includes(kpi.id);
+          const isPrimaryKpi = kpi.id === 'kpi1';
+          
+          let progressBarClass = "";
+          if (isTurquoiseKpi) {
+            progressBarClass = "[&>div]:bg-[hsl(var(--brand-turquoise-hsl))]";
+          } else if (isPrimaryKpi) {
+            progressBarClass = "[&>div]:bg-primary";
+          }
+
           return (
             <Card key={kpi.id} className="shadow-subtle hover:shadow-md transition-shadow duration-300">
               <CardHeader className="pb-2">
@@ -72,7 +62,7 @@ export default function DashboardPage() {
                 <Progress 
                   value={progress} 
                   aria-label={`${progress.toFixed(0)}% completado`} 
-                  className={cn("h-2", isTurquoiseKpi && "[&>div]:bg-[hsl(var(--brand-turquoise-hsl))]")}
+                  className={cn("h-2", progressBarClass)}
                 />
               </CardContent>
             </Card>
@@ -110,7 +100,7 @@ export default function DashboardPage() {
           <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
             <CardHeader>
               <CardTitle>Progreso Ventas del Equipo</CardTitle>
-              <CardDescription>Objetivo: <FormattedNumericValue value={27000} locale="es-ES" /> botellas</CardDescription>
+              <CardDescription>Objetivo: <FormattedNumericValue value={objetivoTotalVentasEquipo} locale="es-ES" /> botellas</CardDescription>
             </CardHeader>
             <CardContent className="h-[150px] flex items-center justify-center">
               <ChartContainer config={{}} className="h-full w-full aspect-square">
@@ -156,7 +146,7 @@ export default function DashboardPage() {
           <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
             <CardHeader>
               <CardTitle>Progreso Cuentas Equipo (Anual)</CardTitle>
-              <CardDescription>Objetivo: <FormattedNumericValue value={230} locale="es-ES" /> cuentas</CardDescription>
+              <CardDescription>Objetivo: <FormattedNumericValue value={objetivoTotalCuentasEquipoAnual} locale="es-ES" /> cuentas</CardDescription>
             </CardHeader>
             <CardContent className="h-[150px] flex items-center justify-center">
                 <ChartContainer config={{}} className="h-full w-full aspect-square">

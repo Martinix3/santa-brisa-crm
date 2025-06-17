@@ -30,7 +30,7 @@ const allNavItems = [
   { href: '/accounts', label: 'Cuentas', icon: Building2, roles: ['Admin', 'SalesRep', 'Distributor'] as UserRole[] },
   { href: '/crm-follow-up', label: 'Seguimiento', icon: ClipboardList, roles: ['Admin', 'SalesRep'] as UserRole[] },
   { href: '/team-tracking', label: 'Seguimiento de Equipo', icon: Users, roles: ['Admin', 'SalesRep'] as UserRole[] },
-  { href: '/order-form', label: 'Formulario de Pedido', icon: FileText, roles: ['Admin', 'SalesRep'] as UserRole[] },
+  { href: '/order-form', label: 'Registrar Visita', icon: FileText, roles: ['Admin', 'SalesRep'] as UserRole[] },
   { href: '/orders-dashboard', label: 'Panel de Pedidos', icon: ShoppingCart, roles: ['Admin', 'SalesRep', 'Distributor'] as UserRole[] },
   { href: '/marketing-resources', label: 'Recursos de Marketing', icon: Library, roles: ['Admin', 'SalesRep', 'Distributor'] as UserRole[] },
   { href: '/admin/settings', label: 'Configuración', icon: Settings, roles: ['Admin'] as UserRole[] },

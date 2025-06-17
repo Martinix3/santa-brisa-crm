@@ -168,17 +168,17 @@ export default function OrderFormPage() {
     },
   });
 
-  const outcome = form.watch("outcome");
-  const clientStatus = form.watch("clientStatus");
-  const numberOfUnits = form.watch("numberOfUnits");
-  const unitPrice = form.watch("unitPrice");
-  const nextActionType = form.watch("nextActionType");
-  const failureReasonType = form.watch("failureReasonType");
-  const clientName = form.watch("clientName");
+  const outcomeWatched = form.watch("outcome");
+  const clientStatusWatched = form.watch("clientStatus");
+  const numberOfUnitsWatched = form.watch("numberOfUnits");
+  const unitPriceWatched = form.watch("unitPrice");
+  const nextActionTypeWatched = form.watch("nextActionType");
+  const failureReasonTypeWatched = form.watch("failureReasonType");
+  const clientNameWatched = form.watch("clientName");
 
   React.useEffect(() => {
-    if (outcome === "successful" && typeof numberOfUnits === 'number' && typeof unitPrice === 'number' && numberOfUnits > 0 && unitPrice > 0) {
-      const calculatedSubtotal = numberOfUnits * unitPrice;
+    if (outcomeWatched === "successful" && typeof numberOfUnitsWatched === 'number' && typeof unitPriceWatched === 'number' && numberOfUnitsWatched > 0 && unitPriceWatched > 0) {
+      const calculatedSubtotal = numberOfUnitsWatched * unitPriceWatched;
       const calculatedIvaAmount = calculatedSubtotal * (IVA_RATE / 100);
       const calculatedTotalValue = calculatedSubtotal + calculatedIvaAmount;
       
@@ -186,12 +186,12 @@ export default function OrderFormPage() {
       setSubtotal(parseFloat(calculatedSubtotal.toFixed(2)));
       setIvaAmount(parseFloat(calculatedIvaAmount.toFixed(2)));
 
-    } else if (outcome === "successful") {
+    } else if (outcomeWatched === "successful") {
        form.setValue("orderValue", undefined);
        setSubtotal(undefined);
        setIvaAmount(undefined);
     }
-  }, [numberOfUnits, unitPrice, outcome, form, setSubtotal, setIvaAmount]);
+  }, [numberOfUnitsWatched, unitPriceWatched, outcomeWatched, form, setSubtotal, setIvaAmount]);
 
   async function onSubmit(values: OrderFormValues) {
     setIsSubmitting(true);
@@ -205,11 +205,11 @@ export default function OrderFormPage() {
 
     const salesRepName = teamMember.name;
     const currentDate = format(new Date(), "yyyy-MM-dd");
-    let newAccountCreated = false;
     let accountCreationMessage = "";
 
     if (values.outcome === "successful" && values.visitDate && values.orderValue && values.clientType && values.numberOfUnits && values.unitPrice) {
       const numberOfBottles = values.numberOfUnits;
+      let accountDetailsForOrder: Partial<Order> = {};
 
       if (values.clientStatus === "new" && values.cif && values.nombreFiscal) {
         const existingAccountByCif = mockAccounts.find(acc => acc.cif.toLowerCase() === values.cif!.toLowerCase());
@@ -233,18 +233,51 @@ export default function OrderFormPage() {
               updatedAt: currentDate,
           };
           mockAccounts.unshift(newAccount);
-          newAccountCreated = true;
           accountCreationMessage = " Nueva cuenta creada.";
 
           const kpiCuentasAnual = kpiDataLaunch.find(k => k.id === 'kpi3');
           if (kpiCuentasAnual) kpiCuentasAnual.currentValue += 1;
           const kpiCuentasMensual = kpiDataLaunch.find(k => k.id === 'kpi4');
           if (kpiCuentasMensual) kpiCuentasMensual.currentValue += 1;
+
+           accountDetailsForOrder = { // Populate for the order object
+            nombreFiscal: newAccount.legalName,
+            cif: newAccount.cif,
+            direccionFiscal: newAccount.addressBilling,
+            direccionEntrega: newAccount.addressShipping,
+            contactoNombre: newAccount.mainContactName,
+            contactoCorreo: newAccount.mainContactEmail,
+            contactoTelefono: newAccount.mainContactPhone,
+            observacionesAlta: values.observacionesAlta,
+          };
+
         } else {
            accountCreationMessage = ` (La cuenta con CIF ${values.cif} ya existía, no se creó una nueva).`;
+           // Populate details from existing account for the order
+            accountDetailsForOrder = {
+                nombreFiscal: existingAccountByCif.legalName,
+                cif: existingAccountByCif.cif,
+                direccionFiscal: existingAccountByCif.addressBilling,
+                direccionEntrega: existingAccountByCif.addressShipping,
+                contactoNombre: existingAccountByCif.mainContactName,
+                contactoCorreo: existingAccountByCif.mainContactEmail,
+                contactoTelefono: existingAccountByCif.mainContactPhone,
+            };
         }
       } else if (values.clientStatus === "existing") {
         accountCreationMessage = " (Cliente existente, no se creó nueva cuenta).";
+        const existingAccount = mockAccounts.find(acc => acc.name.toLowerCase() === values.clientName.toLowerCase());
+        if (existingAccount) {
+             accountDetailsForOrder = {
+                nombreFiscal: existingAccount.legalName,
+                cif: existingAccount.cif,
+                direccionFiscal: existingAccount.addressBilling,
+                direccionEntrega: existingAccount.addressShipping,
+                contactoNombre: existingAccount.mainContactName,
+                contactoCorreo: existingAccount.mainContactEmail,
+                contactoTelefono: existingAccount.mainContactPhone,
+            };
+        }
       }
 
 
@@ -260,14 +293,7 @@ export default function OrderFormPage() {
         status: 'Confirmado', 
         salesRep: salesRepName, 
         lastUpdated: currentDate,
-        nombreFiscal: values.nombreFiscal,
-        cif: values.cif,
-        direccionFiscal: values.direccionFiscal,
-        direccionEntrega: values.direccionEntrega,
-        contactoNombre: values.contactoNombre,
-        contactoCorreo: values.contactoCorreo,
-        contactoTelefono: values.contactoTelefono,
-        observacionesAlta: values.observacionesAlta, 
+        ...accountDetailsForOrder, // Add account details to the order
         notes: values.notes,
       };
       mockOrders.unshift(newOrder);
@@ -342,7 +368,7 @@ export default function OrderFormPage() {
     setIsSubmitting(false);
   }
 
-  const showBillingInfo = outcome === "successful" && clientStatus === "new";
+  const showBillingInfo = outcomeWatched === "successful" && clientStatusWatched === "new";
 
   return (
     <div className="space-y-6">
@@ -414,7 +440,7 @@ export default function OrderFormPage() {
               />
 
               {/* Fields for Successful Outcome */}
-              {outcome === "successful" && (
+              {outcomeWatched === "successful" && (
                 <>
                   <Separator className="my-6" />
                   <div className="space-y-1"><h3 className="text-lg font-medium">Detalles del Pedido</h3><p className="text-sm text-muted-foreground">Información sobre los productos y valor del pedido.</p></div>
@@ -444,10 +470,10 @@ export default function OrderFormPage() {
                       <FormField control={form.control} name="observacionesAlta" render={({ field }) => (<FormItem><FormLabel>Observaciones (Alta Cliente)</FormLabel><FormControl><Textarea placeholder="Cualquier detalle adicional para el alta del cliente..." {...field} /></FormControl><FormDescription>Este campo es opcional.</FormDescription><FormMessage /></FormItem>)}/>
                     </>
                   )}
-                   {!showBillingInfo && clientStatus === "existing" && outcome === "successful" && (
+                   {!showBillingInfo && clientStatusWatched === "existing" && outcomeWatched === "successful" && (
                      <div className="my-4 p-3 bg-secondary/30 rounded-md">
                        <p className="text-sm text-muted-foreground">
-                         Se registrará el pedido para el cliente existente <strong className="text-foreground">{clientName}</strong>. Los datos de facturación se tomarán de la cuenta existente.
+                         Se registrará el pedido para el cliente existente <strong className="text-foreground">{clientNameWatched}</strong>. Los datos de facturación se tomarán de la cuenta existente.
                        </p>
                      </div>
                    )}
@@ -455,7 +481,7 @@ export default function OrderFormPage() {
               )}
 
               {/* Fields for Follow-up or Failed Outcome */}
-              {(outcome === "follow-up" || outcome === "failed") && (
+              {(outcomeWatched === "follow-up" || outcomeWatched === "failed") && (
                 <>
                   <Separator className="my-6" />
                   <div className="space-y-1"><h3 className="text-lg font-medium">Plan de Seguimiento</h3></div>
@@ -473,7 +499,7 @@ export default function OrderFormPage() {
                       </FormItem>
                     )}
                   />
-                  {nextActionType === "Opción personalizada" && (
+                  {nextActionTypeWatched === "Opción personalizada" && (
                     <FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Detalle Próxima Acción Personalizada</FormLabel><FormControl><Input placeholder="Especifique la acción" {...field} /></FormControl><FormMessage /></FormItem>)} />
                   )}
                   <FormField
@@ -503,7 +529,7 @@ export default function OrderFormPage() {
               )}
 
               {/* Additional Fields for Failed Outcome */}
-              {outcome === "failed" && (
+              {outcomeWatched === "failed" && (
                 <>
                   <Separator className="my-4" />
                   <div className="space-y-1"><h3 className="text-lg font-medium">Detalles del Fallo</h3></div>
@@ -521,7 +547,7 @@ export default function OrderFormPage() {
                       </FormItem>
                     )}
                   />
-                  {failureReasonType === "Otro (especificar)" && (
+                  {failureReasonTypeWatched === "Otro (especificar)" && (
                     <FormField control={form.control} name="failureReasonCustom" render={({ field }) => (<FormItem><FormLabel>Detalle Motivo del Fallo Personalizado</FormLabel><FormControl><Textarea placeholder="Especifique el motivo" {...field} /></FormControl><FormMessage /></FormItem>)} />
                   )}
                 </>

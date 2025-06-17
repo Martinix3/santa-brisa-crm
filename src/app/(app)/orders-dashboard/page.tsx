@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import type { Order, OrderStatus, UserRole } from "@/types";
-import { mockOrders, orderStatusesList } from "@/lib/data";
+import { mockOrders, orderStatusesList, mockTeamMembers } from "@/lib/data";
+import { kpiDataLaunch } from "@/lib/launch-dashboard-data";
 import { MoreHorizontal, Eye, Edit, Trash2, Filter, CalendarDays, ChevronDown, Check } from "lucide-react";
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -82,14 +83,18 @@ export default function OrdersDashboardPage() {
       return;
     }
 
-    const updatedOrderData: Order = {
-      ...mockOrders[orderIndex], 
+    const originalOrder = { ...mockOrders[orderIndex] }; // Copia profunda para evitar mutación directa
+    const updatedOrderDataInMock: Order = {
+      ...originalOrder,
       clientName: updatedData.clientName,
       products: updatedData.products ? updatedData.products.split(/[,;\n]+/).map(p => p.trim()).filter(p => p.length > 0) : [],
       value: updatedData.value,
       status: updatedData.status,
       salesRep: updatedData.salesRep,
       lastUpdated: format(new Date(), "yyyy-MM-dd"),
+      clientType: updatedData.clientType,
+      numberOfUnits: updatedData.numberOfUnits,
+      unitPrice: updatedData.unitPrice,
       nombreFiscal: updatedData.nombreFiscal,
       cif: updatedData.cif,
       direccionFiscal: updatedData.direccionFiscal,
@@ -105,9 +110,45 @@ export default function OrdersDashboardPage() {
       failureReasonType: updatedData.failureReasonType,
       failureReasonCustom: updatedData.failureReasonCustom,
     };
+    
+    const contributesToMetrics = (status: OrderStatus) => ['Confirmado', 'Procesando', 'Enviado', 'Entregado'].includes(status);
+    
+    const originalOrderContributed = contributesToMetrics(originalOrder.status);
+    const updatedOrderContributes = contributesToMetrics(updatedOrderDataInMock.status);
 
-    mockOrders[orderIndex] = updatedOrderData;
-    setOrders([...mockOrders]);
+    const originalUnits = originalOrder.numberOfUnits || 0;
+    const updatedUnits = updatedOrderDataInMock.numberOfUnits || 0;
+
+    // 1. Update KPIs globales
+    const kpiVentasTotales = kpiDataLaunch.find(k => k.id === 'kpi1');
+    const kpiVentasEquipo = kpiDataLaunch.find(k => k.id === 'kpi2');
+
+    if (kpiVentasTotales) {
+      if (originalOrderContributed) kpiVentasTotales.currentValue -= originalUnits;
+      if (updatedOrderContributes) kpiVentasTotales.currentValue += updatedUnits;
+    }
+    if (kpiVentasEquipo) {
+       if (originalOrderContributed) kpiVentasEquipo.currentValue -= originalUnits;
+       if (updatedOrderContributes) kpiVentasEquipo.currentValue += updatedUnits;
+    }
+    
+    // 2. Update mockTeamMembers
+    const originalSalesRep = mockTeamMembers.find(m => m.name === originalOrder.salesRep && (m.role === 'SalesRep' || m.role === 'Admin'));
+    if (originalSalesRep && originalOrderContributed) {
+      originalSalesRep.bottlesSold = (originalSalesRep.bottlesSold || 0) - originalUnits;
+      originalSalesRep.orders = (originalSalesRep.orders || 0) - 1;
+    }
+
+    const newSalesRep = mockTeamMembers.find(m => m.name === updatedOrderDataInMock.salesRep && (m.role === 'SalesRep' || m.role === 'Admin'));
+    if (newSalesRep && updatedOrderContributes) {
+      newSalesRep.bottlesSold = (newSalesRep.bottlesSold || 0) + updatedUnits;
+      newSalesRep.orders = (newSalesRep.orders || 0) + 1;
+    }
+    
+    // 3. Actualizar el pedido en mockOrders
+    mockOrders[orderIndex] = updatedOrderDataInMock;
+    setOrders([...mockOrders]); // Actualizar estado para la UI de la tabla
+    
     setIsEditDialogOpen(false);
     setEditingOrder(null);
 
@@ -116,7 +157,7 @@ export default function OrdersDashboardPage() {
       description: (
         <div className="flex items-start">
           <Check className="h-5 w-5 text-green-500 mr-2 mt-1" />
-          <p>Pedido {updatedOrderData.id} actualizado exitosamente.</p>
+          <p>Pedido {updatedOrderDataInMock.id} actualizado exitosamente.</p>
         </div>
       ),
       variant: "default",
@@ -131,6 +172,26 @@ export default function OrdersDashboardPage() {
   const confirmDeleteOrder = () => {
     if (!canDeleteOrder || !orderToDelete) return;
     
+    const orderBeingDeleted = { ...orderToDelete }; // Copia para evitar problemas de referencia
+    const orderContributed = ['Confirmado', 'Procesando', 'Enviado', 'Entregado'].includes(orderBeingDeleted.status);
+
+    if (orderContributed) {
+        const unitsToDelete = orderBeingDeleted.numberOfUnits || 0;
+
+        const kpiVentasTotales = kpiDataLaunch.find(k => k.id === 'kpi1');
+        if (kpiVentasTotales) kpiVentasTotales.currentValue -= unitsToDelete;
+        
+        const kpiVentasEquipo = kpiDataLaunch.find(k => k.id === 'kpi2');
+        if (kpiVentasEquipo) kpiVentasEquipo.currentValue -= unitsToDelete;
+
+        const salesRepMember = mockTeamMembers.find(m => m.name === orderBeingDeleted.salesRep && (m.role === 'SalesRep' || m.role === 'Admin'));
+        if (salesRepMember) {
+            salesRepMember.bottlesSold = (salesRepMember.bottlesSold || 0) - unitsToDelete;
+            salesRepMember.orders = (salesRepMember.orders || 0) - 1;
+        }
+    }
+
+
     const updatedOrdersState = orders.filter(o => o.id !== orderToDelete.id);
     setOrders(updatedOrdersState);
 
@@ -140,7 +201,7 @@ export default function OrdersDashboardPage() {
     }
     toast({ 
       title: "¡Pedido Eliminado!", 
-      description: `El pedido "${orderToDelete.id}" ha sido eliminado.`, 
+      description: `El pedido "${orderToDelete.id}" ha sido eliminado. Las métricas asociadas han sido ajustadas.`, 
       variant: "destructive" 
     });
     setOrderToDelete(null);
@@ -294,6 +355,8 @@ export default function OrdersDashboardPage() {
                                             Esta acción no se puede deshacer. Esto eliminará permanentemente el pedido:
                                             <br />
                                             <strong className="mt-2 block">{orderToDelete.id} - {orderToDelete.clientName}</strong>
+                                            <br/> <br/>
+                                            Las métricas asociadas a este pedido (KPIs, rendimiento del comercial) serán ajustadas.
                                         </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>

@@ -75,12 +75,12 @@ export default function CrmFollowUpPage() {
     <div className="space-y-6">
       <header className="flex items-center space-x-2">
         <ClipboardList className="h-8 w-8 text-primary" />
-        <h1 className="text-3xl font-headline font-semibold">Panel de Seguimiento CRM</h1>
+        <h1 className="text-3xl font-headline font-semibold">Panel de Tareas de Seguimiento</h1>
       </header>
 
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
-          <CardTitle>Actividades de Seguimiento</CardTitle>
+          <CardTitle>Tareas de Seguimiento de Clientes</CardTitle>
           <CardDescription>Visitas que requieren una próxima acción o que fueron fallidas pero tienen seguimiento planificado.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -207,7 +207,7 @@ export default function CrmFollowUpPage() {
                 )) : (
                   <TableRow>
                     <TableCell colSpan={7} className="h-24 text-center">
-                      No hay actividades de seguimiento que coincidan con los filtros.
+                      No hay tareas de seguimiento que coincidan con los filtros.
                     </TableCell>
                   </TableRow>
                 )}
@@ -217,7 +217,7 @@ export default function CrmFollowUpPage() {
         </CardContent>
          {filteredFollowUps.length > 0 && (
             <CardFooter>
-                <p className="text-xs text-muted-foreground">Mostrando {filteredFollowUps.length} actividades de seguimiento.</p>
+                <p className="text-xs text-muted-foreground">Mostrando {filteredFollowUps.length} tareas de seguimiento.</p>
             </CardFooter>
         )}
       </Card>

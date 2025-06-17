@@ -146,3 +146,4 @@ export const mockAccounts: Account[] = [
     updatedAt: '2024-05-15',
   },
 ];
+

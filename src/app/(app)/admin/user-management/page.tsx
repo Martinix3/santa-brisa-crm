@@ -27,10 +27,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { mockTeamMembers, userRolesList } from "@/lib/data";
 import type { TeamMember, UserRole } from "@/types";
-import { Loader2, Check, Users, Edit } from "lucide-react";
+import { Loader2, Check, Users, Edit, Trash2 } from "lucide-react";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { useAuth } from "@/contexts/auth-context";
 import EditUserDialog, { type EditUserFormValues } from "@/components/app/edit-user-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 const userFormSchema = z.object({
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres."),
@@ -62,13 +63,14 @@ type UserFormValues = z.infer<typeof userFormSchema>;
 
 export default function UserManagementPage() {
   const { toast } = useToast();
-  const { createUserInAuth } = useAuth();
+  const { user: currentUser, createUserInAuth } = useAuth();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [users, setUsers] = React.useState<TeamMember[]>(() => {
     return [...mockTeamMembers]; 
   });
   const [editingUser, setEditingUser] = React.useState<TeamMember | null>(null);
   const [isEditUserDialogOpen, setIsEditUserDialogOpen] = React.useState(false);
+  const [userToDelete, setUserToDelete] = React.useState<TeamMember | null>(null);
 
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userFormSchema),
@@ -177,6 +179,47 @@ export default function UserManagementPage() {
     });
     setIsEditUserDialogOpen(false);
     setEditingUser(null);
+  };
+
+  const handleDeleteUserClick = (user: TeamMember) => {
+    setUserToDelete(user);
+  };
+
+  const confirmDeleteUser = () => {
+    if (!userToDelete) return;
+
+    // Prevent admin from deleting themselves
+    if (currentUser && userToDelete.id === currentUser.uid) {
+        toast({
+            title: "Acción no permitida",
+            description: "No puedes eliminar tu propia cuenta de administrador desde esta interfaz.",
+            variant: "destructive",
+        });
+        setUserToDelete(null);
+        return;
+    }
+
+    // Remove from local state
+    setUsers(prevUsers => prevUsers.filter(u => u.id !== userToDelete.id));
+
+    // Remove from mock data
+    const indexInMock = mockTeamMembers.findIndex(u => u.id === userToDelete.id);
+    if (indexInMock !== -1) {
+      mockTeamMembers.splice(indexInMock, 1);
+    }
+
+    toast({
+      title: "Usuario Eliminado de la Aplicación",
+      description: (
+        <div>
+          <p>El usuario "{userToDelete.name}" ha sido eliminado de la lista de esta aplicación.</p>
+          <p className="mt-2 font-semibold text-destructive">Importante: Para eliminar completamente al usuario, debes hacerlo manualmente desde la consola de Firebase Authentication.</p>
+        </div>
+      ),
+      variant: "destructive",
+      duration: 9000, 
+    });
+    setUserToDelete(null);
   };
 
 
@@ -322,7 +365,7 @@ export default function UserManagementPage() {
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
           <CardTitle>Usuarios Existentes</CardTitle>
-          <CardDescription>Lista de usuarios registrados en el sistema. Puede editar sus detalles.</CardDescription>
+          <CardDescription>Lista de usuarios registrados en el sistema. Puede editar sus detalles o eliminarlos de la aplicación (requiere eliminación manual de Firebase Auth).</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -357,11 +400,39 @@ export default function UserManagementPage() {
                         "—"
                       )}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right space-x-2">
                       <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}>
-                        <Edit className="mr-2 h-4 w-4" />
+                        <Edit className="mr-1 h-3 w-3" />
                         Editar
                       </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                           <Button 
+                              variant="destructive" 
+                              size="sm" 
+                              onClick={() => handleDeleteUserClick(user)}
+                              disabled={currentUser?.uid === user.id}
+                            >
+                            <Trash2 className="mr-1 h-3 w-3" /> Eliminar
+                          </Button>
+                        </AlertDialogTrigger>
+                         {userToDelete && userToDelete.id === user.id && (
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                <AlertDialogTitle>¿Confirmar eliminación de "{userToDelete.name}"?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    Esta acción eliminará al usuario de la lista de esta aplicación CRM.
+                                    <br/>
+                                    <strong className="mt-2 block text-destructive">Importante: Deberás eliminar manualmente al usuario ({userToDelete.email}) de Firebase Authentication para revocar su acceso completamente.</strong>
+                                </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                <AlertDialogCancel onClick={() => setUserToDelete(null)}>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={confirmDeleteUser} variant="destructive">Sí, eliminar de la app</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                         )}
+                      </AlertDialog>
                     </TableCell>
                   </TableRow>
                 )) : (
@@ -388,3 +459,5 @@ export default function UserManagementPage() {
     </div>
   );
 }
+
+    

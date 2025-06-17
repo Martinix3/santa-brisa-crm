@@ -28,9 +28,9 @@ import { es } from 'date-fns/locale';
 import { Calendar as CalendarIcon, Check, Loader2, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { mockOrders, mockTeamMembers, clientTypeList, nextActionTypeList, failureReasonList } from "@/lib/data";
+import { mockOrders, mockTeamMembers, clientTypeList, nextActionTypeList, failureReasonList, mockAccounts } from "@/lib/data";
 import { kpiDataLaunch } from "@/lib/launch-dashboard-data";
-import type { Order, ClientType, NextActionType, FailureReasonType } from "@/types";
+import type { Order, ClientType, NextActionType, FailureReasonType, Account, AccountType } from "@/types";
 import { useAuth } from "@/contexts/auth-context"; 
 
 const SINGLE_PRODUCT_NAME = "Santa Brisa 750ml";
@@ -190,11 +190,49 @@ export default function OrderFormPage() {
     setIsSubmitting(true);
     await new Promise(resolve => setTimeout(resolve, 1500));
 
-    const salesRepName = teamMember?.name || "Usuario Desconocido";
-    const currentDate = format(new Date(), "yyyy-MM-dd");
+    if (!teamMember) {
+        toast({ title: "Error", description: "No se pudo identificar al usuario. Por favor, recargue la página.", variant: "destructive" });
+        setIsSubmitting(false);
+        return;
+    }
 
-    if (values.outcome === "successful" && values.visitDate && values.orderValue && values.clientType && values.numberOfUnits && values.unitPrice) {
+    const salesRepName = teamMember.name;
+    const currentDate = format(new Date(), "yyyy-MM-dd");
+    let newAccountCreated = false;
+
+    if (values.outcome === "successful" && values.visitDate && values.orderValue && values.clientType && values.numberOfUnits && values.unitPrice && values.cif && values.nombreFiscal) {
       const numberOfBottles = values.numberOfUnits;
+
+      // Check if account with CIF already exists
+      const existingAccountByCif = mockAccounts.find(acc => acc.cif.toLowerCase() === values.cif!.toLowerCase());
+
+      if (!existingAccountByCif) {
+        const newAccount: Account = {
+            id: `acc_${Date.now()}`,
+            name: values.clientName,
+            legalName: values.nombreFiscal,
+            cif: values.cif,
+            type: values.clientType as AccountType, // clientType is mandatory for successful outcome
+            status: 'Activo',
+            addressBilling: values.direccionFiscal,
+            addressShipping: values.direccionEntrega,
+            mainContactName: values.contactoNombre,
+            mainContactEmail: values.contactoCorreo,
+            mainContactPhone: values.contactoTelefono,
+            notes: values.observacionesAlta,
+            salesRepId: teamMember.id,
+            createdAt: currentDate,
+            updatedAt: currentDate,
+        };
+        mockAccounts.unshift(newAccount);
+        newAccountCreated = true;
+
+        // Update new account KPIs only if a new account was truly created
+        const kpiCuentasAnual = kpiDataLaunch.find(k => k.id === 'kpi3');
+        if (kpiCuentasAnual) kpiCuentasAnual.currentValue += 1;
+        const kpiCuentasMensual = kpiDataLaunch.find(k => k.id === 'kpi4');
+        if (kpiCuentasMensual) kpiCuentasMensual.currentValue += 1;
+      }
 
       const newOrder: Order = {
         id: `ORD${Date.now()}`,
@@ -220,7 +258,7 @@ export default function OrderFormPage() {
       };
       mockOrders.unshift(newOrder);
 
-      if (userRole === 'SalesRep' && teamMember) {
+      if (userRole === 'SalesRep') {
         const memberIndex = mockTeamMembers.findIndex(m => m.id === teamMember.id);
         if (memberIndex !== -1) {
           mockTeamMembers[memberIndex].bottlesSold = (mockTeamMembers[memberIndex].bottlesSold || 0) + numberOfBottles;
@@ -233,14 +271,14 @@ export default function OrderFormPage() {
 
       const kpiVentasTotales = kpiDataLaunch.find(k => k.id === 'kpi1');
       if (kpiVentasTotales) kpiVentasTotales.currentValue += numberOfBottles;
-
-      if (values.nombreFiscal && values.nombreFiscal.trim() !== "") { 
-        const kpiCuentasAnual = kpiDataLaunch.find(k => k.id === 'kpi3');
-        if (kpiCuentasAnual) kpiCuentasAnual.currentValue += 1;
-        const kpiCuentasMensual = kpiDataLaunch.find(k => k.id === 'kpi4');
-        if (kpiCuentasMensual) kpiCuentasMensual.currentValue += 1;
+      
+      let toastMessage = `Pedido ${newOrder.id} para ${newOrder.clientName} (por ${salesRepName}) registrado.`;
+      if (newAccountCreated) {
+        toastMessage += " Nueva cuenta creada.";
+      } else if (existingAccountByCif) {
+        toastMessage += " (La cuenta ya existía, no se creó una nueva).";
       }
-      toast({ title: "¡Pedido Registrado!", description: <div className="flex items-start"><Check className="h-5 w-5 text-green-500 mr-2 mt-1" /><p>Pedido {newOrder.id} para {newOrder.clientName} (por {salesRepName}) registrado.</p></div>, variant: "default" });
+      toast({ title: "¡Operación Registrada!", description: <div className="flex items-start"><Check className="h-5 w-5 text-green-500 mr-2 mt-1" /><p>{toastMessage}</p></div>, variant: "default" });
     
     } else if (values.outcome === "follow-up" && values.visitDate && values.nextActionType) {
         const newFollowUpEntry: Order = {
@@ -256,7 +294,7 @@ export default function OrderFormPage() {
             notes: values.notes,
         };
         mockOrders.unshift(newFollowUpEntry);
-        if (userRole === 'SalesRep' && teamMember) {
+        if (userRole === 'SalesRep') {
             const memberIndex = mockTeamMembers.findIndex(m => m.id === teamMember.id);
             if (memberIndex !== -1) mockTeamMembers[memberIndex].visits = (mockTeamMembers[memberIndex].visits || 0) + 1;
         }
@@ -278,7 +316,7 @@ export default function OrderFormPage() {
             notes: values.notes,
         };
         mockOrders.unshift(newFailedEntry);
-         if (userRole === 'SalesRep' && teamMember) {
+         if (userRole === 'SalesRep') {
             const memberIndex = mockTeamMembers.findIndex(m => m.id === teamMember.id);
             if (memberIndex !== -1) mockTeamMembers[memberIndex].visits = (mockTeamMembers[memberIndex].visits || 0) + 1;
         }
@@ -362,7 +400,7 @@ export default function OrderFormPage() {
                   <FormItem><FormLabel>IVA ({IVA_RATE}%) (€)</FormLabel><FormControl><Input type="number" readOnly disabled className="bg-muted/50" value={ivaAmount === undefined ? '' : ivaAmount.toFixed(2)} placeholder="Cálculo automático"/></FormControl></FormItem>
                   <FormField control={form.control} name="orderValue" render={({ field }) => (<FormItem><FormLabel>Valor Total del Pedido (€ con IVA)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Cálculo automático" {...field} readOnly disabled className="bg-muted/50" value={field.value === undefined ? '' : field.value.toFixed(2)}/></FormControl><FormMessage /></FormItem>)}/>
                   <Separator className="my-6" />
-                  <div className="space-y-1"><h3 className="text-lg font-medium">Información de Alta del Cliente</h3><p className="text-sm text-muted-foreground">Complete estos datos si es un cliente nuevo o necesita actualizar la información. Rellenar el nombre fiscal contará como una nueva cuenta.</p></div>
+                  <div className="space-y-1"><h3 className="text-lg font-medium">Información de Alta del Cliente</h3><p className="text-sm text-muted-foreground">Complete estos datos si es un cliente nuevo o necesita actualizar la información. Rellenar el nombre fiscal y CIF contará como una nueva cuenta si el CIF no existe previamente.</p></div>
                   <FormField control={form.control} name="nombreFiscal" render={({ field }) => (<FormItem><FormLabel>Nombre Fiscal</FormLabel><FormControl><Input placeholder="Nombre legal completo de la empresa" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                   <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF</FormLabel><FormControl><Input placeholder="Número de Identificación Fiscal" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                   <FormField control={form.control} name="direccionFiscal" render={({ field }) => (<FormItem><FormLabel>Dirección Fiscal</FormLabel><FormControl><Textarea placeholder="Calle, número, piso, ciudad, código postal, provincia" {...field} /></FormControl><FormMessage /></FormItem>)}/>
@@ -462,4 +500,3 @@ export default function OrderFormPage() {
     </div>
   );
 }
-

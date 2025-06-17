@@ -75,3 +75,25 @@ export interface MarketingResourceCategory {
   name: string;
   resources: MarketingResource[];
 }
+
+// CRM Account Management
+export type AccountType = 'HORECA' | 'Distribuidor' | 'Retail Minorista' | 'Gran Superficie' | 'Evento Especial' | 'Otro';
+export type AccountStatus = 'Activo' | 'Inactivo' | 'Potencial' | 'Bloqueado';
+
+export interface Account {
+  id: string;
+  name: string; // Commercial name
+  legalName?: string;
+  cif: string; // Unique identifier
+  type: AccountType;
+  status: AccountStatus;
+  addressBilling?: string;
+  addressShipping?: string;
+  mainContactName?: string;
+  mainContactEmail?: string;
+  mainContactPhone?: string;
+  notes?: string;
+  salesRepId?: string; // ID of the assigned TeamMember (SalesRep)
+  createdAt: string; // YYYY-MM-DD
+  updatedAt: string; // YYYY-MM-DD
+}

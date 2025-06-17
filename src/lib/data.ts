@@ -1,5 +1,5 @@
 
-import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType } from '@/types';
+import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType, Account, AccountType, AccountStatus } from '@/types';
 import { Package, Users, ShoppingBag, BarChart3 } from 'lucide-react';
 
 export const mockKpis: Kpi[] = [
@@ -85,3 +85,60 @@ export const mockMarketingResources: MarketingResourceCategory[] = [
 ];
 
 export const userRolesList: UserRole[] = ['Admin', 'SalesRep', 'Distributor'];
+
+// CRM Account Data
+export const accountTypeList: AccountType[] = ['HORECA', 'Distribuidor', 'Retail Minorista', 'Gran Superficie', 'Evento Especial', 'Otro'];
+export const accountStatusList: AccountStatus[] = ['Activo', 'Inactivo', 'Potencial', 'Bloqueado'];
+
+export const mockAccounts: Account[] = [
+  {
+    id: 'acc_001',
+    name: 'Restaurante Sol Naciente',
+    legalName: 'Sol Naciente Gastronomía S.L.',
+    cif: 'B12345678',
+    type: 'HORECA',
+    status: 'Activo',
+    addressBilling: 'Calle Falsa 123, Local A, 28001 Madrid, España',
+    addressShipping: 'Calle Falsa 123, Local A, 28001 Madrid, España',
+    mainContactName: 'Ana Pérez',
+    mainContactEmail: 'ana.perez@solnaciente.es',
+    mainContactPhone: '+34 912 345 678',
+    notes: 'Cliente leal, pedidos semanales. Interesado en nuevas promociones.',
+    salesRepId: 'tm1', // Nico
+    createdAt: '2023-01-15',
+    updatedAt: '2024-05-10',
+  },
+  {
+    id: 'acc_002',
+    name: 'Distribuciones Gourmet del Sur',
+    legalName: 'Distribuciones Gourmet del Sur S.A.',
+    cif: 'A87654321',
+    type: 'Distribuidor',
+    status: 'Activo',
+    addressBilling: 'Avenida Principal 45, Polígono Industrial La Estrella, 41001 Sevilla, España',
+    addressShipping: 'Almacén Central, Nave 7, Polígono Industrial La Estrella, 41001 Sevilla, España',
+    mainContactName: 'Carlos López',
+    mainContactEmail: 'compras@gourmetdelsur.com',
+    mainContactPhone: '+34 954 123 456',
+    notes: 'Distribuidor principal para Andalucía. Gran volumen.',
+    salesRepId: 'tm2', // Alfonso
+    createdAt: '2022-11-01',
+    updatedAt: '2024-04-20',
+  },
+  {
+    id: 'acc_003',
+    name: 'Bodega Delicatessen Hermanos García',
+    legalName: 'Hermanos García C.B.',
+    cif: 'E00001111',
+    type: 'Retail Minorista',
+    status: 'Potencial',
+    addressBilling: 'Plaza Mayor 5, 49001 Zamora, España',
+    mainContactName: 'Lucía García',
+    mainContactEmail: 'lucia.garcia@delicatessenhg.es',
+    mainContactPhone: '+34 980 555 666',
+    notes: 'Mostraron interés en la feria. Contactar para seguimiento.',
+    salesRepId: 'tm3', // Federica
+    createdAt: '2024-03-01',
+    updatedAt: '2024-05-15',
+  },
+];

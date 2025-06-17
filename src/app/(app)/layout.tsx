@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button';
 import Logo from '@/components/icons/Logo';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2 } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2, Building2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { UserRole } from '@/types';
@@ -27,6 +27,7 @@ import { useAuth } from '@/contexts/auth-context';
 
 const allNavItems = [
   { href: '/dashboard', label: 'Panel', icon: LayoutDashboard, roles: ['Admin', 'SalesRep', 'Distributor'] as UserRole[] },
+  { href: '/accounts', label: 'Cuentas', icon: Building2, roles: ['Admin', 'SalesRep', 'Distributor'] as UserRole[] },
   { href: '/team-tracking', label: 'Seguimiento de Equipo', icon: Users, roles: ['Admin', 'SalesRep'] as UserRole[] },
   { href: '/order-form', label: 'Formulario de Pedido', icon: FileText, roles: ['Admin', 'SalesRep'] as UserRole[] },
   { href: '/orders-dashboard', label: 'Panel de Pedidos', icon: ShoppingCart, roles: ['Admin', 'SalesRep', 'Distributor'] as UserRole[] },
@@ -148,7 +149,9 @@ function AppNavigation({ navItems }: AppNavigationProps) {
         } else if (item.href === '/dashboard') {
           isActive = pathname === item.href;
         } else {
-          isActive = pathname.startsWith(item.href);
+          // For other main routes, check if pathname starts with item.href
+          // This makes parent routes active when on child routes, e.g. /accounts active when on /accounts/new
+          isActive = pathname.startsWith(item.href); 
         }
         
         return (

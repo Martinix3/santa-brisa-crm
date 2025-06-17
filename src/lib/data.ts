@@ -19,7 +19,10 @@ export const mockStrategicObjectives: StrategicObjective[] = [
 export const mockTeamMembers: TeamMember[] = [
   {
     id: 'tm1', name: 'Nico', email: 'nico@santabrisa.com', avatarUrl: 'https://placehold.co/100x100.png', role: 'SalesRep',
-    bottlesSold: 3250, monthlyTarget: 4000, orders: 120, visits: 250,
+    bottlesSold: 3250, 
+    monthlyTargetAccounts: 20, // New target
+    monthlyTargetVisits: 100, // New target
+    orders: 22, visits: 95, // Actuals
     performanceData: [
       { month: 'Enero', bottles: 450 }, { month: 'Febrero', bottles: 500 }, { month: 'Marzo', bottles: 520 },
       { month: 'Abril', bottles: 600 }, { month: 'Mayo', bottles: 650 }, { month: 'Junio', bottles: 530 },
@@ -27,7 +30,10 @@ export const mockTeamMembers: TeamMember[] = [
   },
   {
     id: 'tm2', name: 'Alfonso', email: 'alfonso@santabrisa.com', avatarUrl: 'https://placehold.co/100x100.png', role: 'SalesRep',
-    bottlesSold: 2800, monthlyTarget: 3500, orders: 95, visits: 180,
+    bottlesSold: 2800, 
+    monthlyTargetAccounts: 15, // New target
+    monthlyTargetVisits: 80, // New target
+    orders: 18, visits: 70, // Actuals
     performanceData: [
       { month: 'Enero', bottles: 380 }, { month: 'Febrero', bottles: 420 }, { month: 'Marzo', bottles: 450 },
       { month: 'Abril', bottles: 500 }, { month: 'Mayo', bottles: 550 }, { month: 'Junio', bottles: 500 },
@@ -35,7 +41,10 @@ export const mockTeamMembers: TeamMember[] = [
   },
   {
     id: 'tm3', name: 'Federica', email: 'federica@santabrisa.com', avatarUrl: 'https://placehold.co/100x100.png', role: 'SalesRep',
-    bottlesSold: 1500, monthlyTarget: 2000, orders: 60, visits: 120,
+    bottlesSold: 1500, 
+    monthlyTargetAccounts: 10, // New target
+    monthlyTargetVisits: 60, // New target
+    orders: 9, visits: 55, // Actuals
     performanceData: [
       { month: 'Enero', bottles: 200 }, { month: 'Febrero', bottles: 220 }, { month: 'Marzo', bottles: 250 },
       { month: 'Abril', bottles: 280 }, { month: 'Mayo', bottles: 250 }, { month: 'Junio', bottles: 300 },
@@ -52,23 +61,21 @@ export const mockTeamMembers: TeamMember[] = [
   }
 ];
 
-export const globalTeamMonthlyTarget: number = mockTeamMembers
-    .filter(member => member.role === 'SalesRep' && member.monthlyTarget)
-    .reduce((sum, member) => sum + (member.monthlyTarget || 0), 0);
+// globalTeamMonthlyTarget (for bottles) is removed as individual bottle targets are removed.
+// If a new global target is needed (e.g., for accounts or visits), it would need a different definition.
 
 export const orderStatusesList: OrderStatus[] = ['Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Cancelado', 'Fallido'];
 export const clientTypeList: ClientType[] = ['Distribuidor', 'HORECA', 'Retail', 'Cliente Final'];
 
 const clientNames = ['Café Central', 'Restaurante del Sol', 'El Rincón Diario', 'Bistró Vista al Mar', 'Café Cima de Montaña'];
 
-// SalesReps for order assignment will now come from mockTeamMembers with role 'SalesRep'
 const salesRepsData = mockTeamMembers.filter(member => member.role === 'SalesRep');
 const salesRepsNames = salesRepsData.length > 0 ? salesRepsData.map(sr => sr.name) : ['Equipo Ventas'];
 
 
 export const mockOrders: Order[] = Array.from({ length: 25 }, (_, i) => {
   const date = new Date(2024, 5 - Math.floor(i / 5), 28 - (i % 28) + 1);
-  const isSuccessfulMockScenario = i % orderStatusesList.length < 5; // First 5 statuses are generally successful
+  const isSuccessfulMockScenario = i % orderStatusesList.length < 5; 
 
   return {
     id: `ORD${1001 + i}`,
@@ -80,12 +87,10 @@ export const mockOrders: Order[] = Array.from({ length: 25 }, (_, i) => {
     salesRep: salesRepsNames[i % salesRepsNames.length],
     lastUpdated: new Date(date.getTime() + Math.random() * 5 * 24*60*60*1000).toISOString().split('T')[0],
 
-    // Add sample new fields for some orders
     clientType: isSuccessfulMockScenario ? clientTypeList[i % clientTypeList.length] : undefined,
     numberOfUnits: isSuccessfulMockScenario ? Math.floor(Math.random() * 50) + 10 : undefined,
     unitPrice: isSuccessfulMockScenario ? parseFloat(((Math.random() * 20) + 5).toFixed(2)) : undefined,
 
-    // Add sample billing and contact info for some orders
     nombreFiscal: isSuccessfulMockScenario ? `${clientNames[i % clientNames.length]} S.L.` : undefined,
     cif: isSuccessfulMockScenario ? `B1234567${i % 10}` : undefined,
     direccionFiscal: isSuccessfulMockScenario ? `Calle Falsa 123, Ciudad, Provincia ${i % 5}` : undefined,

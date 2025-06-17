@@ -6,10 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { TeamMember } from "@/types";
-import { mockTeamMembers } from "@/lib/data"; // globalTeamMonthlyTarget will be calculated dynamically
-import { Package, ShoppingCart, Users, Target } from 'lucide-react';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { Line, LineChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
+import { mockTeamMembers } from "@/lib/data";
+import { Package, ShoppingCart, Users, Briefcase, Walking } from 'lucide-react'; // Added Briefcase, Walking
+import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
+import { Line, LineChart, ResponsiveContainer, Tooltip } from "recharts"; // Removed CartesianGrid, XAxis, YAxis
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
@@ -21,18 +21,37 @@ const chartConfig = (color: string) => ({
   },
 });
 
+const renderProgress = (current: number, target: number, unit: string, targetAchievedText: string) => {
+  const progress = target > 0 ? (current / target) * 100 : 0;
+  const remaining = Math.max(0, target - current);
+  const targetAchieved = current >= target;
+
+  return (
+    <div className="flex flex-col items-center w-full">
+      <Progress 
+        value={progress} 
+        className="h-2 mb-1 w-full [&>div]:bg-primary" 
+        aria-label={`${progress.toFixed(0)}% del objetivo de ${unit}`} 
+      />
+      <p className="text-xs text-muted-foreground text-center">
+        Actual: <FormattedNumericValue value={current} /> / <FormattedNumericValue value={target} /> {unit}
+      </p>
+      <p className={cn("text-xs text-muted-foreground/80 text-center", targetAchieved && target > 0 ? "text-green-600" : "")}>
+        {target === 0 ? "Sin objetivo" :
+         targetAchieved ? targetAchievedText : `Faltan: ${remaining.toLocaleString('es-ES')}`}
+      </p>
+    </div>
+  );
+};
+
+
 export default function TeamTrackingPage() {
-  const salesTeamMembers = useMemo(() => mockTeamMembers.filter(m => m.role === 'SalesRep'), [mockTeamMembers]);
+  const salesTeamMembers = useMemo(() => mockTeamMembers.filter(m => m.role === 'SalesRep'), []);
 
   const teamTotalBottlesValue = useMemo(() => salesTeamMembers.reduce((sum, m) => sum + (m.bottlesSold || 0), 0), [salesTeamMembers]);
-  const teamTotalOrdersValue = useMemo(() => salesTeamMembers.reduce((sum, m) => sum + (m.orders || 0), 0), [salesTeamMembers]);
+  const teamTotalOrdersValue = useMemo(() => salesTeamMembers.reduce((sum, m) => sum + (m.orders || 0), 0), [salesTeamMembers]); // Used as "cuentas"
   const teamTotalVisitsValue = useMemo(() => salesTeamMembers.reduce((sum, m) => sum + (m.visits || 0), 0), [salesTeamMembers]);
   
-  const globalTeamMonthlyTarget = useMemo(() => salesTeamMembers.reduce((sum, m) => sum + (m.monthlyTarget || 0), 0), [salesTeamMembers]);
-
-  const teamGlobalProgress = globalTeamMonthlyTarget > 0 ? (teamTotalBottlesValue / globalTeamMonthlyTarget) * 100 : 0;
-  const teamGlobalRemaining = Math.max(0, globalTeamMonthlyTarget - teamTotalBottlesValue);
-
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-headline font-semibold">Seguimiento de Equipo de Ventas</h1>
@@ -45,21 +64,20 @@ export default function TeamTrackingPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[250px]">Representante</TableHead>
+                <TableHead className="w-[200px]">Representante</TableHead>
                 <TableHead className="text-right">Botellas Vendidas</TableHead>
-                <TableHead className="text-center">Progreso Objetivo Mensual</TableHead>
-                <TableHead className="text-right">Pedidos</TableHead>
-                <TableHead className="text-right">Visitas</TableHead>
-                <TableHead className="w-[200px] text-center">Tendencia Mensual (Botellas)</TableHead>
+                <TableHead className="text-center w-[200px]">Progreso Cuentas (Mes)</TableHead>
+                <TableHead className="text-center w-[200px]">Progreso Visitas (Mes)</TableHead>
+                <TableHead className="w-[180px] text-center">Tendencia Mensual (Botellas)</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {salesTeamMembers.map((member: TeamMember) => {
                 const bottlesSold = member.bottlesSold || 0;
-                const monthlyTarget = member.monthlyTarget || 0;
-                const progress = monthlyTarget > 0 ? (bottlesSold / monthlyTarget) * 100 : 0;
-                const remaining = Math.max(0, monthlyTarget - bottlesSold);
-                const targetAchieved = bottlesSold >= monthlyTarget;
+                const accountsAchieved = member.orders || 0;
+                const visitsMade = member.visits || 0;
+                const targetAccounts = member.monthlyTargetAccounts || 0;
+                const targetVisits = member.monthlyTargetVisits || 0;
                 
                 return (
                   <TableRow key={member.id}>
@@ -71,7 +89,6 @@ export default function TeamTrackingPage() {
                         </Avatar>
                         <div>
                           <p className="font-medium">{member.name}</p>
-                          {/* Role display can be generic or specific if needed */}
                            <p className="text-xs text-muted-foreground">{member.role === 'SalesRep' ? 'Rep. Ventas' : member.role}</p>
                         </div>
                       </div>
@@ -80,23 +97,10 @@ export default function TeamTrackingPage() {
                       <FormattedNumericValue value={bottlesSold} locale="es-ES" />
                     </TableCell>
                     <TableCell className="w-[200px]">
-                      <div className="flex flex-col items-center">
-                        <Progress value={progress} className="h-2 mb-1 w-full [&>div]:bg-primary" aria-label={`${progress.toFixed(0)}% del objetivo mensual`} />
-                        <p className="text-xs text-muted-foreground text-center">
-                          {targetAchieved && monthlyTarget > 0
-                            ? `¡Objetivo Cumplido! (+${(bottlesSold - monthlyTarget).toLocaleString('es-ES')})`
-                            : monthlyTarget > 0 ? `Faltan: ${remaining.toLocaleString('es-ES')}` : "Sin objetivo"}
-                        </p>
-                         <p className="text-xs text-muted-foreground/80 text-center">
-                            {monthlyTarget > 0 ? `Meta: ${monthlyTarget.toLocaleString('es-ES')}` : ""}
-                        </p>
-                      </div>
+                      {renderProgress(accountsAchieved, targetAccounts, "cuentas", "¡Obj. Cuentas Cumplido!")}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <FormattedNumericValue value={member.orders || 0} locale="es-ES" />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <FormattedNumericValue value={member.visits || 0} locale="es-ES" />
+                    <TableCell className="w-[200px]">
+                       {renderProgress(visitsMade, targetVisits, "visitas", "¡Obj. Visitas Cumplido!")}
                     </TableCell>
                     <TableCell className="p-0 h-[60px]">
                       {member.performanceData && member.performanceData.length > 0 && (
@@ -124,7 +128,7 @@ export default function TeamTrackingPage() {
               })}
                {salesTeamMembers.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center">
+                    <TableCell colSpan={5} className="h-24 text-center">
                       No hay Representantes de Ventas para mostrar.
                     </TableCell>
                   </TableRow>
@@ -134,7 +138,7 @@ export default function TeamTrackingPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-6 md:grid-cols-3">
         <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Botellas del Equipo</CardTitle> 
@@ -148,8 +152,8 @@ export default function TeamTrackingPage() {
         </Card>
         <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pedidos Totales del Equipo</CardTitle>
-            <ShoppingCart className="h-5 w-5 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Total Cuentas Equipo (Pedidos)</CardTitle>
+            <Briefcase className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
@@ -159,36 +163,13 @@ export default function TeamTrackingPage() {
         </Card>
         <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Visitas Totales Equipo</CardTitle>
-            <Users className="h-5 w-5 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Total Visitas Equipo</CardTitle>
+            <Walking className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
                  <FormattedNumericValue value={teamTotalVisitsValue} locale="es-ES" />
             </div>
-          </CardContent>
-        </Card>
-        <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
-          <CardHeader className="pb-2">
-            <div className="flex flex-row items-center justify-between space-y-0">
-                <CardTitle className="text-sm font-medium">Progreso Objetivo Global Mensual</CardTitle>
-                <Target className="h-5 w-5 text-muted-foreground" />
-            </div>
-             <CardDescription className="text-xs pt-1">
-                Objetivo del equipo: <FormattedNumericValue value={globalTeamMonthlyTarget} locale="es-ES" /> botellas
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Progress value={teamGlobalProgress} className="h-3 mb-2 [&>div]:bg-primary" aria-label={`${teamGlobalProgress.toFixed(0)}% del objetivo global`} />
-            <div className="text-sm text-muted-foreground">
-              Actual: <FormattedNumericValue value={teamTotalBottlesValue} locale="es-ES" /> / <FormattedNumericValue value={globalTeamMonthlyTarget} locale="es-ES" />
-            </div>
-            <p className={cn("text-xs mt-1", teamTotalBottlesValue >= globalTeamMonthlyTarget && globalTeamMonthlyTarget > 0 ? "text-green-600" : "text-muted-foreground")}>
-              {globalTeamMonthlyTarget === 0 ? "No hay objetivo global definido." :
-               teamTotalBottlesValue >= globalTeamMonthlyTarget
-                ? `¡Objetivo Cumplido! (+${(teamTotalBottlesValue - globalTeamMonthlyTarget).toLocaleString('es-ES')})`
-                : `Faltan: ${teamGlobalRemaining.toLocaleString('es-ES')} para el objetivo global.`}
-            </p>
           </CardContent>
         </Card>
       </div>

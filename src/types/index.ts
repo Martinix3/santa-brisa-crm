@@ -22,10 +22,11 @@ export interface TeamMember {
   email: string;
   avatarUrl?: string; // Optional, as not all users might have one initially
   role: UserRole; // Changed from string to UserRole for better type safety
-  bottlesSold?: number;
-  monthlyTarget?: number;
-  orders?: number;
-  visits?: number;
+  bottlesSold?: number; // Actual bottles sold, still relevant as a metric
+  monthlyTargetAccounts?: number; // New: Target for accounts/clients per month
+  monthlyTargetVisits?: number; // New: Target for visits per month
+  orders?: number; // Actual orders/accounts achieved
+  visits?: number; // Actual visits made
   performanceData?: { month: string; bottles: number }[];
 }
 

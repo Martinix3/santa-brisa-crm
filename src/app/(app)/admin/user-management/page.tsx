@@ -36,15 +36,25 @@ const userFormSchema = z.object({
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres."),
   email: z.string().email("El formato del correo electrónico no es válido."),
   role: z.enum(userRolesList as [UserRole, ...UserRole[]], { required_error: "El rol es obligatorio." }),
-  monthlyTarget: z.coerce.number().positive("El objetivo mensual debe ser un número positivo.").optional(),
+  monthlyTargetAccounts: z.coerce.number().positive("El objetivo de cuentas debe ser un número positivo.").optional(),
+  monthlyTargetVisits: z.coerce.number().positive("El objetivo de visitas debe ser un número positivo.").optional(),
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres.").optional(),
 }).superRefine((data, ctx) => {
-  if (data.role === "SalesRep" && (data.monthlyTarget === undefined || data.monthlyTarget <= 0)) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "El objetivo mensual es obligatorio y debe ser positivo para un Representante de Ventas.",
-      path: ["monthlyTarget"],
-    });
+  if (data.role === "SalesRep") {
+    if (data.monthlyTargetAccounts === undefined || data.monthlyTargetAccounts <= 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "El objetivo mensual de cuentas es obligatorio y debe ser positivo para un Representante de Ventas.",
+        path: ["monthlyTargetAccounts"],
+      });
+    }
+    if (data.monthlyTargetVisits === undefined || data.monthlyTargetVisits <= 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "El objetivo mensual de visitas es obligatorio y debe ser positivo para un Representante de Ventas.",
+        path: ["monthlyTargetVisits"],
+      });
+    }
   }
 });
 
@@ -55,7 +65,7 @@ export default function UserManagementPage() {
   const { createUserInAuth } = useAuth();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [users, setUsers] = React.useState<TeamMember[]>(() => {
-    return [...mockTeamMembers]; // Use a mutable copy
+    return [...mockTeamMembers]; 
   });
   const [editingUser, setEditingUser] = React.useState<TeamMember | null>(null);
   const [isEditUserDialogOpen, setIsEditUserDialogOpen] = React.useState(false);
@@ -66,7 +76,8 @@ export default function UserManagementPage() {
       name: "",
       email: "",
       role: undefined,
-      monthlyTarget: undefined,
+      monthlyTargetAccounts: undefined,
+      monthlyTargetVisits: undefined,
       password: "secret123", 
     },
   });
@@ -84,24 +95,22 @@ export default function UserManagementPage() {
       return;
     }
     
-    // Create user for local mock data IF NOT ALREADY EXISTS BY EMAIL (to avoid duplicates if page is reloaded)
-    // This new user in mockTeamMembers won't have performanceData unless explicitly added.
-    // And it won't have an avatarUrl unless set.
     if (!mockTeamMembers.find(u => u.email === values.email)) {
         const newMockUser: TeamMember = {
-            id: firebaseUser.uid, // Use Firebase UID as ID
+            id: firebaseUser.uid, 
             name: values.name,
             email: values.email,
             role: values.role,
-            monthlyTarget: values.role === "SalesRep" ? values.monthlyTarget : undefined,
+            monthlyTargetAccounts: values.role === "SalesRep" ? values.monthlyTargetAccounts : undefined,
+            monthlyTargetVisits: values.role === "SalesRep" ? values.monthlyTargetVisits : undefined,
             bottlesSold: 0,
             orders: 0,
             visits: 0,
-            performanceData: [], // Start with empty performance
+            performanceData: [], 
             avatarUrl: `https://placehold.co/100x100.png?text=${values.name.substring(0,2)}`
         };
-        mockTeamMembers.push(newMockUser); // Add to the global mock data source
-        setUsers([...mockTeamMembers]); // Update local state to re-render table
+        mockTeamMembers.push(newMockUser); 
+        setUsers([...mockTeamMembers]); 
     }
 
 
@@ -123,7 +132,8 @@ export default function UserManagementPage() {
       name: "",
       email: "",
       role: undefined,
-      monthlyTarget: undefined,
+      monthlyTargetAccounts: undefined,
+      monthlyTargetVisits: undefined,
       password: "secret123",
     });
     setIsSubmitting(false);
@@ -135,19 +145,17 @@ export default function UserManagementPage() {
   };
 
   const handleUpdateUser = (updatedData: EditUserFormValues, userId: string) => {
-    // Update in the global mockTeamMembers array
     const userIndexInMock = mockTeamMembers.findIndex(u => u.id === userId);
     if (userIndexInMock !== -1) {
       mockTeamMembers[userIndexInMock] = {
         ...mockTeamMembers[userIndexInMock],
         name: updatedData.name,
         role: updatedData.role,
-        monthlyTarget: updatedData.role === "SalesRep" ? updatedData.monthlyTarget : undefined,
-        // Email is not editable here
+        monthlyTargetAccounts: updatedData.role === "SalesRep" ? updatedData.monthlyTargetAccounts : undefined,
+        monthlyTargetVisits: updatedData.role === "SalesRep" ? updatedData.monthlyTargetVisits : undefined,
       };
     }
 
-    // Update in the local 'users' state for UI re-render
     setUsers(prevUsers => 
       prevUsers.map(u => 
         u.id === userId 
@@ -155,7 +163,8 @@ export default function UserManagementPage() {
             ...u, 
             name: updatedData.name, 
             role: updatedData.role,
-            monthlyTarget: updatedData.role === "SalesRep" ? updatedData.monthlyTarget : undefined,
+            monthlyTargetAccounts: updatedData.role === "SalesRep" ? updatedData.monthlyTargetAccounts : undefined,
+            monthlyTargetVisits: updatedData.role === "SalesRep" ? updatedData.monthlyTargetVisits : undefined,
           } 
         : u
       )
@@ -251,25 +260,46 @@ export default function UserManagementPage() {
                   )}
                 />
                 {selectedRole === "SalesRep" && (
-                  <FormField
-                    control={form.control}
-                    name="monthlyTarget"
-                    render={({ field }) => (
-                      <FormItem className="md:col-span-2">
-                        <FormLabel>Objetivo Mensual de Ventas (Botellas)</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            placeholder="p. ej., 3000"
-                            {...field}
-                            value={field.value ?? ""}
-                             onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <>
+                    <FormField
+                      control={form.control}
+                      name="monthlyTargetAccounts"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Objetivo Mensual de Cuentas</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              placeholder="p. ej., 20"
+                              {...field}
+                              value={field.value ?? ""}
+                              onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="monthlyTargetVisits"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Objetivo Mensual de Visitas</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              placeholder="p. ej., 80"
+                              {...field}
+                              value={field.value ?? ""}
+                              onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </>
                 )}
               </div>
               <CardFooter className="p-0 pt-4">
@@ -302,7 +332,8 @@ export default function UserManagementPage() {
                   <TableHead>Nombre</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Rol</TableHead>
-                  <TableHead className="text-right">Objetivo Mensual (Botellas)</TableHead>
+                  <TableHead className="text-right">Obj. Cuentas (Mes)</TableHead>
+                  <TableHead className="text-right">Obj. Visitas (Mes)</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -313,8 +344,15 @@ export default function UserManagementPage() {
                     <TableCell>{user.email}</TableCell>
                     <TableCell>{user.role === 'SalesRep' ? 'Rep. Ventas' : user.role}</TableCell>
                     <TableCell className="text-right">
-                      {user.role === "SalesRep" && user.monthlyTarget !== undefined ? (
-                         <FormattedNumericValue value={user.monthlyTarget} locale="es-ES" />
+                      {user.role === "SalesRep" && user.monthlyTargetAccounts !== undefined ? (
+                         <FormattedNumericValue value={user.monthlyTargetAccounts} locale="es-ES" />
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {user.role === "SalesRep" && user.monthlyTargetVisits !== undefined ? (
+                         <FormattedNumericValue value={user.monthlyTargetVisits} locale="es-ES" />
                       ) : (
                         "—"
                       )}
@@ -328,7 +366,7 @@ export default function UserManagementPage() {
                   </TableRow>
                 )) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center">
+                    <TableCell colSpan={6} className="h-24 text-center">
                       No hay usuarios registrados.
                     </TableCell>
                   </TableRow>

@@ -34,9 +34,10 @@ const getStatusBadgeColor = (status: OrderStatus): string => {
     case 'Procesando': return 'bg-orange-400 hover:bg-orange-500 text-black';
     case 'Cancelado':
     case 'Fallido': return 'bg-red-500 hover:bg-red-600 text-white';
+    case 'Seguimiento': return 'bg-blue-500 hover:bg-blue-600 text-white';
     default: return 'bg-gray-400 hover:bg-gray-500 text-white';
   }
-}
+};
 
 
 export default function OrdersDashboardPage() {
@@ -115,7 +116,7 @@ export default function OrdersDashboardPage() {
     const contributesToMetrics = (status: OrderStatus) => ['Confirmado', 'Procesando', 'Enviado', 'Entregado'].includes(status);
     
     const originalOrderContributed = contributesToMetrics(originalOrder.status);
-    const updatedOrderContributes = contributesToMetrics(updatedOrderDataInMock.status);
+    const updatedOrderContributed = contributesToMetrics(updatedOrderDataInMock.status);
 
     const originalUnits = originalOrder.numberOfUnits || 0;
     const updatedUnits = updatedOrderDataInMock.numberOfUnits || 0;
@@ -126,11 +127,11 @@ export default function OrdersDashboardPage() {
 
     if (kpiVentasTotales) {
       if (originalOrderContributed) kpiVentasTotales.currentValue -= originalUnits;
-      if (updatedOrderContributes) kpiVentasTotales.currentValue += updatedUnits;
+      if (updatedOrderContributed) kpiVentasTotales.currentValue += updatedUnits;
     }
     if (kpiVentasEquipo) {
        if (originalOrderContributed) kpiVentasEquipo.currentValue -= originalUnits;
-       if (updatedOrderContributes) kpiVentasEquipo.currentValue += updatedUnits;
+       if (updatedOrderContributed) kpiVentasEquipo.currentValue += updatedUnits;
     }
     
     // 2. Adjust mockTeamMembers for sales rep changes or contribution changes
@@ -144,7 +145,7 @@ export default function OrdersDashboardPage() {
 
     const newSalesRepMember = mockTeamMembers.find(m => m.name === updatedOrderDataInMock.salesRep && (m.role === 'SalesRep' || m.role === 'Admin'));
     if (newSalesRepMember) {
-        if (updatedOrderContributes) {
+        if (updatedOrderContributed) {
             newSalesRepMember.bottlesSold = (newSalesRepMember.bottlesSold || 0) + updatedUnits;
             newSalesRepMember.orders = (newSalesRepMember.orders || 0) + 1;
         }

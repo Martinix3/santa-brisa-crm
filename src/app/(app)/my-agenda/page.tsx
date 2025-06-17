@@ -8,21 +8,28 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/auth-context";
-import type { Order, TeamMember } from "@/types";
+import type { Order, TeamMember, OrderStatus } from "@/types";
 import { mockOrders, mockTeamMembers } from "@/lib/data";
 import { parseISO, format, isEqual, startOfDay, isSameMonth } from "date-fns";
 import { es } from "date-fns/locale";
 import { CalendarCheck, User, Info } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface AgendaEvent extends Order {
   eventDate: Date;
 }
 
-const getStatusBadgeColor = (status: Order['status']): string => {
+const getStatusBadgeColor = (status: OrderStatus): string => {
   switch (status) {
+    case 'Entregado': return 'bg-green-500 hover:bg-green-600 text-white';
+    case 'Confirmado': return 'bg-[hsl(var(--brand-turquoise-hsl))] hover:brightness-90 text-white';
+    case 'Enviado': return 'bg-purple-500 hover:bg-purple-600 text-white';
+    case 'Pendiente': return 'bg-yellow-400 hover:bg-yellow-500 text-black';
+    case 'Procesando': return 'bg-orange-400 hover:bg-orange-500 text-black';
+    case 'Cancelado':
+    case 'Fallido': return 'bg-red-500 hover:bg-red-600 text-white';
     case 'Seguimiento': return 'bg-blue-500 hover:bg-blue-600 text-white';
-    case 'Fallido': return 'bg-orange-500 hover:bg-orange-600 text-white';
-    default: return 'bg-gray-400 hover:bg-gray-500';
+    default: return 'bg-gray-400 hover:bg-gray-500 text-white';
   }
 };
 
@@ -163,7 +170,7 @@ export default function MyAgendaPage() {
                         <Badge variant="outline" className="text-xs">
                             Visita original: {format(parseISO(event.visitDate), "dd/MM/yy")}
                         </Badge>
-                        <Badge className={getStatusBadgeColor(event.status) + " text-xs"}>
+                        <Badge className={cn("text-xs", getStatusBadgeColor(event.status))}>
                           {event.status}
                         </Badge>
                       </div>
@@ -187,3 +194,4 @@ export default function MyAgendaPage() {
     </div>
   );
 }
+

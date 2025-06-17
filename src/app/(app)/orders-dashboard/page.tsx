@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import type { Order, OrderStatus, UserRole } from "@/types";
 import { mockOrders, orderStatusesList, mockTeamMembers } from "@/lib/data";
@@ -54,7 +54,8 @@ export default function OrdersDashboardPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
   const [orderToDelete, setOrderToDelete] = React.useState<Order | null>(null);
 
-  const uniqueStatuses = ["Todos", ...Array.from(new Set(mockOrders.map(order => order.status)))] as (OrderStatus | "Todos")[];
+  const uniqueStatuses = ["Todos", ...Array.from(new Set(mockOrders.map(order => order.status).filter(Boolean)))] as (OrderStatus | "Todos")[];
+
 
   const filteredOrders = orders
     .filter(order =>
@@ -65,7 +66,7 @@ export default function OrdersDashboardPage() {
     .filter(order => statusFilter === "Todos" || order.status === statusFilter)
     .filter(order => {
       if (!dateRange?.from) return true;
-      const orderDate = parseISO(order.visitDate);
+      const orderDate = parseISO(order.visitDate); // Assuming visitDate is the primary date for filtering
       const fromDate = dateRange.from;
       const toDate = dateRange.to ? addDays(dateRange.to,1) : addDays(new Date(), 1) ; 
       return orderDate >= fromDate && orderDate < toDate;
@@ -83,32 +84,32 @@ export default function OrdersDashboardPage() {
       return;
     }
 
-    const originalOrder = { ...mockOrders[orderIndex] }; // Copia profunda para evitar mutación directa
+    const originalOrder = { ...mockOrders[orderIndex] }; 
     const updatedOrderDataInMock: Order = {
       ...originalOrder,
       clientName: updatedData.clientName,
-      products: updatedData.products ? updatedData.products.split(/[,;\n]+/).map(p => p.trim()).filter(p => p.length > 0) : [],
-      value: updatedData.value,
+      products: updatedData.products ? updatedData.products.split(/[,;\n]+/).map(p => p.trim()).filter(p => p.length > 0) : originalOrder.products,
+      value: updatedData.value !== undefined ? updatedData.value : originalOrder.value,
       status: updatedData.status,
       salesRep: updatedData.salesRep,
       lastUpdated: format(new Date(), "yyyy-MM-dd"),
-      clientType: updatedData.clientType,
-      numberOfUnits: updatedData.numberOfUnits,
-      unitPrice: updatedData.unitPrice,
-      nombreFiscal: updatedData.nombreFiscal,
-      cif: updatedData.cif,
-      direccionFiscal: updatedData.direccionFiscal,
-      direccionEntrega: updatedData.direccionEntrega,
-      contactoNombre: updatedData.contactoNombre,
-      contactoCorreo: updatedData.contactoCorreo,
-      contactoTelefono: updatedData.contactoTelefono,
-      observacionesAlta: updatedData.observacionesAlta,
-      notes: updatedData.notes,
-      nextActionType: updatedData.nextActionType,
-      nextActionCustom: updatedData.nextActionCustom,
-      nextActionDate: updatedData.nextActionDate ? format(updatedData.nextActionDate, "yyyy-MM-dd", {locale: es}) : undefined,
-      failureReasonType: updatedData.failureReasonType,
-      failureReasonCustom: updatedData.failureReasonCustom,
+      clientType: updatedData.clientType || originalOrder.clientType,
+      numberOfUnits: updatedData.numberOfUnits !== undefined ? updatedData.numberOfUnits : originalOrder.numberOfUnits,
+      unitPrice: updatedData.unitPrice !== undefined ? updatedData.unitPrice : originalOrder.unitPrice,
+      nombreFiscal: updatedData.nombreFiscal || originalOrder.nombreFiscal,
+      cif: updatedData.cif || originalOrder.cif,
+      direccionFiscal: updatedData.direccionFiscal || originalOrder.direccionFiscal,
+      direccionEntrega: updatedData.direccionEntrega || originalOrder.direccionEntrega,
+      contactoNombre: updatedData.contactoNombre || originalOrder.contactoNombre,
+      contactoCorreo: updatedData.contactoCorreo || originalOrder.contactoCorreo,
+      contactoTelefono: updatedData.contactoTelefono || originalOrder.contactoTelefono,
+      observacionesAlta: updatedData.observacionesAlta || originalOrder.observacionesAlta,
+      notes: updatedData.notes || originalOrder.notes,
+      nextActionType: updatedData.nextActionType || originalOrder.nextActionType,
+      nextActionCustom: updatedData.nextActionCustom || originalOrder.nextActionCustom,
+      nextActionDate: updatedData.nextActionDate ? format(updatedData.nextActionDate, "yyyy-MM-dd", {locale: es}) : originalOrder.nextActionDate,
+      failureReasonType: updatedData.failureReasonType || originalOrder.failureReasonType,
+      failureReasonCustom: updatedData.failureReasonCustom || originalOrder.failureReasonCustom,
     };
     
     const contributesToMetrics = (status: OrderStatus) => ['Confirmado', 'Procesando', 'Enviado', 'Entregado'].includes(status);
@@ -119,7 +120,7 @@ export default function OrdersDashboardPage() {
     const originalUnits = originalOrder.numberOfUnits || 0;
     const updatedUnits = updatedOrderDataInMock.numberOfUnits || 0;
 
-    // 1. Update KPIs globales
+    // 1. Adjust KPIs globales
     const kpiVentasTotales = kpiDataLaunch.find(k => k.id === 'kpi1');
     const kpiVentasEquipo = kpiDataLaunch.find(k => k.id === 'kpi2');
 
@@ -132,24 +133,27 @@ export default function OrdersDashboardPage() {
        if (updatedOrderContributes) kpiVentasEquipo.currentValue += updatedUnits;
     }
     
-    // 2. Update mockTeamMembers
-    const originalSalesRep = mockTeamMembers.find(m => m.name === originalOrder.salesRep && (m.role === 'SalesRep' || m.role === 'Admin'));
-    if (originalSalesRep && originalOrderContributed) {
-      originalSalesRep.bottlesSold = (originalSalesRep.bottlesSold || 0) - originalUnits;
-      originalSalesRep.orders = (originalSalesRep.orders || 0) - 1;
+    // 2. Adjust mockTeamMembers for sales rep changes or contribution changes
+    const originalSalesRepMember = mockTeamMembers.find(m => m.name === originalOrder.salesRep && (m.role === 'SalesRep' || m.role === 'Admin'));
+    if (originalSalesRepMember) {
+        if (originalOrderContributed) {
+            originalSalesRepMember.bottlesSold = (originalSalesRepMember.bottlesSold || 0) - originalUnits;
+            originalSalesRepMember.orders = (originalSalesRepMember.orders || 0) - 1;
+        }
     }
 
-    const newSalesRep = mockTeamMembers.find(m => m.name === updatedOrderDataInMock.salesRep && (m.role === 'SalesRep' || m.role === 'Admin'));
-    if (newSalesRep && updatedOrderContributes) {
-      newSalesRep.bottlesSold = (newSalesRep.bottlesSold || 0) + updatedUnits;
-      newSalesRep.orders = (newSalesRep.orders || 0) + 1;
+    const newSalesRepMember = mockTeamMembers.find(m => m.name === updatedOrderDataInMock.salesRep && (m.role === 'SalesRep' || m.role === 'Admin'));
+    if (newSalesRepMember) {
+        if (updatedOrderContributes) {
+            newSalesRepMember.bottlesSold = (newSalesRepMember.bottlesSold || 0) + updatedUnits;
+            newSalesRepMember.orders = (newSalesRepMember.orders || 0) + 1;
+        }
     }
-    
-    // 3. Actualizar el pedido en mockOrders
+        
     mockOrders[orderIndex] = updatedOrderDataInMock;
-    setOrders([...mockOrders]); // Actualizar estado para la UI de la tabla
+    setOrders([...mockOrders]); 
     
-    setIsEditDialogOpen(false);
+    if (isEditDialogOpen) setIsEditDialogOpen(false);
     setEditingOrder(null);
 
     toast({
@@ -172,7 +176,7 @@ export default function OrdersDashboardPage() {
   const confirmDeleteOrder = () => {
     if (!canDeleteOrder || !orderToDelete) return;
     
-    const orderBeingDeleted = { ...orderToDelete }; // Copia para evitar problemas de referencia
+    const orderBeingDeleted = { ...orderToDelete }; 
     const orderContributed = ['Confirmado', 'Procesando', 'Enviado', 'Entregado'].includes(orderBeingDeleted.status);
 
     if (orderContributed) {
@@ -191,7 +195,6 @@ export default function OrdersDashboardPage() {
         }
     }
 
-
     const updatedOrdersState = orders.filter(o => o.id !== orderToDelete.id);
     setOrders(updatedOrdersState);
 
@@ -206,6 +209,38 @@ export default function OrdersDashboardPage() {
     });
     setOrderToDelete(null);
   };
+
+  const handleChangeOrderStatus = (order: Order, newStatus: OrderStatus) => {
+     if (!canEditOrderStatus) {
+        toast({ title: "Permiso Denegado", description: "No tienes permiso para cambiar el estado del pedido.", variant: "destructive" });
+        return;
+    }
+    const updatedFormValues: EditOrderFormValues = {
+        clientName: order.clientName,
+        products: order.products?.join(", "),
+        value: order.value,
+        status: newStatus,
+        salesRep: order.salesRep,
+        clientType: order.clientType,
+        numberOfUnits: order.numberOfUnits,
+        unitPrice: order.unitPrice,
+        nombreFiscal: order.nombreFiscal,
+        cif: order.cif,
+        direccionFiscal: order.direccionFiscal,
+        direccionEntrega: order.direccionEntrega,
+        contactoNombre: order.contactoNombre,
+        contactoCorreo: order.contactoCorreo,
+        contactoTelefono: order.contactoTelefono,
+        observacionesAlta: order.observacionesAlta,
+        notes: order.notes,
+        nextActionType: order.nextActionType,
+        nextActionCustom: order.nextActionCustom,
+        nextActionDate: order.nextActionDate ? parseISO(order.nextActionDate) : undefined,
+        failureReasonType: order.failureReasonType,
+        failureReasonCustom: order.failureReasonCustom,
+    };
+    handleUpdateOrder(updatedFormValues, order.id);
+  }
 
 
   const canEditOrderDetails = currentUserRole === 'Admin';
@@ -308,15 +343,37 @@ export default function OrdersDashboardPage() {
                   <TableRow key={order.id}>
                     <TableCell className="font-medium">{order.id}</TableCell>
                     <TableCell>{order.clientName}</TableCell>
-                    <TableCell>{format(parseISO(order.visitDate), "MMM dd, yyyy", { locale: es })}</TableCell>
+                    <TableCell>{order.visitDate ? format(parseISO(order.visitDate), "MMM dd, yyyy", { locale: es }) : "N/D"}</TableCell>
                     <TableCell>{order.salesRep}</TableCell>
                     <TableCell className="text-right">
                       <FormattedNumericValue value={order.value} locale="es-ES" options={{ style: 'currency', currency: 'EUR' }} placeholder="—" />
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge className={cn("text-xs", getStatusBadgeColor(order.status))}>
-                        {order.status}
-                      </Badge>
+                      {canEditOrderStatus ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className={cn("text-xs p-1 h-auto", getStatusBadgeColor(order.status))}>
+                               {order.status} <ChevronDown className="ml-1 h-3 w-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuRadioGroup 
+                                value={order.status} 
+                                onValueChange={(newStatus) => handleChangeOrderStatus(order, newStatus as OrderStatus)}
+                            >
+                              {orderStatusesList.map((statusVal) => (
+                                <DropdownMenuRadioItem key={statusVal} value={statusVal} disabled={!orderStatusesList.includes(statusVal as OrderStatus)}>
+                                  {statusVal}
+                                </DropdownMenuRadioItem>
+                              ))}
+                            </DropdownMenuRadioGroup>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        <Badge className={cn("text-xs", getStatusBadgeColor(order.status))}>
+                          {order.status}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
@@ -330,7 +387,7 @@ export default function OrdersDashboardPage() {
                            <DropdownMenuItem onSelect={() => handleViewOrEditClick(order)}>
                             <Eye className="mr-2 h-4 w-4" /> Ver Detalles
                           </DropdownMenuItem>
-                          {(canEditOrderDetails || canEditOrderStatus) && (
+                          {(canEditOrderDetails || canEditOrderStatus) && ( // Admin can edit all, Distributor only status (handled in dialog)
                             <DropdownMenuItem onSelect={() => handleViewOrEditClick(order)}>
                               <Edit className="mr-2 h-4 w-4" /> Editar
                             </DropdownMenuItem>
@@ -398,3 +455,4 @@ export default function OrdersDashboardPage() {
   );
 }
 
+    

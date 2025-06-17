@@ -170,28 +170,30 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
                 <FormItem>
                   <FormLabel>Responsables Asignados</FormLabel>
                   <FormControl>
-                    <ScrollArea className="h-32 w-full rounded-md border p-2">
-                      {assignableTeamMembers.map((member) => (
-                        <div key={member.id} className="flex flex-row items-center space-x-3 space-y-0 py-1">
-                          <Checkbox
-                            id={`member-checkbox-${member.id}`}
-                            checked={field.value?.includes(member.id)}
-                            onCheckedChange={(checked) => {
-                              const currentValues = field.value || [];
-                              if (checked) {
-                                field.onChange([...currentValues, member.id]);
-                              } else {
-                                field.onChange(currentValues.filter((value) => value !== member.id));
-                              }
-                            }}
-                            disabled={isReadOnly}
-                          />
-                          <Label htmlFor={`member-checkbox-${member.id}`} className="text-sm font-normal cursor-pointer">
-                            {member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})
-                          </Label>
-                        </div>
-                      ))}
-                    </ScrollArea>
+                    <div> {/* Added wrapper div here */}
+                      <ScrollArea className="h-32 w-full rounded-md border p-2">
+                        {assignableTeamMembers.map((member) => (
+                          <div key={member.id} className="flex flex-row items-center space-x-3 space-y-0 py-1">
+                            <Checkbox
+                              id={`member-checkbox-${member.id}`}
+                              checked={field.value?.includes(member.id)}
+                              onCheckedChange={(checked) => {
+                                const currentValues = field.value || [];
+                                if (checked) {
+                                  field.onChange([...currentValues, member.id]);
+                                } else {
+                                  field.onChange(currentValues.filter((value) => value !== member.id));
+                                }
+                              }}
+                              disabled={isReadOnly}
+                            />
+                            <Label htmlFor={`member-checkbox-${member.id}`} className="text-sm font-normal cursor-pointer">
+                              {member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})
+                            </Label>
+                          </div>
+                        ))}
+                      </ScrollArea>
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>

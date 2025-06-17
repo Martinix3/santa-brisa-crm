@@ -9,11 +9,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMe
 import { Input } from "@/components/ui/input"; 
 import type { Order, NextActionType, TeamMember, UserRole, OrderStatus } from "@/types";
 import { mockOrders, nextActionTypeList, mockTeamMembers } from "@/lib/data";
-import { Filter, CalendarDays, ClipboardList, ChevronDown, Edit2 } from "lucide-react";
+import { Filter, CalendarDays, ClipboardList, ChevronDown, Edit2, AlertTriangle } from "lucide-react";
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format, parseISO, addDays, isValid } from "date-fns";
+import { format, parseISO, addDays, isValid, isBefore, startOfDay, isEqual, subDays } from "date-fns";
 import { es } from 'date-fns/locale';
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
@@ -32,18 +32,17 @@ export default function CrmFollowUpPage() {
     return "Todos";
   });
 
-  const [actionTypeFilter, setActionTypeFilter] = React.useState<NextActionType | "Todos">("Todos");
+  const [actionTypeFilter, setActionTypeFilter] = React.useState<NextActionType | "Todos" | "Visita Programada">("Todos");
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
 
-  // State for managing Popover and date editing
-  const [editingFollowUpId, setEditingFollowUpId] = React.useState<string | null>(null);
   const [popoverOpenItemId, setPopoverOpenItemId] = React.useState<string | null>(null);
   const [selectedNewDate, setSelectedNewDate] = React.useState<Date | undefined>(undefined);
 
-  // Using a state for initialFollowUps to allow direct modification
-  const [followUps, setFollowUps] = React.useState<Order[]>(() => 
-    mockOrders.filter(order => 
-      (order.status === 'Seguimiento' || order.status === 'Fallido') && order.nextActionType
+  const [followUps, setFollowUps] = React.useState<Order[]>(() =>
+    mockOrders.filter(order =>
+      // Include items requiring follow-up, failed items with a next action, or programmed visits.
+      ((order.status === 'Seguimiento' || order.status === 'Fallido') && order.nextActionDate) ||
+      (order.status === 'Programada') 
     )
   );
 
@@ -55,10 +54,11 @@ export default function CrmFollowUpPage() {
     return ["Todos", ...Array.from(reps)];
   }, []);
   
-  const uniqueActionTypes = ["Todos", ...nextActionTypeList] as (NextActionType | "Todos")[];
+  const uniqueActionTypesForFilter = ["Todos", ...nextActionTypeList, "Visita Programada"] as (NextActionType | "Todos" | "Visita Programada")[];
 
   const filteredFollowUps = React.useMemo(() => {
-    return followUps // Use the state variable here
+    const todayForFilter = startOfDay(new Date());
+    return followUps
       .filter(followUp => {
         if (userRole === 'SalesRep' && teamMember) {
           return followUp.salesRep === teamMember.name;
@@ -68,17 +68,22 @@ export default function CrmFollowUpPage() {
         }
         return false; 
       })
-      .filter(followUp =>
-        actionTypeFilter === "Todos" || followUp.nextActionType === actionTypeFilter
-      )
       .filter(followUp => {
-        if (!dateRange?.from || !followUp.nextActionDate) return true; 
-        const nextActionDateParsed = parseISO(followUp.nextActionDate);
-        if (!isValid(nextActionDateParsed)) return true; // Skip if date is invalid
+        if (actionTypeFilter === "Todos") return true;
+        if (actionTypeFilter === "Visita Programada") return followUp.status === "Programada";
+        return followUp.nextActionType === actionTypeFilter && followUp.status !== "Programada";
+      })
+      .filter(followUp => {
+        if (!dateRange?.from) return true; 
+        const dateToCheck = followUp.status === 'Programada' ? followUp.visitDate : followUp.nextActionDate;
+        if (!dateToCheck) return true; // If no date, don't filter out by date range
+        
+        const relevantDateParsed = parseISO(dateToCheck);
+        if (!isValid(relevantDateParsed)) return true;
 
         const fromDate = dateRange.from;
-        const toDate = dateRange.to ? addDays(dateRange.to, 1) : addDays(new Date(), 10000) ; 
-        return nextActionDateParsed >= fromDate && nextActionDateParsed < toDate;
+        const toDate = dateRange.to ? addDays(dateRange.to, 1) : addDays(todayForFilter, 10000) ; 
+        return relevantDateParsed >= fromDate && relevantDateParsed < toDate;
       })
       .filter(followUp => 
         followUp.clientName.toLowerCase().includes(searchTerm.toLowerCase())
@@ -88,24 +93,34 @@ export default function CrmFollowUpPage() {
   const handleSaveNewDate = (followUpId: string) => {
     if (!selectedNewDate) return;
 
+    const itemToUpdate = followUps.find(f => f.id === followUpId);
+    if (!itemToUpdate) {
+        toast({ title: "Error", description: "No se encontró la tarea para actualizar.", variant: "destructive" });
+        return;
+    }
+    
+    const isProgrammedItem = itemToUpdate.status === 'Programada';
+    const dateFieldToUpdateKey = isProgrammedItem ? 'visitDate' : 'nextActionDate';
+
     const updatedFollowUps = followUps.map(item => {
       if (item.id === followUpId) {
-        return { ...item, nextActionDate: format(selectedNewDate, "yyyy-MM-dd") };
+        return { ...item, [dateFieldToUpdateKey]: format(selectedNewDate, "yyyy-MM-dd") };
       }
       return item;
     });
     setFollowUps(updatedFollowUps);
 
-    // Update mockOrders as well
     const mockOrderIndex = mockOrders.findIndex(order => order.id === followUpId);
     if (mockOrderIndex !== -1) {
-      mockOrders[mockOrderIndex].nextActionDate = format(selectedNewDate, "yyyy-MM-dd");
+       // Directly update the specific date field in mockOrders
+      (mockOrders[mockOrderIndex] as any)[dateFieldToUpdateKey] = format(selectedNewDate, "yyyy-MM-dd");
+      mockOrders[mockOrderIndex].lastUpdated = format(new Date(), "yyyy-MM-dd");
     }
     
-    const followUpItem = followUps.find(item => item.id === followUpId);
+    const followUpClientName = itemToUpdate?.clientName;
     toast({
       title: "Fecha Actualizada",
-      description: `La fecha de seguimiento para "${followUpItem?.clientName}" ha sido actualizada a ${format(selectedNewDate, "dd/MM/yyyy", { locale: es })}.`,
+      description: `La fecha para "${followUpClientName}" ha sido actualizada a ${format(selectedNewDate, "dd/MM/yyyy", { locale: es })}.`,
     });
 
     setPopoverOpenItemId(null);
@@ -122,9 +137,10 @@ export default function CrmFollowUpPage() {
   }
   
   const pageDescription = userRole === 'Admin'
-    ? "Visitas que requieren una próxima acción o que fueron fallidas pero tienen seguimiento planificado. Puede editar la fecha de próxima acción."
-    : "Tus visitas que requieren una próxima acción o que fueron fallidas pero tienen seguimiento planificado. Puedes editar la fecha de próxima acción.";
+    ? "Visitas y seguimientos planificados. Puede editar la fecha de próxima acción/visita y ver tareas vencidas."
+    : "Tus visitas y seguimientos planificados. Puedes editar la fecha de próxima acción/visita y ver tareas vencidas.";
 
+  const today = startOfDay(new Date());
 
   return (
     <div className="space-y-6">
@@ -135,7 +151,7 @@ export default function CrmFollowUpPage() {
 
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
-          <CardTitle>Tareas de Seguimiento de Clientes</CardTitle>
+          <CardTitle>Tareas de Seguimiento y Visitas Programadas</CardTitle>
           <CardDescription>{pageDescription}</CardDescription>
         </CardHeader>
         <CardContent>
@@ -172,11 +188,11 @@ export default function CrmFollowUpPage() {
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="w-full sm:w-auto">
                   <Filter className="mr-2 h-4 w-4" />
-                  Acción: {actionTypeFilter} <ChevronDown className="ml-2 h-4 w-4" />
+                  Tipo Tarea: {actionTypeFilter === "Visita Programada" ? "Visita Programada" : actionTypeFilter} <ChevronDown className="ml-2 h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
-                {uniqueActionTypes.map(action => (
+                {uniqueActionTypesForFilter.map(action => (
                    <DropdownMenuCheckboxItem
                     key={action}
                     checked={actionTypeFilter === action}
@@ -208,7 +224,7 @@ export default function CrmFollowUpPage() {
                       format(dateRange.from, "LLL dd, y", { locale: es })
                     )
                   ) : (
-                    <span>Fecha Próxima Acción</span>
+                    <span>Fecha Próxima Acción/Visita</span>
                   )}
                 </Button>
               </PopoverTrigger>
@@ -231,33 +247,39 @@ export default function CrmFollowUpPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[20%]">Cliente</TableHead>
-                  <TableHead className="w-[10%]">Visita Original</TableHead>
+                  <TableHead className="w-[15%]">Próxima Acción / Tipo Visita</TableHead>
+                  <TableHead className="w-[15%]">Fecha Próx. Acción / Visita</TableHead>
                   {userRole === 'Admin' && <TableHead className="w-[15%]">Comercial</TableHead>}
-                  <TableHead className="w-[25%]">Próxima Acción</TableHead>
-                  <TableHead className="w-[15%]">Fecha Próx. Acción</TableHead>
-                  <TableHead className="w-[10%] text-center">Estado Original</TableHead>
-                  <TableHead className="w-[10%]">Notas</TableHead>
+                  <TableHead className="w-[10%] text-center">Estado Tarea</TableHead>
+                  <TableHead className="w-[15%]">Notas / Obj. Visita Original</TableHead>
+                  <TableHead className="w-[10%]">Fecha Visita Original</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredFollowUps.length > 0 ? filteredFollowUps.map((item: Order) => {
                   const canEditDate = userRole === 'Admin' || (userRole === 'SalesRep' && teamMember?.name === item.salesRep);
-                  const itemDate = item.nextActionDate ? parseISO(item.nextActionDate) : null;
+                  
+                  const isProgrammedItem = item.status === 'Programada';
+                  const relevantActionDateString = isProgrammedItem ? item.visitDate : item.nextActionDate;
+                  const relevantActionDateParsed = relevantActionDateString ? parseISO(relevantActionDateString) : null;
+                  
+                  const isOverdue = relevantActionDateParsed && isBefore(relevantActionDateParsed, today) && (item.status === 'Seguimiento' || item.status === 'Programada');
 
                   return (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">{item.clientName}</TableCell>
-                    <TableCell>{item.visitDate ? format(parseISO(item.visitDate), "dd/MM/yy", { locale: es }) : "N/D"}</TableCell>
-                    {userRole === 'Admin' && <TableCell>{item.salesRep}</TableCell>}
-                    <TableCell>
-                        {item.nextActionType}
-                        {item.nextActionType === "Opción personalizada" && item.nextActionCustom && (
+                  <TableRow key={item.id} className={cn(isOverdue && "bg-yellow-100 dark:bg-yellow-800/30")}>
+                    <TableCell className="font-medium">
+                        {isOverdue && <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 inline-block mr-1" />}
+                        {item.clientName}
+                    </TableCell>
+                     <TableCell>
+                        {isProgrammedItem ? "Visita Programada" : item.nextActionType}
+                        {item.nextActionType === "Opción personalizada" && item.nextActionCustom && !isProgrammedItem && (
                             <span className="text-xs text-muted-foreground block ml-2">- {item.nextActionCustom}</span>
                         )}
                     </TableCell>
-                    <TableCell className="flex items-center space-x-1">
-                      <span>
-                        {itemDate && isValid(itemDate) ? format(itemDate, "dd/MM/yy", { locale: es }) : 'N/D'}
+                    <TableCell className="flex items-center space-x-1 py-3">
+                      <span className={cn(isOverdue && "font-semibold")}>
+                        {relevantActionDateParsed && isValid(relevantActionDateParsed) ? format(relevantActionDateParsed, "dd/MM/yy", { locale: es }) : 'N/D'}
                       </span>
                       {canEditDate && (
                         <Popover
@@ -267,7 +289,7 @@ export default function CrmFollowUpPage() {
                               setPopoverOpenItemId(null);
                               setSelectedNewDate(undefined);
                             } else {
-                               setSelectedNewDate(item.nextActionDate ? parseISO(item.nextActionDate) : new Date());
+                               setSelectedNewDate(relevantActionDateParsed || new Date());
                                setPopoverOpenItemId(item.id);
                             }
                           }}
@@ -280,10 +302,10 @@ export default function CrmFollowUpPage() {
                           <PopoverContent className="w-auto p-0">
                             <Calendar
                               mode="single"
-                              selected={selectedNewDate}
+                              selected={selectedNewDate || relevantActionDateParsed}
                               onSelect={setSelectedNewDate}
                               initialFocus
-                              disabled={(date) => date < subDays(new Date(),1) && !isEqual(date, subDays(new Date(),1))} // Allow past date only if it's the original date
+                              disabled={(date) => date < subDays(new Date(),1) && !isEqual(date, subDays(new Date(),1))} 
                               locale={es}
                             />
                             <div className="p-2 border-t flex justify-end space-x-2">
@@ -294,12 +316,14 @@ export default function CrmFollowUpPage() {
                         </Popover>
                       )}
                     </TableCell>
+                    {userRole === 'Admin' && <TableCell>{item.salesRep}</TableCell>}
                     <TableCell className="text-center">
                        <StatusBadge type="order" status={item.status} />
                     </TableCell>
                     <TableCell className="text-xs truncate max-w-[150px]" title={item.notes}>
                         {item.notes || 'N/D'}
                     </TableCell>
+                    <TableCell>{item.visitDate && item.status !== 'Programada' ? format(parseISO(item.visitDate), "dd/MM/yy", { locale: es }) : (isProgrammedItem ? "-" : "N/D")}</TableCell>
                   </TableRow>
                 )}) : (
                   <TableRow>
@@ -314,13 +338,10 @@ export default function CrmFollowUpPage() {
         </CardContent>
          {filteredFollowUps.length > 0 && (
             <CardFooter>
-                <p className="text-xs text-muted-foreground">Mostrando {filteredFollowUps.length} tareas de seguimiento.</p>
+                <p className="text-xs text-muted-foreground">Mostrando {filteredFollowUps.length} tareas de seguimiento y/o visitas programadas.</p>
             </CardFooter>
         )}
       </Card>
     </div>
   );
 }
-
-
-    

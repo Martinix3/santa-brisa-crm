@@ -33,7 +33,7 @@ const getStatusBadgeColor = (status: OrderStatus): string => {
   }
 };
 
-export default function MyAgendaPage() {
+export default function AgendaPage() {
   const { userRole, teamMember } = useAuth();
   const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(new Date());
   const [currentMonth, setCurrentMonth] = React.useState<Date>(new Date());
@@ -97,7 +97,7 @@ export default function MyAgendaPage() {
       <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center space-x-2">
             <CalendarCheck className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-headline font-semibold">Mi Agenda de Acciones</h1>
+            <h1 className="text-3xl font-headline font-semibold">Agenda de Acciones</h1>
         </div>
         {userRole === 'Admin' && (
           <Select value={selectedSalesRep} onValueChange={setSelectedSalesRep}>
@@ -194,4 +194,3 @@ export default function MyAgendaPage() {
     </div>
   );
 }
-

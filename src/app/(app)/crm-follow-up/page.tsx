@@ -20,9 +20,16 @@ import { useAuth } from "@/contexts/auth-context";
 import StatusBadge from "@/components/app/status-badge";
 
 export default function CrmFollowUpPage() {
-  const { userRole } = useAuth();
+  const { userRole, teamMember } = useAuth();
   const [searchTerm, setSearchTerm] = React.useState(""); 
-  const [salesRepFilter, setSalesRepFilter] = React.useState<string>("Todos");
+  
+  const [salesRepFilter, setSalesRepFilter] = React.useState<string>(() => {
+    if (userRole === 'SalesRep' && teamMember) {
+      return teamMember.name;
+    }
+    return "Todos";
+  });
+
   const [actionTypeFilter, setActionTypeFilter] = React.useState<NextActionType | "Todos">("Todos");
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
 
@@ -44,9 +51,15 @@ export default function CrmFollowUpPage() {
 
   const filteredFollowUps = React.useMemo(() => {
     return initialFollowUps
-      .filter(followUp => 
-        salesRepFilter === "Todos" || followUp.salesRep === salesRepFilter
-      )
+      .filter(followUp => {
+        if (userRole === 'SalesRep' && teamMember) {
+          return followUp.salesRep === teamMember.name;
+        }
+        if (userRole === 'Admin') {
+          return salesRepFilter === "Todos" || followUp.salesRep === salesRepFilter;
+        }
+        return false; // Should not happen for other roles if page access is restricted
+      })
       .filter(followUp =>
         actionTypeFilter === "Todos" || followUp.nextActionType === actionTypeFilter
       )
@@ -60,7 +73,7 @@ export default function CrmFollowUpPage() {
       .filter(followUp => 
         followUp.clientName.toLowerCase().includes(searchTerm.toLowerCase())
       );
-  }, [initialFollowUps, salesRepFilter, actionTypeFilter, dateRange, searchTerm]);
+  }, [initialFollowUps, userRole, teamMember, salesRepFilter, actionTypeFilter, dateRange, searchTerm]);
 
   if (userRole !== 'Admin' && userRole !== 'SalesRep') {
      return (
@@ -70,6 +83,10 @@ export default function CrmFollowUpPage() {
       </Card>
     );
   }
+  
+  const pageDescription = userRole === 'Admin'
+    ? "Visitas que requieren una próxima acción o que fueron fallidas pero tienen seguimiento planificado."
+    : "Tus visitas que requieren una próxima acción o que fueron fallidas pero tienen seguimiento planificado.";
 
   return (
     <div className="space-y-6">
@@ -81,7 +98,7 @@ export default function CrmFollowUpPage() {
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
           <CardTitle>Tareas de Seguimiento de Clientes</CardTitle>
-          <CardDescription>Visitas que requieren una próxima acción o que fueron fallidas pero tienen seguimiento planificado.</CardDescription>
+          <CardDescription>{pageDescription}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
@@ -91,25 +108,27 @@ export default function CrmFollowUpPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="max-w-xs"
             />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="w-full sm:w-auto">
-                  <Filter className="mr-2 h-4 w-4" />
-                  Comercial: {salesRepFilter} <ChevronDown className="ml-2 h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                {salesRepsForFilter.map(rep => (
-                   <DropdownMenuCheckboxItem
-                    key={rep}
-                    checked={salesRepFilter === rep}
-                    onCheckedChange={() => setSalesRepFilter(rep)}
-                  >
-                    {rep}
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {userRole === 'Admin' && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="w-full sm:w-auto">
+                    <Filter className="mr-2 h-4 w-4" />
+                    Comercial: {salesRepFilter} <ChevronDown className="ml-2 h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {salesRepsForFilter.map(rep => (
+                    <DropdownMenuCheckboxItem
+                      key={rep}
+                      checked={salesRepFilter === rep}
+                      onCheckedChange={() => setSalesRepFilter(rep)}
+                    >
+                      {rep}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -175,7 +194,7 @@ export default function CrmFollowUpPage() {
                 <TableRow>
                   <TableHead className="w-[20%]">Cliente</TableHead>
                   <TableHead className="w-[10%]">Visita Original</TableHead>
-                  <TableHead className="w-[15%]">Comercial</TableHead>
+                  {userRole === 'Admin' && <TableHead className="w-[15%]">Comercial</TableHead>}
                   <TableHead className="w-[25%]">Próxima Acción</TableHead>
                   <TableHead className="w-[10%]">Fecha Próx. Acción</TableHead>
                   <TableHead className="w-[10%] text-center">Estado Original</TableHead>
@@ -187,7 +206,7 @@ export default function CrmFollowUpPage() {
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">{item.clientName}</TableCell>
                     <TableCell>{format(parseISO(item.visitDate), "dd/MM/yy", { locale: es })}</TableCell>
-                    <TableCell>{item.salesRep}</TableCell>
+                    {userRole === 'Admin' && <TableCell>{item.salesRep}</TableCell>}
                     <TableCell>
                         {item.nextActionType}
                         {item.nextActionType === "Opción personalizada" && item.nextActionCustom && (
@@ -206,7 +225,7 @@ export default function CrmFollowUpPage() {
                   </TableRow>
                 )) : (
                   <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center">
+                    <TableCell colSpan={userRole === 'Admin' ? 7 : 6} className="h-24 text-center">
                       No hay tareas de seguimiento que coincidan con los filtros.
                     </TableCell>
                   </TableRow>
@@ -224,3 +243,4 @@ export default function CrmFollowUpPage() {
     </div>
   );
 }
+

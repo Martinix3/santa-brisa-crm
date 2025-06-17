@@ -24,6 +24,7 @@ export interface TeamMember {
   avatarUrl: string;
   role: string;
   bottlesSold: number; // Cambiado de sales a bottlesSold
+  monthlyTarget: number; // Objetivo mensual de botellas vendidas
   orders: number;
   visits: number;
   performanceData: { month: string; bottles: number }[]; // Cambiado de sales a bottles

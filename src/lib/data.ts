@@ -19,7 +19,7 @@ export const mockStrategicObjectives: StrategicObjective[] = [
 export const mockTeamMembers: TeamMember[] = [
   {
     id: 'tm1', name: 'Nico', avatarUrl: 'https://placehold.co/100x100.png', role: 'Rep de Ventas Madrid',
-    bottlesSold: 3250, orders: 120, visits: 250, 
+    bottlesSold: 3250, monthlyTarget: 4000, orders: 120, visits: 250, 
     performanceData: [ 
       { month: 'Enero', bottles: 450 }, { month: 'Febrero', bottles: 500 }, { month: 'Marzo', bottles: 520 },
       { month: 'Abril', bottles: 600 }, { month: 'Mayo', bottles: 650 }, { month: 'Junio', bottles: 530 },
@@ -27,7 +27,7 @@ export const mockTeamMembers: TeamMember[] = [
   },
   {
     id: 'tm2', name: 'Alfonso', avatarUrl: 'https://placehold.co/100x100.png', role: 'Rep de ventas grandes cuentas',
-    bottlesSold: 2800, orders: 95, visits: 180, 
+    bottlesSold: 2800, monthlyTarget: 3500, orders: 95, visits: 180, 
     performanceData: [ 
       { month: 'Enero', bottles: 380 }, { month: 'Febrero', bottles: 420 }, { month: 'Marzo', bottles: 450 },
       { month: 'Abril', bottles: 500 }, { month: 'Mayo', bottles: 550 }, { month: 'Junio', bottles: 500 },
@@ -35,13 +35,15 @@ export const mockTeamMembers: TeamMember[] = [
   },
   {
     id: 'tm3', name: 'Federica', avatarUrl: 'https://placehold.co/100x100.png', role: 'Rep de Ventas Barcelona',
-    bottlesSold: 1500, orders: 60, visits: 120, 
+    bottlesSold: 1500, monthlyTarget: 2000, orders: 60, visits: 120, 
     performanceData: [ 
       { month: 'Enero', bottles: 200 }, { month: 'Febrero', bottles: 220 }, { month: 'Marzo', bottles: 250 },
       { month: 'Abril', bottles: 280 }, { month: 'Mayo', bottles: 250 }, { month: 'Junio', bottles: 300 },
     ],
   },
 ];
+
+export const globalTeamMonthlyTarget: number = mockTeamMembers.reduce((sum, member) => sum + member.monthlyTarget, 0);
 
 export const orderStatusesList: OrderStatus[] = ['Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Cancelado', 'Fallido'];
 const clientNames = ['Café Central', 'Restaurante del Sol', 'El Rincón Diario', 'Bistró Vista al Mar', 'Café Cima de Montaña'];

@@ -174,6 +174,7 @@ export default function OrderFormPage() {
   const unitPrice = form.watch("unitPrice");
   const nextActionType = form.watch("nextActionType");
   const failureReasonType = form.watch("failureReasonType");
+  const clientName = form.watch("clientName");
 
   React.useEffect(() => {
     if (outcome === "successful" && typeof numberOfUnits === 'number' && typeof unitPrice === 'number' && numberOfUnits > 0 && unitPrice > 0) {
@@ -216,10 +217,10 @@ export default function OrderFormPage() {
         if (!existingAccountByCif) {
           const newAccount: Account = {
               id: `acc_${Date.now()}`,
-              name: values.clientName, // Using clientName as commercial name for the new Account
+              name: values.clientName, 
               legalName: values.nombreFiscal,
               cif: values.cif,
-              type: values.clientType as AccountType,
+              type: values.clientType as AccountType, 
               status: 'Activo',
               addressBilling: values.direccionFiscal,
               addressShipping: values.direccionEntrega,
@@ -259,7 +260,6 @@ export default function OrderFormPage() {
         status: 'Confirmado', 
         salesRep: salesRepName, 
         lastUpdated: currentDate,
-        // Include billing info for the order, even if client is existing (could be different for this specific order)
         nombreFiscal: values.nombreFiscal,
         cif: values.cif,
         direccionFiscal: values.direccionFiscal,
@@ -267,7 +267,7 @@ export default function OrderFormPage() {
         contactoNombre: values.contactoNombre,
         contactoCorreo: values.contactoCorreo,
         contactoTelefono: values.contactoTelefono,
-        observacionesAlta: values.observacionesAlta, // This might be more relevant to new account creation though
+        observacionesAlta: values.observacionesAlta, 
         notes: values.notes,
       };
       mockOrders.unshift(newOrder);
@@ -447,7 +447,7 @@ export default function OrderFormPage() {
                    {!showBillingInfo && clientStatus === "existing" && outcome === "successful" && (
                      <div className="my-4 p-3 bg-secondary/30 rounded-md">
                        <p className="text-sm text-muted-foreground">
-                         Se registrará el pedido para el cliente existente <strong className="text-foreground">{values.clientName}</strong>. Los datos de facturación se tomarán de la cuenta existente.
+                         Se registrará el pedido para el cliente existente <strong className="text-foreground">{clientName}</strong>. Los datos de facturación se tomarán de la cuenta existente.
                        </p>
                      </div>
                    )}

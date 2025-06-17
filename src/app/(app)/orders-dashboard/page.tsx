@@ -21,6 +21,7 @@ import type { EditOrderFormValues } from "@/components/app/edit-order-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 
 
 const getStatusBadgeColor = (status: OrderStatus): string => {
@@ -84,7 +85,7 @@ export default function OrdersDashboardPage() {
     const updatedOrderData: Order = {
       ...mockOrders[orderIndex], 
       clientName: updatedData.clientName,
-      products: updatedData.products.split(/[,;\n]+/).map(p => p.trim()).filter(p => p.length > 0),
+      products: updatedData.products ? updatedData.products.split(/[,;\n]+/).map(p => p.trim()).filter(p => p.length > 0) : [],
       value: updatedData.value,
       status: updatedData.status,
       salesRep: updatedData.salesRep,
@@ -98,6 +99,11 @@ export default function OrdersDashboardPage() {
       contactoTelefono: updatedData.contactoTelefono,
       observacionesAlta: updatedData.observacionesAlta,
       notes: updatedData.notes,
+      nextActionType: updatedData.nextActionType,
+      nextActionCustom: updatedData.nextActionCustom,
+      nextActionDate: updatedData.nextActionDate ? format(updatedData.nextActionDate, "yyyy-MM-dd", {locale: es}) : undefined,
+      failureReasonType: updatedData.failureReasonType,
+      failureReasonCustom: updatedData.failureReasonCustom,
     };
 
     mockOrders[orderIndex] = updatedOrderData;
@@ -243,7 +249,9 @@ export default function OrdersDashboardPage() {
                     <TableCell>{order.clientName}</TableCell>
                     <TableCell>{format(parseISO(order.visitDate), "MMM dd, yyyy", { locale: es })}</TableCell>
                     <TableCell>{order.salesRep}</TableCell>
-                    <TableCell className="text-right">€{order.value.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">
+                      <FormattedNumericValue value={order.value} locale="es-ES" options={{ style: 'currency', currency: 'EUR' }} placeholder="—" />
+                    </TableCell>
                     <TableCell className="text-center">
                       <Badge className={cn("text-xs", getStatusBadgeColor(order.status))}>
                         {order.status}

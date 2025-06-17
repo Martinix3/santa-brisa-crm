@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, Controller } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,12 +29,14 @@ import { mockTeamMembers, userRolesList } from "@/lib/data";
 import type { TeamMember, UserRole } from "@/types";
 import { Loader2, Check, Users } from "lucide-react";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
+import { useAuth } from "@/contexts/auth-context";
 
 const userFormSchema = z.object({
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres."),
   email: z.string().email("El formato del correo electrónico no es válido."),
   role: z.enum(userRolesList as [UserRole, ...UserRole[]], { required_error: "El rol es obligatorio." }),
   monthlyTarget: z.coerce.number().positive("El objetivo mensual debe ser un número positivo.").optional(),
+  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres.").optional(),
 }).superRefine((data, ctx) => {
   if (data.role === "SalesRep" && (data.monthlyTarget === undefined || data.monthlyTarget <= 0)) {
     ctx.addIssue({
@@ -47,17 +49,15 @@ const userFormSchema = z.object({
 
 type UserFormValues = z.infer<typeof userFormSchema>;
 
-// Helper function to generate default performance data for new SalesRep
 const generateDefaultPerformanceData = (): { month: string; bottles: number }[] => {
-  const months = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio"]; // Example past 6 months
+  const months = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio"];
   return months.map(month => ({ month, bottles: 0 }));
 };
 
-
 export default function UserManagementPage() {
   const { toast } = useToast();
+  const { createUserInAuth } = useAuth();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  // Local state to trigger re-render of the table
   const [users, setUsers] = React.useState<TeamMember[]>(mockTeamMembers);
 
   const form = useForm<UserFormValues>({
@@ -67,6 +67,7 @@ export default function UserManagementPage() {
       email: "",
       role: undefined,
       monthlyTarget: undefined,
+      password: "secret123", // Default password for new users
     },
   });
 
@@ -74,14 +75,24 @@ export default function UserManagementPage() {
 
   async function onSubmit(values: UserFormValues) {
     setIsSubmitting(true);
-    await new Promise(resolve => setTimeout(resolve, 700)); // Simulate API call
 
+    // 1. Create user in Firebase Authentication
+    const defaultPassword = values.password || "secret123"; // Fallback if not provided (though schema has it)
+    const firebaseUser = await createUserInAuth(values.email, defaultPassword);
+
+    if (!firebaseUser) {
+      // Error toast is handled by createUserInAuth
+      setIsSubmitting(false);
+      return;
+    }
+    
+    // 2. Create user in local mock data (simulating database)
     const newUser: TeamMember = {
-      id: `usr${Date.now()}`,
+      id: firebaseUser.uid, // Use Firebase UID as the ID
       name: values.name,
       email: values.email,
       role: values.role,
-      avatarUrl: 'https://placehold.co/100x100.png', // Default placeholder avatar
+      avatarUrl: 'https://placehold.co/100x100.png',
     };
 
     if (values.role === "SalesRep") {
@@ -92,23 +103,27 @@ export default function UserManagementPage() {
       newUser.performanceData = generateDefaultPerformanceData();
     }
 
-    // Add to the global mockTeamMembers array (simulating a backend update)
-    mockTeamMembers.push(newUser);
-    setUsers([...mockTeamMembers]); // Update local state to re-render table
+    mockTeamMembers.push(newUser); // Add to global mock data
+    setUsers([...mockTeamMembers]); // Update local state for table re-render
 
     toast({
       title: "¡Usuario Creado!",
       description: (
         <div className="flex items-start">
           <Check className="h-5 w-5 text-green-500 mr-2 mt-1" />
-          <p>Usuario {newUser.name} ({newUser.role}) creado exitosamente.</p>
+          <p>Usuario {newUser.name} ({newUser.role}) creado exitosamente. Contraseña por defecto: {defaultPassword}</p>
         </div>
       ),
       variant: "default",
     });
 
-    form.reset();
-    form.setValue("monthlyTarget", undefined); // Ensure this is also reset
+    form.reset({
+      name: "",
+      email: "",
+      role: undefined,
+      monthlyTarget: undefined,
+      password: "secret123",
+    });
     setIsSubmitting(false);
   }
 
@@ -122,7 +137,7 @@ export default function UserManagementPage() {
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
           <CardTitle>Añadir Nuevo Usuario</CardTitle>
-          <CardDescription>Complete el formulario para añadir un nuevo usuario al sistema.</CardDescription>
+          <CardDescription>Complete el formulario para añadir un nuevo usuario al sistema. Se creará una cuenta en Firebase y se le asignará una contraseña por defecto.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -146,7 +161,7 @@ export default function UserManagementPage() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Correo Electrónico</FormLabel>
+                      <FormLabel>Correo Electrónico (Login)</FormLabel>
                       <FormControl>
                         <Input type="email" placeholder="usuario@ejemplo.com" {...field} />
                       </FormControl>
@@ -178,12 +193,25 @@ export default function UserManagementPage() {
                     </FormItem>
                   )}
                 />
+                 <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Contraseña Temporal</FormLabel>
+                      <FormControl>
+                        <Input type="text" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 {selectedRole === "SalesRep" && (
                   <FormField
                     control={form.control}
                     name="monthlyTarget"
                     render={({ field }) => (
-                      <FormItem>
+                      <FormItem className="md:col-span-2">
                         <FormLabel>Objetivo Mensual de Ventas (Botellas)</FormLabel>
                         <FormControl>
                           <Input
@@ -219,7 +247,7 @@ export default function UserManagementPage() {
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
           <CardTitle>Usuarios Existentes</CardTitle>
-          <CardDescription>Lista de todos los usuarios registrados en el sistema.</CardDescription>
+          <CardDescription>Lista de todos los usuarios registrados en el sistema (datos simulados).</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">

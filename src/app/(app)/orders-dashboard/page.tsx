@@ -19,9 +19,8 @@ import { cn } from "@/lib/utils";
 import EditOrderDialog from "@/components/app/edit-order-dialog";
 import type { EditOrderFormValues } from "@/components/app/edit-order-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/auth-context";
 
-// Simulate the current user's role for this page.
-const currentUserRole: UserRole = 'Admin';
 
 const getStatusBadgeColor = (status: OrderStatus): string => {
   switch (status) {
@@ -39,6 +38,7 @@ const getStatusBadgeColor = (status: OrderStatus): string => {
 
 export default function OrdersDashboardPage() {
   const { toast } = useToast();
+  const { userRole: currentUserRole } = useAuth(); // Get role from AuthContext
   const [orders, setOrders] = React.useState<Order[]>(mockOrders);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<OrderStatus | "Todos">("Todos");
@@ -63,7 +63,7 @@ export default function OrdersDashboardPage() {
       if (!dateRange?.from) return true;
       const orderDate = parseISO(order.visitDate);
       const fromDate = dateRange.from;
-      const toDate = dateRange.to ? addDays(dateRange.to,1) : addDays(new Date(), 1) ;
+      const toDate = dateRange.to ? addDays(dateRange.to,1) : addDays(new Date(), 1) ; // Make 'to' date inclusive
       return orderDate >= fromDate && orderDate < toDate;
     });
 
@@ -86,7 +86,6 @@ export default function OrdersDashboardPage() {
       value: updatedData.value,
       status: updatedData.status,
       lastUpdated: format(new Date(), "yyyy-MM-dd"),
-      // Update customer and billing info
       nombreFiscal: updatedData.nombreFiscal,
       cif: updatedData.cif,
       direccionFiscal: updatedData.direccionFiscal,
@@ -232,7 +231,7 @@ export default function OrdersDashboardPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onSelect={() => handleViewOrEditClick(order)}>
+                           <DropdownMenuItem onSelect={() => handleViewOrEditClick(order)}>
                             <Eye className="mr-2 h-4 w-4" /> Ver Detalles
                           </DropdownMenuItem>
                           {(canEditOrderDetails || canEditOrderStatus) && (
@@ -265,7 +264,7 @@ export default function OrdersDashboardPage() {
           </div>
         </CardContent>
       </Card>
-      {editingOrder && (
+      {editingOrder && currentUserRole && (
         <EditOrderDialog
           order={editingOrder}
           isOpen={isEditDialogOpen}

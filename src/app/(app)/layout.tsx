@@ -2,6 +2,7 @@
 "use client";
 
 import type React from 'react';
+import { useEffect } from 'react';
 import {
   SidebarProvider,
   Sidebar,
@@ -17,18 +18,15 @@ import {
 import { Button } from '@/components/ui/button';
 import Logo from '@/components/icons/Logo';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { UserRole } from '@/types';
-
-// Simulate the current user's role. 
-// Change this to 'SalesRep' or 'Distributor' to test different views.
-const currentUserRole: UserRole = 'Admin'; 
+import { useAuth } from '@/contexts/auth-context';
 
 const allNavItems = [
-  { href: '/dashboard', label: 'Panel', icon: LayoutDashboard, roles: ['Admin', 'SalesRep', 'Distributor'] as UserRole[] }, // All roles can see the dashboard
+  { href: '/dashboard', label: 'Panel', icon: LayoutDashboard, roles: ['Admin', 'SalesRep', 'Distributor'] as UserRole[] },
   { href: '/team-tracking', label: 'Seguimiento de Equipo', icon: Users, roles: ['Admin', 'SalesRep'] as UserRole[] },
   { href: '/order-form', label: 'Formulario de Pedido', icon: FileText, roles: ['Admin', 'SalesRep'] as UserRole[] },
   { href: '/orders-dashboard', label: 'Panel de Pedidos', icon: ShoppingCart, roles: ['Admin', 'SalesRep', 'Distributor'] as UserRole[] },
@@ -37,7 +35,35 @@ const allNavItems = [
 ];
 
 function MainAppLayout({ children }: { children: React.ReactNode }) {
-  const navItemsForRole = allNavItems.filter(item => item.roles.includes(currentUserRole));
+  const { user, userRole, loading, logout } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (!loading && !user && pathname !== '/login') {
+      router.push('/login');
+    }
+  }, [user, loading, router, pathname]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+  
+  if (!user) {
+     // This case should ideally be caught by the useEffect, but as a fallback:
+    return null; // Or a redirect component if preferred
+  }
+
+  const navItemsForRole = userRole ? allNavItems.filter(item => item.roles.includes(userRole)) : [];
+
+  const handleLogout = async () => {
+    await logout();
+    router.push('/login'); // Ensure redirection after logout
+  };
 
   return (
     <SidebarProvider defaultOpen>
@@ -47,16 +73,17 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
             <Logo />
           </Link>
           <Link href="/dashboard" className="hidden group-data-[collapsible=icon]:block">
-             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-label="Logotipo de Santa Brisa CRM (colapsado)">
+             <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" aria-label="Logotipo de Santa Brisa CRM (colapsado)">
+              <rect width="32" height="32" rx="4" fill="hsl(var(--primary))" />
               <text
                 x="50%"
                 y="50%"
                 dominantBaseline="central"
                 textAnchor="middle"
                 fontFamily="Inter, sans-serif"
-                fontSize="10"
+                fontSize="12"
                 fontWeight="bold"
-                fill="currentColor"
+                fill="hsl(var(--primary-foreground))"
               >
                 SB
               </text>
@@ -68,7 +95,7 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
         </SidebarContent>
         <SidebarFooter className="p-2">
           <SidebarMenu>
-            {(currentUserRole === 'Admin') && (
+            {(userRole === 'Admin') && (
               <SidebarMenuItem>
                 <SidebarMenuButton tooltip={{children: "Configuración General", side: "right"}} asChild>
                   <Link href="#"> {/* Placeholder for general settings if different from user management */}
@@ -79,7 +106,11 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
               </SidebarMenuItem>
             )}
             <SidebarMenuItem>
-              <SidebarMenuButton tooltip={{children: "Cerrar Sesión", side: "right"}} className="hover:bg-destructive/20 hover:text-destructive">
+              <SidebarMenuButton 
+                tooltip={{children: "Cerrar Sesión", side: "right"}} 
+                className="hover:bg-destructive/20 hover:text-destructive"
+                onClick={handleLogout}
+              >
                 <LogOut />
                 <span>Cerrar Sesión</span>
               </SidebarMenuButton>
@@ -95,7 +126,7 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
           <div className="flex-1">
             {/* Breadcrumbs or page title can go here */}
           </div>
-          <UserMenu userRole={currentUserRole} />
+          <UserMenu userRole={userRole} userEmail={user?.email} />
         </header>
         <main className="flex-1 p-4 sm:p-6 overflow-auto">
           {children}
@@ -131,7 +162,8 @@ function AppNavigation({ navItems }: AppNavigationProps) {
   );
 }
 
-function getRoleDisplayName(role: UserRole): string {
+function getRoleDisplayName(role: UserRole | null): string {
+  if (!role) return "Usuario";
   switch (role) {
     case 'Admin': return 'Administrador';
     case 'SalesRep': return 'Rep. Ventas';
@@ -140,23 +172,36 @@ function getRoleDisplayName(role: UserRole): string {
   }
 }
 
-function UserMenu({ userRole }: { userRole: UserRole }) {
+interface UserMenuProps {
+  userRole: UserRole | null;
+  userEmail?: string | null;
+}
+
+function UserMenu({ userRole, userEmail }: UserMenuProps) {
+  const { teamMember, logout } = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await logout();
+    router.push('/login');
+  };
+  
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8">
-            <AvatarImage src="https://placehold.co/40x40.png" alt="Avatar de usuario" data-ai-hint="user avatar" />
-            <AvatarFallback>SB</AvatarFallback>
+            <AvatarImage src={teamMember?.avatarUrl || "https://placehold.co/40x40.png"} alt="Avatar de usuario" data-ai-hint="user avatar" />
+            <AvatarFallback>{teamMember?.name?.substring(0,2).toUpperCase() || userEmail?.substring(0,2).toUpperCase() || 'U'}</AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">Usuario de Santa Brisa</p>
+            <p className="text-sm font-medium leading-none">{teamMember?.name || 'Usuario de Santa Brisa'}</p>
             <p className="text-xs leading-none text-muted-foreground">
-              ({getRoleDisplayName(userRole)}) user@santabrisa.com
+              ({getRoleDisplayName(userRole)}) {userEmail || 'email@example.com'}
             </p>
           </div>
         </DropdownMenuLabel>
@@ -165,9 +210,8 @@ function UserMenu({ userRole }: { userRole: UserRole }) {
           <UserCircle className="mr-2 h-4 w-4" />
           <span>Perfil</span>
         </DropdownMenuItem>
-        {/* The general settings link is now in the main sidebar for Admins */}
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
+        <DropdownMenuItem onClick={handleLogout}>
           <LogOut className="mr-2 h-4 w-4" />
           <span>Cerrar sesión</span>
         </DropdownMenuItem>

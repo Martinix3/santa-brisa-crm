@@ -3,17 +3,19 @@
 
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import type { Kpi } from "@/types";
+import type { Kpi, StrategicObjective } from "@/types";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, LabelList, PieChart, Pie, Cell, Legend } from "recharts";
 import { Progress } from "@/components/ui/progress";
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 import { cn } from "@/lib/utils";
-import { 
+import {
   kpiDataLaunch,
-  objetivoTotalVentasEquipo, // Target value
-  objetivoTotalCuentasEquipoAnual // Target value
+  objetivoTotalVentasEquipo, 
+  objetivoTotalCuentasEquipoAnual,
+  mockStrategicObjectives
 } from "@/lib/launch-dashboard-data";
+import { CheckCircle2, Circle } from "lucide-react";
 
 
 const distributionChartConfig = {
@@ -25,7 +27,6 @@ const distributionChartConfig = {
 
 export default function DashboardPage() {
 
-  // Dynamically construct chart data based on kpiDataLaunch
   const kpiVentasTotales = kpiDataLaunch.find(k => k.id === 'kpi1');
   const kpiVentasEquipo = kpiDataLaunch.find(k => k.id === 'kpi2');
   const kpiCuentasAnual = kpiDataLaunch.find(k => k.id === 'kpi3');
@@ -84,9 +85,9 @@ export default function DashboardPage() {
                 <p className="text-xs text-muted-foreground">
                   Objetivo: <FormattedNumericValue value={kpi.targetValue} locale="es-ES" /> {kpi.unit}
                 </p>
-                <Progress 
-                  value={progress} 
-                  aria-label={`${progress.toFixed(0)}% completado`} 
+                <Progress
+                  value={progress}
+                  aria-label={`${progress.toFixed(0)}% completado`}
                   className={cn("h-2", progressBarClass)}
                 />
               </CardContent>
@@ -215,7 +216,41 @@ export default function DashboardPage() {
           </Card>
         </div>
       </section>
+
+      <section>
+        <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
+            <CardHeader>
+                <CardTitle>Objetivos Estratégicos Clave</CardTitle>
+                <CardDescription>Un vistazo rápido a los objetivos estratégicos actuales de la empresa.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {mockStrategicObjectives.length > 0 ? (
+                    <ul className="space-y-3">
+                        {mockStrategicObjectives.slice(0, 5).map((objective: StrategicObjective) => ( // Show up to 5 objectives
+                            <li key={objective.id} className="flex items-start space-x-3 p-3 bg-secondary/20 rounded-md shadow-sm">
+                                {objective.completed ? (
+                                    <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+                                ) : (
+                                    <Circle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+                                )}
+                                <p className={cn("text-sm", objective.completed && "line-through text-muted-foreground")}>
+                                    {objective.text}
+                                </p>
+                            </li>
+                        ))}
+                    </ul>
+                ) : (
+                    <p className="text-sm text-muted-foreground">No hay objetivos estratégicos definidos.</p>
+                )}
+                {mockStrategicObjectives.length > 5 && (
+                    <p className="text-xs text-muted-foreground mt-3">
+                        Y {mockStrategicObjectives.length - 5} más objetivos. Ver todos en Configuración.
+                    </p>
+                )}
+            </CardContent>
+        </Card>
+      </section>
+
     </div>
   );
 }
-

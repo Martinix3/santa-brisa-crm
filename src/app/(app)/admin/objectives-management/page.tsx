@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { mockStrategicObjectives } from "@/lib/data";
+import { mockStrategicObjectives } from "@/lib/launch-dashboard-data"; // Updated import
 import type { StrategicObjective } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, Edit, Trash2, Goal, AlertTriangle } from "lucide-react";

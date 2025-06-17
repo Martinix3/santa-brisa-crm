@@ -9,12 +9,8 @@ export const mockKpis: Kpi[] = [
   { id: 'kpi4', title: 'Tasa de Conversión (Pedidos/Visitas)', currentValue: 25, icon: BarChart3, targetValue:30, unit:"%" },
 ];
 
-export const mockStrategicObjectives: StrategicObjective[] = [
-  { id: 'obj1', text: 'Expandirse al nuevo mercado de la región Sur para Q4.', completed: false },
-  { id: 'obj2', text: 'Aumentar el promedio de botellas por pedido en un 10% en Q3.', completed: true },
-  { id: 'obj3', text: 'Lanzar nueva línea de productos premium (botellas especiales) para fin de año.', completed: false },
-  { id: 'obj4', text: 'Alcanzar una tasa de satisfacción del cliente del 95%.', completed: false },
-];
+// mockStrategicObjectives is now in launch-dashboard-data.ts to be accessible by the main dashboard.
+// The /admin/objectives-management page will import it from there.
 
 export const mockTeamMembers: TeamMember[] = [
   {

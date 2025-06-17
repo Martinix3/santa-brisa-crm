@@ -89,32 +89,51 @@ export default function UserManagementPage() {
   async function onSubmitNewUser(values: UserFormValues) {
     setIsSubmitting(true);
 
+    if (mockTeamMembers.find(u => u.email.toLowerCase() === values.email.toLowerCase())) {
+        toast({
+            title: "Correo Ya Registrado en la Aplicación",
+            description: `El correo electrónico ${values.email} ya existe en la lista de usuarios del CRM.`,
+            variant: "destructive",
+        });
+        setIsSubmitting(false);
+        // No reset password field, allow user to correct other fields if needed
+        form.reset({ 
+            name: values.name,
+            email: values.email,
+            role: values.role,
+            monthlyTargetAccounts: values.monthlyTargetAccounts,
+            monthlyTargetVisits: values.monthlyTargetVisits,
+            password: values.password || "secret123", 
+        });
+        return;
+    }
+
     const defaultPassword = values.password || "secret123"; 
     const firebaseUser = await createUserInAuth(values.email, defaultPassword);
 
     if (!firebaseUser) {
+      // Error (e.g., email already in use in Firebase Auth) handled by toast in createUserInAuth
       setIsSubmitting(false);
       return;
     }
     
-    if (!mockTeamMembers.find(u => u.email === values.email)) {
-        const newMockUser: TeamMember = {
-            id: firebaseUser.uid, 
-            name: values.name,
-            email: values.email,
-            role: values.role,
-            monthlyTargetAccounts: values.role === "SalesRep" ? values.monthlyTargetAccounts : undefined,
-            monthlyTargetVisits: values.role === "SalesRep" ? values.monthlyTargetVisits : undefined,
-            bottlesSold: 0,
-            orders: 0,
-            visits: 0,
-            performanceData: [], 
-            avatarUrl: `https://placehold.co/100x100.png?text=${values.name.substring(0,2)}`
-        };
-        mockTeamMembers.push(newMockUser); 
-        setUsers([...mockTeamMembers]); 
-    }
-
+    // If Firebase user creation was successful, add to mockTeamMembers.
+    // The pre-check above ensures we don't add if it's already in mockTeamMembers.
+    const newMockUser: TeamMember = {
+        id: firebaseUser.uid, 
+        name: values.name,
+        email: values.email,
+        role: values.role,
+        monthlyTargetAccounts: values.role === "SalesRep" ? values.monthlyTargetAccounts : undefined,
+        monthlyTargetVisits: values.role === "SalesRep" ? values.monthlyTargetVisits : undefined,
+        bottlesSold: 0,
+        orders: 0,
+        visits: 0,
+        performanceData: [], 
+        avatarUrl: `https://placehold.co/100x100.png?text=${values.name.substring(0,2)}`
+    };
+    mockTeamMembers.push(newMockUser); 
+    setUsers([...mockTeamMembers]); 
 
     toast({
       title: "¡Usuario Creado!",
@@ -188,7 +207,6 @@ export default function UserManagementPage() {
   const confirmDeleteUser = () => {
     if (!userToDelete) return;
 
-    // Prevent admin from deleting themselves
     if (currentUser && userToDelete.id === currentUser.uid) {
         toast({
             title: "Acción no permitida",
@@ -199,10 +217,8 @@ export default function UserManagementPage() {
         return;
     }
 
-    // Remove from local state
     setUsers(prevUsers => prevUsers.filter(u => u.id !== userToDelete.id));
 
-    // Remove from mock data
     const indexInMock = mockTeamMembers.findIndex(u => u.id === userToDelete.id);
     if (indexInMock !== -1) {
       mockTeamMembers.splice(indexInMock, 1);
@@ -212,8 +228,8 @@ export default function UserManagementPage() {
       title: "Usuario Eliminado de la Aplicación",
       description: (
         <div>
-          <p>El usuario "{userToDelete.name}" ha sido eliminado de la lista de esta aplicación.</p>
-          <p className="mt-2 font-semibold text-destructive">Importante: Para eliminar completamente al usuario, debes hacerlo manualmente desde la consola de Firebase Authentication.</p>
+          <p>El usuario "{userToDelete.name}" ha sido eliminado de la lista de esta aplicación CRM.</p>
+          <p className="mt-2 font-semibold text-destructive">Importante: Para revocar completamente el acceso del usuario, debes eliminarlo manualmente desde la consola de Firebase Authentication.</p>
         </div>
       ),
       variant: "destructive",

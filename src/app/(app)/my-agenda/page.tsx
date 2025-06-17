@@ -13,7 +13,7 @@ import { parseISO, format, isEqual, startOfDay, isSameMonth, isWithinInterval, a
 import { es } from "date-fns/locale";
 import { CalendarCheck, User, Info, Filter, PartyPopper, Users as UsersIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Label } from "@/components/ui/label"; // Ensure this is the generic Label
+import { Label } from "@/components/ui/label";
 import StatusBadge from "@/components/app/status-badge";
 
 interface AgendaItemBase {
@@ -50,13 +50,13 @@ export default function AgendaPage() {
     if (actionTypeFilter === "Todos" || actionTypeFilter === "Acciones de Seguimiento") {
       filteredOrderFollowUps = mockOrders
         .filter(order => 
-          (order.status === 'Seguimiento' || order.status === 'Fallido') && 
-          order.nextActionDate &&
+          (order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') && // Include 'Programada' here
+          (order.status === 'Programada' ? order.visitDate : order.nextActionDate) && // Ensure relevant date exists
           (userRole === 'Admin' ? (selectedSalesRep === "Todos" || order.salesRep === selectedSalesRep) : order.salesRep === teamMember?.name)
         )
         .map(order => ({
           ...order,
-          itemDate: parseISO(order.nextActionDate!),
+          itemDate: parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!),
           sourceType: 'order',
         }));
     }
@@ -180,8 +180,8 @@ export default function AgendaPage() {
       </Card>
 
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="md:col-span-2 shadow-subtle hover:shadow-md transition-shadow duration-300">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="lg:col-span-1 shadow-subtle hover:shadow-md transition-shadow duration-300">
             <CardHeader>
                 <CardTitle>Calendario</CardTitle>
                 <CardDescription>Selecciona un día para ver detalles. Los días con actividades están resaltados.</CardDescription>
@@ -202,7 +202,7 @@ export default function AgendaPage() {
           </CardContent>
         </Card>
 
-        <Card className="md:col-span-1 shadow-subtle hover:shadow-md transition-shadow duration-300">
+        <Card className="lg:col-span-2 shadow-subtle hover:shadow-md transition-shadow duration-300">
           <CardHeader>
             <CardTitle>
               Actividades para {selectedDate ? format(selectedDate, "PPP", { locale: es }) : "Hoy"}
@@ -214,7 +214,7 @@ export default function AgendaPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-[300px] pr-3">
+            <ScrollArea className="h-[450px] pr-3">
               {itemsForSelectedDay.length > 0 ? (
                 <ul className="space-y-3">
                   {itemsForSelectedDay.map(item => (
@@ -224,8 +224,8 @@ export default function AgendaPage() {
                           <h4 className="font-semibold text-sm mb-1">{item.clientName}</h4>
                           <p className="text-xs text-muted-foreground flex items-center mb-1">
                             <Info size={14} className="mr-1.5 text-primary" />
-                            Acción: {item.nextActionType}
-                            {item.nextActionType === 'Opción personalizada' && item.nextActionCustom && (
+                            {item.status === 'Programada' ? 'Visita Programada' : `Acción: ${item.nextActionType}`}
+                            {item.status !== 'Programada' && item.nextActionType === 'Opción personalizada' && item.nextActionCustom && (
                               <span className="ml-1">- "{item.nextActionCustom}"</span>
                             )}
                           </p>
@@ -238,12 +238,12 @@ export default function AgendaPage() {
                           <div className="flex justify-between items-center mt-1.5">
                             <StatusBadge type="order" status={item.status} className="text-xs" />
                              <span className="text-xs text-muted-foreground">
-                                Visita: {format(parseISO(item.visitDate), "dd/MM/yy")}
+                                Fecha Original Visita: {format(parseISO(item.visitDate), "dd/MM/yy")}
                             </span>
                           </div>
                           {item.notes && (
                               <p className="text-xs text-muted-foreground mt-2 pt-1 border-t border-border/50">
-                                <span className="font-medium">Notas visita:</span> {item.notes.length > 70 ? item.notes.substring(0, 70) + "..." : item.notes}
+                                <span className="font-medium">{(item.status === 'Programada' && item.notes) ? "Objetivo/Comentarios:" : "Notas visita:"}</span> {item.notes.length > 70 ? item.notes.substring(0, 70) + "..." : item.notes}
                               </p>
                           )}
                         </>
@@ -261,6 +261,11 @@ export default function AgendaPage() {
                           {item.location && (
                             <p className="text-xs text-muted-foreground mb-1">Ubicación: {item.location}</p>
                           )}
+                           {item.endDate && format(parseISO(item.endDate), "yyyy-MM-dd") !== format(item.itemDate, "yyyy-MM-dd") && (
+                              <p className="text-xs text-muted-foreground mb-1">
+                                Finaliza: {format(parseISO(item.endDate), "dd/MM/yy", { locale: es })}
+                              </p>
+                            )}
                           {(userRole === 'Admin' && selectedSalesRep === "Todos" && item.assignedTeamMemberIds.length > 0) && ( 
                             <p className="text-xs text-muted-foreground flex items-center mb-1">
                               <UsersIcon size={14} className="mr-1.5 text-primary" />

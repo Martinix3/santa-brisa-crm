@@ -8,76 +8,128 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/auth-context";
-import type { Order, TeamMember, OrderStatus, NextActionType } from "@/types";
-import { mockOrders, mockTeamMembers, nextActionTypeList } from "@/lib/data";
-import { parseISO, format, isEqual, startOfDay, isSameMonth } from "date-fns";
+import type { Order, TeamMember, OrderStatus, NextActionType, CrmEvent } from "@/types";
+import { mockOrders, mockTeamMembers, nextActionTypeList, mockCrmEvents } from "@/lib/data";
+import { parseISO, format, isEqual, startOfDay, isSameMonth, isWithinInterval } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarCheck, User, Info, Filter } from "lucide-react";
+import { CalendarCheck, User, Info, Filter, PartyPopper } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Label } from "@/components/ui/label"; // Changed from FormLabel
+import { Label } from "@/components/ui/label";
 
-
-interface AgendaEvent extends Order {
-  eventDate: Date;
+interface AgendaItemBase {
+  id: string;
+  itemDate: Date;
+  displayTime?: string; 
+  sourceType: 'order' | 'event';
 }
+interface AgendaOrderItem extends Order, AgendaItemBase {
+  sourceType: 'order';
+  // Order specific fields are already in Order
+}
+interface AgendaCrmEventItem extends CrmEvent, AgendaItemBase {
+  sourceType: 'event';
+  // CrmEvent specific fields are already in CrmEvent
+}
+type AgendaItem = AgendaOrderItem | AgendaCrmEventItem;
 
-const getStatusBadgeColor = (status: OrderStatus): string => {
-  switch (status) {
-    case 'Entregado': return 'bg-green-500 hover:bg-green-600 text-white';
-    case 'Confirmado': return 'bg-[hsl(var(--brand-turquoise-hsl))] hover:brightness-90 text-white';
-    case 'Enviado': return 'bg-purple-500 hover:bg-purple-600 text-white';
-    case 'Pendiente': return 'bg-yellow-400 hover:bg-yellow-500 text-black';
-    case 'Procesando': return 'bg-orange-400 hover:bg-orange-500 text-black';
-    case 'Cancelado':
-    case 'Fallido': return 'bg-red-500 hover:bg-red-600 text-white';
-    case 'Seguimiento': return 'bg-blue-500 hover:bg-blue-600 text-white';
-    default: return 'bg-gray-400 hover:bg-gray-500 text-white';
-  }
+
+const getStatusBadgeColor = (status: OrderStatus | CrmEvent['status']): string => {
+  // Order statuses
+  if (['Entregado'].includes(status)) return 'bg-green-500 hover:bg-green-600 text-white';
+  if (['Confirmado'].includes(status) && status !== 'Confirmado') return 'bg-[hsl(var(--brand-turquoise-hsl))] hover:brightness-90 text-white'; // order specific
+  if (['Enviado'].includes(status)) return 'bg-purple-500 hover:bg-purple-600 text-white'; // order specific
+  if (['Pendiente'].includes(status)) return 'bg-yellow-400 hover:bg-yellow-500 text-black'; // order specific
+  if (['Procesando'].includes(status)) return 'bg-orange-400 hover:bg-orange-500 text-black'; // order specific
+  if (['Cancelado', 'Fallido'].includes(status)) return 'bg-red-500 hover:bg-red-600 text-white';
+  if (['Seguimiento'].includes(status)) return 'bg-blue-500 hover:bg-blue-600 text-white'; // order specific
+
+  // Event statuses (ensure they don't conflict or are handled appropriately)
+  if (status === 'Confirmado') return 'bg-blue-500 hover:bg-blue-600 text-white'; // Event specific 'Confirmado'
+  if (status === 'Planificado') return 'bg-yellow-400 hover:bg-yellow-500 text-black';
+  if (status === 'En Curso') return 'bg-purple-500 hover:bg-purple-600 text-white';
+  if (status === 'Completado') return 'bg-green-500 hover:bg-green-600 text-white';
+  if (status === 'Pospuesto') return 'bg-orange-400 hover:bg-orange-500 text-black';
+  
+  return 'bg-gray-400 hover:bg-gray-500 text-white'; // Default
 };
+
 
 export default function AgendaPage() {
   const { userRole, teamMember } = useAuth();
   const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(new Date());
   const [currentMonth, setCurrentMonth] = React.useState<Date>(new Date());
   const [selectedSalesRep, setSelectedSalesRep] = React.useState<string>("Todos");
-  const [actionTypeFilter, setActionTypeFilter] = React.useState<NextActionType | "Todos">("Todos");
+  const [actionTypeFilter, setActionTypeFilter] = React.useState<NextActionType | "Todos" | "Evento">("Todos");
 
   const salesRepsList = React.useMemo(() => {
     return ["Todos", ...mockTeamMembers.filter(m => m.role === 'SalesRep' || m.role === 'Admin').map(m => m.name)];
   }, []);
 
-  const uniqueActionTypesForFilter = ["Todos", ...nextActionTypeList] as (NextActionType | "Todos")[];
+  const uniqueActionTypesForFilter = ["Todos", ...nextActionTypeList, "Evento"] as (NextActionType | "Todos" | "Evento")[];
 
-  const agendaEvents = React.useMemo<AgendaEvent[]>(() => {
-    return mockOrders
+  const agendaItems = React.useMemo<AgendaItem[]>(() => {
+    const orderFollowUps: AgendaOrderItem[] = mockOrders
       .filter(order => 
         (order.status === 'Seguimiento' || order.status === 'Fallido') && 
         order.nextActionDate &&
         (userRole === 'Admin' ? (selectedSalesRep === "Todos" || order.salesRep === selectedSalesRep) : order.salesRep === teamMember?.name) &&
-        (actionTypeFilter === "Todos" || order.nextActionType === actionTypeFilter)
+        (actionTypeFilter === "Todos" || actionTypeFilter === order.nextActionType)
       )
       .map(order => ({
         ...order,
-        eventDate: parseISO(order.nextActionDate!),
-      }))
-      .sort((a, b) => a.eventDate.getTime() - b.eventDate.getTime());
+        itemDate: parseISO(order.nextActionDate!),
+        sourceType: 'order',
+      }));
+
+    const crmEvents: AgendaCrmEventItem[] = mockCrmEvents
+      .filter(event =>
+        (userRole === 'Admin' ? 
+          (selectedSalesRep === "Todos" || event.assignedTeamMemberIds.includes(mockTeamMembers.find(m=>m.name === selectedSalesRep)?.id || '')) 
+          : (teamMember && event.assignedTeamMemberIds.includes(teamMember.id))) &&
+        (actionTypeFilter === "Todos" || actionTypeFilter === "Evento") // Filter by "Evento" if selected
+      )
+      .map(event => ({
+        ...event,
+        itemDate: parseISO(event.startDate),
+        sourceType: 'event',
+      }));
+      
+    return [...orderFollowUps, ...crmEvents].sort((a, b) => a.itemDate.getTime() - b.itemDate.getTime());
   }, [userRole, teamMember, selectedSalesRep, actionTypeFilter]);
 
-  const eventsForSelectedDay = React.useMemo(() => {
-    if (!selectedDate) return [];
-    return agendaEvents.filter(event => 
-      isEqual(startOfDay(event.eventDate), startOfDay(selectedDate))
-    );
-  }, [selectedDate, agendaEvents]);
 
-  const eventsInCurrentMonth = React.useMemo(() => {
-    return agendaEvents.filter(event => isSameMonth(event.eventDate, currentMonth));
-  }, [currentMonth, agendaEvents]);
+  const itemsForSelectedDay = React.useMemo(() => {
+    if (!selectedDate) return [];
+    return agendaItems.filter(item => {
+        if (item.sourceType === 'event' && item.endDate) {
+             return isWithinInterval(startOfDay(selectedDate), {
+                start: startOfDay(item.itemDate),
+                end: startOfDay(parseISO(item.endDate))
+            });
+        }
+        return isEqual(startOfDay(item.itemDate), startOfDay(selectedDate));
+    });
+  }, [selectedDate, agendaItems]);
+
+  const itemsInCurrentMonth = React.useMemo(() => {
+    return agendaItems.filter(item => isSameMonth(item.itemDate, currentMonth));
+  }, [currentMonth, agendaItems]);
 
   const highlightedDaysModifier = React.useMemo(() => {
-    const datesWithEvents = new Set(eventsInCurrentMonth.map(event => format(event.eventDate, "yyyy-MM-dd")));
-    return Array.from(datesWithEvents).map(dateStr => parseISO(dateStr));
-  }, [eventsInCurrentMonth]);
+    const datesWithItems = new Set<string>();
+    itemsInCurrentMonth.forEach(item => {
+        datesWithItems.add(format(item.itemDate, "yyyy-MM-dd"));
+        if (item.sourceType === 'event' && item.endDate) {
+            let currentDate = item.itemDate;
+            const stopDate = parseISO(item.endDate);
+            while(currentDate <= stopDate) {
+                datesWithItems.add(format(currentDate, "yyyy-MM-dd"));
+                currentDate = addDays(currentDate, 1);
+            }
+        }
+    });
+    return Array.from(datesWithItems).map(dateStr => parseISO(dateStr));
+  }, [itemsInCurrentMonth]);
 
   const modifiers = {
     highlighted: highlightedDaysModifier,
@@ -102,7 +154,7 @@ export default function AgendaPage() {
     <div className="space-y-6">
       <header className="flex items-center space-x-2">
           <CalendarCheck className="h-8 w-8 text-primary" />
-          <h1 className="text-3xl font-headline font-semibold">Agenda de Acciones</h1>
+          <h1 className="text-3xl font-headline font-semibold">Agenda de Acciones y Eventos</h1>
       </header>
 
       <Card className="shadow-subtle">
@@ -111,7 +163,7 @@ export default function AgendaPage() {
                 <Filter className="h-5 w-5 text-muted-foreground" />
                 <CardTitle className="text-xl">Filtros de Agenda</CardTitle>
             </div>
-            <CardDescription>Ajusta los filtros para refinar las acciones mostradas en el calendario y la lista.</CardDescription>
+            <CardDescription>Ajusta los filtros para refinar las acciones y eventos mostrados.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col sm:flex-row gap-4 items-end">
             {userRole === 'Admin' && (
@@ -130,10 +182,10 @@ export default function AgendaPage() {
               </div>
             )}
             <div className="w-full sm:w-auto flex-grow sm:flex-grow-0">
-               <Label htmlFor="actionTypeFilterAgenda">Tipo de Acción</Label>
-               <Select value={actionTypeFilter} onValueChange={(value) => setActionTypeFilter(value as NextActionType | "Todos")}>
+               <Label htmlFor="actionTypeFilterAgenda">Tipo de Entrada</Label>
+               <Select value={actionTypeFilter} onValueChange={(value) => setActionTypeFilter(value as NextActionType | "Todos" | "Evento")}>
                 <SelectTrigger id="actionTypeFilterAgenda" className="w-full sm:w-[240px] mt-1">
-                    <SelectValue placeholder="Filtrar por tipo de acción" />
+                    <SelectValue placeholder="Filtrar por tipo" />
                 </SelectTrigger>
                 <SelectContent>
                     {uniqueActionTypesForFilter.map(action => (
@@ -149,8 +201,8 @@ export default function AgendaPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="md:col-span-2 shadow-subtle hover:shadow-md transition-shadow duration-300">
             <CardHeader>
-                <CardTitle>Calendario de Acciones</CardTitle>
-                <CardDescription>Selecciona un día para ver las acciones programadas. Los días con acciones están resaltados.</CardDescription>
+                <CardTitle>Calendario</CardTitle>
+                <CardDescription>Selecciona un día para ver detalles. Los días con actividades están resaltados.</CardDescription>
             </CardHeader>
           <CardContent className="flex justify-center">
             <Calendar
@@ -171,59 +223,85 @@ export default function AgendaPage() {
         <Card className="md:col-span-1 shadow-subtle hover:shadow-md transition-shadow duration-300">
           <CardHeader>
             <CardTitle>
-              Acciones para {selectedDate ? format(selectedDate, "PPP", { locale: es }) : "Hoy"}
+              Actividades para {selectedDate ? format(selectedDate, "PPP", { locale: es }) : "Hoy"}
             </CardTitle>
             <CardDescription>
-                {eventsForSelectedDay.length > 0 
-                    ? `Tienes ${eventsForSelectedDay.length} acción(es) programada(s).`
-                    : "No hay acciones programadas para este día."}
+                {itemsForSelectedDay.length > 0 
+                    ? `Tienes ${itemsForSelectedDay.length} actividad(es) programada(s).`
+                    : "No hay actividades programadas para este día."}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[300px] pr-3">
-              {eventsForSelectedDay.length > 0 ? (
+              {itemsForSelectedDay.length > 0 ? (
                 <ul className="space-y-3">
-                  {eventsForSelectedDay.map(event => (
-                    <li key={event.id} className="p-3 bg-secondary/30 rounded-md shadow-sm">
-                      <h4 className="font-semibold text-sm mb-1">{event.clientName}</h4>
-                      <p className="text-xs text-muted-foreground flex items-center mb-1">
-                        <Info size={14} className="mr-1.5 text-primary" />
-                        Acción: {event.nextActionType}
-                        {event.nextActionType === 'Opción personalizada' && event.nextActionCustom && (
-                          <span className="ml-1">- "{event.nextActionCustom}"</span>
-                        )}
-                      </p>
-                      {userRole === 'Admin' && event.salesRep && selectedSalesRep === "Todos" && ( 
-                        <p className="text-xs text-muted-foreground flex items-center mb-1">
-                          <User size={14} className="mr-1.5 text-primary" />
-                          Comercial: {event.salesRep}
-                        </p>
+                  {itemsForSelectedDay.map(item => (
+                    <li key={item.id} className="p-3 bg-secondary/30 rounded-md shadow-sm">
+                      {item.sourceType === 'order' && (
+                        <>
+                          <h4 className="font-semibold text-sm mb-1">{item.clientName}</h4>
+                          <p className="text-xs text-muted-foreground flex items-center mb-1">
+                            <Info size={14} className="mr-1.5 text-primary" />
+                            Acción: {item.nextActionType}
+                            {item.nextActionType === 'Opción personalizada' && item.nextActionCustom && (
+                              <span className="ml-1">- "{item.nextActionCustom}"</span>
+                            )}
+                          </p>
+                          {(userRole === 'Admin' && item.salesRep && selectedSalesRep === "Todos") && ( 
+                            <p className="text-xs text-muted-foreground flex items-center mb-1">
+                              <User size={14} className="mr-1.5 text-primary" />
+                              Comercial: {item.salesRep}
+                            </p>
+                          )}
+                          <div className="flex justify-between items-center mt-1.5">
+                            <Badge variant="outline" className="text-xs">
+                                Visita original: {format(parseISO(item.visitDate), "dd/MM/yy")}
+                            </Badge>
+                            <Badge className={cn("text-xs", getStatusBadgeColor(item.status))}>
+                              {item.status}
+                            </Badge>
+                          </div>
+                          {item.notes && (
+                              <p className="text-xs text-muted-foreground mt-2 pt-1 border-t border-border/50">
+                                <span className="font-medium">Notas visita:</span> {item.notes.length > 70 ? item.notes.substring(0, 70) + "..." : item.notes}
+                              </p>
+                          )}
+                        </>
                       )}
-                       {(userRole === 'Admin' && selectedSalesRep !== "Todos" && event.salesRep === selectedSalesRep) && (
-                         <p className="text-xs text-muted-foreground flex items-center mb-1">
-                            <User size={14} className="mr-1.5 text-primary" />
-                            Comercial: {event.salesRep}
-                        </p>
-                       )}
-                      <div className="flex justify-between items-center mt-1.5">
-                        <Badge variant="outline" className="text-xs">
-                            Visita original: {format(parseISO(event.visitDate), "dd/MM/yy")}
-                        </Badge>
-                        <Badge className={cn("text-xs", getStatusBadgeColor(event.status))}>
-                          {event.status}
-                        </Badge>
-                      </div>
-                       {event.notes && (
-                           <p className="text-xs text-muted-foreground mt-2 pt-1 border-t border-border/50">
-                            <span className="font-medium">Notas visita:</span> {event.notes.length > 70 ? event.notes.substring(0, 70) + "..." : event.notes}
-                           </p>
-                       )}
+                      {item.sourceType === 'event' && (
+                        <>
+                          <div className="flex items-center justify-between mb-1">
+                            <h4 className="font-semibold text-sm">{item.name}</h4>
+                            <Badge className={cn("text-xs", getStatusBadgeColor(item.status))}>
+                              {item.status}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground flex items-center mb-1">
+                            <PartyPopper size={14} className="mr-1.5 text-primary" />
+                            Tipo: {item.type}
+                          </p>
+                          {item.location && (
+                            <p className="text-xs text-muted-foreground mb-1">Ubicación: {item.location}</p>
+                          )}
+                          {(userRole === 'Admin' && selectedSalesRep === "Todos" && item.assignedTeamMemberIds.length > 0) && ( 
+                            <p className="text-xs text-muted-foreground flex items-center mb-1">
+                              <Users size={14} className="mr-1.5 text-primary" />
+                              Responsables: {item.assignedTeamMemberIds.map(id => mockTeamMembers.find(m=>m.id===id)?.name).join(', ')}
+                            </p>
+                          )}
+                           {item.description && (
+                              <p className="text-xs text-muted-foreground mt-2 pt-1 border-t border-border/50">
+                                <span className="font-medium">Desc:</span> {item.description.length > 70 ? item.description.substring(0, 70) + "..." : item.description}
+                              </p>
+                          )}
+                        </>
+                      )}
                     </li>
                   ))}
                 </ul>
               ) : (
                 <p className="text-sm text-muted-foreground text-center pt-10">
-                  Selecciona un día en el calendario para ver las acciones programadas o asegúrate de tener acciones con fecha de seguimiento que coincidan con los filtros.
+                  Selecciona un día en el calendario para ver las actividades o asegúrate de tener entradas que coincidan con los filtros.
                 </p>
               )}
             </ScrollArea>
@@ -233,4 +311,3 @@ export default function AgendaPage() {
     </div>
   );
 }
-

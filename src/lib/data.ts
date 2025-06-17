@@ -1,5 +1,5 @@
 
-import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType, Account, AccountType, AccountStatus, NextActionType, FailureReasonType } from '@/types';
+import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType, Account, AccountType, AccountStatus, NextActionType, FailureReasonType, CrmEvent, CrmEventType, CrmEventStatus } from '@/types';
 import { Package, Users, ShoppingBag, BarChart3 } from 'lucide-react';
 import { format, addDays, subDays } from 'date-fns';
 
@@ -103,7 +103,7 @@ export const mockOrders: Order[] = [
   {
     id: 'ORD003', clientName: 'Distribuciones Rápidas SL', visitDate: format(subDays(today, 25), 'yyyy-MM-dd'),
     products: ['Santa Brisa 750ml'], value: 2500.00, status: 'Entregado', salesRep: 'Admin User', lastUpdated: format(subDays(today, 20), 'yyyy-MM-dd'),
-    clientType: 'Distribuidor', numberOfUnits: 200, unitPrice: 10.00, //Example price for distributor
+    clientType: 'Distribuidor', numberOfUnits: 200, unitPrice: 10.00, 
     nombreFiscal: 'Distribuciones Rápidas SL', cif: 'B33333333', direccionFiscal: 'Polígono Industrial El Viento, Parcela 10, Zaragoza',
     contactoNombre: 'Carlos Almacén', contactoCorreo: 'calmacen@rapidas.es', contactoTelefono: '600333444'
   },
@@ -115,7 +115,7 @@ export const mockOrders: Order[] = [
     notes: 'Necesitan presupuesto ajustado para un evento grande.'
   },
    {
-    id: 'ORD004', clientName: 'Bar El Estudiante', visitDate: format(subDays(today, 2), 'yyyy-MM-dd'), // Repeated client
+    id: 'ORD004', clientName: 'Bar El Estudiante', visitDate: format(subDays(today, 2), 'yyyy-MM-dd'), 
     products: ['Santa Brisa 750ml'], value: 175.50, status: 'Confirmado', salesRep: 'Nico', lastUpdated: format(subDays(today, 1), 'yyyy-MM-dd'),
     clientType: 'HORECA', numberOfUnits: 10, unitPrice: 14.50,
     nombreFiscal: 'Bar El Estudiante SL', cif: 'B11111111', direccionFiscal: 'Calle Universidad 1, Madrid', direccionEntrega: 'Calle Universidad 1, Madrid',
@@ -128,24 +128,58 @@ export const mockOrders: Order[] = [
     failureReasonType: 'No interesado',
     notes: 'Acaban de abrir, de momento no quieren más proveedores.'
   },
+  {
+    id: 'ORD005', clientName: 'Restaurante La Tertulia', visitDate: format(subDays(today, 1), 'yyyy-MM-dd'),
+    products: ['Santa Brisa 750ml'], value: 290.00, status: 'Procesando', salesRep: 'Nico', lastUpdated: format(subDays(today, 1), 'yyyy-MM-dd'),
+    clientType: 'HORECA', numberOfUnits: 15, unitPrice: 16.00, // Adjusted price
+    nombreFiscal: 'La Tertulia Gastronómica SLU', cif: 'B44444444', direccionFiscal: 'Calle Poeta 12, Sevilla', direccionEntrega: 'Calle Poeta 12, Sevilla',
+    contactoNombre: 'Elena Chef', contactoCorreo: 'elena.chef@latertulia.es', contactoTelefono: '600444555'
+  },
+  {
+    id: 'VISFLW004', clientName: 'Vinoteca El Buen Gusto', visitDate: format(subDays(today, 4), 'yyyy-MM-dd'),
+    status: 'Seguimiento', salesRep: 'Alfonso', lastUpdated: format(subDays(today, 4), 'yyyy-MM-dd'),
+    nextActionType: 'Visitar de nuevo', nextActionDate: format(addDays(today, 10), 'yyyy-MM-dd'),
+    notes: 'Interesados, pero quieren comparar con su proveedor actual. Nueva visita para cerrar.'
+  },
+  {
+    id: 'ORD006', clientName: 'Hotel Vista Hermosa', visitDate: format(subDays(today, 9), 'yyyy-MM-dd'),
+    products: ['Santa Brisa 750ml'], value: 600.00, status: 'Entregado', salesRep: 'Federica', lastUpdated: format(subDays(today, 3), 'yyyy-MM-dd'),
+    clientType: 'HORECA', numberOfUnits: 40, unitPrice: 12.50,
+    nombreFiscal: 'Hotel Vista Hermosa SA', cif: 'A55555555', direccionFiscal: 'Carretera de la Costa km 25, Marbella',
+    contactoNombre: 'Roberto Director', contactoCorreo: 'director@vistahotel.com', contactoTelefono: '600555666'
+  },
+   {
+    id: 'ORD007', clientName: 'Supermercado La Compra Feliz', visitDate: format(addDays(today, -1), 'yyyy-MM-dd'), // Recent order
+    products: ['Santa Brisa 750ml'], value: 1500.00, status: 'Enviado', salesRep: 'Alfonso', lastUpdated: format(addDays(today, -1), 'yyyy-MM-dd'),
+    clientType: 'Retail', numberOfUnits: 100, unitPrice: 12.50,
+    nombreFiscal: 'La Compra Feliz SA', cif: 'A22222222', direccionFiscal: 'Avenida Comercial 5, Valencia',
+    contactoNombre: 'Luisa Gerente', contactoCorreo: 'luisa@comprafeliz.com', contactoTelefono: '600222333'
+  },
+  {
+    id: 'VISFLD003', clientName: 'Gastrobar Innova', visitDate: format(addDays(today, -10), 'yyyy-MM-dd'),
+    status: 'Fallido', salesRep: 'Nico', lastUpdated: format(addDays(today, -10), 'yyyy-MM-dd'),
+    nextActionType: 'Opción personalizada', nextActionCustom: 'Revisar contacto en 6 meses, cambio de gerencia',
+    nextActionDate: format(addDays(today, 170), 'yyyy-MM-dd'), // Approx 6 months
+    failureReasonType: 'Otro (especificar)', failureReasonCustom: 'Cambio reciente de propietario, no toman decisiones ahora.',
+    notes: 'Nuevo dueño revisará proveedores más adelante.'
+  }
 ];
 
 // Initialize some performance data for SalesReps based on mockOrders
 mockTeamMembers.forEach(member => {
-    if (member.role === 'SalesRep') {
+    if (member.role === 'SalesRep' || member.role === 'Admin') { // Include admin for orders they might self-assign
         member.bottlesSold = 0;
         member.orders = 0;
-        member.visits = 0; // Initialize visits
+        member.visits = 0; 
 
-        const salesRepOrders = mockOrders.filter(order => order.salesRep === member.name);
+        const salesRepOrdersAndVisits = mockOrders.filter(order => order.salesRep === member.name);
         
-        salesRepOrders.forEach(order => {
-            if (['Confirmado', 'Procesando', 'Enviado', 'Entregado'].includes(order.status) && order.numberOfUnits) {
-                member.bottlesSold = (member.bottlesSold || 0) + order.numberOfUnits;
+        salesRepOrdersAndVisits.forEach(record => {
+            if (['Confirmado', 'Procesando', 'Enviado', 'Entregado'].includes(record.status) && record.numberOfUnits) {
+                member.bottlesSold = (member.bottlesSold || 0) + record.numberOfUnits;
                 member.orders = (member.orders || 0) + 1;
             }
-            // Every entry in mockOrders for this salesRep counts as a visit for simplicity here
-            member.visits = (member.visits || 0) + 1;
+            member.visits = (member.visits || 0) + 1; // Every record is a visit
         });
     }
 });
@@ -239,39 +273,92 @@ export const mockAccounts: Account[] = [
     createdAt: '2024-03-01',
     updatedAt: '2024-05-15',
   },
-  { // Add accounts from mockOrders if they don't exist by CIF
-    id: 'acc_BarEstudiante', name: 'Bar El Estudiante', legalName: 'Bar El Estudiante SL', cif: 'B11111111', type: 'HORECA', status: 'Activo',
-    salesRepId: 'tm1', createdAt: format(subDays(today, 15), 'yyyy-MM-dd'), updatedAt: format(subDays(today, 1), 'yyyy-MM-dd')
-  },
-  {
-    id: 'acc_CompraFeliz', name: 'Supermercado La Compra Feliz', legalName: 'La Compra Feliz SA', cif: 'A22222222', type: 'Retail', status: 'Activo',
-    salesRepId: 'tm2', createdAt: format(subDays(today, 5), 'yyyy-MM-dd'), updatedAt: format(subDays(today, 2), 'yyyy-MM-dd')
-  },
-  {
-    id: 'acc_DistRapidas', name: 'Distribuciones Rápidas SL', legalName: 'Distribuciones Rápidas SL', cif: 'B33333333', type: 'Distribuidor', status: 'Activo',
-    salesRepId: 'admin01', createdAt: format(subDays(today, 25), 'yyyy-MM-dd'), updatedAt: format(subDays(today, 20), 'yyyy-MM-dd')
-  }
 ];
 
 // Ensure all clients from mockOrders that should be accounts are in mockAccounts
 mockOrders.forEach(order => {
-    if (order.cif && order.nombreFiscal && !mockAccounts.find(acc => acc.cif === order.cif)) {
+    if (order.cif && order.nombreFiscal && !mockAccounts.find(acc => acc.cif && acc.cif.toLowerCase() === order.cif!.toLowerCase())) {
+        const salesRepForAccount = mockTeamMembers.find(tm => tm.name === order.salesRep);
         mockAccounts.push({
-            id: `acc_ord_${order.id}`,
+            id: `acc_ord_${order.id.replace(/\W/g, '')}`, // Sanitize ID
             name: order.clientName,
             legalName: order.nombreFiscal,
             cif: order.cif,
-            type: order.clientType || 'Otro',
-            status: 'Activo', // Assuming active if they placed an order
+            type: (clientTypeList.includes(order.clientType as AccountType) ? order.clientType : 'Otro') as AccountType,
+            status: (['Confirmado', 'Procesando', 'Enviado', 'Entregado'].includes(order.status)) ? 'Activo' : 'Potencial',
             addressBilling: order.direccionFiscal,
             addressShipping: order.direccionEntrega,
             mainContactName: order.contactoNombre,
             mainContactEmail: order.contactoCorreo,
             mainContactPhone: order.contactoTelefono,
             notes: order.observacionesAlta || order.notes,
-            salesRepId: mockTeamMembers.find(tm => tm.name === order.salesRep)?.id,
+            salesRepId: salesRepForAccount?.id,
             createdAt: order.visitDate,
             updatedAt: order.lastUpdated,
         });
     }
 });
+
+// CRM Event Management Data
+export const crmEventTypeList: CrmEventType[] = ['Activación en Tienda', 'Feria Comercial', 'Evento Corporativo', 'Degustación', 'Patrocinio', 'Otro'];
+export const crmEventStatusList: CrmEventStatus[] = ['Planificado', 'Confirmado', 'En Curso', 'Completado', 'Cancelado', 'Pospuesto'];
+
+export const mockCrmEvents: CrmEvent[] = [
+  {
+    id: 'evt_001',
+    name: 'Lanzamiento Cosecha - Tienda Gourmet Central',
+    type: 'Activación en Tienda',
+    status: 'Planificado',
+    startDate: format(addDays(new Date(), 10), 'yyyy-MM-dd'),
+    endDate: format(addDays(new Date(), 10), 'yyyy-MM-dd'),
+    location: 'Tienda Gourmet Central, Calle Mayor 1',
+    assignedTeamMemberIds: ['tm1', 'tm3'], // Nico, Federica
+    requiredMaterials: 'Stand promocional, 2 cajas de producto, folletos, copas de degustación',
+    createdAt: format(subDays(new Date(), 5), 'yyyy-MM-dd'),
+    updatedAt: format(subDays(new Date(), 1), 'yyyy-MM-dd'),
+    description: 'Evento de degustación y presentación de la nueva cosecha para clientes de la tienda.'
+  },
+  {
+    id: 'evt_002',
+    name: 'Feria Alimentaria Barcelona 2024',
+    type: 'Feria Comercial',
+    status: 'Confirmado',
+    startDate: format(addDays(new Date(), 30), 'yyyy-MM-dd'),
+    endDate: format(addDays(new Date(), 33), 'yyyy-MM-dd'),
+    location: 'Fira de Barcelona, Gran Vía',
+    assignedTeamMemberIds: ['tm2', 'adminMJ'], // Alfonso, Martín (Admin)
+    requiredMaterials: 'Stand completo (diseño B), material gráfico, muestras de todos los productos, personal de apoyo.',
+    notes: 'Stand H2. Reuniones clave ya agendadas.',
+    createdAt: format(subDays(new Date(), 20), 'yyyy-MM-dd'),
+    updatedAt: format(subDays(new Date(), 2), 'yyyy-MM-dd'),
+  },
+   {
+    id: 'evt_003',
+    name: 'Cata Maridaje Restaurante Fusión',
+    type: 'Degustación',
+    status: 'Completado',
+    startDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
+    endDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
+    location: 'Restaurante Fusión, Calle Innova 5',
+    assignedTeamMemberIds: ['tm1'], // Nico
+    requiredMaterials: 'Selección especial de vinos, fichas de cata, material PLV pequeño.',
+    description: 'Evento exclusivo para sumilleres y prensa especializada. Gran éxito.',
+    notes: 'Se generaron 3 leads HORECA importantes.',
+    createdAt: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
+    updatedAt: format(subDays(new Date(), 6), 'yyyy-MM-dd'),
+  },
+  {
+    id: 'evt_004',
+    name: 'Activación Navidad - Supermercado Principal',
+    type: 'Activación en Tienda',
+    status: 'Planificado',
+    startDate: format(addDays(new Date(), 45), 'yyyy-MM-dd'),
+    endDate: format(addDays(new Date(), 46), 'yyyy-MM-dd'),
+    location: 'Supermercado Principal, Av. Comercial',
+    assignedTeamMemberIds: ['tm2'], // Alfonso
+    requiredMaterials: 'Expositor especial Navidad, flyers promocionales, azafata.',
+    description: 'Promoción de packs navideños.',
+    createdAt: format(subDays(new Date(), 2), 'yyyy-MM-dd'),
+    updatedAt: format(subDays(new Date(), 2), 'yyyy-MM-dd'),
+  },
+];

@@ -108,3 +108,22 @@ export interface Account {
   updatedAt: string; // YYYY-MM-DD
 }
 
+// CRM Event Management
+export type CrmEventType = 'Activación en Tienda' | 'Feria Comercial' | 'Evento Corporativo' | 'Degustación' | 'Patrocinio' | 'Otro';
+export type CrmEventStatus = 'Planificado' | 'Confirmado' | 'En Curso' | 'Completado' | 'Cancelado' | 'Pospuesto';
+
+export interface CrmEvent {
+  id: string;
+  name: string;
+  type: CrmEventType;
+  status: CrmEventStatus;
+  startDate: string; // YYYY-MM-DD
+  endDate?: string; // YYYY-MM-DD, optional
+  description?: string;
+  location?: string;
+  assignedTeamMemberIds: string[]; // Array of TeamMember.id
+  requiredMaterials?: string;
+  notes?: string;
+  createdAt: string; // YYYY-MM-DD
+  updatedAt: string; // YYYY-MM-DD
+}

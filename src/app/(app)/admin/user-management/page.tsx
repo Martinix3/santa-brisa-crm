@@ -49,16 +49,22 @@ const userFormSchema = z.object({
 
 type UserFormValues = z.infer<typeof userFormSchema>;
 
-const generateDefaultPerformanceData = (): { month: string; bottles: number }[] => {
-  const months = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio"];
-  return months.map(month => ({ month, bottles: 0 }));
-};
+// Note: generateDefaultPerformanceData is not used if users are not added to mockTeamMembers locally.
+// const generateDefaultPerformanceData = (): { month: string; bottles: number }[] => {
+//   const months = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio"];
+//   return months.map(month => ({ month, bottles: 0 }));
+// };
 
 export default function UserManagementPage() {
   const { toast } = useToast();
   const { createUserInAuth } = useAuth();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [users, setUsers] = React.useState<TeamMember[]>(mockTeamMembers);
+  // Initialize users state with mockTeamMembers. This list will not be updated by the form on this page.
+  const [users, setUsers] = React.useState<TeamMember[]>(() => {
+    // Potentially deep copy if mockTeamMembers could be mutated elsewhere and you want a true snapshot
+    // For now, direct assignment is fine as mockTeamMembers is re-imported on navigation.
+    return mockTeamMembers;
+  });
 
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userFormSchema),
@@ -77,7 +83,7 @@ export default function UserManagementPage() {
     setIsSubmitting(true);
 
     // 1. Create user in Firebase Authentication
-    const defaultPassword = values.password || "secret123"; // Fallback if not provided (though schema has it)
+    const defaultPassword = values.password || "secret123"; 
     const firebaseUser = await createUserInAuth(values.email, defaultPassword);
 
     if (!firebaseUser) {
@@ -86,32 +92,23 @@ export default function UserManagementPage() {
       return;
     }
     
-    // 2. Create user in local mock data (simulating database)
-    const newUser: TeamMember = {
-      id: firebaseUser.uid, // Use Firebase UID as the ID
-      name: values.name,
-      email: values.email,
-      role: values.role,
-      avatarUrl: 'https://placehold.co/100x100.png',
-    };
+    // 2. User is created in Firebase Auth. We will NOT update the local mockTeamMembers or the displayed table.
+    // The user will exist in Firebase, but this page's view of "Usuarios Existentes" will remain static.
 
-    if (values.role === "SalesRep") {
-      newUser.monthlyTarget = values.monthlyTarget;
-      newUser.bottlesSold = 0;
-      newUser.orders = 0;
-      newUser.visits = 0;
-      newUser.performanceData = generateDefaultPerformanceData();
-    }
-
-    mockTeamMembers.push(newUser); // Add to global mock data
-    setUsers([...mockTeamMembers]); // Update local state for table re-render
+    // Construct a temporary object for the toast message
+    const createdUserName = values.name;
+    const createdUserRole = values.role;
 
     toast({
-      title: "¡Usuario Creado!",
+      title: "¡Usuario Creado en Firebase!",
       description: (
         <div className="flex items-start">
           <Check className="h-5 w-5 text-green-500 mr-2 mt-1" />
-          <p>Usuario {newUser.name} ({newUser.role}) creado exitosamente. Contraseña por defecto: {defaultPassword}</p>
+          <p>
+            Usuario {createdUserName} ({createdUserRole === 'SalesRep' ? 'Rep. Ventas' : createdUserRole}) 
+            creado en el sistema de autenticación. Contraseña por defecto: {defaultPassword}. 
+            La lista de usuarios en esta vista no se actualizará.
+          </p>
         </div>
       ),
       variant: "default",
@@ -137,7 +134,7 @@ export default function UserManagementPage() {
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
           <CardTitle>Añadir Nuevo Usuario</CardTitle>
-          <CardDescription>Complete el formulario para añadir un nuevo usuario al sistema. Se creará una cuenta en Firebase y se le asignará una contraseña por defecto.</CardDescription>
+          <CardDescription>Complete el formulario para añadir un nuevo usuario al sistema de autenticación de Firebase. La lista de abajo no se actualizará dinámicamente.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -232,10 +229,10 @@ export default function UserManagementPage() {
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Añadiendo Usuario...
+                      Añadiendo Usuario a Firebase...
                     </>
                   ) : (
-                    "Añadir Usuario"
+                    "Añadir Usuario a Firebase"
                   )}
                 </Button>
               </CardFooter>
@@ -247,7 +244,7 @@ export default function UserManagementPage() {
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
           <CardTitle>Usuarios Existentes</CardTitle>
-          <CardDescription>Lista de todos los usuarios registrados en el sistema (datos simulados).</CardDescription>
+          <CardDescription>Lista de usuarios registrados en el sistema (datos simulados, no se actualiza con nuevas altas de esta página).</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">

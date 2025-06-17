@@ -19,13 +19,14 @@ export interface StrategicObjective {
 export interface TeamMember {
   id: string;
   name: string;
-  avatarUrl: string;
-  role: string;
-  bottlesSold: number;
-  monthlyTarget: number;
-  orders: number;
-  visits: number;
-  performanceData: { month: string; bottles: number }[];
+  email: string;
+  avatarUrl?: string; // Optional, as not all users might have one initially
+  role: UserRole; // Changed from string to UserRole for better type safety
+  bottlesSold?: number;
+  monthlyTarget?: number;
+  orders?: number;
+  visits?: number;
+  performanceData?: { month: string; bottles: number }[];
 }
 
 export type OrderStatus = 'Pendiente' | 'Confirmado' | 'Procesando' | 'Enviado' | 'Entregado' | 'Cancelado' | 'Fallido';

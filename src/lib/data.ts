@@ -1,5 +1,5 @@
 
-import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType } from '@/types';
+import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole } from '@/types';
 import { Package, Users, ShoppingBag, BarChart3 } from 'lucide-react';
 
 export const mockKpis: Kpi[] = [
@@ -18,7 +18,7 @@ export const mockStrategicObjectives: StrategicObjective[] = [
 
 export const mockTeamMembers: TeamMember[] = [
   {
-    id: 'tm1', name: 'Nico', avatarUrl: 'https://placehold.co/100x100.png', role: 'Rep de Ventas Madrid',
+    id: 'tm1', name: 'Nico', email: 'nico@santabrisa.com', avatarUrl: 'https://placehold.co/100x100.png', role: 'SalesRep',
     bottlesSold: 3250, monthlyTarget: 4000, orders: 120, visits: 250,
     performanceData: [
       { month: 'Enero', bottles: 450 }, { month: 'Febrero', bottles: 500 }, { month: 'Marzo', bottles: 520 },
@@ -26,7 +26,7 @@ export const mockTeamMembers: TeamMember[] = [
     ],
   },
   {
-    id: 'tm2', name: 'Alfonso', avatarUrl: 'https://placehold.co/100x100.png', role: 'Rep de ventas grandes cuentas',
+    id: 'tm2', name: 'Alfonso', email: 'alfonso@santabrisa.com', avatarUrl: 'https://placehold.co/100x100.png', role: 'SalesRep',
     bottlesSold: 2800, monthlyTarget: 3500, orders: 95, visits: 180,
     performanceData: [
       { month: 'Enero', bottles: 380 }, { month: 'Febrero', bottles: 420 }, { month: 'Marzo', bottles: 450 },
@@ -34,20 +34,32 @@ export const mockTeamMembers: TeamMember[] = [
     ],
   },
   {
-    id: 'tm3', name: 'Federica', avatarUrl: 'https://placehold.co/100x100.png', role: 'Rep de Ventas Barcelona',
+    id: 'tm3', name: 'Federica', email: 'federica@santabrisa.com', avatarUrl: 'https://placehold.co/100x100.png', role: 'SalesRep',
     bottlesSold: 1500, monthlyTarget: 2000, orders: 60, visits: 120,
     performanceData: [
       { month: 'Enero', bottles: 200 }, { month: 'Febrero', bottles: 220 }, { month: 'Marzo', bottles: 250 },
       { month: 'Abril', bottles: 280 }, { month: 'Mayo', bottles: 250 }, { month: 'Junio', bottles: 300 },
     ],
   },
+  {
+    id: 'admin01', name: 'Admin User', email: 'admin@santabrisa.com', role: 'Admin', avatarUrl: 'https://placehold.co/100x100.png'
+  },
+  {
+    id: 'dist01', name: 'Distribuidor Principal', email: 'distribuidor@example.com', role: 'Distributor', avatarUrl: 'https://placehold.co/100x100.png'
+  }
 ];
 
-export const globalTeamMonthlyTarget: number = mockTeamMembers.reduce((sum, member) => sum + member.monthlyTarget, 0);
+export const globalTeamMonthlyTarget: number = mockTeamMembers
+    .filter(member => member.role === 'SalesRep' && member.monthlyTarget)
+    .reduce((sum, member) => sum + (member.monthlyTarget || 0), 0);
 
 export const orderStatusesList: OrderStatus[] = ['Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Cancelado', 'Fallido'];
 const clientNames = ['Café Central', 'Restaurante del Sol', 'El Rincón Diario', 'Bistró Vista al Mar', 'Café Cima de Montaña'];
-const salesReps = ['Nico', 'Alfonso', 'Federica'];
+
+// SalesReps for order assignment will now come from mockTeamMembers with role 'SalesRep'
+const salesRepsData = mockTeamMembers.filter(member => member.role === 'SalesRep');
+const salesRepsNames = salesRepsData.length > 0 ? salesRepsData.map(sr => sr.name) : ['Equipo Ventas'];
+
 
 export const mockOrders: Order[] = Array.from({ length: 25 }, (_, i) => {
   const date = new Date(2024, 5 - Math.floor(i / 5), 28 - (i % 28) + 1);
@@ -60,7 +72,7 @@ export const mockOrders: Order[] = Array.from({ length: 25 }, (_, i) => {
     products: ['Botellas tipo A', 'Botellas tipo B', 'Pack degustación botellas'].slice(0, Math.floor(Math.random() * 3) + 1),
     value: Math.floor(Math.random() * 500) + 50,
     status: orderStatusesList[i % orderStatusesList.length],
-    salesRep: salesReps[i % salesReps.length],
+    salesRep: salesRepsNames[i % salesRepsNames.length],
     lastUpdated: new Date(date.getTime() + Math.random() * 5 * 24*60*60*1000).toISOString().split('T')[0],
 
     // Add sample billing and contact info for some orders
@@ -106,3 +118,5 @@ export const mockMarketingResources: MarketingResourceCategory[] = [
     ],
   },
 ];
+
+export const userRolesList: UserRole[] = ['Admin', 'SalesRep', 'Distributor'];

@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import Logo from '@/components/icons/Logo';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Briefcase } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { UserRole } from '@/types';
@@ -28,11 +28,12 @@ import type { UserRole } from '@/types';
 const currentUserRole: UserRole = 'Admin'; 
 
 const allNavItems = [
-  { href: '/dashboard', label: 'Panel', icon: LayoutDashboard, roles: ['Admin', 'SalesRep'] as UserRole[] },
+  { href: '/dashboard', label: 'Panel', icon: LayoutDashboard, roles: ['Admin', 'SalesRep', 'Distributor'] as UserRole[] }, // All roles can see the dashboard
   { href: '/team-tracking', label: 'Seguimiento de Equipo', icon: Users, roles: ['Admin', 'SalesRep'] as UserRole[] },
   { href: '/order-form', label: 'Formulario de Pedido', icon: FileText, roles: ['Admin', 'SalesRep'] as UserRole[] },
   { href: '/orders-dashboard', label: 'Panel de Pedidos', icon: ShoppingCart, roles: ['Admin', 'SalesRep', 'Distributor'] as UserRole[] },
   { href: '/marketing-resources', label: 'Recursos de Marketing', icon: Library, roles: ['Admin', 'SalesRep', 'Distributor'] as UserRole[] },
+  { href: '/admin/user-management', label: 'Gestión de Usuarios', icon: Settings, roles: ['Admin'] as UserRole[] },
 ];
 
 function MainAppLayout({ children }: { children: React.ReactNode }) {
@@ -69,8 +70,8 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
           <SidebarMenu>
             {(currentUserRole === 'Admin') && (
               <SidebarMenuItem>
-                <SidebarMenuButton tooltip={{children: "Configuración", side: "right"}} asChild>
-                  <Link href="#">
+                <SidebarMenuButton tooltip={{children: "Configuración General", side: "right"}} asChild>
+                  <Link href="#"> {/* Placeholder for general settings if different from user management */}
                     <Settings />
                     <span>Configuración</span>
                   </Link>
@@ -116,7 +117,7 @@ function AppNavigation({ navItems }: AppNavigationProps) {
         <SidebarMenuItem key={item.label}>
           <SidebarMenuButton
             asChild
-            isActive={pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))}
+            isActive={pathname === item.href || (item.href !== '/dashboard' && item.href !== '/admin/user-management' && pathname.startsWith(item.href)) || (item.href === '/admin/user-management' && pathname === item.href)}
             tooltip={{children: item.label, side: "right"}}
           >
             <Link href={item.href}>
@@ -164,12 +165,7 @@ function UserMenu({ userRole }: { userRole: UserRole }) {
           <UserCircle className="mr-2 h-4 w-4" />
           <span>Perfil</span>
         </DropdownMenuItem>
-        {userRole === 'Admin' && (
-          <DropdownMenuItem>
-            <Settings className="mr-2 h-4 w-4" />
-            <span>Configuración</span>
-          </DropdownMenuItem>
-        )}
+        {/* The general settings link is now in the main sidebar for Admins */}
         <DropdownMenuSeparator />
         <DropdownMenuItem>
           <LogOut className="mr-2 h-4 w-4" />

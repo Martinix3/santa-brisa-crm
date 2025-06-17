@@ -43,7 +43,7 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { es } from 'date-fns/locale';
-import { Label } from "@/components/ui/label"; // Import Label for direct use
+import { Label } from "@/components/ui/label";
 
 const eventFormSchema = z.object({
   name: z.string().min(3, "El nombre del evento debe tener al menos 3 caracteres."),
@@ -131,6 +131,7 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
     await new Promise(resolve => setTimeout(resolve, 500)); 
     onSave(data);
     setIsSaving(false);
+    // onOpenChange(false); // Dialog close is handled by parent
   };
   
   const assignableTeamMembers = mockTeamMembers.filter(member => member.role === 'Admin' || member.role === 'SalesRep');
@@ -169,32 +170,31 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Responsables Asignados</FormLabel>
-                  <FormControl>
-                    <div> {/* Added wrapper div here */}
-                      <ScrollArea className="h-32 w-full rounded-md border p-2">
-                        {assignableTeamMembers.map((member) => (
-                          <div key={member.id} className="flex flex-row items-center space-x-3 space-y-0 py-1">
-                            <Checkbox
-                              id={`member-checkbox-${member.id}`}
-                              checked={field.value?.includes(member.id)}
-                              onCheckedChange={(checked) => {
-                                const currentValues = field.value || [];
-                                if (checked) {
-                                  field.onChange([...currentValues, member.id]);
-                                } else {
-                                  field.onChange(currentValues.filter((value) => value !== member.id));
-                                }
-                              }}
-                              disabled={isReadOnly}
-                            />
-                            <Label htmlFor={`member-checkbox-${member.id}`} className="text-sm font-normal cursor-pointer">
-                              {member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})
-                            </Label>
-                          </div>
-                        ))}
-                      </ScrollArea>
-                    </div>
-                  </FormControl>
+                  {/* Removed FormControl wrapper from here. The div itself will be the child for FormItem's layout. */}
+                  <div className="rounded-md border">
+                    <ScrollArea className="h-32 w-full p-2">
+                      {assignableTeamMembers.map((member) => (
+                        <div key={member.id} className="flex flex-row items-center space-x-3 space-y-0 py-1">
+                          <Checkbox
+                            id={`member-checkbox-${member.id}`} // It's good practice to have an id for the label's htmlFor
+                            checked={field.value?.includes(member.id)}
+                            onCheckedChange={(checked) => {
+                              const currentValues = field.value || [];
+                              if (checked) {
+                                field.onChange([...currentValues, member.id]);
+                              } else {
+                                field.onChange(currentValues.filter((value) => value !== member.id));
+                              }
+                            }}
+                            disabled={isReadOnly}
+                          />
+                          <Label htmlFor={`member-checkbox-${member.id}`} className="text-sm font-normal cursor-pointer">
+                            {member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})
+                          </Label>
+                        </div>
+                      ))}
+                    </ScrollArea>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
@@ -221,4 +221,3 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
     </Dialog>
   );
 }
-

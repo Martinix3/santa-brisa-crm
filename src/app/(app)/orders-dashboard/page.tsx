@@ -3,7 +3,6 @@
 import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -23,21 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-
-
-const getStatusBadgeColor = (status: OrderStatus): string => {
-  switch (status) {
-    case 'Entregado': return 'bg-green-500 hover:bg-green-600 text-white';
-    case 'Confirmado': return 'bg-[hsl(var(--brand-turquoise-hsl))] hover:brightness-90 text-white';
-    case 'Enviado': return 'bg-purple-500 hover:bg-purple-600 text-white';
-    case 'Pendiente': return 'bg-yellow-400 hover:bg-yellow-500 text-black';
-    case 'Procesando': return 'bg-orange-400 hover:bg-orange-500 text-black';
-    case 'Cancelado':
-    case 'Fallido': return 'bg-red-500 hover:bg-red-600 text-white';
-    case 'Seguimiento': return 'bg-blue-500 hover:bg-blue-600 text-white';
-    default: return 'bg-gray-400 hover:bg-gray-500 text-white';
-  }
-};
+import StatusBadge from "@/components/app/status-badge";
 
 
 export default function OrdersDashboardPage() {
@@ -137,15 +122,25 @@ export default function OrdersDashboardPage() {
     // 2. Adjust mockTeamMembers for sales rep changes or contribution changes
     const originalSalesRepMember = mockTeamMembers.find(m => m.name === originalOrder.salesRep && (m.role === 'SalesRep' || m.role === 'Admin'));
     if (originalSalesRepMember) {
-        if (originalOrderContributed) {
+        if (originalOrderContributed && originalOrder.salesRep !== updatedOrderDataInMock.salesRep) { // If rep changed
             originalSalesRepMember.bottlesSold = (originalSalesRepMember.bottlesSold || 0) - originalUnits;
             originalSalesRepMember.orders = (originalSalesRepMember.orders || 0) - 1;
+        } else if (originalOrderContributed && !updatedOrderContributed) { // If rep same, but status no longer contributes
+            originalSalesRepMember.bottlesSold = (originalSalesRepMember.bottlesSold || 0) - originalUnits;
+            originalSalesRepMember.orders = (originalSalesRepMember.orders || 0) - 1;
+        } else if (!originalOrderContributed && updatedOrderContributed && originalOrder.salesRep === updatedOrderDataInMock.salesRep) { // If rep same, but status NOW contributes
+             // This case is handled by the new sales rep logic below if rep is same.
+        } else if (originalOrderContributed && updatedOrderContributed && originalOrder.salesRep === updatedOrderDataInMock.salesRep && originalUnits !== updatedUnits) { // rep same, status same, units changed
+            originalSalesRepMember.bottlesSold = (originalSalesRepMember.bottlesSold || 0) - originalUnits + updatedUnits;
         }
     }
 
     const newSalesRepMember = mockTeamMembers.find(m => m.name === updatedOrderDataInMock.salesRep && (m.role === 'SalesRep' || m.role === 'Admin'));
     if (newSalesRepMember) {
-        if (updatedOrderContributed) {
+        if (updatedOrderContributed && originalOrder.salesRep !== updatedOrderDataInMock.salesRep) { // If rep changed and new status contributes
+            newSalesRepMember.bottlesSold = (newSalesRepMember.bottlesSold || 0) + updatedUnits;
+            newSalesRepMember.orders = (newSalesRepMember.orders || 0) + 1;
+        } else if (updatedOrderContributed && !originalOrderContributed && originalOrder.salesRep === updatedOrderDataInMock.salesRep) { // rep same, but status NOW contributes
             newSalesRepMember.bottlesSold = (newSalesRepMember.bottlesSold || 0) + updatedUnits;
             newSalesRepMember.orders = (newSalesRepMember.orders || 0) + 1;
         }
@@ -353,8 +348,9 @@ export default function OrdersDashboardPage() {
                       {canEditOrderStatus ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className={cn("text-xs p-1 h-auto", getStatusBadgeColor(order.status))}>
-                               {order.status} <ChevronDown className="ml-1 h-3 w-3" />
+                             <Button variant="ghost" className="p-0 h-auto">
+                               <StatusBadge type="order" status={order.status} className="cursor-pointer" />
+                               <ChevronDown className="ml-1 h-3 w-3 opacity-70" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
@@ -371,9 +367,7 @@ export default function OrdersDashboardPage() {
                           </DropdownMenuContent>
                         </DropdownMenu>
                       ) : (
-                        <Badge className={cn("text-xs", getStatusBadgeColor(order.status))}>
-                          {order.status}
-                        </Badge>
+                        <StatusBadge type="order" status={order.status} />
                       )}
                     </TableCell>
                     <TableCell className="text-right">
@@ -455,5 +449,3 @@ export default function OrdersDashboardPage() {
     </div>
   );
 }
-
-    

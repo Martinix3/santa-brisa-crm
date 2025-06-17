@@ -5,7 +5,6 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -17,18 +16,7 @@ import EventDialog, { type EventFormValues } from "@/components/app/event-dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format, parseISO } from "date-fns";
 import { es } from 'date-fns/locale';
-
-const getEventStatusBadgeColor = (status: CrmEventStatus): string => {
-  switch (status) {
-    case 'Completado': return 'bg-green-500 hover:bg-green-600 text-white';
-    case 'Confirmado': return 'bg-blue-500 hover:bg-blue-600 text-white';
-    case 'En Curso': return 'bg-purple-500 hover:bg-purple-600 text-white';
-    case 'Planificado': return 'bg-yellow-400 hover:bg-yellow-500 text-black';
-    case 'Pospuesto': return 'bg-orange-400 hover:bg-orange-500 text-black';
-    case 'Cancelado': return 'bg-red-500 hover:bg-red-600 text-white';
-    default: return 'bg-gray-400 hover:bg-gray-500 text-white';
-  }
-};
+import StatusBadge from "@/components/app/status-badge";
 
 export default function EventsPage() {
   const { toast } = useToast();
@@ -219,7 +207,7 @@ export default function EventsPage() {
                         {getAssignedTeamMemberNames(event.assignedTeamMemberIds)}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge className={getEventStatusBadgeColor(event.status)}>{event.status}</Badge>
+                      <StatusBadge type="event" status={event.status} />
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>

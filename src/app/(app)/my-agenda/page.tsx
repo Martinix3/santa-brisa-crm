@@ -5,16 +5,16 @@ import * as React from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/auth-context";
-import type { Order, TeamMember, OrderStatus, NextActionType, CrmEvent } from "@/types";
-import { mockOrders, mockTeamMembers, nextActionTypeList, mockCrmEvents } from "@/lib/data";
+import type { Order, TeamMember, OrderStatus, NextActionType, CrmEvent, CrmEventStatus } from "@/types";
+import { mockOrders, mockTeamMembers, nextActionTypeList, mockCrmEvents, crmEventStatusList } from "@/lib/data";
 import { parseISO, format, isEqual, startOfDay, isSameMonth, isWithinInterval, addDays } from "date-fns";
 import { es } from "date-fns/locale";
 import { CalendarCheck, User, Info, Filter, PartyPopper, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
+import StatusBadge from "@/components/app/status-badge";
 
 interface AgendaItemBase {
   id: string;
@@ -24,34 +24,11 @@ interface AgendaItemBase {
 }
 interface AgendaOrderItem extends Order, AgendaItemBase {
   sourceType: 'order';
-  // Order specific fields are already in Order
 }
 interface AgendaCrmEventItem extends CrmEvent, AgendaItemBase {
   sourceType: 'event';
-  // CrmEvent specific fields are already in CrmEvent
 }
 type AgendaItem = AgendaOrderItem | AgendaCrmEventItem;
-
-
-const getStatusBadgeColor = (status: OrderStatus | CrmEvent['status']): string => {
-  // Order statuses
-  if (['Entregado'].includes(status)) return 'bg-green-500 hover:bg-green-600 text-white';
-  if (status === 'Confirmado' && !crmEventStatusList.includes(status as CrmEventStatus) ) return 'bg-[hsl(var(--brand-turquoise-hsl))] hover:brightness-90 text-white'; 
-  if (['Enviado'].includes(status)) return 'bg-purple-500 hover:bg-purple-600 text-white'; 
-  if (['Pendiente'].includes(status)) return 'bg-yellow-400 hover:bg-yellow-500 text-black'; 
-  if (['Procesando'].includes(status)) return 'bg-orange-400 hover:bg-orange-500 text-black'; 
-  if (['Cancelado', 'Fallido'].includes(status)) return 'bg-red-500 hover:bg-red-600 text-white';
-  if (['Seguimiento'].includes(status)) return 'bg-blue-500 hover:bg-blue-600 text-white'; 
-
-  // Event statuses 
-  if (status === 'Confirmado' && crmEventStatusList.includes(status as CrmEventStatus)) return 'bg-blue-500 hover:bg-blue-600 text-white'; 
-  if (status === 'Planificado') return 'bg-yellow-400 hover:bg-yellow-500 text-black';
-  if (status === 'En Curso') return 'bg-purple-500 hover:bg-purple-600 text-white';
-  if (status === 'Completado') return 'bg-green-500 hover:bg-green-600 text-white';
-  if (status === 'Pospuesto') return 'bg-orange-400 hover:bg-orange-500 text-black';
-  
-  return 'bg-gray-400 hover:bg-gray-500 text-white'; // Default
-};
 
 
 export default function AgendaPage() {
@@ -86,7 +63,7 @@ export default function AgendaPage() {
         (userRole === 'Admin' ? 
           (selectedSalesRep === "Todos" || event.assignedTeamMemberIds.includes(mockTeamMembers.find(m=>m.name === selectedSalesRep)?.id || '')) 
           : (teamMember && event.assignedTeamMemberIds.includes(teamMember.id))) &&
-        (actionTypeFilter === "Todos" || actionTypeFilter === "Evento") // Filter by "Evento" if selected
+        (actionTypeFilter === "Todos" || actionTypeFilter === "Evento") 
       )
       .map(event => ({
         ...event,
@@ -254,12 +231,10 @@ export default function AgendaPage() {
                             </p>
                           )}
                           <div className="flex justify-between items-center mt-1.5">
-                            <Badge variant="outline" className="text-xs">
-                                Visita original: {format(parseISO(item.visitDate), "dd/MM/yy")}
-                            </Badge>
-                            <Badge className={cn("text-xs", getStatusBadgeColor(item.status))}>
-                              {item.status}
-                            </Badge>
+                            <StatusBadge type="order" status={item.status} className="text-xs" />
+                             <span className="text-xs text-muted-foreground">
+                                Visita: {format(parseISO(item.visitDate), "dd/MM/yy")}
+                            </span>
                           </div>
                           {item.notes && (
                               <p className="text-xs text-muted-foreground mt-2 pt-1 border-t border-border/50">
@@ -272,9 +247,7 @@ export default function AgendaPage() {
                         <>
                           <div className="flex items-center justify-between mb-1">
                             <h4 className="font-semibold text-sm">{item.name}</h4>
-                            <Badge className={cn("text-xs", getStatusBadgeColor(item.status))}>
-                              {item.status}
-                            </Badge>
+                            <StatusBadge type="event" status={item.status as CrmEventStatus} />
                           </div>
                           <p className="text-xs text-muted-foreground flex items-center mb-1">
                             <PartyPopper size={14} className="mr-1.5 text-primary" />
@@ -311,4 +284,3 @@ export default function AgendaPage() {
     </div>
   );
 }
-

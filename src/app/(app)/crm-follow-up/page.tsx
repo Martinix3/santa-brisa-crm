@@ -4,10 +4,9 @@
 import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input"; // Though not used for search yet, good to have for consistency
+import { Input } from "@/components/ui/input"; 
 import type { Order, NextActionType, TeamMember, UserRole, OrderStatus } from "@/types";
 import { mockOrders, nextActionTypeList, mockTeamMembers } from "@/lib/data";
 import { Filter, CalendarDays, ClipboardList, ChevronDown } from "lucide-react";
@@ -18,24 +17,11 @@ import { format, parseISO, addDays } from "date-fns";
 import { es } from 'date-fns/locale';
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
-
-const getStatusBadgeColor = (status: OrderStatus): string => {
-  switch (status) {
-    case 'Entregado': return 'bg-green-500 hover:bg-green-600 text-white';
-    case 'Confirmado': return 'bg-[hsl(var(--brand-turquoise-hsl))] hover:brightness-90 text-white';
-    case 'Enviado': return 'bg-purple-500 hover:bg-purple-600 text-white';
-    case 'Pendiente': return 'bg-yellow-400 hover:bg-yellow-500 text-black';
-    case 'Procesando': return 'bg-orange-400 hover:bg-orange-500 text-black';
-    case 'Cancelado':
-    case 'Fallido': return 'bg-red-500 hover:bg-red-600 text-white';
-    case 'Seguimiento': return 'bg-blue-500 hover:bg-blue-600 text-white';
-    default: return 'bg-gray-400 hover:bg-gray-500 text-white';
-  }
-};
+import StatusBadge from "@/components/app/status-badge";
 
 export default function CrmFollowUpPage() {
   const { userRole } = useAuth();
-  const [searchTerm, setSearchTerm] = React.useState(""); // For future client name search
+  const [searchTerm, setSearchTerm] = React.useState(""); 
   const [salesRepFilter, setSalesRepFilter] = React.useState<string>("Todos");
   const [actionTypeFilter, setActionTypeFilter] = React.useState<NextActionType | "Todos">("Todos");
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
@@ -65,13 +51,13 @@ export default function CrmFollowUpPage() {
         actionTypeFilter === "Todos" || followUp.nextActionType === actionTypeFilter
       )
       .filter(followUp => {
-        if (!dateRange?.from || !followUp.nextActionDate) return true; // No date filter or no next action date
+        if (!dateRange?.from || !followUp.nextActionDate) return true; 
         const nextActionDate = parseISO(followUp.nextActionDate);
         const fromDate = dateRange.from;
-        const toDate = dateRange.to ? addDays(dateRange.to, 1) : addDays(new Date(), 10000) ; // Ensure 'to' covers the whole day
+        const toDate = dateRange.to ? addDays(dateRange.to, 1) : addDays(new Date(), 10000) ; 
         return nextActionDate >= fromDate && nextActionDate < toDate;
       })
-      .filter(followUp => // Basic client name search
+      .filter(followUp => 
         followUp.clientName.toLowerCase().includes(searchTerm.toLowerCase())
       );
   }, [initialFollowUps, salesRepFilter, actionTypeFilter, dateRange, searchTerm]);
@@ -150,7 +136,7 @@ export default function CrmFollowUpPage() {
                 <Button
                   variant={"outline"}
                   className={cn(
-                    "w-full sm:w-[280px] justify-start text-left font-normal", // Adjusted width for date range picker
+                    "w-full sm:w-[280px] justify-start text-left font-normal", 
                     !dateRange && "text-muted-foreground"
                   )}
                 >
@@ -212,9 +198,7 @@ export default function CrmFollowUpPage() {
                         {item.nextActionDate ? format(parseISO(item.nextActionDate), "dd/MM/yy", { locale: es }) : 'N/D'}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge className={cn("text-xs", getStatusBadgeColor(item.status))}>
-                        {item.status}
-                      </Badge>
+                       <StatusBadge type="order" status={item.status} />
                     </TableCell>
                     <TableCell className="text-xs truncate max-w-[150px]" title={item.notes}>
                         {item.notes || 'N/D'}
@@ -240,4 +224,3 @@ export default function CrmFollowUpPage() {
     </div>
   );
 }
-

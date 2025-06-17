@@ -1,7 +1,7 @@
 
 import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType, Account, AccountType, AccountStatus, NextActionType, FailureReasonType, CrmEvent, CrmEventType, CrmEventStatus } from '@/types';
 import { Package, Users, ShoppingBag, BarChart3 } from 'lucide-react';
-import { format, addDays, subDays } from 'date-fns';
+import { format, addDays, subDays, isEqual } from 'date-fns';
 
 export const mockKpis: Kpi[] = [
   { id: 'kpi1', title: 'Botellas Vendidas (Mes)', currentValue: 0, icon: Package, targetValue:10000, unit:"botellas" },
@@ -362,3 +362,6 @@ export const mockCrmEvents: CrmEvent[] = [
     updatedAt: format(subDays(new Date(), 2), 'yyyy-MM-dd'),
   },
 ];
+
+
+    

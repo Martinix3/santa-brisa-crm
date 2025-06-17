@@ -2,7 +2,7 @@
 "use client";
 
 import type React from 'react';
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react'; // Added useMemo, useState
 import {
   SidebarProvider,
   Sidebar,
@@ -19,11 +19,23 @@ import { Button } from '@/components/ui/button';
 import Logo from '@/components/icons/Logo';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2, Building2, ClipboardList, CalendarCheck, PartyPopper } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2, Building2, ClipboardList, CalendarCheck, PartyPopper, ListChecks } from 'lucide-react'; // Added ListChecks
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import type { UserRole } from '@/types';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuLabel, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
+import type { UserRole, Order, CrmEvent } from '@/types'; // Added Order, CrmEvent
 import { useAuth } from '@/contexts/auth-context';
+import DailyTasksWidget from '@/components/app/daily-tasks-widget'; // New import
+import { Badge } from '@/components/ui/badge'; // For task count
+import { mockOrders, mockCrmEvents } from '@/lib/data'; // For task count
+import { parseISO, startOfDay, isEqual, isWithinInterval, format } from 'date-fns'; // For task count
+import { es } from 'date-fns/locale'; // For task count
 
 const allNavItems = [
   { href: '/dashboard', label: 'Panel', icon: LayoutDashboard, roles: ['Admin', 'SalesRep', 'Distributor'] as UserRole[] },
@@ -37,6 +49,100 @@ const allNavItems = [
   { href: '/marketing-resources', label: 'Recursos de Marketing', icon: Library, roles: ['Admin', 'SalesRep', 'Distributor'] as UserRole[] },
   { href: '/admin/settings', label: 'Configuración', icon: Settings, roles: ['Admin'] as UserRole[] },
 ];
+
+
+function DailyTasksMenu() {
+  const { userRole, teamMember } = useAuth();
+  const today = startOfDay(new Date());
+  const [taskCount, setTaskCount] = useState(0);
+
+  useEffect(() => {
+    if ((!teamMember && userRole === 'SalesRep') || userRole === 'Distributor') {
+      setTaskCount(0);
+      return;
+    }
+
+    let relevantOrders: Order[] = [];
+    let relevantEvents: CrmEvent[] = [];
+
+    if (userRole === 'Admin') {
+      relevantOrders = mockOrders.filter(order =>
+        (order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') &&
+        (order.status === 'Programada' ? order.visitDate : order.nextActionDate)
+      );
+      relevantEvents = mockCrmEvents;
+    } else if (userRole === 'SalesRep' && teamMember) {
+      relevantOrders = mockOrders.filter(order =>
+        order.salesRep === teamMember.name &&
+        (order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') &&
+        (order.status === 'Programada' ? order.visitDate : order.nextActionDate)
+      );
+      relevantEvents = mockCrmEvents.filter(event =>
+        event.assignedTeamMemberIds.includes(teamMember.id)
+      );
+    }
+
+    const orderAgendaItems = relevantOrders
+      .map(order => ({
+        itemDate: parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!),
+        sourceType: 'order' as 'order',
+        rawItem: order,
+      }));
+
+    const eventAgendaItems = relevantEvents
+      .map(event => ({
+        itemDate: parseISO(event.startDate),
+        sourceType: 'event' as 'event',
+        rawItem: event,
+      }));
+
+    const allItems = [...orderAgendaItems, ...eventAgendaItems];
+    const count = allItems
+      .filter(item => {
+        const itemStartDate = startOfDay(item.itemDate);
+        if (item.sourceType === 'event' && (item.rawItem as CrmEvent).endDate) {
+          const itemEndDate = startOfDay(parseISO((item.rawItem as CrmEvent).endDate!));
+          return isWithinInterval(today, { start: itemStartDate, end: itemEndDate });
+        }
+        return isEqual(itemStartDate, today);
+      }).length;
+    setTaskCount(count);
+
+  }, [userRole, teamMember, today]);
+
+
+  if (userRole === 'Distributor') return null;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" className="relative h-9 w-9 rounded-full p-0">
+          <ListChecks className="h-5 w-5" />
+          {taskCount > 0 && (
+            <Badge
+              variant="destructive"
+              className="absolute -top-1 -right-1 h-4 min-w-[1rem] p-0.5 text-xs flex items-center justify-center rounded-full"
+            >
+              {taskCount > 9 ? '9+' : taskCount}
+            </Badge>
+          )}
+          <span className="sr-only">Tareas del Día</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-auto p-0 mr-2" align="end" forceMount>
+          <DropdownMenuLabel className="font-normal text-center py-2">
+            <p className="text-sm font-medium leading-none">Tareas para Hoy</p>
+            <p className="text-xs leading-none text-muted-foreground">
+              {format(today, "eeee, dd 'de' MMMM", { locale: es })}
+            </p>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DailyTasksWidget />
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 
 function MainAppLayout({ children }: { children: React.ReactNode }) {
   const { user, userRole, loading, logout } = useAuth();
@@ -57,17 +163,15 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
     );
   }
   
-  if (!user && pathname !== '/login') { // Added check for /login to prevent redirect loop
+  if (!user && pathname !== '/login') { 
     return null; 
   }
   
-  // If user is not logged in and not on login page, MainAppLayout shouldn't render its content.
-  // This check ensures that if somehow this component is rendered on /login, it doesn't try to show sidebar etc.
   if (!user && pathname === '/login') {
-    return <>{children}</>; // Render children directly for login page
+    return <>{children}</>; 
   }
   
-  if (!user) return null; // Fallback for any other unauthenticated state
+  if (!user) return null; 
 
   const navItemsForRole = userRole ? allNavItems.filter(item => item.roles.includes(userRole)) : [];
 
@@ -121,13 +225,16 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
       </Sidebar>
       <SidebarInset>
         <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-md sm:px-6">
-          <div className="md:hidden">
-            <SidebarTrigger />
-          </div>
-          <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <div className="md:hidden">
+              <SidebarTrigger />
+            </div>
             {/* Breadcrumbs or page title can go here */}
           </div>
-          <UserMenu userRole={userRole} userEmail={user?.email} />
+          <div className="flex items-center gap-3"> {/* Aumentado gap si es necesario */}
+            <DailyTasksMenu />
+            <UserMenu userRole={userRole} userEmail={user?.email} />
+          </div>
         </header>
         <main className="flex-1 p-4 sm:p-6 overflow-auto">
           {children}
@@ -152,8 +259,6 @@ function AppNavigation({ navItems }: AppNavigationProps) {
         } else if (item.href === '/dashboard') {
           isActive = pathname === item.href;
         } else {
-          // For other main routes, check if pathname starts with item.href
-          // This makes parent routes active when on child routes, e.g. /accounts active when on /accounts/new
           isActive = pathname.startsWith(item.href); 
         }
         

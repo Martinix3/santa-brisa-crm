@@ -30,7 +30,7 @@ jobs:
           repoToken: '${{ secrets.GITHUB_TOKEN }}' # GITHUB_TOKEN se provee automáticamente
           firebaseServiceAccount: '' # Dejar vacío si se usa firebaseToken
           firebaseToken: '${{ secrets.FIREBASE_TOKEN }}'
-          projectId: 'TU_ID_DE_PROYECTO_FIREBASE' # !! REEMPLAZA ESTO !!
+          projectId: 'santa-brisa-crm' # ID de Proyecto Firebase actualizado
           channelId: live # Despliega al canal "live" (producción)
         env:
           FIREBASE_CLI_PREVIEWS: hostingchannels # Necesario para usar channels si se desea en el futuro

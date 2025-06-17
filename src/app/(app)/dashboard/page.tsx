@@ -11,11 +11,8 @@ import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 import { cn } from "@/lib/utils";
 import { 
   kpiDataLaunch,
-  ventasDistribucionData,
-  progresoVentasEquipoData,
-  progresoCuentasEquipoData,
-  objetivoTotalVentasEquipo,
-  objetivoTotalCuentasEquipoAnual
+  objetivoTotalVentasEquipo, // Target value
+  objetivoTotalCuentasEquipoAnual // Target value
 } from "@/lib/launch-dashboard-data";
 
 
@@ -27,6 +24,34 @@ const distributionChartConfig = {
 
 
 export default function DashboardPage() {
+
+  // Dynamically construct chart data based on kpiDataLaunch
+  const kpiVentasTotales = kpiDataLaunch.find(k => k.id === 'kpi1');
+  const kpiVentasEquipo = kpiDataLaunch.find(k => k.id === 'kpi2');
+  const kpiCuentasAnual = kpiDataLaunch.find(k => k.id === 'kpi3');
+
+  const ventasTotalesActuales = kpiVentasTotales?.currentValue ?? 0;
+  const ventasEquipoActuales = kpiVentasEquipo?.currentValue ?? 0;
+  const restoCanalesVentas = ventasTotalesActuales - ventasEquipoActuales;
+
+  const ventasDistribucionData = [
+    { name: "Ventas Equipo", value: ventasEquipoActuales, fill: "hsl(var(--primary))" },
+    { name: "Resto Canales", value: restoCanalesVentas, fill: "hsl(var(--brand-turquoise-hsl))" },
+  ];
+
+  const faltanteVentasEquipo = Math.max(0, objetivoTotalVentasEquipo - ventasEquipoActuales);
+  const progresoVentasEquipoData = [
+    { name: "Alcanzado", value: ventasEquipoActuales, color: "hsl(var(--brand-turquoise-hsl))" },
+    { name: "Faltante", value: faltanteVentasEquipo, color: "hsl(var(--muted))" },
+  ];
+
+  const cuentasEquipoActualesAnual = kpiCuentasAnual?.currentValue ?? 0;
+  const faltanteCuentasEquipoAnual = Math.max(0, objetivoTotalCuentasEquipoAnual - cuentasEquipoActualesAnual);
+  const progresoCuentasEquipoData = [
+    { name: "Alcanzado", value: cuentasEquipoActualesAnual, color: "hsl(var(--brand-turquoise-hsl))" },
+    { name: "Faltante", value: faltanteCuentasEquipoAnual, color: "hsl(var(--muted))" },
+  ];
+
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-headline font-semibold">Panel de Lanzamiento de Producto</h1>
@@ -193,3 +218,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+

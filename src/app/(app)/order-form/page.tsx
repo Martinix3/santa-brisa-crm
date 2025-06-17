@@ -27,19 +27,17 @@ import { es } from 'date-fns/locale';
 import { Calendar as CalendarIcon, Check, Loader2, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { mockOrders } from "@/lib/data"; // Importar mockOrders
-import type { Order } from "@/types"; // Importar el tipo Order
+import { mockOrders, mockTeamMembers } from "@/lib/data"; 
+import { kpiDataLaunch } from "@/lib/launch-dashboard-data";
+import type { Order } from "@/types"; 
 
 const orderFormSchema = z.object({
   clientName: z.string().min(2, "El nombre del cliente debe tener al menos 2 caracteres."),
   visitDate: z.date({ required_error: "La fecha de visita es obligatoria." }),
   outcome: z.enum(["successful", "failed", "follow-up"], { required_error: "Por favor, seleccione un resultado." }),
-  // Campos para resultado exitoso (pedido)
   productsOrdered: z.string().optional(),
   orderValue: z.coerce.number().positive("El valor del pedido debe ser positivo.").optional(),
-  // Campos para resultado fallido
   reasonForFailure: z.string().optional(),
-  // Campos para alta de cliente (si resultado es exitoso)
   nombreFiscal: z.string().optional(),
   cif: z.string().optional(),
   direccionFiscal: z.string().optional(),
@@ -48,7 +46,6 @@ const orderFormSchema = z.object({
   contactoCorreo: z.string().email("El formato del correo electrónico no es válido.").optional(),
   contactoTelefono: z.string().optional(),
   observacionesAlta: z.string().optional(),
-  // Notas generales
   notes: z.string().optional(),
 }).superRefine((data, ctx) => {
   if (data.outcome === "successful") {
@@ -66,7 +63,6 @@ const orderFormSchema = z.object({
         path: ["orderValue"],
       });
     }
-    // Validaciones para campos de alta de cliente
     if (!data.nombreFiscal || data.nombreFiscal.trim() === "") {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El nombre fiscal es obligatorio.", path: ["nombreFiscal"] });
     }
@@ -85,7 +81,6 @@ const orderFormSchema = z.object({
     if (!data.contactoCorreo || data.contactoCorreo.trim() === "") {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El correo de contacto es obligatorio.", path: ["contactoCorreo"] });
     } else {
-        // Re-validar formato email aquí porque el .email() de Zod puede no ejecutarse si el campo es opcional y está vacío inicialmente
         const emailValidation = z.string().email().safeParse(data.contactoCorreo);
         if (!emailValidation.success) {
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El formato del correo de contacto no es válido.", path: ["contactoCorreo"] });
@@ -135,34 +130,67 @@ export default function OrderFormPage() {
 
   async function onSubmit(values: OrderFormValues) {
     setIsSubmitting(true);
-    // Simular llamada a API
     await new Promise(resolve => setTimeout(resolve, 1500)); 
     
-    if (values.outcome === "successful" && values.visitDate && values.orderValue) {
+    if (values.outcome === "successful" && values.visitDate && values.orderValue && values.productsOrdered) {
+      const orderedProductsList = values.productsOrdered.split(/[,;\n]+/).map(p => p.trim()).filter(p => p.length > 0);
+      const numberOfBottles = orderedProductsList.length; // Assume 1 bottle per product line item
+
       const newOrder: Order = {
-        id: `ORD${Date.now()}`, // Simple unique ID for prototype
+        id: `ORD${Date.now()}`,
         clientName: values.clientName,
         visitDate: format(values.visitDate, "yyyy-MM-dd"),
-        products: values.productsOrdered?.split(/[,;\n]+/).map(p => p.trim()).filter(p => p.length > 0) || [],
+        products: orderedProductsList,
         value: values.orderValue,
-        status: 'Confirmado', // Default status for new successful orders
-        salesRep: 'Vendedor App', // Placeholder, could be dynamic in a real app
+        status: 'Confirmado',
+        salesRep: 'Nico', // Hardcoded for now, as per plan
         lastUpdated: format(new Date(), "yyyy-MM-dd"),
       };
-      mockOrders.unshift(newOrder); // Add to the beginning of the global mockOrders array
+      mockOrders.unshift(newOrder);
 
+      // Update Team Member Data (mockTeamMembers) for 'Nico'
+      const salesRepToUpdate = 'Nico';
+      const memberIndex = mockTeamMembers.findIndex(m => m.name === salesRepToUpdate);
+      if (memberIndex !== -1) {
+        mockTeamMembers[memberIndex].bottlesSold += numberOfBottles;
+        mockTeamMembers[memberIndex].orders += 1;
+        mockTeamMembers[memberIndex].visits += 1; // Assuming a successful order implies a visit
+      }
+
+      // Update Launch Dashboard KPIs (kpiDataLaunch)
+      const kpiVentasTotales = kpiDataLaunch.find(k => k.id === 'kpi1');
+      if (kpiVentasTotales) kpiVentasTotales.currentValue += numberOfBottles;
+
+      const kpiVentasEquipo = kpiDataLaunch.find(k => k.id === 'kpi2');
+      if (kpiVentasEquipo) kpiVentasEquipo.currentValue += numberOfBottles;
+
+      if (values.nombreFiscal && values.nombreFiscal.trim() !== "") { // If it's a new client registration
+        const kpiCuentasAnual = kpiDataLaunch.find(k => k.id === 'kpi3');
+        if (kpiCuentasAnual) kpiCuentasAnual.currentValue += 1;
+        
+        const kpiCuentasMensual = kpiDataLaunch.find(k => k.id === 'kpi4');
+        if (kpiCuentasMensual) kpiCuentasMensual.currentValue += 1;
+      }
+      
       toast({
         title: "¡Pedido Registrado!",
         description: (
           <div className="flex items-start">
             <Check className="h-5 w-5 text-green-500 mr-2 mt-1" />
-            <p>Pedido {newOrder.id} para {newOrder.clientName} registrado exitosamente.</p>
+            <p>Pedido {newOrder.id} para {newOrder.clientName} registrado exitosamente. Datos actualizados.</p>
           </div>
         ),
         variant: "default",
       });
-    } else {
-      // Handle other outcomes or generic success message
+
+    } else if (values.outcome === "failed" || values.outcome === "follow-up") {
+        // Potentially update visits for non-successful outcomes if applicable
+        // For now, only successful orders update detailed stats
+        const salesRepToUpdate = 'Nico'; // Assuming 'Nico' for all visit types for now
+        const memberIndex = mockTeamMembers.findIndex(m => m.name === salesRepToUpdate);
+        if (memberIndex !== -1 && values.outcome === "failed") { // Or include follow-up if visits are always tracked
+             // mockTeamMembers[memberIndex].visits += 1; // Decide if non-successful also count as a tracked visit
+        }
       console.log(values);
       toast({
         title: "¡Formulario Enviado!",
@@ -177,10 +205,10 @@ export default function OrderFormPage() {
     }
     
     form.reset();
-    // Reset visitDate and outcome specifically if form.reset() doesn't clear them enough for controlled components
     form.setValue("visitDate", undefined);
     form.setValue("outcome", undefined); 
     form.setValue("orderValue", undefined);
+    form.setValue("productsOrdered", "");
     setIsSubmitting(false);
   }
 
@@ -305,6 +333,7 @@ export default function OrderFormPage() {
                         <FormControl>
                           <Textarea placeholder="Listar productos y cantidades, separados por coma o nueva línea..." {...field} />
                         </FormControl>
+                        <FormDescription>Cada producto o línea contará como una botella para las estadísticas del equipo.</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -333,7 +362,7 @@ export default function OrderFormPage() {
                   <Separator className="my-6" />
                   <div className="space-y-1">
                     <h3 className="text-lg font-medium">Información de Alta del Cliente</h3>
-                    <p className="text-sm text-muted-foreground">Complete estos datos si es un cliente nuevo o necesita actualizar la información.</p>
+                    <p className="text-sm text-muted-foreground">Complete estos datos si es un cliente nuevo o necesita actualizar la información. Rellenar el nombre fiscal contará como una nueva cuenta.</p>
                   </div>
                   
                   <FormField

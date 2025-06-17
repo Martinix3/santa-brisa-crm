@@ -7,21 +7,26 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { TeamMember } from "@/types";
 import { mockTeamMembers } from "@/lib/data";
-import { Package, ShoppingCart, Users } from 'lucide-react'; // Cambiado DollarSign por Package
+import { Package, ShoppingCart, Users } from 'lucide-react';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Line, LineChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 
 const chartConfig = (color: string) => ({
-  bottles: { // Cambiado de sales a bottles
-    label: "Botellas", // Etiqueta actualizada
+  bottles: { 
+    label: "Botellas", 
     color: color,
   },
 });
 
 export default function TeamTrackingPage() {
-  const teamTotalBottlesValue = useMemo(() => mockTeamMembers.reduce((sum, m) => sum + m.bottlesSold, 0), []); // Cambiado de sales a bottlesSold
-  const teamTotalOrdersValue = useMemo(() => mockTeamMembers.reduce((sum, m) => sum + m.orders, 0), []);
+  // The mockTeamMembers array is mutated directly by the order form.
+  // useMemo will recompute if the component re-renders.
+  // For reliable updates in a prototype, navigation might be needed.
+  const teamTotalBottlesValue = useMemo(() => mockTeamMembers.reduce((sum, m) => sum + m.bottlesSold, 0), [mockTeamMembers]);
+  const teamTotalOrdersValue = useMemo(() => mockTeamMembers.reduce((sum, m) => sum + m.orders, 0), [mockTeamMembers]);
+  const teamTotalVisitsValue = useMemo(() => mockTeamMembers.reduce((sum, m) => sum + m.visits, 0), [mockTeamMembers]);
+
 
   return (
     <div className="space-y-6">
@@ -58,12 +63,12 @@ export default function TeamTrackingPage() {
                     <ChartContainer config={chartConfig('hsl(var(--primary))')} className="h-full w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={member.performanceData.map(d => ({...d, month: d.month.substring(0,3)}))} margin={{ top: 10, right: 5, left: 5, bottom: 0 }}>
-                          <Line type="monotone" dataKey="bottles" stroke="var(--color-bottles)" strokeWidth={2} dot={false} /> {/* dataKey y stroke actualizados */}
+                          <Line type="monotone" dataKey="bottles" stroke="var(--color-bottles)" strokeWidth={2} dot={false} /> 
                           <Tooltip 
                             cursor={{stroke: 'hsl(var(--border))', strokeWidth: 1, strokeDasharray: '3 3'}}
                             contentStyle={{backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)'}}
                             itemStyle={{color: 'hsl(var(--foreground))'}}
-                            formatter={(value: number) => [`${value.toLocaleString('es-ES')} botellas`, 'Botellas']} // Formato de tooltip actualizado
+                            formatter={(value: number) => [`${value.toLocaleString('es-ES')} botellas`, 'Botellas']} 
                             labelFormatter={(label: string) => {
                                 const monthMap: { [key: string]: string } = { Ene: 'Enero', Feb: 'Febrero', Mar: 'Marzo', Abr: 'Abril', May: 'Mayo', Jun: 'Junio', Jul: 'Julio', Ago: 'Agosto', Sep: 'Septiembre', Oct: 'Octubre', Nov: 'Noviembre', Dic: 'Diciembre'};
                                 return monthMap[label] || label;
@@ -83,14 +88,14 @@ export default function TeamTrackingPage() {
       <div className="grid gap-6 md:grid-cols-3">
         <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Botellas del Equipo</CardTitle> {/* Título actualizado */}
-            <Package className="h-5 w-5 text-muted-foreground" /> {/* Icono actualizado */}
+            <CardTitle className="text-sm font-medium">Total Botellas del Equipo</CardTitle> 
+            <Package className="h-5 w-5 text-muted-foreground" /> 
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              <FormattedNumericValue value={teamTotalBottlesValue} locale="es-ES" options={{ style: undefined, currency: undefined }}/> {/* Valor y formato actualizados */}
+              <FormattedNumericValue value={teamTotalBottlesValue} locale="es-ES" options={{ style: undefined, currency: undefined }}/>
             </div>
-            <p className="text-xs text-muted-foreground">+9% del último mes</p> {/* Ejemplo de texto */}
+            {/* <p className="text-xs text-muted-foreground">+9% del último mes</p>  */}
           </CardContent>
         </Card>
         <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
@@ -102,17 +107,19 @@ export default function TeamTrackingPage() {
             <div className="text-2xl font-bold">
               <FormattedNumericValue value={teamTotalOrdersValue} locale="es-ES" />
             </div>
-            <p className="text-xs text-muted-foreground">+8% del último mes</p>
+            {/* <p className="text-xs text-muted-foreground">+8% del último mes</p> */}
           </CardContent>
         </Card>
         <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Rep. de Ventas Activos</CardTitle>
+            <CardTitle className="text-sm font-medium">Visitas Totales Equipo</CardTitle>
             <Users className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockTeamMembers.length}</div>
-            <p className="text-xs text-muted-foreground">Todos los reps activos</p>
+            <div className="text-2xl font-bold">
+                 <FormattedNumericValue value={teamTotalVisitsValue} locale="es-ES" />
+            </div>
+            {/* <p className="text-xs text-muted-foreground">Total de visitas realizadas</p> */}
           </CardContent>
         </Card>
       </div>

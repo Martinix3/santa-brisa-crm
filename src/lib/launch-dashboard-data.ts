@@ -3,6 +3,7 @@ import type { Kpi } from "@/types";
 import { TrendingUp, Users, Briefcase, CalendarPlus } from "lucide-react";
 
 // Datos de KPI para el lanzamiento del producto
+// These currentValue fields will be mutated by the order form.
 export const kpiDataLaunch: Kpi[] = [
   { id: 'kpi1', title: 'Ventas Totales', currentValue: 18500, targetValue: 50000, unit: 'botellas', icon: TrendingUp },
   { id: 'kpi2', title: 'Ventas del Equipo', currentValue: 11200, targetValue: 27000, unit: 'botellas', icon: Users },
@@ -10,40 +11,19 @@ export const kpiDataLaunch: Kpi[] = [
   { id: 'kpi4', title: 'Cuentas Nuevas Equipo (Mensual)', currentValue: 12, targetValue: 32, unit: 'cuentas', icon: CalendarPlus },
 ];
 
-// Datos para el gráfico de barras "Distribución de Ventas"
-// Ventas Totales Actuales: 18,500
-// Ventas Equipo Actuales: 11,200
-const ventasEquipoActuales = 11200;
-const ventasTotalesActuales = 18500;
-const restoCanalesVentas = ventasTotalesActuales - ventasEquipoActuales;
+// Note: The actual data for charts like ventasDistribucionData, progresoVentasEquipoData, 
+// and progresoCuentasEquipoData will now be constructed dynamically within the
+// DashboardPage component, using the latest values from kpiDataLaunch.
+// We still export the target values if they are needed directly.
 
-export const ventasDistribucionData = [
-  { name: "Ventas Equipo", value: ventasEquipoActuales, fill: "hsl(var(--primary))" },
-  { name: "Resto Canales", value: restoCanalesVentas, fill: "hsl(var(--brand-turquoise-hsl))" },
-];
+export const objetivoTotalVentasEquipo = kpiDataLaunch.find(kpi => kpi.id === 'kpi2')!.targetValue;
+export const objetivoTotalCuentasEquipoAnual = kpiDataLaunch.find(kpi => kpi.id === 'kpi3')!.targetValue;
 
-// Datos para el gráfico de dona "Progreso Ventas del Equipo"
-// Objetivo Ventas Equipo: 27,000
-// Ventas Equipo Actuales: 11,200
-const objetivoVentasEquipo = 27000;
-const faltanteVentasEquipo = objetivoVentasEquipo - ventasEquipoActuales;
+// The following data structures will be built inside the dashboard component
+// to ensure they use the latest, potentially mutated, kpiDataLaunch values.
+/*
+export const ventasDistribucionData = [...] 
+export const progresoVentasEquipoData = [...]
+export const progresoCuentasEquipoData = [...]
+*/
 
-export const progresoVentasEquipoData = [
-  { name: "Alcanzado", value: ventasEquipoActuales, color: "hsl(var(--brand-turquoise-hsl))" },
-  { name: "Faltante", value: faltanteVentasEquipo, color: "hsl(var(--muted))" },
-];
-export const objetivoTotalVentasEquipo = objetivoVentasEquipo;
-
-
-// Datos para el gráfico de dona "Progreso Cuentas del Equipo (Anual)"
-// Objetivo Cuentas Equipo: 230
-// Cuentas Equipo Actuales: 95
-const cuentasEquipoActualesAnual = 95;
-const objetivoCuentasEquipoAnual = 230;
-const faltanteCuentasEquipoAnual = objetivoCuentasEquipoAnual - cuentasEquipoActualesAnual;
-
-export const progresoCuentasEquipoData = [
-  { name: "Alcanzado", value: cuentasEquipoActualesAnual, color: "hsl(var(--brand-turquoise-hsl))" },
-  { name: "Faltante", value: faltanteCuentasEquipoAnual, color: "hsl(var(--muted))" },
-];
-export const objetivoTotalCuentasEquipoAnual = objetivoCuentasEquipoAnual;

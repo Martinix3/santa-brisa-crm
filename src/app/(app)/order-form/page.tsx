@@ -30,6 +30,7 @@ import { Separator } from "@/components/ui/separator";
 import { mockOrders, mockTeamMembers, clientTypeList } from "@/lib/data";
 import { kpiDataLaunch } from "@/lib/launch-dashboard-data";
 import type { Order, ClientType } from "@/types";
+import { useAuth } from "@/contexts/auth-context"; // Import useAuth
 
 const SINGLE_PRODUCT_NAME = "Santa Brisa 750ml";
 const IVA_RATE = 21; // 21%
@@ -123,6 +124,7 @@ type OrderFormValues = z.infer<typeof orderFormSchema>;
 
 export default function OrderFormPage() {
   const { toast } = useToast();
+  const { teamMember, userRole } = useAuth(); // Get current user info
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [subtotal, setSubtotal] = React.useState<number | undefined>(undefined);
   const [ivaAmount, setIvaAmount] = React.useState<number | undefined>(undefined);
@@ -175,6 +177,8 @@ export default function OrderFormPage() {
     setIsSubmitting(true);
     await new Promise(resolve => setTimeout(resolve, 1500));
 
+    const salesRepName = teamMember?.name || "Usuario Desconocido";
+
     if (values.outcome === "successful" && values.visitDate && values.orderValue && values.clientType && values.numberOfUnits && values.unitPrice) {
       const numberOfBottles = values.numberOfUnits;
 
@@ -188,7 +192,7 @@ export default function OrderFormPage() {
         unitPrice: values.unitPrice,
         value: values.orderValue, // Este valor ya incluye IVA
         status: 'Confirmado', 
-        salesRep: 'Nico', 
+        salesRep: salesRepName, // Assign logged-in user's name
         lastUpdated: format(new Date(), "yyyy-MM-dd"),
         nombreFiscal: values.nombreFiscal,
         cif: values.cif,
@@ -202,21 +206,24 @@ export default function OrderFormPage() {
       };
       mockOrders.unshift(newOrder);
 
-      const salesRepToUpdate = 'Nico';
-      const memberIndex = mockTeamMembers.findIndex(m => m.name === salesRepToUpdate);
-      if (memberIndex !== -1) {
-        mockTeamMembers[memberIndex].bottlesSold = (mockTeamMembers[memberIndex].bottlesSold || 0) + numberOfBottles;
-        mockTeamMembers[memberIndex].orders = (mockTeamMembers[memberIndex].orders || 0) + 1;
-        mockTeamMembers[memberIndex].visits = (mockTeamMembers[memberIndex].visits || 0) + 1;
+      // Update KPIs related to sales rep only if the user is a SalesRep
+      if (userRole === 'SalesRep' && teamMember) {
+        const memberIndex = mockTeamMembers.findIndex(m => m.id === teamMember.id);
+        if (memberIndex !== -1) {
+          mockTeamMembers[memberIndex].bottlesSold = (mockTeamMembers[memberIndex].bottlesSold || 0) + numberOfBottles;
+          mockTeamMembers[memberIndex].orders = (mockTeamMembers[memberIndex].orders || 0) + 1;
+          mockTeamMembers[memberIndex].visits = (mockTeamMembers[memberIndex].visits || 0) + 1; // Assuming a successful order also counts as a visit for the SalesRep
+        }
+        
+        const kpiVentasEquipo = kpiDataLaunch.find(k => k.id === 'kpi2');
+        if (kpiVentasEquipo) kpiVentasEquipo.currentValue += numberOfBottles;
       }
 
+      // Update global KPIs regardless of user role
       const kpiVentasTotales = kpiDataLaunch.find(k => k.id === 'kpi1');
       if (kpiVentasTotales) kpiVentasTotales.currentValue += numberOfBottles;
 
-      const kpiVentasEquipo = kpiDataLaunch.find(k => k.id === 'kpi2');
-      if (kpiVentasEquipo) kpiVentasEquipo.currentValue += numberOfBottles;
-
-      if (values.nombreFiscal && values.nombreFiscal.trim() !== "") {
+      if (values.nombreFiscal && values.nombreFiscal.trim() !== "") { // New account
         const kpiCuentasAnual = kpiDataLaunch.find(k => k.id === 'kpi3');
         if (kpiCuentasAnual) kpiCuentasAnual.currentValue += 1;
 
@@ -229,17 +236,19 @@ export default function OrderFormPage() {
         description: (
           <div className="flex items-start">
             <Check className="h-5 w-5 text-green-500 mr-2 mt-1" />
-            <p>Pedido {newOrder.id} para {newOrder.clientName} registrado exitosamente. Datos actualizados.</p>
+            <p>Pedido {newOrder.id} para {newOrder.clientName} (por {salesRepName}) registrado exitosamente. Datos actualizados.</p>
           </div>
         ),
         variant: "default",
       });
 
     } else if (values.outcome === "failed" || values.outcome === "follow-up") {
-        const salesRepToUpdate = 'Nico';
-        const memberIndex = mockTeamMembers.findIndex(m => m.name === salesRepToUpdate);
-        if (memberIndex !== -1 && values.outcome === "failed") {
-            // mockTeamMembers[memberIndex].visits += 1; 
+        // If the outcome is not successful, we might still want to count a visit for a SalesRep
+        if (userRole === 'SalesRep' && teamMember && values.outcome === "failed") {
+            const memberIndex = mockTeamMembers.findIndex(m => m.id === teamMember.id);
+            if (memberIndex !== -1) {
+                 // mockTeamMembers[memberIndex].visits = (mockTeamMembers[memberIndex].visits || 0) + 1;
+            }
         }
       console.log(values); 
       toast({
@@ -247,7 +256,7 @@ export default function OrderFormPage() {
         description: (
           <div className="flex items-start">
             <Check className="h-5 w-5 text-green-500 mr-2 mt-1" />
-            <p>Visita al cliente {values.clientName} registrada (Resultado: {values.outcome}).</p>
+            <p>Visita al cliente {values.clientName} (por {salesRepName}) registrada (Resultado: {values.outcome}).</p>
           </div>
         ),
         variant: "default",
@@ -659,7 +668,7 @@ export default function OrderFormPage() {
                 )}
               />
                <CardFooter className="p-0 pt-4">
-                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                <Button type="submit" className="w-full" disabled={isSubmitting || !teamMember}>
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -6,18 +6,13 @@ import { getAuth } from "firebase/auth";
 // https://firebase.google.com/docs/web/setup#available-libraries
 
 // Your web app's Firebase configuration
-// !! IMPORTANT: COMPLETE THE MISSING VALUES BELOW !!
-// You MUST obtain apiKey, messagingSenderId, and appId from your project's
-// settings in the Firebase Console (console.firebase.google.com)
-// for the project with ID "studio-9100296063".
-// Look for your Web App (</>) configuration within that project.
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY_HERE_FROM_FIREBASE_CONSOLE", // <-- !!! YOU MUST REPLACE THIS !!!
-  authDomain: "studio-9100296063.firebaseapp.com",
-  projectId: "studio-9100296063",
-  storageBucket: "studio-9100296063.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID_HERE_FROM_FIREBASE_CONSOLE", // <-- !!! YOU MUST REPLACE THIS !!!
-  appId: "YOUR_APP_ID_HERE_FROM_FIREBASE_CONSOLE" // <-- !!! YOU MUST REPLACE THIS !!!
+  apiKey: "AIzaSyAhk1AS8UBdfYqE3GYtR4YiQJw3BY2MWTw",
+  authDomain: "santa-brisa-crm.firebaseapp.com",
+  projectId: "santa-brisa-crm",
+  storageBucket: "santa-brisa-crm.firebasestorage.app",
+  messagingSenderId: "200195875400",
+  appId: "1:200195875400:web:1a826c47bf3933332f6e7d"
 };
 
 // Initialize Firebase

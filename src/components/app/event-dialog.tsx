@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, Controller } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,13 +36,14 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { CrmEvent, CrmEventType, CrmEventStatus, TeamMember } from "@/types";
+import type { CrmEvent, CrmEventType, CrmEventStatus } from "@/types";
 import { crmEventTypeList, crmEventStatusList, mockTeamMembers } from "@/lib/data";
 import { Loader2, CalendarIcon } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { es } from 'date-fns/locale';
+import { Label } from "@/components/ui/label"; // Import Label for direct use
 
 const eventFormSchema = z.object({
   name: z.string().min(3, "El nombre del evento debe tener al menos 3 caracteres."),
@@ -163,43 +164,38 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
             
             <Separator className="my-4"/>
             <FormField
-                name="assignedTeamMemberIds"
-                control={form.control}
-                render={() => (
-                    <FormItem>
-                        <FormLabel>Responsables Asignados</FormLabel>
-                        <ScrollArea className="h-32 w-full rounded-md border p-2">
-                            {assignableTeamMembers.map((member) => (
-                                <FormField
-                                    key={member.id}
-                                    control={form.control}
-                                    name="assignedTeamMemberIds"
-                                    render={({ field }) => {
-                                        return (
-                                            <FormItem key={member.id} className="flex flex-row items-start space-x-3 space-y-0 py-1">
-                                                <FormControl>
-                                                    <Checkbox
-                                                        checked={field.value?.includes(member.id)}
-                                                        onCheckedChange={(checked) => {
-                                                            return checked
-                                                                ? field.onChange([...(field.value || []), member.id])
-                                                                : field.onChange( (field.value || []).filter( (value) => value !== member.id ) );
-                                                        }}
-                                                        disabled={isReadOnly}
-                                                    />
-                                                </FormControl>
-                                                <FormLabel className="text-sm font-normal">
-                                                    {member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})
-                                                </FormLabel>
-                                            </FormItem>
-                                        );
-                                    }}
-                                />
-                            ))}
-                        </ScrollArea>
-                        <FormMessage />
-                    </FormItem>
-                )}
+              control={form.control}
+              name="assignedTeamMemberIds"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Responsables Asignados</FormLabel>
+                  <FormControl>
+                    <ScrollArea className="h-32 w-full rounded-md border p-2">
+                      {assignableTeamMembers.map((member) => (
+                        <div key={member.id} className="flex flex-row items-center space-x-3 space-y-0 py-1">
+                          <Checkbox
+                            id={`member-checkbox-${member.id}`}
+                            checked={field.value?.includes(member.id)}
+                            onCheckedChange={(checked) => {
+                              const currentValues = field.value || [];
+                              if (checked) {
+                                field.onChange([...currentValues, member.id]);
+                              } else {
+                                field.onChange(currentValues.filter((value) => value !== member.id));
+                              }
+                            }}
+                            disabled={isReadOnly}
+                          />
+                          <Label htmlFor={`member-checkbox-${member.id}`} className="text-sm font-normal cursor-pointer">
+                            {member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})
+                          </Label>
+                        </div>
+                      ))}
+                    </ScrollArea>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
 
             <FormField control={form.control} name="requiredMaterials" render={({ field }) => ( <FormItem> <FormLabel>Materiales Necesarios (Opcional)</FormLabel> <FormControl> <Textarea placeholder="Listar materiales: stands, folletos, muestras..." {...field} disabled={isReadOnly} className="min-h-[80px]" /> </FormControl> <FormMessage /> </FormItem> )}/>
@@ -223,3 +219,4 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
     </Dialog>
   );
 }
+

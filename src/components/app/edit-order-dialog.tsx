@@ -32,8 +32,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Order, OrderStatus, UserRole } from "@/types";
-import { orderStatusesList } from "@/lib/data";
+import type { Order, OrderStatus, UserRole, TeamMember } from "@/types";
+import { orderStatusesList, mockTeamMembers } from "@/lib/data";
 import { Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
@@ -42,6 +42,7 @@ const editOrderFormSchema = z.object({
   products: z.string().min(3, "Debe haber al menos un producto listado."),
   value: z.coerce.number().positive("El valor del pedido debe ser positivo."),
   status: z.enum(orderStatusesList as [OrderStatus, ...OrderStatus[]]),
+  salesRep: z.string().min(1, "El representante de ventas es obligatorio."),
   // Customer and billing information - optional for editing context
   nombreFiscal: z.string().optional(),
   cif: z.string().optional(),
@@ -73,6 +74,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
       products: "",
       value: 0,
       status: "Pendiente",
+      salesRep: "",
       nombreFiscal: "",
       cif: "",
       direccionFiscal: "",
@@ -92,6 +94,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         products: order.products.join(",\n"),
         value: order.value,
         status: order.status,
+        salesRep: order.salesRep,
         nombreFiscal: order.nombreFiscal || "",
         cif: order.cif || "",
         direccionFiscal: order.direccionFiscal || "",
@@ -119,13 +122,14 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const isDistributor = currentUserRole === 'Distributor';
   const isSalesRep = currentUserRole === 'SalesRep';
   
-  const canEditOrderDetails = currentUserRole === 'Admin';
+  const canEditOrderDetails = currentUserRole === 'Admin'; // This includes salesRep
   const canEditStatusOnly = isDistributor;
   const isReadOnly = isSalesRep;
 
 
-  const formFieldsDisabled = isReadOnly || canEditStatusOnly;
+  const formFieldsGenericDisabled = isReadOnly || canEditStatusOnly; // For most fields
   const statusFieldDisabled = isReadOnly;
+  const salesRepFieldDisabled = !canEditOrderDetails;
 
 
   return (
@@ -154,12 +158,36 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 <FormItem>
                   <FormLabel>Nombre del Cliente</FormLabel>
                   <FormControl>
-                    <Input placeholder="Nombre del cliente" {...field} disabled={formFieldsDisabled} />
+                    <Input placeholder="Nombre del cliente" {...field} disabled={formFieldsGenericDisabled} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+             <FormField
+                control={form.control}
+                name="salesRep"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Representante de Ventas</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={salesRepFieldDisabled}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccione un representante" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {mockTeamMembers.map((member: TeamMember) => (
+                          <SelectItem key={member.id} value={member.name}>
+                            {member.name} ({member.role})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             <FormField
               control={form.control}
               name="products"
@@ -171,7 +199,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                       placeholder="Listar productos y cantidades..."
                       className="min-h-[80px]"
                       {...field}
-                      disabled={formFieldsDisabled}
+                      disabled={formFieldsGenericDisabled}
                     />
                   </FormControl>
                   <FormMessage />
@@ -192,7 +220,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                       {...field}
                       onChange={event => field.onChange(parseFloat(event.target.value))}
                       value={field.value === undefined ? '' : field.value}
-                      disabled={formFieldsDisabled}
+                      disabled={formFieldsGenericDisabled}
                     />
                   </FormControl>
                   <FormMessage />
@@ -233,7 +261,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 <FormItem>
                   <FormLabel>Nombre Fiscal</FormLabel>
                   <FormControl>
-                    <Input placeholder="Nombre legal" {...field} disabled={formFieldsDisabled}/>
+                    <Input placeholder="Nombre legal" {...field} disabled={formFieldsGenericDisabled}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -246,7 +274,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 <FormItem>
                   <FormLabel>CIF</FormLabel>
                   <FormControl>
-                    <Input placeholder="CIF/NIF" {...field} disabled={formFieldsDisabled}/>
+                    <Input placeholder="CIF/NIF" {...field} disabled={formFieldsGenericDisabled}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -259,7 +287,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 <FormItem>
                   <FormLabel>Dirección Fiscal</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Dirección fiscal completa" {...field} className="min-h-[60px]" disabled={formFieldsDisabled}/>
+                    <Textarea placeholder="Dirección fiscal completa" {...field} className="min-h-[60px]" disabled={formFieldsGenericDisabled}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -272,7 +300,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 <FormItem>
                   <FormLabel>Dirección de Entrega</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Dirección de entrega completa" {...field} className="min-h-[60px]" disabled={formFieldsDisabled}/>
+                    <Textarea placeholder="Dirección de entrega completa" {...field} className="min-h-[60px]" disabled={formFieldsGenericDisabled}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -287,7 +315,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 <FormItem>
                   <FormLabel>Nombre de Contacto</FormLabel>
                   <FormControl>
-                    <Input placeholder="Persona de contacto" {...field} disabled={formFieldsDisabled}/>
+                    <Input placeholder="Persona de contacto" {...field} disabled={formFieldsGenericDisabled}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -300,7 +328,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 <FormItem>
                   <FormLabel>Correo de Contacto</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="email@ejemplo.com" {...field} disabled={formFieldsDisabled}/>
+                    <Input type="email" placeholder="email@ejemplo.com" {...field} disabled={formFieldsGenericDisabled}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -313,7 +341,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 <FormItem>
                   <FormLabel>Teléfono de Contacto</FormLabel>
                   <FormControl>
-                    <Input type="tel" placeholder="Número de teléfono" {...field} disabled={formFieldsDisabled}/>
+                    <Input type="tel" placeholder="Número de teléfono" {...field} disabled={formFieldsGenericDisabled}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -328,7 +356,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 <FormItem>
                   <FormLabel>Observaciones (Alta Cliente)</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Observaciones específicas del alta" {...field} className="min-h-[60px]" disabled={formFieldsDisabled}/>
+                    <Textarea placeholder="Observaciones específicas del alta" {...field} className="min-h-[60px]" disabled={formFieldsGenericDisabled}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -341,7 +369,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 <FormItem>
                   <FormLabel>Notas Adicionales Generales</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Notas generales sobre el pedido o visita" {...field} className="min-h-[60px]" disabled={formFieldsDisabled}/>
+                    <Textarea placeholder="Notas generales sobre el pedido o visita" {...field} className="min-h-[60px]" disabled={formFieldsGenericDisabled}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -355,7 +383,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 </Button>
               </DialogClose>
               {!isReadOnly && (
-                <Button type="submit" disabled={isSaving || (canEditStatusOnly && !form.formState.dirtyFields.status)}>
+                <Button type="submit" disabled={isSaving || (canEditStatusOnly && !form.formState.dirtyFields.status) || (!canEditOrderDetails && !form.formState.dirtyFields.status) }>
                   {isSaving ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -373,3 +401,6 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     </Dialog>
   );
 }
+
+
+    

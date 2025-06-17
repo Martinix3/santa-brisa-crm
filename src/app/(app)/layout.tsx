@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button';
 import Logo from '@/components/icons/Logo';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2, Goal, Target } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { UserRole } from '@/types';
@@ -31,9 +31,7 @@ const allNavItems = [
   { href: '/order-form', label: 'Formulario de Pedido', icon: FileText, roles: ['Admin', 'SalesRep'] as UserRole[] },
   { href: '/orders-dashboard', label: 'Panel de Pedidos', icon: ShoppingCart, roles: ['Admin', 'SalesRep', 'Distributor'] as UserRole[] },
   { href: '/marketing-resources', label: 'Recursos de Marketing', icon: Library, roles: ['Admin', 'SalesRep', 'Distributor'] as UserRole[] },
-  { href: '/admin/user-management', label: 'Gestión de Usuarios', icon: Settings, roles: ['Admin'] as UserRole[] },
-  { href: '/admin/objectives-management', label: 'Objetivos Estratégicos', icon: Goal, roles: ['Admin'] as UserRole[] },
-  { href: '/admin/kpi-launch-targets', label: 'Metas KPIs Lanzamiento', icon: Target, roles: ['Admin'] as UserRole[] },
+  { href: '/admin/settings', label: 'Configuración', icon: Settings, roles: ['Admin'] as UserRole[] },
 ];
 
 function MainAppLayout({ children }: { children: React.ReactNode }) {
@@ -55,16 +53,23 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
     );
   }
   
-  if (!user) {
-     // This case should ideally be caught by the useEffect, but as a fallback:
-    return null; // Or a redirect component if preferred
+  if (!user && pathname !== '/login') { // Added check for /login to prevent redirect loop
+    return null; 
   }
+  
+  // If user is not logged in and not on login page, MainAppLayout shouldn't render its content.
+  // This check ensures that if somehow this component is rendered on /login, it doesn't try to show sidebar etc.
+  if (!user && pathname === '/login') {
+    return <>{children}</>; // Render children directly for login page
+  }
+  
+  if (!user) return null; // Fallback for any other unauthenticated state
 
   const navItemsForRole = userRole ? allNavItems.filter(item => item.roles.includes(userRole)) : [];
 
   const handleLogout = async () => {
     await logout();
-    router.push('/login'); // Ensure redirection after logout
+    router.push('/login'); 
   };
 
   return (
@@ -97,16 +102,6 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
         </SidebarContent>
         <SidebarFooter className="p-2">
           <SidebarMenu>
-            {(userRole === 'Admin') && (
-              <SidebarMenuItem>
-                <SidebarMenuButton tooltip={{children: "Configuración General", side: "right"}} asChild>
-                  <Link href="#"> {/* Placeholder for general settings if different from user management */}
-                    <Settings />
-                    <span>Configuración</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            )}
             <SidebarMenuItem>
               <SidebarMenuButton 
                 tooltip={{children: "Cerrar Sesión", side: "right"}} 
@@ -146,20 +141,31 @@ function AppNavigation({ navItems }: AppNavigationProps) {
   const pathname = usePathname();
   return (
     <SidebarMenu>
-      {navItems.map((item) => (
-        <SidebarMenuItem key={item.label}>
-          <SidebarMenuButton
-            asChild
-            isActive={pathname === item.href || (item.href !== '/dashboard' && !item.href.startsWith('/admin/') && pathname.startsWith(item.href)) || (item.href.startsWith('/admin/') && pathname === item.href)}
-            tooltip={{children: item.label, side: "right"}}
-          >
-            <Link href={item.href}>
-              <item.icon />
-              <span>{item.label}</span>
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      ))}
+      {navItems.map((item) => {
+        let isActive = false;
+        if (item.href === '/admin/settings') {
+          isActive = pathname.startsWith('/admin');
+        } else if (item.href === '/dashboard') {
+          isActive = pathname === item.href;
+        } else {
+          isActive = pathname.startsWith(item.href);
+        }
+        
+        return (
+          <SidebarMenuItem key={item.label}>
+            <SidebarMenuButton
+              asChild
+              isActive={isActive}
+              tooltip={{children: item.label, side: "right"}}
+            >
+              <Link href={item.href}>
+                <item.icon />
+                <span>{item.label}</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        );
+      })}
     </SidebarMenu>
   );
 }

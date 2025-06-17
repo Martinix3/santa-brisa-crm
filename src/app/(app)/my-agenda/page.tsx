@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/contexts/auth-context";
 import type { Order, TeamMember, OrderStatus, NextActionType, CrmEvent } from "@/types";
 import { mockOrders, mockTeamMembers, nextActionTypeList, mockCrmEvents } from "@/lib/data";
-import { parseISO, format, isEqual, startOfDay, isSameMonth, isWithinInterval } from "date-fns";
+import { parseISO, format, isEqual, startOfDay, isSameMonth, isWithinInterval, addDays } from "date-fns";
 import { es } from "date-fns/locale";
 import { CalendarCheck, User, Info, Filter, PartyPopper } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -311,3 +311,4 @@ export default function AgendaPage() {
     </div>
   );
 }
+

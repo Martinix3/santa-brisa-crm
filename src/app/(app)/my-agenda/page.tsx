@@ -14,7 +14,7 @@ import { parseISO, format, isEqual, startOfDay, isSameMonth } from "date-fns";
 import { es } from "date-fns/locale";
 import { CalendarCheck, User, Info, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { FormLabel } from "@/components/ui/form";
+import { Label } from "@/components/ui/label"; // Changed from FormLabel
 
 
 interface AgendaEvent extends Order {
@@ -116,7 +116,7 @@ export default function AgendaPage() {
         <CardContent className="flex flex-col sm:flex-row gap-4 items-end">
             {userRole === 'Admin' && (
               <div className="w-full sm:w-auto flex-grow sm:flex-grow-0">
-                <FormLabel htmlFor="salesRepFilterAgenda">Comercial</FormLabel>
+                <Label htmlFor="salesRepFilterAgenda">Comercial</Label>
                 <Select value={selectedSalesRep} onValueChange={setSelectedSalesRep}>
                     <SelectTrigger id="salesRepFilterAgenda" className="w-full sm:w-[200px] mt-1">
                     <SelectValue placeholder="Filtrar por comercial" />
@@ -130,7 +130,7 @@ export default function AgendaPage() {
               </div>
             )}
             <div className="w-full sm:w-auto flex-grow sm:flex-grow-0">
-               <FormLabel htmlFor="actionTypeFilterAgenda">Tipo de Acción</FormLabel>
+               <Label htmlFor="actionTypeFilterAgenda">Tipo de Acción</Label>
                <Select value={actionTypeFilter} onValueChange={(value) => setActionTypeFilter(value as NextActionType | "Todos")}>
                 <SelectTrigger id="actionTypeFilterAgenda" className="w-full sm:w-[240px] mt-1">
                     <SelectValue placeholder="Filtrar por tipo de acción" />
@@ -193,7 +193,7 @@ export default function AgendaPage() {
                           <span className="ml-1">- "{event.nextActionCustom}"</span>
                         )}
                       </p>
-                      {userRole === 'Admin' && event.salesRep && selectedSalesRep === "Todos" && ( // Show only if "Todos" is selected or if filtering by specific rep
+                      {userRole === 'Admin' && event.salesRep && selectedSalesRep === "Todos" && ( 
                         <p className="text-xs text-muted-foreground flex items-center mb-1">
                           <User size={14} className="mr-1.5 text-primary" />
                           Comercial: {event.salesRep}
@@ -233,3 +233,4 @@ export default function AgendaPage() {
     </div>
   );
 }
+

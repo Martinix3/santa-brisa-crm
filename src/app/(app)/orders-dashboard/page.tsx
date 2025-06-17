@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import type { Order, OrderStatus } from "@/types";
+import type { Order, OrderStatus, UserRole } from "@/types";
 import { mockOrders, orderStatusesList } from "@/lib/data";
 import { MoreHorizontal, Eye, Edit, Trash2, Filter, CalendarDays, ChevronDown, Check } from "lucide-react";
 import { DateRange } from "react-day-picker";
@@ -19,6 +19,11 @@ import { cn } from "@/lib/utils";
 import EditOrderDialog from "@/components/app/edit-order-dialog";
 import type { EditOrderFormValues } from "@/components/app/edit-order-dialog";
 import { useToast } from "@/hooks/use-toast";
+
+// Simulate the current user's role for this page.
+// In a real app, this would come from an auth context or props.
+// Change this to 'SalesRep' or 'Distributor' to test.
+const currentUserRole: UserRole = 'Admin'; 
 
 const getStatusBadgeColor = (status: OrderStatus): string => {
   switch (status) {
@@ -58,7 +63,7 @@ export default function OrdersDashboardPage() {
     .filter(order => statusFilter === "Todos" || order.status === statusFilter)
     .filter(order => {
       if (!dateRange?.from) return true;
-      const orderDate = parseISO(order.visitDate); // visitDate is already string 'yyyy-MM-dd'
+      const orderDate = parseISO(order.visitDate); 
       const fromDate = dateRange.from;
       const toDate = dateRange.to ? addDays(dateRange.to,1) : addDays(new Date(), 1) ; 
       return orderDate >= fromDate && orderDate < toDate;
@@ -87,7 +92,7 @@ export default function OrdersDashboardPage() {
     };
 
     mockOrders[orderIndex] = updatedOrder;
-    setOrders([...mockOrders]); // Actualizar el estado local para re-renderizar la tabla
+    setOrders([...mockOrders]); 
     setIsEditDialogOpen(false);
     setEditingOrder(null);
 
@@ -102,6 +107,9 @@ export default function OrdersDashboardPage() {
       variant: "default",
     });
   };
+
+  const canEditOrder = currentUserRole === 'Admin' || currentUserRole === 'Distributor';
+  const canDeleteOrder = currentUserRole === 'Admin';
 
 
   return (
@@ -217,13 +225,19 @@ export default function OrdersDashboardPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem><Eye className="mr-2 h-4 w-4" /> Ver Detalles</DropdownMenuItem>
-                          <DropdownMenuItem onSelect={() => handleEditClick(order)}>
-                            <Edit className="mr-2 h-4 w-4" /> Editar Pedido
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">
-                            <Trash2 className="mr-2 h-4 w-4" /> Eliminar Pedido
-                          </DropdownMenuItem>
+                          {canEditOrder && (
+                            <DropdownMenuItem onSelect={() => handleEditClick(order)}>
+                              <Edit className="mr-2 h-4 w-4" /> Editar Pedido
+                            </DropdownMenuItem>
+                          )}
+                          {canDeleteOrder && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                                <Trash2 className="mr-2 h-4 w-4" /> Eliminar Pedido
+                              </DropdownMenuItem>
+                            </>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -247,6 +261,7 @@ export default function OrdersDashboardPage() {
           isOpen={isEditDialogOpen}
           onOpenChange={setIsEditDialogOpen}
           onSave={handleUpdateOrder}
+          currentUserRole={currentUserRole}
         />
       )}
     </div>

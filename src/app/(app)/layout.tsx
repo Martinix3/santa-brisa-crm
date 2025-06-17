@@ -18,19 +18,26 @@ import { Button } from '@/components/ui/button';
 import Logo from '@/components/icons/Logo';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Briefcase } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import type { UserRole } from '@/types';
 
-const navItems = [
-  { href: '/dashboard', label: 'Panel', icon: LayoutDashboard },
-  { href: '/team-tracking', label: 'Seguimiento de Equipo', icon: Users },
-  { href: '/order-form', label: 'Formulario de Pedido', icon: FileText },
-  { href: '/orders-dashboard', label: 'Panel de Pedidos', icon: ShoppingCart },
-  { href: '/marketing-resources', label: 'Recursos de Marketing', icon: Library },
+// Simulate the current user's role. 
+// Change this to 'SalesRep' or 'Distributor' to test different views.
+const currentUserRole: UserRole = 'Admin'; 
+
+const allNavItems = [
+  { href: '/dashboard', label: 'Panel', icon: LayoutDashboard, roles: ['Admin', 'SalesRep'] as UserRole[] },
+  { href: '/team-tracking', label: 'Seguimiento de Equipo', icon: Users, roles: ['Admin', 'SalesRep'] as UserRole[] },
+  { href: '/order-form', label: 'Formulario de Pedido', icon: FileText, roles: ['Admin', 'SalesRep'] as UserRole[] },
+  { href: '/orders-dashboard', label: 'Panel de Pedidos', icon: ShoppingCart, roles: ['Admin', 'SalesRep', 'Distributor'] as UserRole[] },
+  { href: '/marketing-resources', label: 'Recursos de Marketing', icon: Library, roles: ['Admin', 'SalesRep', 'Distributor'] as UserRole[] },
 ];
 
 function MainAppLayout({ children }: { children: React.ReactNode }) {
+  const navItemsForRole = allNavItems.filter(item => item.roles.includes(currentUserRole));
+
   return (
     <SidebarProvider defaultOpen>
       <Sidebar collapsible="icon" className="border-r border-sidebar-border shadow-lg">
@@ -56,18 +63,20 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
           </Link>
         </SidebarHeader>
         <SidebarContent>
-          <AppNavigation />
+          <AppNavigation navItems={navItemsForRole} />
         </SidebarContent>
         <SidebarFooter className="p-2">
           <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton tooltip={{children: "Configuración", side: "right"}} asChild>
-                <Link href="#">
-                  <Settings />
-                  <span>Configuración</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {(currentUserRole === 'Admin') && (
+              <SidebarMenuItem>
+                <SidebarMenuButton tooltip={{children: "Configuración", side: "right"}} asChild>
+                  <Link href="#">
+                    <Settings />
+                    <span>Configuración</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
             <SidebarMenuItem>
               <SidebarMenuButton tooltip={{children: "Cerrar Sesión", side: "right"}} className="hover:bg-destructive/20 hover:text-destructive">
                 <LogOut />
@@ -85,7 +94,7 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
           <div className="flex-1">
             {/* Breadcrumbs or page title can go here */}
           </div>
-          <UserMenu />
+          <UserMenu userRole={currentUserRole} />
         </header>
         <main className="flex-1 p-4 sm:p-6 overflow-auto">
           {children}
@@ -95,7 +104,11 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
-function AppNavigation() {
+interface AppNavigationProps {
+  navItems: { href: string; label: string; icon: React.ElementType; roles: UserRole[] }[];
+}
+
+function AppNavigation({ navItems }: AppNavigationProps) {
   const pathname = usePathname();
   return (
     <SidebarMenu>
@@ -117,8 +130,16 @@ function AppNavigation() {
   );
 }
 
+function getRoleDisplayName(role: UserRole): string {
+  switch (role) {
+    case 'Admin': return 'Administrador';
+    case 'SalesRep': return 'Rep. Ventas';
+    case 'Distributor': return 'Distribuidor';
+    default: return 'Usuario';
+  }
+}
 
-function UserMenu() {
+function UserMenu({ userRole }: { userRole: UserRole }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -134,7 +155,7 @@ function UserMenu() {
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">Usuario de Santa Brisa</p>
             <p className="text-xs leading-none text-muted-foreground">
-              user@santabrisa.com
+              ({getRoleDisplayName(userRole)}) user@santabrisa.com
             </p>
           </div>
         </DropdownMenuLabel>
@@ -143,10 +164,12 @@ function UserMenu() {
           <UserCircle className="mr-2 h-4 w-4" />
           <span>Perfil</span>
         </DropdownMenuItem>
-        <DropdownMenuItem>
-          <Settings className="mr-2 h-4 w-4" />
-          <span>Configuración</span>
-        </DropdownMenuItem>
+        {userRole === 'Admin' && (
+          <DropdownMenuItem>
+            <Settings className="mr-2 h-4 w-4" />
+            <span>Configuración</span>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem>
           <LogOut className="mr-2 h-4 w-4" />
@@ -157,6 +180,4 @@ function UserMenu() {
   );
 }
 
-
 export default MainAppLayout;
-

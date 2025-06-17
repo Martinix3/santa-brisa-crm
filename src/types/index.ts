@@ -1,4 +1,6 @@
 
+export type UserRole = 'Admin' | 'SalesRep' | 'Distributor';
+
 export interface Kpi {
   id: string;
   title: string;
@@ -6,10 +8,6 @@ export interface Kpi {
   targetValue: number;
   unit: string; // e.g., "botellas", "cuentas"
   icon?: React.ElementType;
-  // Remove trend-related properties if not used by new KPIs
-  // trend?: 'up' | 'down' | 'neutral';
-  // trendValue?: string;
-  // colorClass?: string; 
 }
 
 export interface StrategicObjective {
@@ -23,21 +21,21 @@ export interface TeamMember {
   name: string;
   avatarUrl: string;
   role: string;
-  bottlesSold: number; // Cambiado de sales a bottlesSold
-  monthlyTarget: number; // Objetivo mensual de botellas vendidas
+  bottlesSold: number; 
+  monthlyTarget: number; 
   orders: number;
   visits: number;
-  performanceData: { month: string; bottles: number }[]; // Cambiado de sales a bottles
+  performanceData: { month: string; bottles: number }[]; 
 }
 
-export type OrderStatus = 'Pendiente' | 'Confirmado' | 'Enviado' | 'Procesando' | 'Entregado' | 'Cancelado' | 'Fallido';
+export type OrderStatus = 'Pendiente' | 'Confirmado' | 'Procesando' | 'Enviado' | 'Entregado' | 'Cancelado' | 'Fallido';
 
 export interface Order {
   id: string;
   clientName: string;
   visitDate: string;
   products: string[];
-  value: number; // Esto sigue siendo valor monetario del pedido
+  value: number; 
   status: OrderStatus;
   salesRep: string;
   lastUpdated: string;

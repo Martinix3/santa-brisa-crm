@@ -32,7 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Order, OrderStatus } from "@/types";
+import type { Order, OrderStatus, UserRole } from "@/types";
 import { orderStatusesList } from "@/lib/data"; 
 import { Loader2 } from "lucide-react";
 
@@ -40,7 +40,7 @@ const editOrderFormSchema = z.object({
   clientName: z.string().min(2, "El nombre del cliente debe tener al menos 2 caracteres."),
   products: z.string().min(3, "Debe haber al menos un producto listado."),
   value: z.coerce.number().positive("El valor del pedido debe ser positivo."),
-  status: z.enum(orderStatusesList as [OrderStatus, ...OrderStatus[]]), // Zod enum needs a non-empty array
+  status: z.enum(orderStatusesList as [OrderStatus, ...OrderStatus[]]), 
 });
 
 export type EditOrderFormValues = z.infer<typeof editOrderFormSchema>;
@@ -50,9 +50,10 @@ interface EditOrderDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (data: EditOrderFormValues, orderId: string) => void;
+  currentUserRole: UserRole;
 }
 
-export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave }: EditOrderDialogProps) {
+export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, currentUserRole }: EditOrderDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   const form = useForm<EditOrderFormValues>({
     resolver: zodResolver(editOrderFormSchema),
@@ -78,13 +79,15 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave }:
   const onSubmit = async (data: EditOrderFormValues) => {
     if (!order) return;
     setIsSaving(true);
-    await new Promise(resolve => setTimeout(resolve, 700)); // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 700)); 
     onSave(data, order.id);
     setIsSaving(false);
-    onOpenChange(false); // Close dialog on save
+    onOpenChange(false); 
   };
 
   if (!order) return null;
+
+  const isDistributor = currentUserRole === 'Distributor';
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -92,7 +95,10 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave }:
         <DialogHeader>
           <DialogTitle>Editar Pedido: {order.id}</DialogTitle>
           <DialogDescription>
-            Modifique los detalles del pedido. Haga clic en guardar cuando haya terminado.
+            {isDistributor 
+              ? "Modifique el estado del pedido. Haga clic en guardar cuando haya terminado."
+              : "Modifique los detalles del pedido. Haga clic en guardar cuando haya terminado."
+            }
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -104,7 +110,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave }:
                 <FormItem>
                   <FormLabel>Nombre del Cliente</FormLabel>
                   <FormControl>
-                    <Input placeholder="Nombre del cliente" {...field} />
+                    <Input placeholder="Nombre del cliente" {...field} disabled={isDistributor} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -121,6 +127,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave }:
                       placeholder="Listar productos y cantidades, separados por coma o nueva línea..."
                       className="min-h-[100px]"
                       {...field}
+                      disabled={isDistributor}
                     />
                   </FormControl>
                   <FormMessage />
@@ -141,6 +148,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave }:
                       {...field}
                       onChange={event => field.onChange(parseFloat(event.target.value))}
                       value={field.value === undefined ? '' : field.value}
+                      disabled={isDistributor}
                     />
                   </FormControl>
                   <FormMessage />

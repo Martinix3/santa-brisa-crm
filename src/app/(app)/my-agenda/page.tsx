@@ -12,7 +12,7 @@ import type { Order, TeamMember, OrderStatus, NextActionType, CrmEvent } from "@
 import { mockOrders, mockTeamMembers, nextActionTypeList, mockCrmEvents } from "@/lib/data";
 import { parseISO, format, isEqual, startOfDay, isSameMonth, isWithinInterval, addDays } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarCheck, User, Info, Filter, PartyPopper } from "lucide-react";
+import { CalendarCheck, User, Info, Filter, PartyPopper, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 
@@ -36,15 +36,15 @@ type AgendaItem = AgendaOrderItem | AgendaCrmEventItem;
 const getStatusBadgeColor = (status: OrderStatus | CrmEvent['status']): string => {
   // Order statuses
   if (['Entregado'].includes(status)) return 'bg-green-500 hover:bg-green-600 text-white';
-  if (['Confirmado'].includes(status) && status !== 'Confirmado') return 'bg-[hsl(var(--brand-turquoise-hsl))] hover:brightness-90 text-white'; // order specific
-  if (['Enviado'].includes(status)) return 'bg-purple-500 hover:bg-purple-600 text-white'; // order specific
-  if (['Pendiente'].includes(status)) return 'bg-yellow-400 hover:bg-yellow-500 text-black'; // order specific
-  if (['Procesando'].includes(status)) return 'bg-orange-400 hover:bg-orange-500 text-black'; // order specific
+  if (status === 'Confirmado' && !crmEventStatusList.includes(status as CrmEventStatus) ) return 'bg-[hsl(var(--brand-turquoise-hsl))] hover:brightness-90 text-white'; 
+  if (['Enviado'].includes(status)) return 'bg-purple-500 hover:bg-purple-600 text-white'; 
+  if (['Pendiente'].includes(status)) return 'bg-yellow-400 hover:bg-yellow-500 text-black'; 
+  if (['Procesando'].includes(status)) return 'bg-orange-400 hover:bg-orange-500 text-black'; 
   if (['Cancelado', 'Fallido'].includes(status)) return 'bg-red-500 hover:bg-red-600 text-white';
-  if (['Seguimiento'].includes(status)) return 'bg-blue-500 hover:bg-blue-600 text-white'; // order specific
+  if (['Seguimiento'].includes(status)) return 'bg-blue-500 hover:bg-blue-600 text-white'; 
 
-  // Event statuses (ensure they don't conflict or are handled appropriately)
-  if (status === 'Confirmado') return 'bg-blue-500 hover:bg-blue-600 text-white'; // Event specific 'Confirmado'
+  // Event statuses 
+  if (status === 'Confirmado' && crmEventStatusList.includes(status as CrmEventStatus)) return 'bg-blue-500 hover:bg-blue-600 text-white'; 
   if (status === 'Planificado') return 'bg-yellow-400 hover:bg-yellow-500 text-black';
   if (status === 'En Curso') return 'bg-purple-500 hover:bg-purple-600 text-white';
   if (status === 'Completado') return 'bg-green-500 hover:bg-green-600 text-white';

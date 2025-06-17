@@ -39,6 +39,7 @@ const IVA_RATE = 21; // 21%
 const orderFormSchemaBase = z.object({
   clientName: z.string().min(2, "El nombre del cliente debe tener al menos 2 caracteres."),
   visitDate: z.date({ required_error: "La fecha de visita es obligatoria." }),
+  clientStatus: z.enum(["new", "existing"], { required_error: "Debe indicar si es un cliente nuevo o existente." }),
   outcome: z.enum(["successful", "failed", "follow-up"], { required_error: "Por favor, seleccione un resultado." }),
   
   // Fields for successful outcome
@@ -79,31 +80,34 @@ const orderFormSchema = orderFormSchemaBase.superRefine((data, ctx) => {
     if ((data.numberOfUnits && data.unitPrice) && (data.orderValue === undefined || data.orderValue <= 0)) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El valor del pedido calculado debe ser positivo.", path: ["orderValue"] });
     }
-    if (!data.nombreFiscal || data.nombreFiscal.trim() === "") {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El nombre fiscal es obligatorio.", path: ["nombreFiscal"] });
-    }
-    if (!data.cif || data.cif.trim() === "") {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El CIF es obligatorio.", path: ["cif"] });
-    }
-    if (!data.direccionFiscal || data.direccionFiscal.trim() === "") {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La dirección fiscal es obligatoria.", path: ["direccionFiscal"] });
-    }
-    if (!data.direccionEntrega || data.direccionEntrega.trim() === "") {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La dirección de entrega es obligatoria.", path: ["direccionEntrega"] });
-    }
-    if (!data.contactoNombre || data.contactoNombre.trim() === "") {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El nombre de contacto es obligatorio.", path: ["contactoNombre"] });
-    }
-    if (!data.contactoCorreo || data.contactoCorreo.trim() === "") {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El correo de contacto es obligatorio.", path: ["contactoCorreo"] });
-    } else {
-        const emailValidation = z.string().email().safeParse(data.contactoCorreo);
-        if (!emailValidation.success) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El formato del correo de contacto no es válido.", path: ["contactoCorreo"] });
-        }
-    }
-    if (!data.contactoTelefono || data.contactoTelefono.trim() === "") {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El teléfono de contacto es obligatorio.", path: ["contactoTelefono"] });
+    // Billing/Account info mandatory only if clientStatus is "new" and outcome is "successful"
+    if (data.clientStatus === "new") {
+      if (!data.nombreFiscal || data.nombreFiscal.trim() === "") {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El nombre fiscal es obligatorio para un cliente nuevo.", path: ["nombreFiscal"] });
+      }
+      if (!data.cif || data.cif.trim() === "") {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El CIF es obligatorio para un cliente nuevo.", path: ["cif"] });
+      }
+      if (!data.direccionFiscal || data.direccionFiscal.trim() === "") {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La dirección fiscal es obligatoria para un cliente nuevo.", path: ["direccionFiscal"] });
+      }
+      if (!data.direccionEntrega || data.direccionEntrega.trim() === "") {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La dirección de entrega es obligatoria para un cliente nuevo.", path: ["direccionEntrega"] });
+      }
+      if (!data.contactoNombre || data.contactoNombre.trim() === "") {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El nombre de contacto es obligatorio para un cliente nuevo.", path: ["contactoNombre"] });
+      }
+      if (!data.contactoCorreo || data.contactoCorreo.trim() === "") {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El correo de contacto es obligatorio para un cliente nuevo.", path: ["contactoCorreo"] });
+      } else {
+          const emailValidation = z.string().email().safeParse(data.contactoCorreo);
+          if (!emailValidation.success) {
+              ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El formato del correo de contacto no es válido.", path: ["contactoCorreo"] });
+          }
+      }
+      if (!data.contactoTelefono || data.contactoTelefono.trim() === "") {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El teléfono de contacto es obligatorio para un cliente nuevo.", path: ["contactoTelefono"] });
+      }
     }
   }
 
@@ -141,6 +145,7 @@ export default function OrderFormPage() {
     defaultValues: {
       clientName: "",
       visitDate: undefined,
+      clientStatus: undefined,
       outcome: undefined,
       clientType: undefined,
       numberOfUnits: undefined,
@@ -164,6 +169,7 @@ export default function OrderFormPage() {
   });
 
   const outcome = form.watch("outcome");
+  const clientStatus = form.watch("clientStatus");
   const numberOfUnits = form.watch("numberOfUnits");
   const unitPrice = form.watch("unitPrice");
   const nextActionType = form.watch("nextActionType");
@@ -199,40 +205,47 @@ export default function OrderFormPage() {
     const salesRepName = teamMember.name;
     const currentDate = format(new Date(), "yyyy-MM-dd");
     let newAccountCreated = false;
+    let accountCreationMessage = "";
 
-    if (values.outcome === "successful" && values.visitDate && values.orderValue && values.clientType && values.numberOfUnits && values.unitPrice && values.cif && values.nombreFiscal) {
+    if (values.outcome === "successful" && values.visitDate && values.orderValue && values.clientType && values.numberOfUnits && values.unitPrice) {
       const numberOfBottles = values.numberOfUnits;
 
-      // Check if account with CIF already exists
-      const existingAccountByCif = mockAccounts.find(acc => acc.cif.toLowerCase() === values.cif!.toLowerCase());
+      if (values.clientStatus === "new" && values.cif && values.nombreFiscal) {
+        const existingAccountByCif = mockAccounts.find(acc => acc.cif.toLowerCase() === values.cif!.toLowerCase());
 
-      if (!existingAccountByCif) {
-        const newAccount: Account = {
-            id: `acc_${Date.now()}`,
-            name: values.clientName,
-            legalName: values.nombreFiscal,
-            cif: values.cif,
-            type: values.clientType as AccountType, // clientType is mandatory for successful outcome
-            status: 'Activo',
-            addressBilling: values.direccionFiscal,
-            addressShipping: values.direccionEntrega,
-            mainContactName: values.contactoNombre,
-            mainContactEmail: values.contactoCorreo,
-            mainContactPhone: values.contactoTelefono,
-            notes: values.observacionesAlta,
-            salesRepId: teamMember.id,
-            createdAt: currentDate,
-            updatedAt: currentDate,
-        };
-        mockAccounts.unshift(newAccount);
-        newAccountCreated = true;
+        if (!existingAccountByCif) {
+          const newAccount: Account = {
+              id: `acc_${Date.now()}`,
+              name: values.clientName, // Using clientName as commercial name for the new Account
+              legalName: values.nombreFiscal,
+              cif: values.cif,
+              type: values.clientType as AccountType,
+              status: 'Activo',
+              addressBilling: values.direccionFiscal,
+              addressShipping: values.direccionEntrega,
+              mainContactName: values.contactoNombre,
+              mainContactEmail: values.contactoCorreo,
+              mainContactPhone: values.contactoTelefono,
+              notes: values.observacionesAlta,
+              salesRepId: teamMember.id,
+              createdAt: currentDate,
+              updatedAt: currentDate,
+          };
+          mockAccounts.unshift(newAccount);
+          newAccountCreated = true;
+          accountCreationMessage = " Nueva cuenta creada.";
 
-        // Update new account KPIs only if a new account was truly created
-        const kpiCuentasAnual = kpiDataLaunch.find(k => k.id === 'kpi3');
-        if (kpiCuentasAnual) kpiCuentasAnual.currentValue += 1;
-        const kpiCuentasMensual = kpiDataLaunch.find(k => k.id === 'kpi4');
-        if (kpiCuentasMensual) kpiCuentasMensual.currentValue += 1;
+          const kpiCuentasAnual = kpiDataLaunch.find(k => k.id === 'kpi3');
+          if (kpiCuentasAnual) kpiCuentasAnual.currentValue += 1;
+          const kpiCuentasMensual = kpiDataLaunch.find(k => k.id === 'kpi4');
+          if (kpiCuentasMensual) kpiCuentasMensual.currentValue += 1;
+        } else {
+           accountCreationMessage = ` (La cuenta con CIF ${values.cif} ya existía, no se creó una nueva).`;
+        }
+      } else if (values.clientStatus === "existing") {
+        accountCreationMessage = " (Cliente existente, no se creó nueva cuenta).";
       }
+
 
       const newOrder: Order = {
         id: `ORD${Date.now()}`,
@@ -246,6 +259,7 @@ export default function OrderFormPage() {
         status: 'Confirmado', 
         salesRep: salesRepName, 
         lastUpdated: currentDate,
+        // Include billing info for the order, even if client is existing (could be different for this specific order)
         nombreFiscal: values.nombreFiscal,
         cif: values.cif,
         direccionFiscal: values.direccionFiscal,
@@ -253,7 +267,7 @@ export default function OrderFormPage() {
         contactoNombre: values.contactoNombre,
         contactoCorreo: values.contactoCorreo,
         contactoTelefono: values.contactoTelefono,
-        observacionesAlta: values.observacionesAlta,
+        observacionesAlta: values.observacionesAlta, // This might be more relevant to new account creation though
         notes: values.notes,
       };
       mockOrders.unshift(newOrder);
@@ -272,12 +286,7 @@ export default function OrderFormPage() {
       const kpiVentasTotales = kpiDataLaunch.find(k => k.id === 'kpi1');
       if (kpiVentasTotales) kpiVentasTotales.currentValue += numberOfBottles;
       
-      let toastMessage = `Pedido ${newOrder.id} para ${newOrder.clientName} (por ${salesRepName}) registrado.`;
-      if (newAccountCreated) {
-        toastMessage += " Nueva cuenta creada.";
-      } else if (existingAccountByCif) {
-        toastMessage += " (La cuenta ya existía, no se creó una nueva).";
-      }
+      let toastMessage = `Pedido ${newOrder.id} para ${newOrder.clientName} (por ${salesRepName}) registrado.` + accountCreationMessage;
       toast({ title: "¡Operación Registrada!", description: <div className="flex items-start"><Check className="h-5 w-5 text-green-500 mr-2 mt-1" /><p>{toastMessage}</p></div>, variant: "default" });
     
     } else if (values.outcome === "follow-up" && values.visitDate && values.nextActionType) {
@@ -326,11 +335,14 @@ export default function OrderFormPage() {
 
     form.reset();
     form.setValue("visitDate", undefined);
+    form.setValue("clientStatus", undefined);
     form.setValue("outcome", undefined);
     setSubtotal(undefined);
     setIvaAmount(undefined);
     setIsSubmitting(false);
   }
+
+  const showBillingInfo = outcome === "successful" && clientStatus === "new";
 
   return (
     <div className="space-y-6">
@@ -367,12 +379,28 @@ export default function OrderFormPage() {
                   </FormItem>
                 )}
               />
+               <FormField
+                control={form.control}
+                name="clientStatus"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tipo de Cliente (¿Nuevo o Existente?)</FormLabel>
+                    <FormControl>
+                      <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-col space-y-1 sm:flex-row sm:space-x-4 sm:space-y-0">
+                        <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="new" /></FormControl><FormLabel className="font-normal">Cliente Nuevo</FormLabel></FormItem>
+                        <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="existing" /></FormControl><FormLabel className="font-normal">Cliente Existente</FormLabel></FormItem>
+                      </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="outcome"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Resultado</FormLabel>
+                    <FormLabel>Resultado de la Visita</FormLabel>
                     <FormControl>
                       <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-col space-y-1">
                         <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="successful" /></FormControl><FormLabel className="font-normal">Pedido Exitoso</FormLabel></FormItem>
@@ -390,7 +418,7 @@ export default function OrderFormPage() {
                 <>
                   <Separator className="my-6" />
                   <div className="space-y-1"><h3 className="text-lg font-medium">Detalles del Pedido</h3><p className="text-sm text-muted-foreground">Información sobre los productos y valor del pedido.</p></div>
-                  <FormField control={form.control} name="clientType" render={({ field }) => (<FormItem className="space-y-3"><FormLabel>Tipo de Cliente</FormLabel><FormControl><RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="grid grid-cols-2 gap-4">{clientTypeList.map((type) => (<FormItem key={type} className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value={type} /></FormControl><FormLabel className="font-normal">{type}</FormLabel></FormItem>))}</RadioGroup></FormControl><FormMessage /></FormItem>)}/>
+                  <FormField control={form.control} name="clientType" render={({ field }) => (<FormItem className="space-y-3"><FormLabel>Tipo de Cliente (para el Pedido)</FormLabel><FormControl><RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="grid grid-cols-2 gap-4">{clientTypeList.map((type) => (<FormItem key={type} className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value={type} /></FormControl><FormLabel className="font-normal">{type}</FormLabel></FormItem>))}</RadioGroup></FormControl><FormMessage /></FormItem>)}/>
                   <FormItem><FormLabel>Producto</FormLabel><Input value={SINGLE_PRODUCT_NAME} readOnly disabled className="bg-muted/50" /><FormDescription>Actualmente solo se gestiona el producto "{SINGLE_PRODUCT_NAME}".</FormDescription></FormItem>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades ({SINGLE_PRODUCT_NAME})</FormLabel><FormControl><Input type="number" placeholder="p. ej., 100" {...field} onChange={event => { const val = event.target.value; field.onChange(val === "" ? undefined : parseInt(val, 10));}} value={field.value === undefined ? '' : field.value} /></FormControl><FormMessage /></FormItem>)}/>
@@ -399,18 +427,30 @@ export default function OrderFormPage() {
                   <FormItem><FormLabel>Subtotal (€)</FormLabel><FormControl><Input type="number" readOnly disabled className="bg-muted/50" value={subtotal === undefined ? '' : subtotal.toFixed(2)} placeholder="Cálculo automático"/></FormControl></FormItem>
                   <FormItem><FormLabel>IVA ({IVA_RATE}%) (€)</FormLabel><FormControl><Input type="number" readOnly disabled className="bg-muted/50" value={ivaAmount === undefined ? '' : ivaAmount.toFixed(2)} placeholder="Cálculo automático"/></FormControl></FormItem>
                   <FormField control={form.control} name="orderValue" render={({ field }) => (<FormItem><FormLabel>Valor Total del Pedido (€ con IVA)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Cálculo automático" {...field} readOnly disabled className="bg-muted/50" value={field.value === undefined ? '' : field.value.toFixed(2)}/></FormControl><FormMessage /></FormItem>)}/>
-                  <Separator className="my-6" />
-                  <div className="space-y-1"><h3 className="text-lg font-medium">Información de Alta del Cliente</h3><p className="text-sm text-muted-foreground">Complete estos datos si es un cliente nuevo o necesita actualizar la información. Rellenar el nombre fiscal y CIF contará como una nueva cuenta si el CIF no existe previamente.</p></div>
-                  <FormField control={form.control} name="nombreFiscal" render={({ field }) => (<FormItem><FormLabel>Nombre Fiscal</FormLabel><FormControl><Input placeholder="Nombre legal completo de la empresa" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                  <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF</FormLabel><FormControl><Input placeholder="Número de Identificación Fiscal" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                  <FormField control={form.control} name="direccionFiscal" render={({ field }) => (<FormItem><FormLabel>Dirección Fiscal</FormLabel><FormControl><Textarea placeholder="Calle, número, piso, ciudad, código postal, provincia" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                  <FormField control={form.control} name="direccionEntrega" render={({ field }) => (<FormItem><FormLabel>Dirección de Entrega</FormLabel><FormControl><Textarea placeholder="Si es diferente a la fiscal: calle, número, piso, ciudad, código postal, provincia" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                  <Separator className="my-4" /><h4 className="text-md font-medium mb-2">Datos de Contacto</h4>
-                  <FormField control={form.control} name="contactoNombre" render={({ field }) => (<FormItem><FormLabel>Nombre de Contacto</FormLabel><FormControl><Input placeholder="Persona de contacto principal" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                  <FormField control={form.control} name="contactoCorreo" render={({ field }) => (<FormItem><FormLabel>Correo Electrónico de Contacto</FormLabel><FormControl><Input type="email" placeholder="ejemplo@empresa.com" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                  <FormField control={form.control} name="contactoTelefono" render={({ field }) => (<FormItem><FormLabel>Teléfono de Contacto</FormLabel><FormControl><Input type="tel" placeholder="Número de teléfono" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                  <Separator className="my-4" />
-                  <FormField control={form.control} name="observacionesAlta" render={({ field }) => (<FormItem><FormLabel>Observaciones (Alta Cliente)</FormLabel><FormControl><Textarea placeholder="Cualquier detalle adicional para el alta del cliente..." {...field} /></FormControl><FormDescription>Este campo es opcional.</FormDescription><FormMessage /></FormItem>)}/>
+                  
+                  {showBillingInfo && (
+                    <>
+                      <Separator className="my-6" />
+                      <div className="space-y-1"><h3 className="text-lg font-medium">Información de Alta del Cliente Nuevo</h3><p className="text-sm text-muted-foreground">Complete estos datos para la nueva cuenta.</p></div>
+                      <FormField control={form.control} name="nombreFiscal" render={({ field }) => (<FormItem><FormLabel>Nombre Fiscal</FormLabel><FormControl><Input placeholder="Nombre legal completo de la empresa" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                      <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF</FormLabel><FormControl><Input placeholder="Número de Identificación Fiscal" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                      <FormField control={form.control} name="direccionFiscal" render={({ field }) => (<FormItem><FormLabel>Dirección Fiscal</FormLabel><FormControl><Textarea placeholder="Calle, número, piso, ciudad, código postal, provincia" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                      <FormField control={form.control} name="direccionEntrega" render={({ field }) => (<FormItem><FormLabel>Dirección de Entrega</FormLabel><FormControl><Textarea placeholder="Si es diferente a la fiscal: calle, número, piso, ciudad, código postal, provincia" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                      <Separator className="my-4" /><h4 className="text-md font-medium mb-2">Datos de Contacto (Cliente Nuevo)</h4>
+                      <FormField control={form.control} name="contactoNombre" render={({ field }) => (<FormItem><FormLabel>Nombre de Contacto</FormLabel><FormControl><Input placeholder="Persona de contacto principal" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                      <FormField control={form.control} name="contactoCorreo" render={({ field }) => (<FormItem><FormLabel>Correo Electrónico de Contacto</FormLabel><FormControl><Input type="email" placeholder="ejemplo@empresa.com" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                      <FormField control={form.control} name="contactoTelefono" render={({ field }) => (<FormItem><FormLabel>Teléfono de Contacto</FormLabel><FormControl><Input type="tel" placeholder="Número de teléfono" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                      <Separator className="my-4" />
+                      <FormField control={form.control} name="observacionesAlta" render={({ field }) => (<FormItem><FormLabel>Observaciones (Alta Cliente)</FormLabel><FormControl><Textarea placeholder="Cualquier detalle adicional para el alta del cliente..." {...field} /></FormControl><FormDescription>Este campo es opcional.</FormDescription><FormMessage /></FormItem>)}/>
+                    </>
+                  )}
+                   {!showBillingInfo && clientStatus === "existing" && outcome === "successful" && (
+                     <div className="my-4 p-3 bg-secondary/30 rounded-md">
+                       <p className="text-sm text-muted-foreground">
+                         Se registrará el pedido para el cliente existente <strong className="text-foreground">{values.clientName}</strong>. Los datos de facturación se tomarán de la cuenta existente.
+                       </p>
+                     </div>
+                   )}
                 </>
               )}
 
@@ -500,3 +540,4 @@ export default function OrderFormPage() {
     </div>
   );
 }
+

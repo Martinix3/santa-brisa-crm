@@ -1,5 +1,5 @@
 
-import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole } from '@/types';
+import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType } from '@/types';
 import { Package, Users, ShoppingBag, BarChart3 } from 'lucide-react';
 
 export const mockKpis: Kpi[] = [
@@ -57,6 +57,8 @@ export const globalTeamMonthlyTarget: number = mockTeamMembers
     .reduce((sum, member) => sum + (member.monthlyTarget || 0), 0);
 
 export const orderStatusesList: OrderStatus[] = ['Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Cancelado', 'Fallido'];
+export const clientTypeList: ClientType[] = ['Distribuidor', 'HORECA', 'Retail', 'Cliente Final'];
+
 const clientNames = ['Café Central', 'Restaurante del Sol', 'El Rincón Diario', 'Bistró Vista al Mar', 'Café Cima de Montaña'];
 
 // SalesReps for order assignment will now come from mockTeamMembers with role 'SalesRep'
@@ -66,7 +68,7 @@ const salesRepsNames = salesRepsData.length > 0 ? salesRepsData.map(sr => sr.nam
 
 export const mockOrders: Order[] = Array.from({ length: 25 }, (_, i) => {
   const date = new Date(2024, 5 - Math.floor(i / 5), 28 - (i % 28) + 1);
-  const isSuccessful = i % orderStatusesList.length < 5; // First 5 statuses are generally successful
+  const isSuccessfulMockScenario = i % orderStatusesList.length < 5; // First 5 statuses are generally successful
 
   return {
     id: `ORD${1001 + i}`,
@@ -78,15 +80,20 @@ export const mockOrders: Order[] = Array.from({ length: 25 }, (_, i) => {
     salesRep: salesRepsNames[i % salesRepsNames.length],
     lastUpdated: new Date(date.getTime() + Math.random() * 5 * 24*60*60*1000).toISOString().split('T')[0],
 
+    // Add sample new fields for some orders
+    clientType: isSuccessfulMockScenario ? clientTypeList[i % clientTypeList.length] : undefined,
+    numberOfUnits: isSuccessfulMockScenario ? Math.floor(Math.random() * 50) + 10 : undefined,
+    unitPrice: isSuccessfulMockScenario ? parseFloat(((Math.random() * 20) + 5).toFixed(2)) : undefined,
+
     // Add sample billing and contact info for some orders
-    nombreFiscal: isSuccessful ? `${clientNames[i % clientNames.length]} S.L.` : undefined,
-    cif: isSuccessful ? `B1234567${i % 10}` : undefined,
-    direccionFiscal: isSuccessful ? `Calle Falsa 123, Ciudad, Provincia ${i % 5}` : undefined,
-    direccionEntrega: isSuccessful ? `Calle Verdadera 456, Ciudad, Provincia ${i % 5}` : undefined,
-    contactoNombre: isSuccessful ? `Contacto Persona ${i % 3}` : undefined,
-    contactoCorreo: isSuccessful ? `contacto${i}@empresa.com` : undefined,
-    contactoTelefono: isSuccessful ? `60012345${i % 10}` : undefined,
-    observacionesAlta: isSuccessful && i % 4 === 0 ? 'Cliente referido, primer pedido.' : undefined,
+    nombreFiscal: isSuccessfulMockScenario ? `${clientNames[i % clientNames.length]} S.L.` : undefined,
+    cif: isSuccessfulMockScenario ? `B1234567${i % 10}` : undefined,
+    direccionFiscal: isSuccessfulMockScenario ? `Calle Falsa 123, Ciudad, Provincia ${i % 5}` : undefined,
+    direccionEntrega: isSuccessfulMockScenario ? `Calle Verdadera 456, Ciudad, Provincia ${i % 5}` : undefined,
+    contactoNombre: isSuccessfulMockScenario ? `Contacto Persona ${i % 3}` : undefined,
+    contactoCorreo: isSuccessfulMockScenario ? `contacto${i}@empresa.com` : undefined,
+    contactoTelefono: isSuccessfulMockScenario ? `60012345${i % 10}` : undefined,
+    observacionesAlta: isSuccessfulMockScenario && i % 4 === 0 ? 'Cliente referido, primer pedido.' : undefined,
     notes: i % 3 === 0 ? 'Notas generales sobre la visita.' : undefined,
   };
 });

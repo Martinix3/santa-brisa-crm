@@ -30,6 +30,7 @@ export interface TeamMember {
 }
 
 export type OrderStatus = 'Pendiente' | 'Confirmado' | 'Procesando' | 'Enviado' | 'Entregado' | 'Cancelado' | 'Fallido';
+export type ClientType = 'Distribuidor' | 'HORECA' | 'Retail' | 'Cliente Final';
 
 export interface Order {
   id: string;
@@ -40,6 +41,11 @@ export interface Order {
   status: OrderStatus;
   salesRep: string;
   lastUpdated: string; // Should be YYYY-MM-DD
+
+  // New fields for order form
+  clientType?: ClientType;
+  numberOfUnits?: number;
+  unitPrice?: number;
 
   // Customer and billing information
   nombreFiscal?: string;

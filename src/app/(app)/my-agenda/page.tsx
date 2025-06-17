@@ -8,10 +8,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/auth-context";
 import type { Order, TeamMember, OrderStatus, NextActionType, CrmEvent, CrmEventStatus } from "@/types";
-import { mockOrders, mockTeamMembers, nextActionTypeList, mockCrmEvents, crmEventStatusList } from "@/lib/data";
+import { mockOrders, mockTeamMembers, mockCrmEvents } from "@/lib/data";
 import { parseISO, format, isEqual, startOfDay, isSameMonth, isWithinInterval, addDays } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarCheck, User, Info, Filter, PartyPopper, Users } from "lucide-react";
+import { CalendarCheck, User, Info, Filter, PartyPopper, Users as UsersIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import StatusBadge from "@/components/app/status-badge";
@@ -30,48 +30,53 @@ interface AgendaCrmEventItem extends CrmEvent, AgendaItemBase {
 }
 type AgendaItem = AgendaOrderItem | AgendaCrmEventItem;
 
+const simplifiedActionTypeOptions = ["Todos", "Acciones de Seguimiento", "Eventos"] as const;
+type SimplifiedActionFilterType = typeof simplifiedActionTypeOptions[number];
+
 
 export default function AgendaPage() {
   const { userRole, teamMember } = useAuth();
   const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(new Date());
   const [currentMonth, setCurrentMonth] = React.useState<Date>(new Date());
   const [selectedSalesRep, setSelectedSalesRep] = React.useState<string>("Todos");
-  const [actionTypeFilter, setActionTypeFilter] = React.useState<NextActionType | "Todos" | "Evento">("Todos");
+  const [actionTypeFilter, setActionTypeFilter] = React.useState<SimplifiedActionFilterType>("Todos");
 
   const salesRepsList = React.useMemo(() => {
     return ["Todos", ...mockTeamMembers.filter(m => m.role === 'SalesRep' || m.role === 'Admin').map(m => m.name)];
   }, []);
 
-  const uniqueActionTypesForFilter = ["Todos", ...nextActionTypeList, "Evento"] as (NextActionType | "Todos" | "Evento")[];
-
   const agendaItems = React.useMemo<AgendaItem[]>(() => {
-    const orderFollowUps: AgendaOrderItem[] = mockOrders
-      .filter(order => 
-        (order.status === 'Seguimiento' || order.status === 'Fallido') && 
-        order.nextActionDate &&
-        (userRole === 'Admin' ? (selectedSalesRep === "Todos" || order.salesRep === selectedSalesRep) : order.salesRep === teamMember?.name) &&
-        (actionTypeFilter === "Todos" || actionTypeFilter === order.nextActionType)
-      )
-      .map(order => ({
-        ...order,
-        itemDate: parseISO(order.nextActionDate!),
-        sourceType: 'order',
-      }));
+    let filteredOrderFollowUps: AgendaOrderItem[] = [];
+    if (actionTypeFilter === "Todos" || actionTypeFilter === "Acciones de Seguimiento") {
+      filteredOrderFollowUps = mockOrders
+        .filter(order => 
+          (order.status === 'Seguimiento' || order.status === 'Fallido') && 
+          order.nextActionDate &&
+          (userRole === 'Admin' ? (selectedSalesRep === "Todos" || order.salesRep === selectedSalesRep) : order.salesRep === teamMember?.name)
+        )
+        .map(order => ({
+          ...order,
+          itemDate: parseISO(order.nextActionDate!),
+          sourceType: 'order',
+        }));
+    }
 
-    const crmEvents: AgendaCrmEventItem[] = mockCrmEvents
-      .filter(event =>
-        (userRole === 'Admin' ? 
-          (selectedSalesRep === "Todos" || event.assignedTeamMemberIds.includes(mockTeamMembers.find(m=>m.name === selectedSalesRep)?.id || '')) 
-          : (teamMember && event.assignedTeamMemberIds.includes(teamMember.id))) &&
-        (actionTypeFilter === "Todos" || actionTypeFilter === "Evento") 
-      )
-      .map(event => ({
-        ...event,
-        itemDate: parseISO(event.startDate),
-        sourceType: 'event',
-      }));
+    let filteredCrmEvents: AgendaCrmEventItem[] = [];
+    if (actionTypeFilter === "Todos" || actionTypeFilter === "Eventos") {
+      filteredCrmEvents = mockCrmEvents
+        .filter(event =>
+          (userRole === 'Admin' ? 
+            (selectedSalesRep === "Todos" || event.assignedTeamMemberIds.includes(mockTeamMembers.find(m=>m.name === selectedSalesRep)?.id || '')) 
+            : (teamMember && event.assignedTeamMemberIds.includes(teamMember.id)))
+        )
+        .map(event => ({
+          ...event,
+          itemDate: parseISO(event.startDate),
+          sourceType: 'event',
+        }));
+    }
       
-    return [...orderFollowUps, ...crmEvents].sort((a, b) => a.itemDate.getTime() - b.itemDate.getTime());
+    return [...filteredOrderFollowUps, ...filteredCrmEvents].sort((a, b) => a.itemDate.getTime() - b.itemDate.getTime());
   }, [userRole, teamMember, selectedSalesRep, actionTypeFilter]);
 
 
@@ -160,13 +165,13 @@ export default function AgendaPage() {
             )}
             <div className="w-full sm:w-auto flex-grow sm:flex-grow-0">
                <Label htmlFor="actionTypeFilterAgenda">Tipo de Entrada</Label>
-               <Select value={actionTypeFilter} onValueChange={(value) => setActionTypeFilter(value as NextActionType | "Todos" | "Evento")}>
+               <Select value={actionTypeFilter} onValueChange={(value) => setActionTypeFilter(value as SimplifiedActionFilterType)}>
                 <SelectTrigger id="actionTypeFilterAgenda" className="w-full sm:w-[240px] mt-1">
                     <SelectValue placeholder="Filtrar por tipo" />
                 </SelectTrigger>
                 <SelectContent>
-                    {uniqueActionTypesForFilter.map(action => (
-                    <SelectItem key={action} value={action}>{action}</SelectItem>
+                    {simplifiedActionTypeOptions.map(option => (
+                    <SelectItem key={option} value={option}>{option}</SelectItem>
                     ))}
                 </SelectContent>
                 </Select>
@@ -258,7 +263,7 @@ export default function AgendaPage() {
                           )}
                           {(userRole === 'Admin' && selectedSalesRep === "Todos" && item.assignedTeamMemberIds.length > 0) && ( 
                             <p className="text-xs text-muted-foreground flex items-center mb-1">
-                              <Users size={14} className="mr-1.5 text-primary" />
+                              <UsersIcon size={14} className="mr-1.5 text-primary" />
                               Responsables: {item.assignedTeamMemberIds.map(id => mockTeamMembers.find(m=>m.id===id)?.name).join(', ')}
                             </p>
                           )}
@@ -284,3 +289,4 @@ export default function AgendaPage() {
     </div>
   );
 }
+

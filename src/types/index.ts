@@ -20,33 +20,36 @@ export interface TeamMember {
   id: string;
   name: string;
   email: string;
-  avatarUrl?: string; // Optional, as not all users might have one initially
-  role: UserRole; // Changed from string to UserRole for better type safety
-  bottlesSold?: number; // Actual bottles sold, still relevant as a metric
-  monthlyTargetAccounts?: number; // New: Target for accounts/clients per month
-  monthlyTargetVisits?: number; // New: Target for visits per month
-  orders?: number; // Actual orders/accounts achieved
-  visits?: number; // Actual visits made
+  avatarUrl?: string; 
+  role: UserRole; 
+  bottlesSold?: number; 
+  monthlyTargetAccounts?: number; 
+  monthlyTargetVisits?: number; 
+  orders?: number; 
+  visits?: number; 
   performanceData?: { month: string; bottles: number }[];
 }
 
-export type OrderStatus = 'Pendiente' | 'Confirmado' | 'Procesando' | 'Enviado' | 'Entregado' | 'Cancelado' | 'Fallido';
+export type OrderStatus = 'Pendiente' | 'Confirmado' | 'Procesando' | 'Enviado' | 'Entregado' | 'Cancelado' | 'Fallido' | 'Seguimiento';
 export type ClientType = 'Distribuidor' | 'HORECA' | 'Retail' | 'Cliente Final';
+
+// New types for follow-up and failure reasons
+export type NextActionType = 'Llamar al responsable de compras' | 'Mandar información' | 'Visitar de nuevo' | 'Enviar muestra' | 'Esperar decisión' | 'Opción personalizada';
+export type FailureReasonType = 'No interesado' | 'Ya trabaja con otro proveedor' | 'Sin presupuesto' | 'Producto no encaja' | 'Otro (especificar)';
 
 export interface Order {
   id: string;
   clientName: string;
   visitDate: string; // Should be YYYY-MM-DD
-  products: string[];
-  value: number;
+  products?: string[]; // Made optional
+  value?: number; // Made optional
   status: OrderStatus;
   salesRep: string;
   lastUpdated: string; // Should be YYYY-MM-DD
 
-  // New fields for order form
   clientType?: ClientType;
-  numberOfUnits?: number;
-  unitPrice?: number;
+  numberOfUnits?: number; // Already optional in form, ensure type reflects this if needed
+  unitPrice?: number; // Already optional in form
 
   // Customer and billing information
   nombreFiscal?: string;
@@ -57,7 +60,14 @@ export interface Order {
   contactoCorreo?: string;
   contactoTelefono?: string;
   observacionesAlta?: string;
-  notes?: string; // General notes for the visit/order
+  notes?: string; 
+
+  // New fields for follow-up / failure
+  nextActionType?: NextActionType;
+  nextActionCustom?: string;
+  nextActionDate?: string; // YYYY-MM-DD
+  failureReasonType?: FailureReasonType;
+  failureReasonCustom?: string;
 }
 
 export type MarketingResourceType = 'Folleto' | 'Presentación' | 'Imagen' | 'Guía';
@@ -82,9 +92,9 @@ export type AccountStatus = 'Activo' | 'Inactivo' | 'Potencial' | 'Bloqueado';
 
 export interface Account {
   id: string;
-  name: string; // Commercial name
+  name: string; 
   legalName?: string;
-  cif: string; // Unique identifier
+  cif: string; 
   type: AccountType;
   status: AccountStatus;
   addressBilling?: string;
@@ -93,7 +103,7 @@ export interface Account {
   mainContactEmail?: string;
   mainContactPhone?: string;
   notes?: string;
-  salesRepId?: string; // ID of the assigned TeamMember (SalesRep)
+  salesRepId?: string; 
   createdAt: string; // YYYY-MM-DD
   updatedAt: string; // YYYY-MM-DD
 }

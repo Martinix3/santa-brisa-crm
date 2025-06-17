@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -27,23 +28,24 @@ import { es } from 'date-fns/locale';
 import { Calendar as CalendarIcon, Check, Loader2, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { mockOrders, mockTeamMembers, clientTypeList } from "@/lib/data";
+import { mockOrders, mockTeamMembers, clientTypeList, nextActionTypeList, failureReasonList } from "@/lib/data";
 import { kpiDataLaunch } from "@/lib/launch-dashboard-data";
-import type { Order, ClientType } from "@/types";
-import { useAuth } from "@/contexts/auth-context"; // Import useAuth
+import type { Order, ClientType, NextActionType, FailureReasonType } from "@/types";
+import { useAuth } from "@/contexts/auth-context"; 
 
 const SINGLE_PRODUCT_NAME = "Santa Brisa 750ml";
 const IVA_RATE = 21; // 21%
 
-const orderFormSchema = z.object({
+const orderFormSchemaBase = z.object({
   clientName: z.string().min(2, "El nombre del cliente debe tener al menos 2 caracteres."),
   visitDate: z.date({ required_error: "La fecha de visita es obligatoria." }),
   outcome: z.enum(["successful", "failed", "follow-up"], { required_error: "Por favor, seleccione un resultado." }),
+  
+  // Fields for successful outcome
   clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
   numberOfUnits: z.coerce.number().positive("El número de unidades debe ser un número positivo.").optional(),
   unitPrice: z.coerce.number().positive("El precio unitario debe ser un número positivo.").optional(),
-  orderValue: z.coerce.number().positive("El valor del pedido debe ser positivo.").optional(), // Incluye IVA
-  reasonForFailure: z.string().optional(),
+  orderValue: z.coerce.number().positive("El valor del pedido debe ser positivo.").optional(), 
   nombreFiscal: z.string().optional(),
   cif: z.string().optional(),
   direccionFiscal: z.string().optional(),
@@ -52,38 +54,31 @@ const orderFormSchema = z.object({
   contactoCorreo: z.string().email("El formato del correo electrónico no es válido.").optional().or(z.literal('')),
   contactoTelefono: z.string().optional(),
   observacionesAlta: z.string().optional(),
+
+  // New fields for follow-up / failure
+  nextActionType: z.enum(nextActionTypeList as [NextActionType, ...NextActionType[]]).optional(),
+  nextActionCustom: z.string().optional(),
+  nextActionDate: z.date().optional(),
+  failureReasonType: z.enum(failureReasonList as [FailureReasonType, ...FailureReasonType[]]).optional(),
+  failureReasonCustom: z.string().optional(),
+  
   notes: z.string().optional(),
-}).superRefine((data, ctx) => {
+});
+
+const orderFormSchema = orderFormSchemaBase.superRefine((data, ctx) => {
   if (data.outcome === "successful") {
     if (!data.clientType) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "El tipo de cliente es obligatorio para un resultado exitoso.",
-        path: ["clientType"],
-      });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El tipo de cliente es obligatorio.", path: ["clientType"] });
     }
     if (data.numberOfUnits === undefined || data.numberOfUnits <= 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "El número de unidades es obligatorio y debe ser positivo para un resultado exitoso.",
-        path: ["numberOfUnits"],
-      });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El número de unidades es obligatorio y positivo.", path: ["numberOfUnits"] });
     }
     if (data.unitPrice === undefined || data.unitPrice <= 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "El precio unitario es obligatorio y debe ser positivo para un resultado exitoso.",
-        path: ["unitPrice"],
-      });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El precio unitario es obligatorio y positivo.", path: ["unitPrice"] });
     }
     if ((data.numberOfUnits && data.unitPrice) && (data.orderValue === undefined || data.orderValue <= 0)) {
-        ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "El valor del pedido calculado (con IVA) debe ser positivo.",
-            path: ["orderValue"],
-        });
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El valor del pedido calculado debe ser positivo.", path: ["orderValue"] });
     }
-    // Billing information
     if (!data.nombreFiscal || data.nombreFiscal.trim() === "") {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El nombre fiscal es obligatorio.", path: ["nombreFiscal"] });
     }
@@ -111,20 +106,32 @@ const orderFormSchema = z.object({
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El teléfono de contacto es obligatorio.", path: ["contactoTelefono"] });
     }
   }
-  if (data.outcome === "failed" && (!data.reasonForFailure || data.reasonForFailure.trim() === "")) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "El motivo del fallo es obligatorio para un resultado fallido.",
-      path: ["reasonForFailure"],
-    });
+
+  if (data.outcome === "failed" || data.outcome === "follow-up") {
+    if (!data.nextActionType) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La próxima acción es obligatoria.", path: ["nextActionType"] });
+    }
+    if (data.nextActionType === "Opción personalizada" && (!data.nextActionCustom || data.nextActionCustom.trim() === "")) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Debe especificar la próxima acción personalizada.", path: ["nextActionCustom"] });
+    }
+  }
+
+  if (data.outcome === "failed") {
+    if (!data.failureReasonType) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El motivo del fallo es obligatorio.", path: ["failureReasonType"] });
+    }
+    if (data.failureReasonType === "Otro (especificar)" && (!data.failureReasonCustom || data.failureReasonCustom.trim() === "")) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Debe especificar el motivo del fallo personalizado.", path: ["failureReasonCustom"] });
+    }
   }
 });
+
 
 type OrderFormValues = z.infer<typeof orderFormSchema>;
 
 export default function OrderFormPage() {
   const { toast } = useToast();
-  const { teamMember, userRole } = useAuth(); // Get current user info
+  const { teamMember, userRole } = useAuth(); 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [subtotal, setSubtotal] = React.useState<number | undefined>(undefined);
   const [ivaAmount, setIvaAmount] = React.useState<number | undefined>(undefined);
@@ -138,8 +145,7 @@ export default function OrderFormPage() {
       clientType: undefined,
       numberOfUnits: undefined,
       unitPrice: undefined,
-      orderValue: undefined, // Este será el total con IVA
-      reasonForFailure: "",
+      orderValue: undefined, 
       nombreFiscal: "",
       cif: "",
       direccionFiscal: "",
@@ -148,6 +154,11 @@ export default function OrderFormPage() {
       contactoCorreo: "",
       contactoTelefono: "",
       observacionesAlta: "",
+      nextActionType: undefined,
+      nextActionCustom: "",
+      nextActionDate: undefined,
+      failureReasonType: undefined,
+      failureReasonCustom: "",
       notes: "",
     },
   });
@@ -155,6 +166,8 @@ export default function OrderFormPage() {
   const outcome = form.watch("outcome");
   const numberOfUnits = form.watch("numberOfUnits");
   const unitPrice = form.watch("unitPrice");
+  const nextActionType = form.watch("nextActionType");
+  const failureReasonType = form.watch("failureReasonType");
 
   React.useEffect(() => {
     if (outcome === "successful" && typeof numberOfUnits === 'number' && typeof unitPrice === 'number' && numberOfUnits > 0 && unitPrice > 0) {
@@ -178,6 +191,7 @@ export default function OrderFormPage() {
     await new Promise(resolve => setTimeout(resolve, 1500));
 
     const salesRepName = teamMember?.name || "Usuario Desconocido";
+    const currentDate = format(new Date(), "yyyy-MM-dd");
 
     if (values.outcome === "successful" && values.visitDate && values.orderValue && values.clientType && values.numberOfUnits && values.unitPrice) {
       const numberOfBottles = values.numberOfUnits;
@@ -190,10 +204,10 @@ export default function OrderFormPage() {
         products: [SINGLE_PRODUCT_NAME], 
         numberOfUnits: values.numberOfUnits,
         unitPrice: values.unitPrice,
-        value: values.orderValue, // Este valor ya incluye IVA
+        value: values.orderValue, 
         status: 'Confirmado', 
-        salesRep: salesRepName, // Assign logged-in user's name
-        lastUpdated: format(new Date(), "yyyy-MM-dd"),
+        salesRep: salesRepName, 
+        lastUpdated: currentDate,
         nombreFiscal: values.nombreFiscal,
         cif: values.cif,
         direccionFiscal: values.direccionFiscal,
@@ -206,70 +220,75 @@ export default function OrderFormPage() {
       };
       mockOrders.unshift(newOrder);
 
-      // Update KPIs related to sales rep only if the user is a SalesRep
       if (userRole === 'SalesRep' && teamMember) {
         const memberIndex = mockTeamMembers.findIndex(m => m.id === teamMember.id);
         if (memberIndex !== -1) {
           mockTeamMembers[memberIndex].bottlesSold = (mockTeamMembers[memberIndex].bottlesSold || 0) + numberOfBottles;
           mockTeamMembers[memberIndex].orders = (mockTeamMembers[memberIndex].orders || 0) + 1;
-          mockTeamMembers[memberIndex].visits = (mockTeamMembers[memberIndex].visits || 0) + 1; // Assuming a successful order also counts as a visit for the SalesRep
+          mockTeamMembers[memberIndex].visits = (mockTeamMembers[memberIndex].visits || 0) + 1; 
         }
-        
         const kpiVentasEquipo = kpiDataLaunch.find(k => k.id === 'kpi2');
         if (kpiVentasEquipo) kpiVentasEquipo.currentValue += numberOfBottles;
       }
 
-      // Update global KPIs regardless of user role
       const kpiVentasTotales = kpiDataLaunch.find(k => k.id === 'kpi1');
       if (kpiVentasTotales) kpiVentasTotales.currentValue += numberOfBottles;
 
-      if (values.nombreFiscal && values.nombreFiscal.trim() !== "") { // New account
+      if (values.nombreFiscal && values.nombreFiscal.trim() !== "") { 
         const kpiCuentasAnual = kpiDataLaunch.find(k => k.id === 'kpi3');
         if (kpiCuentasAnual) kpiCuentasAnual.currentValue += 1;
-
         const kpiCuentasMensual = kpiDataLaunch.find(k => k.id === 'kpi4');
         if (kpiCuentasMensual) kpiCuentasMensual.currentValue += 1;
       }
-
-      toast({
-        title: "¡Pedido Registrado!",
-        description: (
-          <div className="flex items-start">
-            <Check className="h-5 w-5 text-green-500 mr-2 mt-1" />
-            <p>Pedido {newOrder.id} para {newOrder.clientName} (por {salesRepName}) registrado exitosamente. Datos actualizados.</p>
-          </div>
-        ),
-        variant: "default",
-      });
-
-    } else if (values.outcome === "failed" || values.outcome === "follow-up") {
-        // If the outcome is not successful, we might still want to count a visit for a SalesRep
-        if (userRole === 'SalesRep' && teamMember && values.outcome === "failed") {
+      toast({ title: "¡Pedido Registrado!", description: <div className="flex items-start"><Check className="h-5 w-5 text-green-500 mr-2 mt-1" /><p>Pedido {newOrder.id} para {newOrder.clientName} (por {salesRepName}) registrado.</p></div>, variant: "default" });
+    
+    } else if (values.outcome === "follow-up" && values.visitDate && values.nextActionType) {
+        const newFollowUpEntry: Order = {
+            id: `VISFLW${Date.now()}`,
+            clientName: values.clientName,
+            visitDate: format(values.visitDate, "yyyy-MM-dd"),
+            status: 'Seguimiento',
+            salesRep: salesRepName,
+            lastUpdated: currentDate,
+            nextActionType: values.nextActionType,
+            nextActionCustom: values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : undefined,
+            nextActionDate: values.nextActionDate ? format(values.nextActionDate, "yyyy-MM-dd", {locale: es}) : undefined,
+            notes: values.notes,
+        };
+        mockOrders.unshift(newFollowUpEntry);
+        if (userRole === 'SalesRep' && teamMember) {
             const memberIndex = mockTeamMembers.findIndex(m => m.id === teamMember.id);
-            if (memberIndex !== -1) {
-                 // mockTeamMembers[memberIndex].visits = (mockTeamMembers[memberIndex].visits || 0) + 1;
-            }
+            if (memberIndex !== -1) mockTeamMembers[memberIndex].visits = (mockTeamMembers[memberIndex].visits || 0) + 1;
         }
-      console.log(values); 
-      toast({
-        title: "¡Formulario Enviado!",
-        description: (
-          <div className="flex items-start">
-            <Check className="h-5 w-5 text-green-500 mr-2 mt-1" />
-            <p>Visita al cliente {values.clientName} (por {salesRepName}) registrada (Resultado: {values.outcome}).</p>
-          </div>
-        ),
-        variant: "default",
-      });
+        toast({ title: "¡Seguimiento Registrado!", description: <div className="flex items-start"><Info className="h-5 w-5 text-blue-500 mr-2 mt-1" /><p>Seguimiento para {values.clientName} registrado.</p></div> });
+
+    } else if (values.outcome === "failed" && values.visitDate && values.nextActionType && values.failureReasonType) {
+        const newFailedEntry: Order = {
+            id: `VISFLD${Date.now()}`,
+            clientName: values.clientName,
+            visitDate: format(values.visitDate, "yyyy-MM-dd"),
+            status: 'Fallido',
+            salesRep: salesRepName,
+            lastUpdated: currentDate,
+            nextActionType: values.nextActionType,
+            nextActionCustom: values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : undefined,
+            nextActionDate: values.nextActionDate ? format(values.nextActionDate, "yyyy-MM-dd", {locale: es}) : undefined,
+            failureReasonType: values.failureReasonType,
+            failureReasonCustom: values.failureReasonType === 'Otro (especificar)' ? values.failureReasonCustom : undefined,
+            notes: values.notes,
+        };
+        mockOrders.unshift(newFailedEntry);
+         if (userRole === 'SalesRep' && teamMember) {
+            const memberIndex = mockTeamMembers.findIndex(m => m.id === teamMember.id);
+            if (memberIndex !== -1) mockTeamMembers[memberIndex].visits = (mockTeamMembers[memberIndex].visits || 0) + 1;
+        }
+        toast({ title: "¡Visita Fallida Registrada!", description: <div className="flex items-start"><Info className="h-5 w-5 text-orange-500 mr-2 mt-1" /><p>Visita fallida a {values.clientName} registrada.</p></div> });
     }
+
 
     form.reset();
     form.setValue("visitDate", undefined);
     form.setValue("outcome", undefined);
-    form.setValue("clientType", undefined);
-    form.setValue("numberOfUnits", undefined);
-    form.setValue("unitPrice", undefined);
-    form.setValue("orderValue", undefined);
     setSubtotal(undefined);
     setIvaAmount(undefined);
     setIsSubmitting(false);
@@ -286,20 +305,7 @@ export default function OrderFormPage() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <FormField
-                control={form.control}
-                name="clientName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nombre del Cliente</FormLabel>
-                    <FormControl>
-                      <Input placeholder="p. ej., Café Central" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
+              <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="p. ej., Café Central" {...field} /></FormControl><FormMessage /></FormItem>)} />
               <FormField
                 control={form.control}
                 name="visitDate"
@@ -309,40 +315,20 @@ export default function OrderFormPage() {
                     <Popover>
                       <PopoverTrigger asChild>
                         <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className={cn(
-                              "w-full pl-3 text-left font-normal",
-                              !field.value && "text-muted-foreground"
-                            )}
-                          >
-                            {field.value ? (
-                              format(field.value, "PPP", { locale: es })
-                            ) : (
-                              <span>Seleccione una fecha</span>
-                            )}
+                          <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                            {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione una fecha</span>}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                           </Button>
                         </FormControl>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={field.onChange}
-                          disabled={(date) =>
-                            date > new Date() || date < new Date("1900-01-01")
-                          }
-                          initialFocus
-                          locale={es}
-                        />
+                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} initialFocus locale={es}/>
                       </PopoverContent>
                     </Popover>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-
               <FormField
                 control={form.control}
                 name="outcome"
@@ -350,29 +336,10 @@ export default function OrderFormPage() {
                   <FormItem>
                     <FormLabel>Resultado</FormLabel>
                     <FormControl>
-                      <RadioGroup
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                        className="flex flex-col space-y-1"
-                      >
-                        <FormItem className="flex items-center space-x-3 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="successful" />
-                          </FormControl>
-                          <FormLabel className="font-normal">Pedido Exitoso</FormLabel>
-                        </FormItem>
-                        <FormItem className="flex items-center space-x-3 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="failed" />
-                          </FormControl>
-                          <FormLabel className="font-normal">Fallido / Sin Pedido</FormLabel>
-                        </FormItem>
-                        <FormItem className="flex items-center space-x-3 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="follow-up" />
-                          </FormControl>
-                          <FormLabel className="font-normal">Requiere Seguimiento</FormLabel>
-                        </FormItem>
+                      <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-col space-y-1">
+                        <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="successful" /></FormControl><FormLabel className="font-normal">Pedido Exitoso</FormLabel></FormItem>
+                        <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="failed" /></FormControl><FormLabel className="font-normal">Fallido / Sin Pedido</FormLabel></FormItem>
+                        <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="follow-up" /></FormControl><FormLabel className="font-normal">Requiere Seguimiento</FormLabel></FormItem>
                       </RadioGroup>
                     </FormControl>
                     <FormMessage />
@@ -380,256 +347,76 @@ export default function OrderFormPage() {
                 )}
               />
 
+              {/* Fields for Successful Outcome */}
               {outcome === "successful" && (
                 <>
                   <Separator className="my-6" />
-                  <div className="space-y-1">
-                    <h3 className="text-lg font-medium">Detalles del Pedido</h3>
-                    <p className="text-sm text-muted-foreground">Información sobre los productos y valor del pedido.</p>
-                  </div>
-
-                  <FormField
-                    control={form.control}
-                    name="clientType"
-                    render={({ field }) => (
-                      <FormItem className="space-y-3">
-                        <FormLabel>Tipo de Cliente</FormLabel>
-                        <FormControl>
-                          <RadioGroup
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                            className="grid grid-cols-2 gap-4"
-                          >
-                            {clientTypeList.map((type) => (
-                              <FormItem key={type} className="flex items-center space-x-3 space-y-0">
-                                <FormControl>
-                                  <RadioGroupItem value={type} />
-                                </FormControl>
-                                <FormLabel className="font-normal">{type}</FormLabel>
-                              </FormItem>
-                            ))}
-                          </RadioGroup>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormItem>
-                    <FormLabel>Producto</FormLabel>
-                    <Input value={SINGLE_PRODUCT_NAME} readOnly disabled className="bg-muted/50" />
-                    <FormDescription>Actualmente solo se gestiona el producto "{SINGLE_PRODUCT_NAME}".</FormDescription>
-                  </FormItem>
-                  
+                  <div className="space-y-1"><h3 className="text-lg font-medium">Detalles del Pedido</h3><p className="text-sm text-muted-foreground">Información sobre los productos y valor del pedido.</p></div>
+                  <FormField control={form.control} name="clientType" render={({ field }) => (<FormItem className="space-y-3"><FormLabel>Tipo de Cliente</FormLabel><FormControl><RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="grid grid-cols-2 gap-4">{clientTypeList.map((type) => (<FormItem key={type} className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value={type} /></FormControl><FormLabel className="font-normal">{type}</FormLabel></FormItem>))}</RadioGroup></FormControl><FormMessage /></FormItem>)}/>
+                  <FormItem><FormLabel>Producto</FormLabel><Input value={SINGLE_PRODUCT_NAME} readOnly disabled className="bg-muted/50" /><FormDescription>Actualmente solo se gestiona el producto "{SINGLE_PRODUCT_NAME}".</FormDescription></FormItem>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormField
-                      control={form.control}
-                      name="numberOfUnits"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Número de Unidades ({SINGLE_PRODUCT_NAME})</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              placeholder="p. ej., 100"
-                              {...field}
-                              onChange={event => {
-                                const val = event.target.value;
-                                field.onChange(val === "" ? undefined : parseInt(val, 10));
-                              }}
-                              value={field.value === undefined ? '' : field.value}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="unitPrice"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Precio Unitario (€ sin IVA)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              placeholder="p. ej., 15.50"
-                              {...field}
-                               onChange={event => {
-                                const val = event.target.value;
-                                field.onChange(val === "" ? undefined : parseFloat(val));
-                              }}
-                              value={field.value === undefined ? '' : field.value}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades ({SINGLE_PRODUCT_NAME})</FormLabel><FormControl><Input type="number" placeholder="p. ej., 100" {...field} onChange={event => { const val = event.target.value; field.onChange(val === "" ? undefined : parseInt(val, 10));}} value={field.value === undefined ? '' : field.value} /></FormControl><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="p. ej., 15.50" {...field} onChange={event => { const val = event.target.value; field.onChange(val === "" ? undefined : parseFloat(val));}} value={field.value === undefined ? '' : field.value} /></FormControl><FormMessage /></FormItem>)}/>
                   </div>
-
-                  <FormItem>
-                    <FormLabel>Subtotal (€)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        readOnly
-                        disabled
-                        className="bg-muted/50"
-                        value={subtotal === undefined ? '' : subtotal.toFixed(2)}
-                        placeholder="Cálculo automático"
-                      />
-                    </FormControl>
-                  </FormItem>
-
-                  <FormItem>
-                    <FormLabel>IVA ({IVA_RATE}%) (€)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        readOnly
-                        disabled
-                        className="bg-muted/50"
-                        value={ivaAmount === undefined ? '' : ivaAmount.toFixed(2)}
-                        placeholder="Cálculo automático"
-                      />
-                    </FormControl>
-                  </FormItem>
-                  
-                  <FormField
-                    control={form.control}
-                    name="orderValue"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Valor Total del Pedido (€ con IVA)</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="Cálculo automático"
-                            {...field}
-                            readOnly
-                            disabled
-                            className="bg-muted/50"
-                            value={field.value === undefined ? '' : field.value.toFixed(2)}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
+                  <FormItem><FormLabel>Subtotal (€)</FormLabel><FormControl><Input type="number" readOnly disabled className="bg-muted/50" value={subtotal === undefined ? '' : subtotal.toFixed(2)} placeholder="Cálculo automático"/></FormControl></FormItem>
+                  <FormItem><FormLabel>IVA ({IVA_RATE}%) (€)</FormLabel><FormControl><Input type="number" readOnly disabled className="bg-muted/50" value={ivaAmount === undefined ? '' : ivaAmount.toFixed(2)} placeholder="Cálculo automático"/></FormControl></FormItem>
+                  <FormField control={form.control} name="orderValue" render={({ field }) => (<FormItem><FormLabel>Valor Total del Pedido (€ con IVA)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Cálculo automático" {...field} readOnly disabled className="bg-muted/50" value={field.value === undefined ? '' : field.value.toFixed(2)}/></FormControl><FormMessage /></FormItem>)}/>
                   <Separator className="my-6" />
-                  <div className="space-y-1">
-                    <h3 className="text-lg font-medium">Información de Alta del Cliente</h3>
-                    <p className="text-sm text-muted-foreground">Complete estos datos si es un cliente nuevo o necesita actualizar la información. Rellenar el nombre fiscal contará como una nueva cuenta.</p>
-                  </div>
-
-                  <FormField
-                    control={form.control}
-                    name="nombreFiscal"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nombre Fiscal</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Nombre legal completo de la empresa" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="cif"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>CIF</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Número de Identificación Fiscal" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="direccionFiscal"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Dirección Fiscal</FormLabel>
-                        <FormControl>
-                          <Textarea placeholder="Calle, número, piso, ciudad, código postal, provincia" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="direccionEntrega"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Dirección de Entrega</FormLabel>
-                        <FormControl>
-                          <Textarea placeholder="Si es diferente a la fiscal: calle, número, piso, ciudad, código postal, provincia" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <div className="space-y-1"><h3 className="text-lg font-medium">Información de Alta del Cliente</h3><p className="text-sm text-muted-foreground">Complete estos datos si es un cliente nuevo o necesita actualizar la información. Rellenar el nombre fiscal contará como una nueva cuenta.</p></div>
+                  <FormField control={form.control} name="nombreFiscal" render={({ field }) => (<FormItem><FormLabel>Nombre Fiscal</FormLabel><FormControl><Input placeholder="Nombre legal completo de la empresa" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                  <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF</FormLabel><FormControl><Input placeholder="Número de Identificación Fiscal" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                  <FormField control={form.control} name="direccionFiscal" render={({ field }) => (<FormItem><FormLabel>Dirección Fiscal</FormLabel><FormControl><Textarea placeholder="Calle, número, piso, ciudad, código postal, provincia" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                  <FormField control={form.control} name="direccionEntrega" render={({ field }) => (<FormItem><FormLabel>Dirección de Entrega</FormLabel><FormControl><Textarea placeholder="Si es diferente a la fiscal: calle, número, piso, ciudad, código postal, provincia" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                  <Separator className="my-4" /><h4 className="text-md font-medium mb-2">Datos de Contacto</h4>
+                  <FormField control={form.control} name="contactoNombre" render={({ field }) => (<FormItem><FormLabel>Nombre de Contacto</FormLabel><FormControl><Input placeholder="Persona de contacto principal" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                  <FormField control={form.control} name="contactoCorreo" render={({ field }) => (<FormItem><FormLabel>Correo Electrónico de Contacto</FormLabel><FormControl><Input type="email" placeholder="ejemplo@empresa.com" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                  <FormField control={form.control} name="contactoTelefono" render={({ field }) => (<FormItem><FormLabel>Teléfono de Contacto</FormLabel><FormControl><Input type="tel" placeholder="Número de teléfono" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                   <Separator className="my-4" />
-                   <h4 className="text-md font-medium mb-2">Datos de Contacto</h4>
+                  <FormField control={form.control} name="observacionesAlta" render={({ field }) => (<FormItem><FormLabel>Observaciones (Alta Cliente)</FormLabel><FormControl><Textarea placeholder="Cualquier detalle adicional para el alta del cliente..." {...field} /></FormControl><FormDescription>Este campo es opcional.</FormDescription><FormMessage /></FormItem>)}/>
+                </>
+              )}
+
+              {/* Fields for Follow-up or Failed Outcome */}
+              {(outcome === "follow-up" || outcome === "failed") && (
+                <>
+                  <Separator className="my-6" />
+                  <div className="space-y-1"><h3 className="text-lg font-medium">Plan de Seguimiento</h3></div>
                   <FormField
                     control={form.control}
-                    name="contactoNombre"
+                    name="nextActionType"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Nombre de Contacto</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Persona de contacto principal" {...field} />
-                        </FormControl>
+                        <FormLabel>Próxima Acción</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl><SelectTrigger><SelectValue placeholder="Seleccione una próxima acción" /></SelectTrigger></FormControl>
+                          <SelectContent>{nextActionTypeList.map(action => (<SelectItem key={action} value={action}>{action}</SelectItem>))}</SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+                  {nextActionType === "Opción personalizada" && (
+                    <FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Detalle Próxima Acción Personalizada</FormLabel><FormControl><Input placeholder="Especifique la acción" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  )}
                   <FormField
                     control={form.control}
-                    name="contactoCorreo"
+                    name="nextActionDate"
                     render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Correo Electrónico de Contacto</FormLabel>
-                        <FormControl>
-                          <Input type="email" placeholder="ejemplo@empresa.com" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="contactoTelefono"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Teléfono de Contacto</FormLabel>
-                        <FormControl>
-                          <Input type="tel" placeholder="Número de teléfono" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                   <Separator className="my-4" />
-                  <FormField
-                    control={form.control}
-                    name="observacionesAlta"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Observaciones (Alta Cliente)</FormLabel>
-                        <FormControl>
-                          <Textarea placeholder="Cualquier detalle adicional para el alta del cliente..." {...field} />
-                        </FormControl>
-                        <FormDescription>Este campo es opcional.</FormDescription>
+                      <FormItem className="flex flex-col">
+                        <FormLabel>Fecha Tentativa Próxima Acción (Opcional)</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal",!field.value && "text-muted-foreground")}>
+                                {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione una fecha</span>}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus locale={es} />
+                          </PopoverContent>
+                        </Popover>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -637,46 +424,35 @@ export default function OrderFormPage() {
                 </>
               )}
 
+              {/* Additional Fields for Failed Outcome */}
               {outcome === "failed" && (
-                <FormField
-                  control={form.control}
-                  name="reasonForFailure"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Motivo del Fallo / Sin Pedido</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="p. ej., Precio demasiado alto, ya abastecido..." {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
+                <>
+                  <Separator className="my-4" />
+                  <div className="space-y-1"><h3 className="text-lg font-medium">Detalles del Fallo</h3></div>
+                  <FormField
+                    control={form.control}
+                    name="failureReasonType"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Motivo del Fallo</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl><SelectTrigger><SelectValue placeholder="Seleccione un motivo" /></SelectTrigger></FormControl>
+                          <SelectContent>{failureReasonList.map(reason => (<SelectItem key={reason} value={reason}>{reason}</SelectItem>))}</SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {failureReasonType === "Otro (especificar)" && (
+                    <FormField control={form.control} name="failureReasonCustom" render={({ field }) => (<FormItem><FormLabel>Detalle Motivo del Fallo Personalizado</FormLabel><FormControl><Textarea placeholder="Especifique el motivo" {...field} /></FormControl><FormMessage /></FormItem>)} />
                   )}
-                />
+                </>
               )}
-
-              <FormField
-                control={form.control}
-                name="notes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Notas Adicionales Generales</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Cualquier otra información relevante sobre la visita o pedido..." {...field} />
-                    </FormControl>
-                     <FormDescription>Notas generales sobre la visita, independientemente del resultado.</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-               <CardFooter className="p-0 pt-4">
+              
+              <FormField control={form.control} name="notes" render={({ field }) => (<FormItem><FormLabel>Notas Adicionales Generales</FormLabel><FormControl><Textarea placeholder="Cualquier otra información relevante sobre la visita o pedido..." {...field} /></FormControl><FormDescription>Notas generales sobre la visita, independientemente del resultado.</FormDescription><FormMessage /></FormItem>)}/>
+              <CardFooter className="p-0 pt-4">
                 <Button type="submit" className="w-full" disabled={isSubmitting || !teamMember}>
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Enviando...
-                    </>
-                  ) : (
-                    "Enviar Registro"
-                  )}
+                  {isSubmitting ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Enviando...</>) : ("Enviar Registro")}
                 </Button>
               </CardFooter>
             </form>
@@ -686,6 +462,3 @@ export default function OrderFormPage() {
     </div>
   );
 }
-
-
-    

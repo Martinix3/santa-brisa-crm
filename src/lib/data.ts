@@ -1,5 +1,5 @@
 
-import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType, Account, AccountType, AccountStatus } from '@/types';
+import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType, Account, AccountType, AccountStatus, NextActionType, FailureReasonType } from '@/types';
 import { Package, Users, ShoppingBag, BarChart3 } from 'lucide-react';
 
 export const mockKpis: Kpi[] = [
@@ -48,8 +48,12 @@ export const mockTeamMembers: TeamMember[] = [
   }
 ];
 
-export const orderStatusesList: OrderStatus[] = ['Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Cancelado', 'Fallido'];
+export const orderStatusesList: OrderStatus[] = ['Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Cancelado', 'Fallido', 'Seguimiento'];
 export const clientTypeList: ClientType[] = ['Distribuidor', 'HORECA', 'Retail', 'Cliente Final'];
+
+export const nextActionTypeList: NextActionType[] = ['Llamar al responsable de compras', 'Mandar información', 'Visitar de nuevo', 'Enviar muestra', 'Esperar decisión', 'Opción personalizada'];
+export const failureReasonList: FailureReasonType[] = ['No interesado', 'Ya trabaja con otro proveedor', 'Sin presupuesto', 'Producto no encaja', 'Otro (especificar)'];
+
 
 export const mockOrders: Order[] = [];
 
@@ -104,7 +108,7 @@ export const mockAccounts: Account[] = [
     mainContactEmail: 'ana.perez@solnaciente.es',
     mainContactPhone: '+34 912 345 678',
     notes: 'Cliente leal, pedidos semanales. Interesado en nuevas promociones.',
-    salesRepId: 'tm1', // Nico
+    salesRepId: 'tm1', 
     createdAt: '2023-01-15',
     updatedAt: '2024-05-10',
   },
@@ -121,7 +125,7 @@ export const mockAccounts: Account[] = [
     mainContactEmail: 'compras@gourmetdelsur.com',
     mainContactPhone: '+34 954 123 456',
     notes: 'Distribuidor principal para Andalucía. Gran volumen.',
-    salesRepId: 'tm2', // Alfonso
+    salesRepId: 'tm2', 
     createdAt: '2022-11-01',
     updatedAt: '2024-04-20',
   },
@@ -137,7 +141,7 @@ export const mockAccounts: Account[] = [
     mainContactEmail: 'lucia.garcia@delicatessenhg.es',
     mainContactPhone: '+34 980 555 666',
     notes: 'Mostraron interés en la feria. Contactar para seguimiento.',
-    salesRepId: 'tm3', // Federica
+    salesRepId: 'tm3', 
     createdAt: '2024-03-01',
     updatedAt: '2024-05-15',
   },

@@ -32,16 +32,16 @@ import { kpiDataLaunch } from "@/lib/launch-dashboard-data";
 import type { Order, ClientType } from "@/types";
 
 const SINGLE_PRODUCT_NAME = "Santa Brisa 750ml";
+const IVA_RATE = 21; // 21%
 
 const orderFormSchema = z.object({
   clientName: z.string().min(2, "El nombre del cliente debe tener al menos 2 caracteres."),
   visitDate: z.date({ required_error: "La fecha de visita es obligatoria." }),
   outcome: z.enum(["successful", "failed", "follow-up"], { required_error: "Por favor, seleccione un resultado." }),
   clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
-  // productsOrdered: z.string().optional(), // No longer a direct input for successful orders
   numberOfUnits: z.coerce.number().positive("El número de unidades debe ser un número positivo.").optional(),
   unitPrice: z.coerce.number().positive("El precio unitario debe ser un número positivo.").optional(),
-  orderValue: z.coerce.number().positive("El valor del pedido debe ser positivo.").optional(),
+  orderValue: z.coerce.number().positive("El valor del pedido debe ser positivo.").optional(), // Incluye IVA
   reasonForFailure: z.string().optional(),
   nombreFiscal: z.string().optional(),
   cif: z.string().optional(),
@@ -61,7 +61,6 @@ const orderFormSchema = z.object({
         path: ["clientType"],
       });
     }
-    // productsOrdered is now handled implicitly by numberOfUnits for the single product
     if (data.numberOfUnits === undefined || data.numberOfUnits <= 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -76,11 +75,10 @@ const orderFormSchema = z.object({
         path: ["unitPrice"],
       });
     }
-    // Order value is auto-calculated but should still be positive if units and price are set
     if ((data.numberOfUnits && data.unitPrice) && (data.orderValue === undefined || data.orderValue <= 0)) {
         ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: "El valor del pedido calculado debe ser positivo.",
+            message: "El valor del pedido calculado (con IVA) debe ser positivo.",
             path: ["orderValue"],
         });
     }
@@ -126,6 +124,8 @@ type OrderFormValues = z.infer<typeof orderFormSchema>;
 export default function OrderFormPage() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [subtotal, setSubtotal] = React.useState<number | undefined>(undefined);
+  const [ivaAmount, setIvaAmount] = React.useState<number | undefined>(undefined);
 
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(orderFormSchema),
@@ -134,10 +134,9 @@ export default function OrderFormPage() {
       visitDate: undefined,
       outcome: undefined,
       clientType: undefined,
-      // productsOrdered: "", // Removed
       numberOfUnits: undefined,
       unitPrice: undefined,
-      orderValue: undefined,
+      orderValue: undefined, // Este será el total con IVA
       reasonForFailure: "",
       nombreFiscal: "",
       cif: "",
@@ -157,29 +156,37 @@ export default function OrderFormPage() {
 
   React.useEffect(() => {
     if (outcome === "successful" && typeof numberOfUnits === 'number' && typeof unitPrice === 'number' && numberOfUnits > 0 && unitPrice > 0) {
-      const calculatedOrderValue = parseFloat((numberOfUnits * unitPrice).toFixed(2));
-      form.setValue("orderValue", calculatedOrderValue, { shouldValidate: true });
+      const calculatedSubtotal = numberOfUnits * unitPrice;
+      const calculatedIvaAmount = calculatedSubtotal * (IVA_RATE / 100);
+      const calculatedTotalValue = calculatedSubtotal + calculatedIvaAmount;
+      
+      form.setValue("orderValue", parseFloat(calculatedTotalValue.toFixed(2)), { shouldValidate: true });
+      setSubtotal(parseFloat(calculatedSubtotal.toFixed(2)));
+      setIvaAmount(parseFloat(calculatedIvaAmount.toFixed(2)));
+
     } else if (outcome === "successful") {
-       form.setValue("orderValue", undefined); // Clear if inputs are not valid for calculation
+       form.setValue("orderValue", undefined);
+       setSubtotal(undefined);
+       setIvaAmount(undefined);
     }
-  }, [numberOfUnits, unitPrice, outcome, form]);
+  }, [numberOfUnits, unitPrice, outcome, form, setSubtotal, setIvaAmount]);
 
   async function onSubmit(values: OrderFormValues) {
     setIsSubmitting(true);
     await new Promise(resolve => setTimeout(resolve, 1500));
 
     if (values.outcome === "successful" && values.visitDate && values.orderValue && values.clientType && values.numberOfUnits && values.unitPrice) {
-      const numberOfBottles = values.numberOfUnits; // Directly use numberOfUnits as bottles
+      const numberOfBottles = values.numberOfUnits;
 
       const newOrder: Order = {
         id: `ORD${Date.now()}`,
         clientName: values.clientName,
         visitDate: format(values.visitDate, "yyyy-MM-dd"),
         clientType: values.clientType,
-        products: [SINGLE_PRODUCT_NAME], // Single product
+        products: [SINGLE_PRODUCT_NAME], 
         numberOfUnits: values.numberOfUnits,
         unitPrice: values.unitPrice,
-        value: values.orderValue,
+        value: values.orderValue, // Este valor ya incluye IVA
         status: 'Confirmado', 
         salesRep: 'Nico', 
         lastUpdated: format(new Date(), "yyyy-MM-dd"),
@@ -232,7 +239,7 @@ export default function OrderFormPage() {
         const salesRepToUpdate = 'Nico';
         const memberIndex = mockTeamMembers.findIndex(m => m.name === salesRepToUpdate);
         if (memberIndex !== -1 && values.outcome === "failed") {
-            // mockTeamMembers[memberIndex].visits += 1; // Decide if non-successful also count
+            // mockTeamMembers[memberIndex].visits += 1; 
         }
       console.log(values); 
       toast({
@@ -251,10 +258,11 @@ export default function OrderFormPage() {
     form.setValue("visitDate", undefined);
     form.setValue("outcome", undefined);
     form.setValue("clientType", undefined);
-    // form.setValue("productsOrdered", ""); // Removed
     form.setValue("numberOfUnits", undefined);
     form.setValue("unitPrice", undefined);
     form.setValue("orderValue", undefined);
+    setSubtotal(undefined);
+    setIvaAmount(undefined);
     setIsSubmitting(false);
   }
 
@@ -432,7 +440,7 @@ export default function OrderFormPage() {
                       name="unitPrice"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Precio Unitario (€)</FormLabel>
+                          <FormLabel>Precio Unitario (€ sin IVA)</FormLabel>
                           <FormControl>
                             <Input
                               type="number"
@@ -451,17 +459,46 @@ export default function OrderFormPage() {
                       )}
                     />
                   </div>
+
+                  <FormItem>
+                    <FormLabel>Subtotal (€)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        readOnly
+                        disabled
+                        className="bg-muted/50"
+                        value={subtotal === undefined ? '' : subtotal.toFixed(2)}
+                        placeholder="Cálculo automático"
+                      />
+                    </FormControl>
+                  </FormItem>
+
+                  <FormItem>
+                    <FormLabel>IVA ({IVA_RATE}%) (€)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        readOnly
+                        disabled
+                        className="bg-muted/50"
+                        value={ivaAmount === undefined ? '' : ivaAmount.toFixed(2)}
+                        placeholder="Cálculo automático"
+                      />
+                    </FormControl>
+                  </FormItem>
+                  
                   <FormField
                     control={form.control}
                     name="orderValue"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Valor Total del Pedido (€)</FormLabel>
+                        <FormLabel>Valor Total del Pedido (€ con IVA)</FormLabel>
                         <FormControl>
                           <Input
                             type="number"
                             step="0.01"
-                            placeholder="Calculado automáticamente"
+                            placeholder="Cálculo automático"
                             {...field}
                             readOnly
                             disabled
@@ -641,3 +678,5 @@ export default function OrderFormPage() {
   );
 }
 
+
+    

@@ -30,7 +30,7 @@ export interface TeamMember {
   performanceData?: { month: string; bottles: number }[];
 }
 
-export type OrderStatus = 'Pendiente' | 'Confirmado' | 'Procesando' | 'Enviado' | 'Entregado' | 'Cancelado' | 'Fallido' | 'Seguimiento';
+export type OrderStatus = 'Pendiente' | 'Confirmado' | 'Procesando' | 'Enviado' | 'Entregado' | 'Cancelado' | 'Fallido' | 'Seguimiento' | 'Programada';
 export type ClientType = 'Distribuidor' | 'HORECA' | 'Retail' | 'Cliente Final';
 
 // New types for follow-up and failure reasons

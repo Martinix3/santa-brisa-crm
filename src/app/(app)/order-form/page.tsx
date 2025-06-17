@@ -25,13 +25,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { es } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Check, Loader2, Info } from "lucide-react";
+import { Calendar as CalendarIcon, Check, Loader2, Info, Edit3 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { mockOrders, mockTeamMembers, clientTypeList, nextActionTypeList, failureReasonList, mockAccounts } from "@/lib/data";
+import { mockOrders, mockTeamMembers, clientTypeList, nextActionTypeList, failureReasonList, mockAccounts, orderStatusesList } from "@/lib/data";
 import { kpiDataLaunch } from "@/lib/launch-dashboard-data";
-import type { Order, ClientType, NextActionType, FailureReasonType, Account, AccountType } from "@/types";
+import type { Order, ClientType, NextActionType, FailureReasonType, Account, AccountType, OrderStatus } from "@/types";
 import { useAuth } from "@/contexts/auth-context"; 
+import { useSearchParams, useRouter } from "next/navigation";
 
 const SINGLE_PRODUCT_NAME = "Santa Brisa 750ml";
 const IVA_RATE = 21; // 21%
@@ -39,8 +40,8 @@ const IVA_RATE = 21; // 21%
 const orderFormSchemaBase = z.object({
   clientName: z.string().min(2, "El nombre del cliente debe tener al menos 2 caracteres."),
   visitDate: z.date({ required_error: "La fecha de visita es obligatoria." }),
-  clientStatus: z.enum(["new", "existing"], { required_error: "Debe indicar si es un cliente nuevo o existente." }),
-  outcome: z.enum(["successful", "failed", "follow-up"], { required_error: "Por favor, seleccione un resultado." }),
+  clientStatus: z.enum(["new", "existing"], { required_error: "Debe indicar si es un cliente nuevo o existente." }).optional(), // Optional for "Programar Visita"
+  outcome: z.enum(["Programar Visita", "successful", "failed", "follow-up"], { required_error: "Por favor, seleccione un resultado." }),
   
   // Fields for successful outcome
   clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
@@ -63,11 +64,14 @@ const orderFormSchemaBase = z.object({
   failureReasonType: z.enum(failureReasonList as [FailureReasonType, ...FailureReasonType[]]).optional(),
   failureReasonCustom: z.string().optional(),
   
-  notes: z.string().optional(),
+  notes: z.string().optional(), // General notes, can be used for "Objetivo de la visita"
 });
 
 const orderFormSchema = orderFormSchemaBase.superRefine((data, ctx) => {
   if (data.outcome === "successful") {
+    if (!data.clientStatus) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Debe indicar si es cliente nuevo o existente.", path: ["clientStatus"] });
+    }
     if (!data.clientType) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El tipo de cliente es obligatorio.", path: ["clientType"] });
     }
@@ -80,7 +84,6 @@ const orderFormSchema = orderFormSchemaBase.superRefine((data, ctx) => {
     if ((data.numberOfUnits && data.unitPrice) && (data.orderValue === undefined || data.orderValue <= 0)) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El valor del pedido calculado debe ser positivo.", path: ["orderValue"] });
     }
-    // Billing/Account info mandatory only if clientStatus is "new" and outcome is "successful"
     if (data.clientStatus === "new") {
       if (!data.nombreFiscal || data.nombreFiscal.trim() === "") {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El nombre fiscal es obligatorio para un cliente nuevo.", path: ["nombreFiscal"] });
@@ -112,6 +115,9 @@ const orderFormSchema = orderFormSchemaBase.superRefine((data, ctx) => {
   }
 
   if (data.outcome === "failed" || data.outcome === "follow-up") {
+     if (!data.clientStatus) { // Also require clientStatus for these outcomes
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Debe indicar si es cliente nuevo o existente.", path: ["clientStatus"] });
+    }
     if (!data.nextActionType) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La próxima acción es obligatoria.", path: ["nextActionType"] });
     }
@@ -128,6 +134,7 @@ const orderFormSchema = orderFormSchemaBase.superRefine((data, ctx) => {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Debe especificar el motivo del fallo personalizado.", path: ["failureReasonCustom"] });
     }
   }
+  // No specific field validations for "Programar Visita" beyond clientName and visitDate (handled by base schema)
 });
 
 
@@ -136,15 +143,20 @@ type OrderFormValues = z.infer<typeof orderFormSchema>;
 export default function OrderFormPage() {
   const { toast } = useToast();
   const { teamMember, userRole } = useAuth(); 
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [editingVisitId, setEditingVisitId] = React.useState<string | null>(null);
+  
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [subtotal, setSubtotal] = React.useState<number | undefined>(undefined);
   const [ivaAmount, setIvaAmount] = React.useState<number | undefined>(undefined);
+  const [pageTitle, setPageTitle] = React.useState("Registrar Visita / Pedido de Cliente");
 
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(orderFormSchema),
     defaultValues: {
       clientName: "",
-      visitDate: undefined,
+      visitDate: new Date(), // Default to today
       clientStatus: undefined,
       outcome: undefined,
       clientType: undefined,
@@ -167,6 +179,44 @@ export default function OrderFormPage() {
       notes: "",
     },
   });
+
+  React.useEffect(() => {
+    const visitIdToUpdate = searchParams.get('updateVisitId');
+    if (visitIdToUpdate) {
+      const existingVisit = mockOrders.find(o => o.id === visitIdToUpdate && o.status === 'Programada');
+      if (existingVisit && teamMember && (existingVisit.salesRep === teamMember.name || userRole === 'Admin')) {
+        setEditingVisitId(visitIdToUpdate);
+        setPageTitle(`Registrar Resultado: ${existingVisit.clientName} (${format(new Date(existingVisit.visitDate), "dd/MM/yy")})`);
+        form.reset({
+          clientName: existingVisit.clientName,
+          visitDate: new Date(existingVisit.visitDate),
+          clientStatus: undefined, // User will specify if new/existing now
+          outcome: undefined, // User will select outcome
+          notes: existingVisit.notes || "", // Carry over programming notes
+          // Other fields remain default or will be filled by user
+        });
+      } else if (existingVisit) {
+         toast({ title: "Acceso Denegado", description: "No tienes permiso para actualizar esta visita o ya ha sido procesada.", variant: "destructive"});
+         router.push("/dashboard"); // Or to an appropriate page
+      } else {
+        toast({ title: "Error", description: "Visita programada no encontrada o ya procesada.", variant: "destructive"});
+        router.push("/dashboard");
+      }
+    } else {
+        setEditingVisitId(null);
+        setPageTitle("Registrar Visita / Pedido de Cliente");
+        form.reset({ // Reset to complete defaults if not editing
+            clientName: "",
+            visitDate: new Date(),
+            clientStatus: undefined,
+            outcome: undefined,
+            clientType: undefined,
+            notes: "", // Clear notes for new entry
+            // ... other fields to default
+        });
+    }
+  }, [searchParams, form, teamMember, userRole, router, toast]);
+
 
   const outcomeWatched = form.watch("outcome");
   const clientStatusWatched = form.watch("clientStatus");
@@ -195,7 +245,7 @@ export default function OrderFormPage() {
 
   async function onSubmit(values: OrderFormValues) {
     setIsSubmitting(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     if (!teamMember) {
         toast({ title: "Error", description: "No se pudo identificar al usuario. Por favor, recargue la página.", variant: "destructive" });
@@ -207,237 +257,277 @@ export default function OrderFormPage() {
     const currentDate = format(new Date(), "yyyy-MM-dd");
     let accountCreationMessage = "";
 
-    if (values.outcome === "successful" && values.visitDate && values.orderValue && values.clientType && values.numberOfUnits && values.unitPrice) {
-      const numberOfBottles = values.numberOfUnits;
-      let accountDetailsForOrder: Partial<Order> = {};
+    // ---- Logic for Updating an Existing Programmed Visit ----
+    if (editingVisitId) {
+        const visitIndex = mockOrders.findIndex(o => o.id === editingVisitId);
+        if (visitIndex === -1) {
+            toast({ title: "Error", description: "No se pudo encontrar la visita programada para actualizar.", variant: "destructive" });
+            setIsSubmitting(false);
+            return;
+        }
+        const originalVisit = mockOrders[visitIndex];
 
-      if (values.clientStatus === "new" && values.cif && values.nombreFiscal) {
-        const existingAccountByCif = mockAccounts.find(acc => acc.cif.toLowerCase() === values.cif!.toLowerCase());
+        // Common updates
+        let updatedVisitData: Partial<Order> = {
+            lastUpdated: currentDate,
+            // notes: values.notes, // Keep or merge notes as needed
+        };
 
-        if (!existingAccountByCif) {
-          const newAccount: Account = {
-              id: `acc_${Date.now()}`,
-              name: values.clientName, 
-              legalName: values.nombreFiscal,
-              cif: values.cif,
-              type: values.clientType as AccountType, 
-              status: 'Activo',
-              addressBilling: values.direccionFiscal,
-              addressShipping: values.direccionEntrega,
-              mainContactName: values.contactoNombre,
-              mainContactEmail: values.contactoCorreo,
-              mainContactPhone: values.contactoTelefono,
-              notes: values.observacionesAlta,
-              salesRepId: teamMember.id,
-              createdAt: currentDate,
-              updatedAt: currentDate,
-          };
-          mockAccounts.unshift(newAccount);
-          accountCreationMessage = " Nueva cuenta creada.";
+        if (values.outcome === "successful" && values.clientStatus && values.visitDate && values.orderValue && values.clientType && values.numberOfUnits && values.unitPrice) {
+            updatedVisitData = {
+                ...updatedVisitData,
+                status: 'Confirmado',
+                clientType: values.clientType,
+                products: [SINGLE_PRODUCT_NAME],
+                numberOfUnits: values.numberOfUnits,
+                unitPrice: values.unitPrice,
+                value: values.orderValue,
+                notes: values.notes, // General notes for this outcome
+            };
+            
+            if (values.clientStatus === "new" && values.cif && values.nombreFiscal) {
+                // Account creation/check logic (same as new order)
+                const existingAccountByCif = mockAccounts.find(acc => acc.cif.toLowerCase() === values.cif!.toLowerCase());
+                if (!existingAccountByCif) {
+                  const newAccount: Account = {
+                      id: `acc_${Date.now()}`, name: values.clientName, legalName: values.nombreFiscal, cif: values.cif, type: values.clientType as AccountType, status: 'Activo',
+                      addressBilling: values.direccionFiscal, addressShipping: values.direccionEntrega, mainContactName: values.contactoNombre, mainContactEmail: values.contactoCorreo, mainContactPhone: values.contactoTelefono,
+                      notes: values.observacionesAlta, salesRepId: teamMember.id, createdAt: currentDate, updatedAt: currentDate,
+                  };
+                  mockAccounts.unshift(newAccount);
+                  accountCreationMessage = " Nueva cuenta creada.";
+                  const kpiCuentasAnual = kpiDataLaunch.find(k => k.id === 'kpi3'); if (kpiCuentasAnual) kpiCuentasAnual.currentValue += 1;
+                  const kpiCuentasMensual = kpiDataLaunch.find(k => k.id === 'kpi4'); if (kpiCuentasMensual) kpiCuentasMensual.currentValue += 1;
+                  updatedVisitData = {...updatedVisitData, nombreFiscal: newAccount.legalName, cif: newAccount.cif, /* ... other account fields */};
+                } else {
+                  accountCreationMessage = ` (Cuenta con CIF ${values.cif} ya existía).`;
+                  updatedVisitData = {...updatedVisitData, nombreFiscal: existingAccountByCif.legalName, cif: existingAccountByCif.cif, /* ... */};
+                }
+            } else if (values.clientStatus === "existing") {
+                 accountCreationMessage = " (Cliente existente).";
+                 const existingAccount = mockAccounts.find(acc => acc.name.toLowerCase() === values.clientName.toLowerCase());
+                 if(existingAccount) updatedVisitData = {...updatedVisitData, nombreFiscal: existingAccount.legalName, cif: existingAccount.cif, /* ... */};
+            }
 
-          const kpiCuentasAnual = kpiDataLaunch.find(k => k.id === 'kpi3');
-          if (kpiCuentasAnual) kpiCuentasAnual.currentValue += 1;
-          const kpiCuentasMensual = kpiDataLaunch.find(k => k.id === 'kpi4');
-          if (kpiCuentasMensual) kpiCuentasMensual.currentValue += 1;
+            // KPI updates for successful outcome
+            if (userRole === 'SalesRep') {
+                const memberIndex = mockTeamMembers.findIndex(m => m.id === teamMember.id);
+                if (memberIndex !== -1) {
+                  mockTeamMembers[memberIndex].bottlesSold = (mockTeamMembers[memberIndex].bottlesSold || 0) + values.numberOfUnits;
+                  mockTeamMembers[memberIndex].orders = (mockTeamMembers[memberIndex].orders || 0) + 1;
+                  // Visit already counted when programmed or if this is a direct successful registration.
+                  // If updating from "Programada", visit count doesn't change here again for this specific record.
+                }
+            }
+            const kpiVentasTotales = kpiDataLaunch.find(k => k.id === 'kpi1'); if (kpiVentasTotales) kpiVentasTotales.currentValue += values.numberOfUnits;
+            const kpiVentasEquipo = kpiDataLaunch.find(k => k.id === 'kpi2'); if (kpiVentasEquipo) kpiVentasEquipo.currentValue += values.numberOfUnits;
 
-           accountDetailsForOrder = { // Populate for the order object
-            nombreFiscal: newAccount.legalName,
-            cif: newAccount.cif,
-            direccionFiscal: newAccount.addressBilling,
-            direccionEntrega: newAccount.addressShipping,
-            contactoNombre: newAccount.mainContactName,
-            contactoCorreo: newAccount.mainContactEmail,
-            contactoTelefono: newAccount.mainContactPhone,
-            observacionesAlta: values.observacionesAlta,
-          };
+            toast({ title: "¡Resultado Registrado!", description: <div className="flex items-start"><Check className="h-5 w-5 text-green-500 mr-2 mt-1" /><p>Pedido para {values.clientName} registrado.{accountCreationMessage}</p></div> });
 
+        } else if (values.outcome === "follow-up" && values.clientStatus && values.visitDate && values.nextActionType) {
+            updatedVisitData = { ...updatedVisitData, status: 'Seguimiento', nextActionType: values.nextActionType, nextActionCustom: values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : undefined, nextActionDate: values.nextActionDate ? format(values.nextActionDate, "yyyy-MM-dd") : undefined, notes: values.notes };
+            toast({ title: "¡Seguimiento Registrado!", description: <div className="flex items-start"><Info className="h-5 w-5 text-blue-500 mr-2 mt-1" /><p>Seguimiento para {values.clientName} actualizado.</p></div> });
+        } else if (values.outcome === "failed" && values.clientStatus && values.visitDate && values.nextActionType && values.failureReasonType) {
+            updatedVisitData = { ...updatedVisitData, status: 'Fallido', nextActionType: values.nextActionType, nextActionCustom: values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : undefined, nextActionDate: values.nextActionDate ? format(values.nextActionDate, "yyyy-MM-dd") : undefined, failureReasonType: values.failureReasonType, failureReasonCustom: values.failureReasonType === 'Otro (especificar)' ? values.failureReasonCustom : undefined, notes: values.notes };
+            toast({ title: "¡Visita Fallida Registrada!", description: <div className="flex items-start"><Info className="h-5 w-5 text-orange-500 mr-2 mt-1" /><p>Visita fallida a {values.clientName} actualizada.</p></div> });
         } else {
-           accountCreationMessage = ` (La cuenta con CIF ${values.cif} ya existía, no se creó una nueva).`;
-           // Populate details from existing account for the order
-            accountDetailsForOrder = {
-                nombreFiscal: existingAccountByCif.legalName,
-                cif: existingAccountByCif.cif,
-                direccionFiscal: existingAccountByCif.addressBilling,
-                direccionEntrega: existingAccountByCif.addressShipping,
-                contactoNombre: existingAccountByCif.mainContactName,
-                contactoCorreo: existingAccountByCif.mainContactEmail,
-                contactoTelefono: existingAccountByCif.mainContactPhone,
+            toast({ title: "Error", description: "Resultado no válido para actualizar la visita.", variant: "destructive" });
+            setIsSubmitting(false);
+            return;
+        }
+        mockOrders[visitIndex] = { ...originalVisit, ...updatedVisitData, clientName: values.clientName, visitDate: format(values.visitDate, "yyyy-MM-dd") };
+
+    // ---- Logic for Creating a New Record (Programmed Visit OR Direct Result) ----
+    } else {
+        if (values.outcome === "Programar Visita" && values.visitDate) {
+            const newProgrammedVisit: Order = {
+                id: `VISPROG${Date.now()}`, clientName: values.clientName, visitDate: format(values.visitDate, "yyyy-MM-dd"),
+                status: 'Programada', salesRep: salesRepName, lastUpdated: currentDate, notes: values.notes,
             };
-        }
-      } else if (values.clientStatus === "existing") {
-        accountCreationMessage = " (Cliente existente, no se creó nueva cuenta).";
-        const existingAccount = mockAccounts.find(acc => acc.name.toLowerCase() === values.clientName.toLowerCase());
-        if (existingAccount) {
-             accountDetailsForOrder = {
-                nombreFiscal: existingAccount.legalName,
-                cif: existingAccount.cif,
-                direccionFiscal: existingAccount.addressBilling,
-                direccionEntrega: existingAccount.addressShipping,
-                contactoNombre: existingAccount.mainContactName,
-                contactoCorreo: existingAccount.mainContactEmail,
-                contactoTelefono: existingAccount.mainContactPhone,
+            mockOrders.unshift(newProgrammedVisit);
+            if (userRole === 'SalesRep') { // Count visit when programmed
+                const memberIndex = mockTeamMembers.findIndex(m => m.id === teamMember.id);
+                if (memberIndex !== -1) mockTeamMembers[memberIndex].visits = (mockTeamMembers[memberIndex].visits || 0) + 1;
+            }
+            toast({ title: "¡Visita Programada!", description: <div className="flex items-start"><CalendarIcon className="h-5 w-5 text-purple-500 mr-2 mt-1" /><p>Visita para {values.clientName} programada para el {format(values.visitDate, "dd/MM/yyyy")}.</p></div> });
+
+        } else if (values.outcome === "successful" && values.clientStatus && values.visitDate && values.orderValue && values.clientType && values.numberOfUnits && values.unitPrice) {
+          let accountDetailsForOrder: Partial<Order> = {};
+          if (values.clientStatus === "new" && values.cif && values.nombreFiscal) {
+            const existingAccountByCif = mockAccounts.find(acc => acc.cif.toLowerCase() === values.cif!.toLowerCase());
+            if (!existingAccountByCif) {
+              const newAccount: Account = {
+                  id: `acc_${Date.now()}`, name: values.clientName, legalName: values.nombreFiscal, cif: values.cif, type: values.clientType as AccountType, status: 'Activo',
+                  addressBilling: values.direccionFiscal, addressShipping: values.direccionEntrega, mainContactName: values.contactoNombre, mainContactEmail: values.contactoCorreo, mainContactPhone: values.contactoTelefono,
+                  notes: values.observacionesAlta, salesRepId: teamMember.id, createdAt: currentDate, updatedAt: currentDate,
+              };
+              mockAccounts.unshift(newAccount);
+              accountCreationMessage = " Nueva cuenta creada.";
+              const kpiCuentasAnual = kpiDataLaunch.find(k => k.id === 'kpi3'); if (kpiCuentasAnual) kpiCuentasAnual.currentValue += 1;
+              const kpiCuentasMensual = kpiDataLaunch.find(k => k.id === 'kpi4'); if (kpiCuentasMensual) kpiCuentasMensual.currentValue += 1;
+              accountDetailsForOrder = { nombreFiscal: newAccount.legalName, cif: newAccount.cif, direccionFiscal: newAccount.addressBilling, direccionEntrega: newAccount.addressShipping, contactoNombre: newAccount.mainContactName, contactoCorreo: newAccount.mainContactEmail, contactoTelefono: newAccount.mainContactPhone, observacionesAlta: values.observacionesAlta, };
+            } else {
+               accountCreationMessage = ` (La cuenta con CIF ${values.cif} ya existía).`;
+                accountDetailsForOrder = { nombreFiscal: existingAccountByCif.legalName, cif: existingAccountByCif.cif, direccionFiscal: existingAccountByCif.addressBilling, direccionEntrega: existingAccountByCif.addressShipping, contactoNombre: existingAccountByCif.mainContactName, contactoCorreo: existingAccountByCif.mainContactEmail, contactoTelefono: existingAccountByCif.mainContactPhone, };
+            }
+          } else if (values.clientStatus === "existing") {
+            accountCreationMessage = " (Cliente existente).";
+            const existingAccount = mockAccounts.find(acc => acc.name.toLowerCase() === values.clientName.toLowerCase());
+            if (existingAccount) accountDetailsForOrder = { nombreFiscal: existingAccount.legalName, cif: existingAccount.cif, direccionFiscal: existingAccount.addressBilling, direccionEntrega: existingAccount.addressShipping, contactoNombre: existingAccount.mainContactName, contactoCorreo: existingAccount.mainContactEmail, contactoTelefono: existingAccount.mainContactPhone, };
+          }
+
+          const newOrder: Order = {
+            id: `ORD${Date.now()}`, clientName: values.clientName, visitDate: format(values.visitDate, "yyyy-MM-dd"), clientType: values.clientType, products: [SINGLE_PRODUCT_NAME], 
+            numberOfUnits: values.numberOfUnits, unitPrice: values.unitPrice, value: values.orderValue, status: 'Confirmado', salesRep: salesRepName, lastUpdated: currentDate, ...accountDetailsForOrder, notes: values.notes,
+          };
+          mockOrders.unshift(newOrder);
+
+          if (userRole === 'SalesRep') {
+            const memberIndex = mockTeamMembers.findIndex(m => m.id === teamMember.id);
+            if (memberIndex !== -1) {
+              mockTeamMembers[memberIndex].bottlesSold = (mockTeamMembers[memberIndex].bottlesSold || 0) + values.numberOfUnits;
+              mockTeamMembers[memberIndex].orders = (mockTeamMembers[memberIndex].orders || 0) + 1;
+              mockTeamMembers[memberIndex].visits = (mockTeamMembers[memberIndex].visits || 0) + 1; 
+            }
+            const kpiVentasEquipo = kpiDataLaunch.find(k => k.id === 'kpi2'); if (kpiVentasEquipo) kpiVentasEquipo.currentValue += values.numberOfUnits;
+          }
+          const kpiVentasTotales = kpiDataLaunch.find(k => k.id === 'kpi1'); if (kpiVentasTotales) kpiVentasTotales.currentValue += values.numberOfUnits;
+          toast({ title: "¡Operación Registrada!", description: <div className="flex items-start"><Check className="h-5 w-5 text-green-500 mr-2 mt-1" /><p>Pedido {newOrder.id} para {newOrder.clientName} registrado.{accountCreationMessage}</p></div> });
+        
+        } else if (values.outcome === "follow-up" && values.clientStatus && values.visitDate && values.nextActionType) {
+            const newFollowUpEntry: Order = {
+                id: `VISFLW${Date.now()}`, clientName: values.clientName, visitDate: format(values.visitDate, "yyyy-MM-dd"), status: 'Seguimiento', salesRep: salesRepName, lastUpdated: currentDate,
+                nextActionType: values.nextActionType, nextActionCustom: values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : undefined, nextActionDate: values.nextActionDate ? format(values.nextActionDate, "yyyy-MM-dd") : undefined,
+                notes: values.notes, clientStatus: values.clientStatus, // Store clientStatus if provided
             };
+            mockOrders.unshift(newFollowUpEntry);
+            if (userRole === 'SalesRep') { const memberIndex = mockTeamMembers.findIndex(m => m.id === teamMember.id); if (memberIndex !== -1) mockTeamMembers[memberIndex].visits = (mockTeamMembers[memberIndex].visits || 0) + 1; }
+            toast({ title: "¡Seguimiento Registrado!", description: <div className="flex items-start"><Info className="h-5 w-5 text-blue-500 mr-2 mt-1" /><p>Seguimiento para {values.clientName} registrado.</p></div> });
+
+        } else if (values.outcome === "failed" && values.clientStatus && values.visitDate && values.nextActionType && values.failureReasonType) {
+            const newFailedEntry: Order = {
+                id: `VISFLD${Date.now()}`, clientName: values.clientName, visitDate: format(values.visitDate, "yyyy-MM-dd"), status: 'Fallido', salesRep: salesRepName, lastUpdated: currentDate,
+                nextActionType: values.nextActionType, nextActionCustom: values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : undefined, nextActionDate: values.nextActionDate ? format(values.nextActionDate, "yyyy-MM-dd") : undefined,
+                failureReasonType: values.failureReasonType, failureReasonCustom: values.failureReasonType === 'Otro (especificar)' ? values.failureReasonCustom : undefined,
+                notes: values.notes, clientStatus: values.clientStatus, // Store clientStatus if provided
+            };
+            mockOrders.unshift(newFailedEntry);
+            if (userRole === 'SalesRep') { const memberIndex = mockTeamMembers.findIndex(m => m.id === teamMember.id); if (memberIndex !== -1) mockTeamMembers[memberIndex].visits = (mockTeamMembers[memberIndex].visits || 0) + 1; }
+            toast({ title: "¡Visita Fallida Registrada!", description: <div className="flex items-start"><Info className="h-5 w-5 text-orange-500 mr-2 mt-1" /><p>Visita fallida a {values.clientName} registrada.</p></div> });
+        } else {
+            toast({ title: "Error de Envío", description: "Por favor, complete todos los campos obligatorios según el resultado seleccionado.", variant: "destructive" });
+            setIsSubmitting(false);
+            return;
         }
-      }
-
-
-      const newOrder: Order = {
-        id: `ORD${Date.now()}`,
-        clientName: values.clientName,
-        visitDate: format(values.visitDate, "yyyy-MM-dd"),
-        clientType: values.clientType,
-        products: [SINGLE_PRODUCT_NAME], 
-        numberOfUnits: values.numberOfUnits,
-        unitPrice: values.unitPrice,
-        value: values.orderValue, 
-        status: 'Confirmado', 
-        salesRep: salesRepName, 
-        lastUpdated: currentDate,
-        ...accountDetailsForOrder, // Add account details to the order
-        notes: values.notes,
-      };
-      mockOrders.unshift(newOrder);
-
-      if (userRole === 'SalesRep') {
-        const memberIndex = mockTeamMembers.findIndex(m => m.id === teamMember.id);
-        if (memberIndex !== -1) {
-          mockTeamMembers[memberIndex].bottlesSold = (mockTeamMembers[memberIndex].bottlesSold || 0) + numberOfBottles;
-          mockTeamMembers[memberIndex].orders = (mockTeamMembers[memberIndex].orders || 0) + 1;
-          mockTeamMembers[memberIndex].visits = (mockTeamMembers[memberIndex].visits || 0) + 1; 
-        }
-        const kpiVentasEquipo = kpiDataLaunch.find(k => k.id === 'kpi2');
-        if (kpiVentasEquipo) kpiVentasEquipo.currentValue += numberOfBottles;
-      }
-
-      const kpiVentasTotales = kpiDataLaunch.find(k => k.id === 'kpi1');
-      if (kpiVentasTotales) kpiVentasTotales.currentValue += numberOfBottles;
-      
-      let toastMessage = `Pedido ${newOrder.id} para ${newOrder.clientName} (por ${salesRepName}) registrado.` + accountCreationMessage;
-      toast({ title: "¡Operación Registrada!", description: <div className="flex items-start"><Check className="h-5 w-5 text-green-500 mr-2 mt-1" /><p>{toastMessage}</p></div>, variant: "default" });
-    
-    } else if (values.outcome === "follow-up" && values.visitDate && values.nextActionType) {
-        const newFollowUpEntry: Order = {
-            id: `VISFLW${Date.now()}`,
-            clientName: values.clientName,
-            visitDate: format(values.visitDate, "yyyy-MM-dd"),
-            status: 'Seguimiento',
-            salesRep: salesRepName,
-            lastUpdated: currentDate,
-            nextActionType: values.nextActionType,
-            nextActionCustom: values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : undefined,
-            nextActionDate: values.nextActionDate ? format(values.nextActionDate, "yyyy-MM-dd", {locale: es}) : undefined,
-            notes: values.notes,
-        };
-        mockOrders.unshift(newFollowUpEntry);
-        if (userRole === 'SalesRep') {
-            const memberIndex = mockTeamMembers.findIndex(m => m.id === teamMember.id);
-            if (memberIndex !== -1) mockTeamMembers[memberIndex].visits = (mockTeamMembers[memberIndex].visits || 0) + 1;
-        }
-        toast({ title: "¡Seguimiento Registrado!", description: <div className="flex items-start"><Info className="h-5 w-5 text-blue-500 mr-2 mt-1" /><p>Seguimiento para {values.clientName} registrado.</p></div> });
-
-    } else if (values.outcome === "failed" && values.visitDate && values.nextActionType && values.failureReasonType) {
-        const newFailedEntry: Order = {
-            id: `VISFLD${Date.now()}`,
-            clientName: values.clientName,
-            visitDate: format(values.visitDate, "yyyy-MM-dd"),
-            status: 'Fallido',
-            salesRep: salesRepName,
-            lastUpdated: currentDate,
-            nextActionType: values.nextActionType,
-            nextActionCustom: values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : undefined,
-            nextActionDate: values.nextActionDate ? format(values.nextActionDate, "yyyy-MM-dd", {locale: es}) : undefined,
-            failureReasonType: values.failureReasonType,
-            failureReasonCustom: values.failureReasonType === 'Otro (especificar)' ? values.failureReasonCustom : undefined,
-            notes: values.notes,
-        };
-        mockOrders.unshift(newFailedEntry);
-         if (userRole === 'SalesRep') {
-            const memberIndex = mockTeamMembers.findIndex(m => m.id === teamMember.id);
-            if (memberIndex !== -1) mockTeamMembers[memberIndex].visits = (mockTeamMembers[memberIndex].visits || 0) + 1;
-        }
-        toast({ title: "¡Visita Fallida Registrada!", description: <div className="flex items-start"><Info className="h-5 w-5 text-orange-500 mr-2 mt-1" /><p>Visita fallida a {values.clientName} registrada.</p></div> });
     }
 
-
-    form.reset();
-    form.setValue("visitDate", undefined);
-    form.setValue("clientStatus", undefined);
-    form.setValue("outcome", undefined);
+    form.reset({ // Reset to a clean state
+        clientName: "", visitDate: new Date(), clientStatus: undefined, outcome: undefined, notes: "",
+        // ... other fields to default
+    });
     setSubtotal(undefined);
     setIvaAmount(undefined);
     setIsSubmitting(false);
+    if (editingVisitId) router.push('/my-agenda'); // Redirect after updating
+    setEditingVisitId(null); // Clear editing ID
+    setPageTitle("Registrar Visita / Pedido de Cliente");
   }
 
   const showBillingInfo = outcomeWatched === "successful" && clientStatusWatched === "new";
+  const showClientStatusRadio = outcomeWatched !== "Programar Visita" && !editingVisitId; // Show client status only if not programming and not editing a programmed visit (where outcome changes this)
+  const showClientStatusRadioWhenEditingProgrammed = editingVisitId && outcomeWatched && outcomeWatched !== "Programar Visita";
+
+
+  const outcomeOptions = [
+    { value: "Programar Visita", label: "Programar Nueva Visita" },
+    { value: "successful", label: "Pedido Exitoso" },
+    { value: "failed", label: "Fallido / Sin Pedido" },
+    { value: "follow-up", label: "Requiere Seguimiento" },
+  ];
+
+  const outcomeOptionsWhenEditing = outcomeOptions.filter(opt => opt.value !== "Programar Visita");
+
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-headline font-semibold">Registrar Visita / Pedido de Cliente</h1>
+      <h1 className="text-3xl font-headline font-semibold">{pageTitle}</h1>
       <Card className="max-w-2xl mx-auto shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
-          <CardTitle>Detalles de la Visita al Cliente</CardTitle>
-          <CardDescription>Complete los detalles de la interacción con el cliente.</CardDescription>
+          <CardTitle>Detalles de la Interacción con el Cliente</CardTitle>
+          <CardDescription>
+            {editingVisitId 
+                ? "Actualice el resultado de la visita programada." 
+                : "Complete los detalles para registrar o programar una interacción."}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="p. ej., Café Central" {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="p. ej., Café Central" {...field} disabled={!!editingVisitId} /></FormControl><FormMessage /></FormItem>)} />
               <FormField
                 control={form.control}
                 name="visitDate"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Fecha de Visita</FormLabel>
+                    <FormLabel>Fecha de Visita / Programación</FormLabel>
                     <Popover>
                       <PopoverTrigger asChild>
                         <FormControl>
-                          <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                          <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")} disabled={!!editingVisitId}>
                             {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione una fecha</span>}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                           </Button>
                         </FormControl>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} initialFocus locale={es}/>
+                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={!!editingVisitId || ((date: Date) => date < new Date("2000-01-01"))} initialFocus locale={es}/>
                       </PopoverContent>
                     </Popover>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-               <FormField
-                control={form.control}
-                name="clientStatus"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tipo de Cliente (¿Nuevo o Existente?)</FormLabel>
-                    <FormControl>
-                      <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-col space-y-1 sm:flex-row sm:space-x-4 sm:space-y-0">
-                        <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="new" /></FormControl><FormLabel className="font-normal">Cliente Nuevo</FormLabel></FormItem>
-                        <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="existing" /></FormControl><FormLabel className="font-normal">Cliente Existente</FormLabel></FormItem>
-                      </RadioGroup>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              
               <FormField
                 control={form.control}
                 name="outcome"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Resultado de la Visita</FormLabel>
+                    <FormLabel>{editingVisitId ? "Resultado de la Visita Programada" : "Acción / Resultado de la Visita"}</FormLabel>
                     <FormControl>
-                      <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-col space-y-1">
-                        <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="successful" /></FormControl><FormLabel className="font-normal">Pedido Exitoso</FormLabel></FormItem>
-                        <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="failed" /></FormControl><FormLabel className="font-normal">Fallido / Sin Pedido</FormLabel></FormItem>
-                        <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="follow-up" /></FormControl><FormLabel className="font-normal">Requiere Seguimiento</FormLabel></FormItem>
+                      <RadioGroup onValueChange={field.onChange} value={field.value} className="flex flex-col space-y-1">
+                        {(editingVisitId ? outcomeOptionsWhenEditing : outcomeOptions).map(opt => (
+                            <FormItem key={opt.value} className="flex items-center space-x-3 space-y-0">
+                                <FormControl><RadioGroupItem value={opt.value} /></FormControl>
+                                <FormLabel className="font-normal">{opt.label}</FormLabel>
+                            </FormItem>
+                        ))}
                       </RadioGroup>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
+              {(showClientStatusRadio || showClientStatusRadioWhenEditingProgrammed) && outcomeWatched !== "Programar Visita" && (
+                 <FormField
+                    control={form.control}
+                    name="clientStatus"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>¿Es un cliente nuevo o existente?</FormLabel>
+                        <FormControl>
+                        <RadioGroup onValueChange={field.onChange} value={field.value} className="flex flex-col space-y-1 sm:flex-row sm:space-x-4 sm:space-y-0">
+                            <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="new" /></FormControl><FormLabel className="font-normal">Cliente Nuevo</FormLabel></FormItem>
+                            <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="existing" /></FormControl><FormLabel className="font-normal">Cliente Existente</FormLabel></FormItem>
+                        </RadioGroup>
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+              )}
+
 
               {/* Fields for Successful Outcome */}
               {outcomeWatched === "successful" && (
@@ -484,7 +574,7 @@ export default function OrderFormPage() {
               {(outcomeWatched === "follow-up" || outcomeWatched === "failed") && (
                 <>
                   <Separator className="my-6" />
-                  <div className="space-y-1"><h3 className="text-lg font-medium">Plan de Seguimiento</h3></div>
+                  <div className="space-y-1"><h3 className="text-lg font-medium">Plan de Seguimiento / Fallo</h3></div>
                   <FormField
                     control={form.control}
                     name="nextActionType"
@@ -531,7 +621,8 @@ export default function OrderFormPage() {
               {/* Additional Fields for Failed Outcome */}
               {outcomeWatched === "failed" && (
                 <>
-                  <Separator className="my-4" />
+                  {/* Separator already added above if also follow-up section is shown */}
+                  {outcomeWatched !== "follow-up" && <Separator className="my-4" />} 
                   <div className="space-y-1"><h3 className="text-lg font-medium">Detalles del Fallo</h3></div>
                   <FormField
                     control={form.control}
@@ -553,10 +644,10 @@ export default function OrderFormPage() {
                 </>
               )}
               
-              <FormField control={form.control} name="notes" render={({ field }) => (<FormItem><FormLabel>Notas Adicionales Generales</FormLabel><FormControl><Textarea placeholder="Cualquier otra información relevante sobre la visita o pedido..." {...field} /></FormControl><FormDescription>Notas generales sobre la visita, independientemente del resultado.</FormDescription><FormMessage /></FormItem>)}/>
+              <FormField control={form.control} name="notes" render={({ field }) => (<FormItem><FormLabel>{outcomeWatched === "Programar Visita" ? "Objetivo de la Visita / Comentarios de Programación (Opcional)" : "Notas Adicionales Generales"}</FormLabel><FormControl><Textarea placeholder={outcomeWatched === "Programar Visita" ? "Detalles sobre el propósito de la visita programada..." : "Cualquier otra información relevante sobre la visita o pedido..."} {...field} /></FormControl><FormMessage /></FormItem>)}/>
               <CardFooter className="p-0 pt-4">
                 <Button type="submit" className="w-full" disabled={isSubmitting || !teamMember}>
-                  {isSubmitting ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Enviando...</>) : ("Enviar Registro")}
+                  {isSubmitting ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Enviando...</>) : (editingVisitId ? "Guardar Resultado de Visita" : "Enviar Registro")}
                 </Button>
               </CardFooter>
             </form>
@@ -566,4 +657,3 @@ export default function OrderFormPage() {
     </div>
   );
 }
-

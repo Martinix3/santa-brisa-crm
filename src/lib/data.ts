@@ -58,7 +58,7 @@ export const mockTeamMembers: TeamMember[] = [
   }
 ];
 
-export const orderStatusesList: OrderStatus[] = ['Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Cancelado', 'Fallido', 'Seguimiento'];
+export const orderStatusesList: OrderStatus[] = ['Programada', 'Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Cancelado', 'Fallido', 'Seguimiento'];
 export const clientTypeList: ClientType[] = ['Distribuidor', 'HORECA', 'Retail', 'Cliente Final'];
 
 export const nextActionTypeList: NextActionType[] = ['Llamar al responsable de compras', 'Mandar información', 'Visitar de nuevo', 'Enviar muestra', 'Esperar decisión', 'Opción personalizada'];
@@ -179,7 +179,10 @@ mockTeamMembers.forEach(member => {
                 member.bottlesSold = (member.bottlesSold || 0) + record.numberOfUnits;
                 member.orders = (member.orders || 0) + 1;
             }
-            member.visits = (member.visits || 0) + 1; // Every record is a visit
+             // Count visit for any type of record (successful, follow-up, failed, programmed) linked to this sales rep
+            if (record.status !== 'Programada' || (record.status === 'Programada' && record.salesRep === member.name)) {
+                 member.visits = (member.visits || 0) + 1;
+            }
         });
     }
 });

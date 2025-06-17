@@ -17,6 +17,7 @@ const getOrderBadgeColorClass = (status: OrderStatus): string => {
     case 'Enviado': return 'bg-purple-500 hover:bg-purple-600 text-white';
     case 'Pendiente': return 'bg-yellow-400 hover:bg-yellow-500 text-black';
     case 'Procesando': return 'bg-orange-400 hover:bg-orange-500 text-black';
+    case 'Programada': return 'bg-sky-500 hover:bg-sky-600 text-white';
     case 'Cancelado':
     case 'Fallido': return 'bg-red-500 hover:bg-red-600 text-white';
     case 'Seguimiento': return 'bg-blue-500 hover:bg-blue-600 text-white';

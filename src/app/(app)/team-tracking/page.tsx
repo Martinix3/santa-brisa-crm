@@ -7,9 +7,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { TeamMember } from "@/types";
 import { mockTeamMembers } from "@/lib/data";
-import { Package, ShoppingCart, Users, Briefcase, Walking } from 'lucide-react'; // Added Briefcase, Walking
-import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
-import { Line, LineChart, ResponsiveContainer, Tooltip } from "recharts"; // Removed CartesianGrid, XAxis, YAxis
+import { Package, Briefcase, Footprints, Users } from 'lucide-react'; // Changed Walking to Footprints
+import { ChartContainer } from "@/components/ui/chart";
+import { Line, LineChart, ResponsiveContainer, Tooltip } from "recharts";
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
@@ -164,7 +164,7 @@ export default function TeamTrackingPage() {
         <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Visitas Equipo</CardTitle>
-            <Walking className="h-5 w-5 text-muted-foreground" />
+            <Footprints className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
@@ -176,3 +176,4 @@ export default function TeamTrackingPage() {
     </div>
   );
 }
+

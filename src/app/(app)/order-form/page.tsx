@@ -31,12 +31,14 @@ import { mockOrders, mockTeamMembers, clientTypeList } from "@/lib/data";
 import { kpiDataLaunch } from "@/lib/launch-dashboard-data";
 import type { Order, ClientType } from "@/types";
 
+const SINGLE_PRODUCT_NAME = "Santa Brisa 750ml";
+
 const orderFormSchema = z.object({
   clientName: z.string().min(2, "El nombre del cliente debe tener al menos 2 caracteres."),
   visitDate: z.date({ required_error: "La fecha de visita es obligatoria." }),
   outcome: z.enum(["successful", "failed", "follow-up"], { required_error: "Por favor, seleccione un resultado." }),
   clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
-  productsOrdered: z.string().optional(),
+  // productsOrdered: z.string().optional(), // No longer a direct input for successful orders
   numberOfUnits: z.coerce.number().positive("El número de unidades debe ser un número positivo.").optional(),
   unitPrice: z.coerce.number().positive("El precio unitario debe ser un número positivo.").optional(),
   orderValue: z.coerce.number().positive("El valor del pedido debe ser positivo.").optional(),
@@ -59,13 +61,7 @@ const orderFormSchema = z.object({
         path: ["clientType"],
       });
     }
-    if (!data.productsOrdered || data.productsOrdered.trim() === "") {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Los productos pedidos son obligatorios para un resultado exitoso.",
-        path: ["productsOrdered"],
-      });
-    }
+    // productsOrdered is now handled implicitly by numberOfUnits for the single product
     if (data.numberOfUnits === undefined || data.numberOfUnits <= 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -80,12 +76,13 @@ const orderFormSchema = z.object({
         path: ["unitPrice"],
       });
     }
-    if (data.orderValue === undefined || data.orderValue <= 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "El valor del pedido es obligatorio y debe ser positivo para un resultado exitoso.",
-        path: ["orderValue"],
-      });
+    // Order value is auto-calculated but should still be positive if units and price are set
+    if ((data.numberOfUnits && data.unitPrice) && (data.orderValue === undefined || data.orderValue <= 0)) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "El valor del pedido calculado debe ser positivo.",
+            path: ["orderValue"],
+        });
     }
     // Billing information
     if (!data.nombreFiscal || data.nombreFiscal.trim() === "") {
@@ -137,7 +134,7 @@ export default function OrderFormPage() {
       visitDate: undefined,
       outcome: undefined,
       clientType: undefined,
-      productsOrdered: "",
+      // productsOrdered: "", // Removed
       numberOfUnits: undefined,
       unitPrice: undefined,
       orderValue: undefined,
@@ -155,21 +152,31 @@ export default function OrderFormPage() {
   });
 
   const outcome = form.watch("outcome");
+  const numberOfUnits = form.watch("numberOfUnits");
+  const unitPrice = form.watch("unitPrice");
+
+  React.useEffect(() => {
+    if (outcome === "successful" && typeof numberOfUnits === 'number' && typeof unitPrice === 'number' && numberOfUnits > 0 && unitPrice > 0) {
+      const calculatedOrderValue = parseFloat((numberOfUnits * unitPrice).toFixed(2));
+      form.setValue("orderValue", calculatedOrderValue, { shouldValidate: true });
+    } else if (outcome === "successful") {
+       form.setValue("orderValue", undefined); // Clear if inputs are not valid for calculation
+    }
+  }, [numberOfUnits, unitPrice, outcome, form]);
 
   async function onSubmit(values: OrderFormValues) {
     setIsSubmitting(true);
     await new Promise(resolve => setTimeout(resolve, 1500));
 
-    if (values.outcome === "successful" && values.visitDate && values.orderValue && values.productsOrdered && values.clientType && values.numberOfUnits && values.unitPrice) {
-      const orderedProductsList = values.productsOrdered.split(/[,;\n]+/).map(p => p.trim()).filter(p => p.length > 0);
-      const numberOfBottles = orderedProductsList.length; // This KPI logic remains for now
+    if (values.outcome === "successful" && values.visitDate && values.orderValue && values.clientType && values.numberOfUnits && values.unitPrice) {
+      const numberOfBottles = values.numberOfUnits; // Directly use numberOfUnits as bottles
 
       const newOrder: Order = {
         id: `ORD${Date.now()}`,
         clientName: values.clientName,
         visitDate: format(values.visitDate, "yyyy-MM-dd"),
         clientType: values.clientType,
-        products: orderedProductsList,
+        products: [SINGLE_PRODUCT_NAME], // Single product
         numberOfUnits: values.numberOfUnits,
         unitPrice: values.unitPrice,
         value: values.orderValue,
@@ -191,9 +198,9 @@ export default function OrderFormPage() {
       const salesRepToUpdate = 'Nico';
       const memberIndex = mockTeamMembers.findIndex(m => m.name === salesRepToUpdate);
       if (memberIndex !== -1) {
-        mockTeamMembers[memberIndex].bottlesSold += numberOfBottles;
-        mockTeamMembers[memberIndex].orders += 1;
-        mockTeamMembers[memberIndex].visits += 1;
+        mockTeamMembers[memberIndex].bottlesSold = (mockTeamMembers[memberIndex].bottlesSold || 0) + numberOfBottles;
+        mockTeamMembers[memberIndex].orders = (mockTeamMembers[memberIndex].orders || 0) + 1;
+        mockTeamMembers[memberIndex].visits = (mockTeamMembers[memberIndex].visits || 0) + 1;
       }
 
       const kpiVentasTotales = kpiDataLaunch.find(k => k.id === 'kpi1');
@@ -244,7 +251,7 @@ export default function OrderFormPage() {
     form.setValue("visitDate", undefined);
     form.setValue("outcome", undefined);
     form.setValue("clientType", undefined);
-    form.setValue("productsOrdered", "");
+    // form.setValue("productsOrdered", ""); // Removed
     form.setValue("numberOfUnits", undefined);
     form.setValue("unitPrice", undefined);
     form.setValue("orderValue", undefined);
@@ -391,33 +398,28 @@ export default function OrderFormPage() {
                     )}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name="productsOrdered"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Productos Pedidos</FormLabel>
-                        <FormControl>
-                          <Textarea placeholder="Listar productos y cantidades, separados por coma o nueva línea..." {...field} />
-                        </FormControl>
-                        <FormDescription>Cada producto o línea contará como una botella para las estadísticas del equipo.</FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <FormItem>
+                    <FormLabel>Producto</FormLabel>
+                    <Input value={SINGLE_PRODUCT_NAME} readOnly disabled className="bg-muted/50" />
+                    <FormDescription>Actualmente solo se gestiona el producto "{SINGLE_PRODUCT_NAME}".</FormDescription>
+                  </FormItem>
+                  
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <FormField
                       control={form.control}
                       name="numberOfUnits"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Número de Unidades</FormLabel>
+                          <FormLabel>Número de Unidades ({SINGLE_PRODUCT_NAME})</FormLabel>
                           <FormControl>
                             <Input
                               type="number"
                               placeholder="p. ej., 100"
                               {...field}
-                              onChange={event => field.onChange(parseInt(event.target.value, 10))}
+                              onChange={event => {
+                                const val = event.target.value;
+                                field.onChange(val === "" ? undefined : parseInt(val, 10));
+                              }}
                               value={field.value === undefined ? '' : field.value}
                             />
                           </FormControl>
@@ -437,7 +439,10 @@ export default function OrderFormPage() {
                               step="0.01"
                               placeholder="p. ej., 15.50"
                               {...field}
-                              onChange={event => field.onChange(parseFloat(event.target.value))}
+                               onChange={event => {
+                                const val = event.target.value;
+                                field.onChange(val === "" ? undefined : parseFloat(val));
+                              }}
                               value={field.value === undefined ? '' : field.value}
                             />
                           </FormControl>
@@ -456,10 +461,12 @@ export default function OrderFormPage() {
                           <Input
                             type="number"
                             step="0.01"
-                            placeholder="p. ej., 250.75"
+                            placeholder="Calculado automáticamente"
                             {...field}
-                            onChange={event => field.onChange(parseFloat(event.target.value))}
-                            value={field.value === undefined ? '' : field.value}
+                            readOnly
+                            disabled
+                            className="bg-muted/50"
+                            value={field.value === undefined ? '' : field.value.toFixed(2)}
                           />
                         </FormControl>
                         <FormMessage />
@@ -633,3 +640,4 @@ export default function OrderFormPage() {
     </div>
   );
 }
+

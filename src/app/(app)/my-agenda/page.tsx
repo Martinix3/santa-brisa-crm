@@ -13,7 +13,7 @@ import { parseISO, format, isEqual, startOfDay, isSameMonth, isWithinInterval, a
 import { es } from "date-fns/locale";
 import { CalendarCheck, User, Info, Filter, PartyPopper, Users as UsersIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Label } from "@/components/ui/label";
+import { Label } from "@/components/ui/label"; // Ensure this is the generic Label
 import StatusBadge from "@/components/app/status-badge";
 
 interface AgendaItemBase {

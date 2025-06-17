@@ -22,23 +22,32 @@ const chartConfig = (color: string) => ({
 });
 
 const renderProgress = (current: number, target: number, unit: string, targetAchievedText: string) => {
-  const progress = target > 0 ? (current / target) * 100 : 0;
+  const progress = target > 0 ? Math.min((current / target) * 100, 100) : (current > 0 ? 100 : 0); // Cap progress at 100% if target is 0 but current is >0
   const remaining = Math.max(0, target - current);
-  const targetAchieved = current >= target;
+  const targetAchieved = current >= target && target > 0;
 
   return (
     <div className="flex flex-col items-center w-full">
       <Progress 
         value={progress} 
-        className="h-2 mb-1 w-full [&>div]:bg-primary" 
+        className={cn(
+            "h-2 mb-1 w-full",
+            targetAchieved ? "[&>div]:bg-green-500" : "[&>div]:bg-primary"
+        )} 
         aria-label={`${progress.toFixed(0)}% del objetivo de ${unit}`} 
       />
       <p className="text-xs text-muted-foreground text-center">
         Actual: <FormattedNumericValue value={current} /> / <FormattedNumericValue value={target} /> {unit}
       </p>
-      <p className={cn("text-xs text-muted-foreground/80 text-center", targetAchieved && target > 0 ? "text-green-600" : "")}>
-        {target === 0 ? "Sin objetivo" :
-         targetAchieved ? targetAchievedText : `Faltan: ${remaining.toLocaleString('es-ES')}`}
+      <p className={cn(
+          "text-xs text-center",
+          targetAchieved ? "text-green-600 font-semibold" : "text-muted-foreground/80"
+        )}
+      >
+        {target === 0 && current === 0 ? "Sin objetivo" :
+         target === 0 && current > 0 ? targetAchievedText : // If no target but has value, consider achieved
+         targetAchieved ? targetAchievedText : 
+         `Faltan: ${remaining.toLocaleString('es-ES')}`}
       </p>
     </div>
   );

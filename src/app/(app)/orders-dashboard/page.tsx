@@ -21,9 +21,7 @@ import type { EditOrderFormValues } from "@/components/app/edit-order-dialog";
 import { useToast } from "@/hooks/use-toast";
 
 // Simulate the current user's role for this page.
-// In a real app, this would come from an auth context or props.
-// Change this to 'SalesRep' or 'Distributor' to test.
-const currentUserRole: UserRole = 'Admin'; 
+const currentUserRole: UserRole = 'Admin';
 
 const getStatusBadgeColor = (status: OrderStatus): string => {
   switch (status) {
@@ -55,7 +53,7 @@ export default function OrdersDashboardPage() {
   const uniqueStatuses = ["Todos", ...Array.from(new Set(mockOrders.map(order => order.status)))] as (OrderStatus | "Todos")[];
 
   const filteredOrders = orders
-    .filter(order => 
+    .filter(order =>
       (order.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
        order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
        order.salesRep.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -63,13 +61,13 @@ export default function OrdersDashboardPage() {
     .filter(order => statusFilter === "Todos" || order.status === statusFilter)
     .filter(order => {
       if (!dateRange?.from) return true;
-      const orderDate = parseISO(order.visitDate); 
+      const orderDate = parseISO(order.visitDate);
       const fromDate = dateRange.from;
-      const toDate = dateRange.to ? addDays(dateRange.to,1) : addDays(new Date(), 1) ; 
+      const toDate = dateRange.to ? addDays(dateRange.to,1) : addDays(new Date(), 1) ;
       return orderDate >= fromDate && orderDate < toDate;
     });
 
-  const handleEditClick = (order: Order) => {
+  const handleViewOrEditClick = (order: Order) => {
     setEditingOrder(order);
     setIsEditDialogOpen(true);
   };
@@ -77,22 +75,31 @@ export default function OrdersDashboardPage() {
   const handleUpdateOrder = (updatedData: EditOrderFormValues, orderId: string) => {
     const orderIndex = mockOrders.findIndex(o => o.id === orderId);
     if (orderIndex === -1) {
-      console.error("Pedido no encontrado para actualizar:", orderId);
       toast({ title: "Error", description: "No se pudo encontrar el pedido para actualizar.", variant: "destructive" });
       return;
     }
 
     const updatedOrder: Order = {
-      ...mockOrders[orderIndex],
+      ...mockOrders[orderIndex], // Spread existing fields
       clientName: updatedData.clientName,
       products: updatedData.products.split(/[,;\n]+/).map(p => p.trim()).filter(p => p.length > 0),
       value: updatedData.value,
       status: updatedData.status,
       lastUpdated: format(new Date(), "yyyy-MM-dd"),
+      // Update customer and billing info
+      nombreFiscal: updatedData.nombreFiscal,
+      cif: updatedData.cif,
+      direccionFiscal: updatedData.direccionFiscal,
+      direccionEntrega: updatedData.direccionEntrega,
+      contactoNombre: updatedData.contactoNombre,
+      contactoCorreo: updatedData.contactoCorreo,
+      contactoTelefono: updatedData.contactoTelefono,
+      observacionesAlta: updatedData.observacionesAlta,
+      notes: updatedData.notes,
     };
 
     mockOrders[orderIndex] = updatedOrder;
-    setOrders([...mockOrders]); 
+    setOrders([...mockOrders]);
     setIsEditDialogOpen(false);
     setEditingOrder(null);
 
@@ -108,14 +115,15 @@ export default function OrdersDashboardPage() {
     });
   };
 
-  const canEditOrder = currentUserRole === 'Admin' || currentUserRole === 'Distributor';
+  const canEditOrderDetails = currentUserRole === 'Admin';
+  const canEditOrderStatus = currentUserRole === 'Admin' || currentUserRole === 'Distributor';
   const canDeleteOrder = currentUserRole === 'Admin';
 
 
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-headline font-semibold">Panel de Pedidos</h1>
-      
+
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
           <CardTitle>Gestionar Pedidos</CardTitle>
@@ -123,17 +131,17 @@ export default function OrdersDashboardPage() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
-            <Input 
-              placeholder="Buscar pedidos (ID, Cliente, Rep)..." 
+            <Input
+              placeholder="Buscar pedidos (ID, Cliente, Rep)..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="max-w-sm"
             />
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap sm:flex-nowrap">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="w-full sm:w-auto">
-                  <Filter className="mr-2 h-4 w-4" /> 
+                  <Filter className="mr-2 h-4 w-4" />
                   Estado: {statusFilter} <ChevronDown className="ml-2 h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -209,7 +217,7 @@ export default function OrdersDashboardPage() {
                     <TableCell>{order.clientName}</TableCell>
                     <TableCell>{format(parseISO(order.visitDate), "MMM dd, yyyy", { locale: es })}</TableCell>
                     <TableCell>{order.salesRep}</TableCell>
-                    <TableCell className="text-right">${order.value.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">€{order.value.toFixed(2)}</TableCell>
                     <TableCell className="text-center">
                       <Badge className={cn("text-xs", getStatusBadgeColor(order.status))}>
                         {order.status}
@@ -224,12 +232,12 @@ export default function OrdersDashboardPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onSelect={() => handleEditClick(order)}>
+                          <DropdownMenuItem onSelect={() => handleViewOrEditClick(order)}>
                             <Eye className="mr-2 h-4 w-4" /> Ver Detalles
                           </DropdownMenuItem>
-                          {canEditOrder && (
-                            <DropdownMenuItem onSelect={() => handleEditClick(order)}>
-                              <Edit className="mr-2 h-4 w-4" /> Editar Pedido
+                          {(canEditOrderDetails || canEditOrderStatus) && (
+                            <DropdownMenuItem onSelect={() => handleViewOrEditClick(order)}>
+                              <Edit className="mr-2 h-4 w-4" /> Editar
                             </DropdownMenuItem>
                           )}
                           {canDeleteOrder && (

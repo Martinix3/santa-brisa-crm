@@ -27,9 +27,9 @@ import { es } from 'date-fns/locale';
 import { Calendar as CalendarIcon, Check, Loader2, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { mockOrders, mockTeamMembers } from "@/lib/data"; 
+import { mockOrders, mockTeamMembers } from "@/lib/data";
 import { kpiDataLaunch } from "@/lib/launch-dashboard-data";
-import type { Order } from "@/types"; 
+import type { Order } from "@/types";
 
 const orderFormSchema = z.object({
   clientName: z.string().min(2, "El nombre del cliente debe tener al menos 2 caracteres."),
@@ -43,7 +43,7 @@ const orderFormSchema = z.object({
   direccionFiscal: z.string().optional(),
   direccionEntrega: z.string().optional(),
   contactoNombre: z.string().optional(),
-  contactoCorreo: z.string().email("El formato del correo electrónico no es válido.").optional(),
+  contactoCorreo: z.string().email("El formato del correo electrónico no es válido.").optional().or(z.literal('')),
   contactoTelefono: z.string().optional(),
   observacionesAlta: z.string().optional(),
   notes: z.string().optional(),
@@ -130,11 +130,11 @@ export default function OrderFormPage() {
 
   async function onSubmit(values: OrderFormValues) {
     setIsSubmitting(true);
-    await new Promise(resolve => setTimeout(resolve, 1500)); 
-    
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
     if (values.outcome === "successful" && values.visitDate && values.orderValue && values.productsOrdered) {
       const orderedProductsList = values.productsOrdered.split(/[,;\n]+/).map(p => p.trim()).filter(p => p.length > 0);
-      const numberOfBottles = orderedProductsList.length; // Assume 1 bottle per product line item
+      const numberOfBottles = orderedProductsList.length;
 
       const newOrder: Order = {
         id: `ORD${Date.now()}`,
@@ -142,36 +142,43 @@ export default function OrderFormPage() {
         visitDate: format(values.visitDate, "yyyy-MM-dd"),
         products: orderedProductsList,
         value: values.orderValue,
-        status: 'Confirmado',
-        salesRep: 'Nico', // Hardcoded for now, as per plan
+        status: 'Confirmado', // Default status for new successful orders
+        salesRep: 'Nico', // Hardcoded for now
         lastUpdated: format(new Date(), "yyyy-MM-dd"),
+        nombreFiscal: values.nombreFiscal,
+        cif: values.cif,
+        direccionFiscal: values.direccionFiscal,
+        direccionEntrega: values.direccionEntrega,
+        contactoNombre: values.contactoNombre,
+        contactoCorreo: values.contactoCorreo,
+        contactoTelefono: values.contactoTelefono,
+        observacionesAlta: values.observacionesAlta,
+        notes: values.notes,
       };
       mockOrders.unshift(newOrder);
 
-      // Update Team Member Data (mockTeamMembers) for 'Nico'
       const salesRepToUpdate = 'Nico';
       const memberIndex = mockTeamMembers.findIndex(m => m.name === salesRepToUpdate);
       if (memberIndex !== -1) {
         mockTeamMembers[memberIndex].bottlesSold += numberOfBottles;
         mockTeamMembers[memberIndex].orders += 1;
-        mockTeamMembers[memberIndex].visits += 1; // Assuming a successful order implies a visit
+        mockTeamMembers[memberIndex].visits += 1;
       }
 
-      // Update Launch Dashboard KPIs (kpiDataLaunch)
       const kpiVentasTotales = kpiDataLaunch.find(k => k.id === 'kpi1');
       if (kpiVentasTotales) kpiVentasTotales.currentValue += numberOfBottles;
 
       const kpiVentasEquipo = kpiDataLaunch.find(k => k.id === 'kpi2');
       if (kpiVentasEquipo) kpiVentasEquipo.currentValue += numberOfBottles;
 
-      if (values.nombreFiscal && values.nombreFiscal.trim() !== "") { // If it's a new client registration
+      if (values.nombreFiscal && values.nombreFiscal.trim() !== "") {
         const kpiCuentasAnual = kpiDataLaunch.find(k => k.id === 'kpi3');
         if (kpiCuentasAnual) kpiCuentasAnual.currentValue += 1;
-        
+
         const kpiCuentasMensual = kpiDataLaunch.find(k => k.id === 'kpi4');
         if (kpiCuentasMensual) kpiCuentasMensual.currentValue += 1;
       }
-      
+
       toast({
         title: "¡Pedido Registrado!",
         description: (
@@ -184,14 +191,12 @@ export default function OrderFormPage() {
       });
 
     } else if (values.outcome === "failed" || values.outcome === "follow-up") {
-        // Potentially update visits for non-successful outcomes if applicable
-        // For now, only successful orders update detailed stats
-        const salesRepToUpdate = 'Nico'; // Assuming 'Nico' for all visit types for now
+        const salesRepToUpdate = 'Nico';
         const memberIndex = mockTeamMembers.findIndex(m => m.name === salesRepToUpdate);
-        if (memberIndex !== -1 && values.outcome === "failed") { // Or include follow-up if visits are always tracked
-             // mockTeamMembers[memberIndex].visits += 1; // Decide if non-successful also count as a tracked visit
+        if (memberIndex !== -1 && values.outcome === "failed") {
+            // mockTeamMembers[memberIndex].visits += 1; // Decide if non-successful also count
         }
-      console.log(values);
+      console.log(values); // Log non-successful interactions for now
       toast({
         title: "¡Formulario Enviado!",
         description: (
@@ -203,10 +208,10 @@ export default function OrderFormPage() {
         variant: "default",
       });
     }
-    
+
     form.reset();
     form.setValue("visitDate", undefined);
-    form.setValue("outcome", undefined); 
+    form.setValue("outcome", undefined);
     form.setValue("orderValue", undefined);
     form.setValue("productsOrdered", "");
     setIsSubmitting(false);
@@ -364,7 +369,7 @@ export default function OrderFormPage() {
                     <h3 className="text-lg font-medium">Información de Alta del Cliente</h3>
                     <p className="text-sm text-muted-foreground">Complete estos datos si es un cliente nuevo o necesita actualizar la información. Rellenar el nombre fiscal contará como una nueva cuenta.</p>
                   </div>
-                  
+
                   <FormField
                     control={form.control}
                     name="nombreFiscal"
@@ -491,7 +496,7 @@ export default function OrderFormPage() {
                   )}
                 />
               )}
-              
+
               <FormField
                 control={form.control}
                 name="notes"
@@ -525,4 +530,3 @@ export default function OrderFormPage() {
     </div>
   );
 }
-

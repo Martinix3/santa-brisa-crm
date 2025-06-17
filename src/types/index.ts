@@ -21,11 +21,11 @@ export interface TeamMember {
   name: string;
   avatarUrl: string;
   role: string;
-  bottlesSold: number; 
-  monthlyTarget: number; 
+  bottlesSold: number;
+  monthlyTarget: number;
   orders: number;
   visits: number;
-  performanceData: { month: string; bottles: number }[]; 
+  performanceData: { month: string; bottles: number }[];
 }
 
 export type OrderStatus = 'Pendiente' | 'Confirmado' | 'Procesando' | 'Enviado' | 'Entregado' | 'Cancelado' | 'Fallido';
@@ -33,12 +33,23 @@ export type OrderStatus = 'Pendiente' | 'Confirmado' | 'Procesando' | 'Enviado' 
 export interface Order {
   id: string;
   clientName: string;
-  visitDate: string;
+  visitDate: string; // Should be YYYY-MM-DD
   products: string[];
-  value: number; 
+  value: number;
   status: OrderStatus;
   salesRep: string;
-  lastUpdated: string;
+  lastUpdated: string; // Should be YYYY-MM-DD
+
+  // Customer and billing information
+  nombreFiscal?: string;
+  cif?: string;
+  direccionFiscal?: string;
+  direccionEntrega?: string;
+  contactoNombre?: string;
+  contactoCorreo?: string;
+  contactoTelefono?: string;
+  observacionesAlta?: string;
+  notes?: string; // General notes for the visit/order
 }
 
 export type MarketingResourceType = 'Folleto' | 'Presentación' | 'Imagen' | 'Guía';

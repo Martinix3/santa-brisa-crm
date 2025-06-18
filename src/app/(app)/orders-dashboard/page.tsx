@@ -24,11 +24,17 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import StatusBadge from "@/components/app/status-badge";
 
+const relevantOrderStatuses: OrderStatus[] = ['Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Cancelado'];
+
 
 export default function OrdersDashboardPage() {
   const { toast } = useToast();
   const { userRole: currentUserRole } = useAuth();
-  const [orders, setOrders] = React.useState<Order[]>(mockOrders);
+  
+  const [allOrders, setAllOrders] = React.useState<Order[]>(() => 
+    mockOrders.filter(order => relevantOrderStatuses.includes(order.status))
+  );
+
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<OrderStatus | "Todos">("Todos");
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
@@ -37,10 +43,10 @@ export default function OrdersDashboardPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
   const [orderToDelete, setOrderToDelete] = React.useState<Order | null>(null);
 
-  const uniqueStatuses = ["Todos", ...Array.from(new Set(mockOrders.map(order => order.status).filter(Boolean)))] as (OrderStatus | "Todos")[];
+  const uniqueStatusesForFilter = ["Todos", ...Array.from(new Set(allOrders.map(order => order.status).filter(Boolean)))] as (OrderStatus | "Todos")[];
 
 
-  const filteredOrders = orders
+  const filteredOrders = allOrders
     .filter(order =>
       (order.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
        order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -61,13 +67,13 @@ export default function OrdersDashboardPage() {
   };
 
   const handleUpdateOrder = (updatedData: EditOrderFormValues, orderId: string) => {
-    const orderIndex = mockOrders.findIndex(o => o.id === orderId);
-    if (orderIndex === -1) {
+    const orderIndexInMock = mockOrders.findIndex(o => o.id === orderId);
+    if (orderIndexInMock === -1) {
       toast({ title: "Error", description: "No se pudo encontrar el pedido para actualizar.", variant: "destructive" });
       return;
     }
 
-    const originalOrder = { ...mockOrders[orderIndex] }; 
+    const originalOrder = { ...mockOrders[orderIndexInMock] }; 
     const updatedOrderDataInMock: Order = {
       ...originalOrder,
       clientName: updatedData.clientName,
@@ -103,7 +109,6 @@ export default function OrdersDashboardPage() {
     const originalUnits = originalOrder.numberOfUnits || 0;
     const updatedUnits = updatedOrderDataInMock.numberOfUnits || 0;
 
-    // Adjust sales KPIs (kpi1, kpi2)
     const kpiVentasTotales = kpiDataLaunch.find(k => k.id === 'kpi1');
     const kpiVentasEquipo = kpiDataLaunch.find(k => k.id === 'kpi2');
 
@@ -116,7 +121,6 @@ export default function OrdersDashboardPage() {
        if (updatedOrderContributed) kpiVentasEquipo.currentValue += updatedUnits;
     }
     
-    // Adjust mockTeamMembers for sales rep changes or contribution changes
     const originalSalesRepMember = mockTeamMembers.find(m => m.name === originalOrder.salesRep && (m.role === 'SalesRep' || m.role === 'Admin'));
     if (originalSalesRepMember) {
         if (originalOrderContributed && originalOrder.salesRep !== updatedOrderDataInMock.salesRep) { 
@@ -142,8 +146,8 @@ export default function OrdersDashboardPage() {
         }
     }
         
-    mockOrders[orderIndex] = updatedOrderDataInMock;
-    setOrders([...mockOrders]); 
+    mockOrders[orderIndexInMock] = updatedOrderDataInMock;
+    setAllOrders(mockOrders.filter(order => relevantOrderStatuses.includes(order.status)));
     
     if (isEditDialogOpen) setIsEditDialogOpen(false);
     setEditingOrder(null);
@@ -187,8 +191,8 @@ export default function OrdersDashboardPage() {
         }
     }
 
-    const updatedOrdersState = orders.filter(o => o.id !== orderToDelete.id);
-    setOrders(updatedOrdersState);
+    const updatedOrdersState = allOrders.filter(o => o.id !== orderToDelete.id);
+    setAllOrders(updatedOrdersState);
 
     const mockIndex = mockOrders.findIndex(o => o.id === orderToDelete.id);
     if (mockIndex !== -1) {
@@ -207,6 +211,7 @@ export default function OrdersDashboardPage() {
         toast({ title: "Permiso Denegado", description: "No tienes permiso para cambiar el estado del pedido.", variant: "destructive" });
         return;
     }
+    // Create the form values object based on the order and new status
     const updatedFormValues: EditOrderFormValues = {
         clientName: order.clientName,
         products: order.products?.join(", "),
@@ -266,7 +271,14 @@ export default function OrdersDashboardPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
-                {uniqueStatuses.map(status => (
+                <DropdownMenuCheckboxItem
+                    key="Todos"
+                    checked={statusFilter === "Todos"}
+                    onCheckedChange={() => setStatusFilter("Todos")}
+                  >
+                    Todos
+                  </DropdownMenuCheckboxItem>
+                {relevantOrderStatuses.map(status => (
                    <DropdownMenuCheckboxItem
                     key={status}
                     checked={statusFilter === status}
@@ -356,8 +368,8 @@ export default function OrdersDashboardPage() {
                                 value={order.status} 
                                 onValueChange={(newStatus) => handleChangeOrderStatus(order, newStatus as OrderStatus)}
                             >
-                              {orderStatusesList.map((statusVal) => (
-                                <DropdownMenuRadioItem key={statusVal} value={statusVal} disabled={!orderStatusesList.includes(statusVal as OrderStatus)}>
+                              {relevantOrderStatuses.map((statusVal) => (
+                                <DropdownMenuRadioItem key={statusVal} value={statusVal} disabled={!relevantOrderStatuses.includes(statusVal as OrderStatus)}>
                                   {statusVal}
                                 </DropdownMenuRadioItem>
                               ))}

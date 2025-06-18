@@ -11,15 +11,17 @@ import type { Order, TeamMember, OrderStatus, NextActionType, CrmEvent, CrmEvent
 import { mockOrders, mockTeamMembers, mockCrmEvents } from "@/lib/data";
 import { parseISO, format, isEqual, startOfDay, isSameMonth, isWithinInterval, addDays } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarCheck, User, Info, Filter, PartyPopper, Users as UsersIcon } from "lucide-react";
+import { CalendarCheck, User, Info, Filter, PartyPopper, Users as UsersIcon, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import StatusBadge from "@/components/app/status-badge";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 interface AgendaItemBase {
   id: string;
   itemDate: Date;
-  displayTime?: string; 
+  displayTime?: string;
   sourceType: 'order' | 'event';
 }
 interface AgendaOrderItem extends Order, AgendaItemBase {
@@ -49,15 +51,15 @@ export default function AgendaPage() {
     let filteredOrderFollowUps: AgendaOrderItem[] = [];
     if (actionTypeFilter === "Todos" || actionTypeFilter === "Acciones de Seguimiento") {
       filteredOrderFollowUps = mockOrders
-        .filter(order => 
-          (order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') && // Include 'Programada' here
-          (order.status === 'Programada' ? order.visitDate : order.nextActionDate) && // Ensure relevant date exists
+        .filter(order =>
+          (order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') &&
+          (order.status === 'Programada' ? order.visitDate : order.nextActionDate) &&
           (userRole === 'Admin' ? (selectedSalesRep === "Todos" || order.salesRep === selectedSalesRep) : order.salesRep === teamMember?.name)
         )
         .map(order => ({
           ...order,
           itemDate: parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!),
-          sourceType: 'order',
+          sourceType: 'order' as 'order',
         }));
     }
 
@@ -65,17 +67,17 @@ export default function AgendaPage() {
     if (actionTypeFilter === "Todos" || actionTypeFilter === "Eventos") {
       filteredCrmEvents = mockCrmEvents
         .filter(event =>
-          (userRole === 'Admin' ? 
-            (selectedSalesRep === "Todos" || event.assignedTeamMemberIds.includes(mockTeamMembers.find(m=>m.name === selectedSalesRep)?.id || '')) 
+          (userRole === 'Admin' ?
+            (selectedSalesRep === "Todos" || event.assignedTeamMemberIds.includes(mockTeamMembers.find(m=>m.name === selectedSalesRep)?.id || ''))
             : (teamMember && event.assignedTeamMemberIds.includes(teamMember.id)))
         )
         .map(event => ({
           ...event,
           itemDate: parseISO(event.startDate),
-          sourceType: 'event',
+          sourceType: 'event' as 'event',
         }));
     }
-      
+
     return [...filteredOrderFollowUps, ...filteredCrmEvents].sort((a, b) => a.itemDate.getTime() - b.itemDate.getTime());
   }, [userRole, teamMember, selectedSalesRep, actionTypeFilter]);
 
@@ -83,10 +85,10 @@ export default function AgendaPage() {
   const itemsForSelectedDay = React.useMemo(() => {
     if (!selectedDate) return [];
     return agendaItems.filter(item => {
-        if (item.sourceType === 'event' && item.endDate) {
+        if (item.sourceType === 'event' && (item as AgendaCrmEventItem).endDate) {
              return isWithinInterval(startOfDay(selectedDate), {
                 start: startOfDay(item.itemDate),
-                end: startOfDay(parseISO(item.endDate))
+                end: startOfDay(parseISO((item as AgendaCrmEventItem).endDate!))
             });
         }
         return isEqual(startOfDay(item.itemDate), startOfDay(selectedDate));
@@ -101,12 +103,12 @@ export default function AgendaPage() {
     const datesWithItems = new Set<string>();
     itemsInCurrentMonth.forEach(item => {
         datesWithItems.add(format(item.itemDate, "yyyy-MM-dd"));
-        if (item.sourceType === 'event' && item.endDate) {
-            let currentDate = item.itemDate;
-            const stopDate = parseISO(item.endDate);
-            while(currentDate <= stopDate) {
-                datesWithItems.add(format(currentDate, "yyyy-MM-dd"));
-                currentDate = addDays(currentDate, 1);
+        if (item.sourceType === 'event' && (item as AgendaCrmEventItem).endDate) {
+            let currentDateIterator = item.itemDate;
+            const stopDate = parseISO((item as AgendaCrmEventItem).endDate!);
+            while(currentDateIterator <= stopDate) {
+                datesWithItems.add(format(currentDateIterator, "yyyy-MM-dd"));
+                currentDateIterator = addDays(currentDateIterator, 1);
             }
         }
     });
@@ -197,7 +199,7 @@ export default function AgendaPage() {
               modifiersClassNames={modifiersClassNames}
               locale={es}
               className="rounded-md border p-3"
-              disabled={{ before: new Date(2000,0,1) }} 
+              disabled={{ before: new Date(2000,0,1) }}
             />
           </CardContent>
         </Card>
@@ -208,7 +210,7 @@ export default function AgendaPage() {
               Actividades para {selectedDate ? format(selectedDate, "PPP", { locale: es }) : "Hoy"}
             </CardTitle>
             <CardDescription>
-                {itemsForSelectedDay.length > 0 
+                {itemsForSelectedDay.length > 0
                     ? `Tienes ${itemsForSelectedDay.length} actividad(es) programada(s).`
                     : "No hay actividades programadas para este día."}
             </CardDescription>
@@ -217,70 +219,81 @@ export default function AgendaPage() {
             <ScrollArea className="h-[450px] pr-3">
               {itemsForSelectedDay.length > 0 ? (
                 <ul className="space-y-3">
-                  {itemsForSelectedDay.map(item => (
+                  {itemsForSelectedDay.map(item => {
+                    const orderItem = item.sourceType === 'order' ? item as AgendaOrderItem : null;
+                    const eventItem = item.sourceType === 'event' ? item as AgendaCrmEventItem : null;
+
+                    return (
                     <li key={item.id} className="p-3 bg-secondary/30 rounded-md shadow-sm">
-                      {item.sourceType === 'order' && (
+                      {orderItem && (
                         <>
-                          <h4 className="font-semibold text-sm mb-1">{item.clientName}</h4>
+                          <h4 className="font-semibold text-sm mb-1">{orderItem.clientName}</h4>
                           <p className="text-xs text-muted-foreground flex items-center mb-1">
                             <Info size={14} className="mr-1.5 text-primary" />
-                            {item.status === 'Programada' ? 'Visita Programada' : `Acción: ${item.nextActionType}`}
-                            {item.status !== 'Programada' && item.nextActionType === 'Opción personalizada' && item.nextActionCustom && (
-                              <span className="ml-1">- "{item.nextActionCustom}"</span>
+                            {orderItem.status === 'Programada' ? 'Visita Programada' : `Acción: ${orderItem.nextActionType}`}
+                            {orderItem.status !== 'Programada' && orderItem.nextActionType === 'Opción personalizada' && orderItem.nextActionCustom && (
+                              <span className="ml-1">- "{orderItem.nextActionCustom}"</span>
                             )}
                           </p>
-                          {(userRole === 'Admin' && item.salesRep && selectedSalesRep === "Todos") && ( 
+                          {(userRole === 'Admin' && orderItem.salesRep && selectedSalesRep === "Todos") && (
                             <p className="text-xs text-muted-foreground flex items-center mb-1">
                               <User size={14} className="mr-1.5 text-primary" />
-                              Comercial: {item.salesRep}
+                              Comercial: {orderItem.salesRep}
                             </p>
                           )}
                           <div className="flex justify-between items-center mt-1.5">
-                            <StatusBadge type="order" status={item.status} className="text-xs" />
+                            <StatusBadge type="order" status={orderItem.status} className="text-xs" />
                              <span className="text-xs text-muted-foreground">
-                                Fecha Original Visita: {format(parseISO(item.visitDate), "dd/MM/yy")}
+                                Fecha Original Visita: {format(parseISO(orderItem.visitDate), "dd/MM/yy")}
                             </span>
                           </div>
-                          {item.notes && (
+                          {orderItem.notes && (
                               <p className="text-xs text-muted-foreground mt-2 pt-1 border-t border-border/50">
-                                <span className="font-medium">{(item.status === 'Programada' && item.notes) ? "Objetivo/Comentarios:" : "Notas visita:"}</span> {item.notes.length > 70 ? item.notes.substring(0, 70) + "..." : item.notes}
+                                <span className="font-medium">{(orderItem.status === 'Programada' && orderItem.notes) ? "Objetivo/Comentarios:" : "Notas visita:"}</span> {orderItem.notes.length > 70 ? orderItem.notes.substring(0, 70) + "..." : orderItem.notes}
                               </p>
+                          )}
+                          {orderItem.status === 'Programada' && (
+                            <Button asChild size="sm" className="mt-3 w-full">
+                               <Link href={`/order-form?updateVisitId=${orderItem.id}`}>
+                                <Send className="mr-2 h-4 w-4" /> Registrar Resultado de Visita
+                              </Link>
+                            </Button>
                           )}
                         </>
                       )}
-                      {item.sourceType === 'event' && (
+                      {eventItem && (
                         <>
                           <div className="flex items-center justify-between mb-1">
-                            <h4 className="font-semibold text-sm">{item.name}</h4>
-                            <StatusBadge type="event" status={item.status as CrmEventStatus} />
+                            <h4 className="font-semibold text-sm">{eventItem.name}</h4>
+                            <StatusBadge type="event" status={eventItem.status as CrmEventStatus} />
                           </div>
                           <p className="text-xs text-muted-foreground flex items-center mb-1">
                             <PartyPopper size={14} className="mr-1.5 text-primary" />
-                            Tipo: {item.type}
+                            Tipo: {eventItem.type}
                           </p>
-                          {item.location && (
-                            <p className="text-xs text-muted-foreground mb-1">Ubicación: {item.location}</p>
+                          {eventItem.location && (
+                            <p className="text-xs text-muted-foreground mb-1">Ubicación: {eventItem.location}</p>
                           )}
-                           {item.endDate && format(parseISO(item.endDate), "yyyy-MM-dd") !== format(item.itemDate, "yyyy-MM-dd") && (
+                           {eventItem.endDate && format(parseISO(eventItem.endDate), "yyyy-MM-dd") !== format(item.itemDate, "yyyy-MM-dd") && (
                               <p className="text-xs text-muted-foreground mb-1">
-                                Finaliza: {format(parseISO(item.endDate), "dd/MM/yy", { locale: es })}
+                                Finaliza: {format(parseISO(eventItem.endDate), "dd/MM/yy", { locale: es })}
                               </p>
                             )}
-                          {(userRole === 'Admin' && selectedSalesRep === "Todos" && item.assignedTeamMemberIds.length > 0) && ( 
+                          {(userRole === 'Admin' && selectedSalesRep === "Todos" && eventItem.assignedTeamMemberIds.length > 0) && (
                             <p className="text-xs text-muted-foreground flex items-center mb-1">
                               <UsersIcon size={14} className="mr-1.5 text-primary" />
-                              Responsables: {item.assignedTeamMemberIds.map(id => mockTeamMembers.find(m=>m.id===id)?.name).join(', ')}
+                              Responsables: {eventItem.assignedTeamMemberIds.map(id => mockTeamMembers.find(m=>m.id===id)?.name).join(', ')}
                             </p>
                           )}
-                           {item.description && (
+                           {eventItem.description && (
                               <p className="text-xs text-muted-foreground mt-2 pt-1 border-t border-border/50">
-                                <span className="font-medium">Desc:</span> {item.description.length > 70 ? item.description.substring(0, 70) + "..." : item.description}
+                                <span className="font-medium">Desc:</span> {eventItem.description.length > 70 ? eventItem.description.substring(0, 70) + "..." : eventItem.description}
                               </p>
                           )}
                         </>
                       )}
                     </li>
-                  ))}
+                  );})}
                 </ul>
               ) : (
                 <p className="text-sm text-muted-foreground text-center pt-10">
@@ -295,3 +308,4 @@ export default function AgendaPage() {
   );
 }
 
+    

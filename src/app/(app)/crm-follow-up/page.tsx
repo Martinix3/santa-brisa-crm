@@ -5,11 +5,11 @@ import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input"; 
 import type { Order, NextActionType, TeamMember, UserRole, OrderStatus } from "@/types";
 import { mockOrders, nextActionTypeList, mockTeamMembers } from "@/lib/data";
-import { Filter, CalendarDays, ClipboardList, ChevronDown, Edit2, AlertTriangle } from "lucide-react";
+import { Filter, CalendarDays, ClipboardList, ChevronDown, Edit2, AlertTriangle, MoreHorizontal, Send } from "lucide-react";
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import StatusBadge from "@/components/app/status-badge";
 import { useToast } from "@/hooks/use-toast";
+import Link from "next/link";
 
 export default function CrmFollowUpPage() {
   const { userRole, teamMember } = useAuth();
@@ -40,7 +41,6 @@ export default function CrmFollowUpPage() {
 
   const [followUps, setFollowUps] = React.useState<Order[]>(() =>
     mockOrders.filter(order =>
-      // Include items requiring follow-up, failed items with a next action, or programmed visits.
       ((order.status === 'Seguimiento' || order.status === 'Fallido') && order.nextActionDate) ||
       (order.status === 'Programada') 
     )
@@ -76,7 +76,7 @@ export default function CrmFollowUpPage() {
       .filter(followUp => {
         if (!dateRange?.from) return true; 
         const dateToCheck = followUp.status === 'Programada' ? followUp.visitDate : followUp.nextActionDate;
-        if (!dateToCheck) return true; // If no date, don't filter out by date range
+        if (!dateToCheck) return true;
         
         const relevantDateParsed = parseISO(dateToCheck);
         if (!isValid(relevantDateParsed)) return true;
@@ -112,7 +112,6 @@ export default function CrmFollowUpPage() {
 
     const mockOrderIndex = mockOrders.findIndex(order => order.id === followUpId);
     if (mockOrderIndex !== -1) {
-       // Directly update the specific date field in mockOrders
       (mockOrders[mockOrderIndex] as any)[dateFieldToUpdateKey] = format(selectedNewDate, "yyyy-MM-dd");
       mockOrders[mockOrderIndex].lastUpdated = format(new Date(), "yyyy-MM-dd");
     }
@@ -252,12 +251,13 @@ export default function CrmFollowUpPage() {
                   {userRole === 'Admin' && <TableHead className="w-[15%]">Comercial</TableHead>}
                   <TableHead className="w-[10%] text-center">Estado Tarea</TableHead>
                   <TableHead className="w-[15%]">Notas / Obj. Visita Original</TableHead>
-                  <TableHead className="w-[10%]">Fecha Visita Original</TableHead>
+                  <TableHead className="text-right w-[10%]">Acciones</TableHead> 
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredFollowUps.length > 0 ? filteredFollowUps.map((item: Order) => {
                   const canEditDate = userRole === 'Admin' || (userRole === 'SalesRep' && teamMember?.name === item.salesRep);
+                  const canRegisterResult = canEditDate; // Same logic for now
                   
                   const isProgrammedItem = item.status === 'Programada';
                   const relevantActionDateString = isProgrammedItem ? item.visitDate : item.nextActionDate;
@@ -323,7 +323,29 @@ export default function CrmFollowUpPage() {
                     <TableCell className="text-xs truncate max-w-[150px]" title={item.notes}>
                         {item.notes || 'N/D'}
                     </TableCell>
-                    <TableCell>{item.visitDate && item.status !== 'Programada' ? format(parseISO(item.visitDate), "dd/MM/yy", { locale: es }) : (isProgrammedItem ? "-" : "N/D")}</TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Abrir menú</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {isProgrammedItem && canRegisterResult && (
+                            <DropdownMenuItem asChild>
+                              <Link href={`/order-form?updateVisitId=${item.id}`}>
+                                <Send className="mr-2 h-4 w-4" /> Registrar Resultado
+                              </Link>
+                            </DropdownMenuItem>
+                          )}
+                          {(isProgrammedItem && canRegisterResult) && <DropdownMenuSeparator />}
+                          <DropdownMenuItem onSelect={() => { /* Lógica para ver detalles si es necesario */ }}>
+                             <CalendarDays className="mr-2 h-4 w-4" /> Ver en Agenda Completa
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
                   </TableRow>
                 )}) : (
                   <TableRow>

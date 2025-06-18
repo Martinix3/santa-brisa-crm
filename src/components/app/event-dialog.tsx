@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,7 +41,7 @@ import { crmEventTypeList, crmEventStatusList, mockTeamMembers } from "@/lib/dat
 import { Loader2, Calendar as CalendarIcon } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { format, parseISO, isValid } from "date-fns";
+import { format, parseISO, isValid, subDays, isEqual } from "date-fns"; // Added subDays and isEqual
 import { es } from 'date-fns/locale';
 
 const eventFormSchema = z.object({
@@ -105,8 +105,8 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
           name: event.name,
           type: event.type,
           status: event.status,
-          startDate: event.startDate ? parseISO(event.startDate) : new Date(),
-          endDate: event.endDate ? parseISO(event.endDate) : undefined,
+          startDate: event.startDate && isValid(parseISO(event.startDate)) ? parseISO(event.startDate) : new Date(),
+          endDate: event.endDate && isValid(parseISO(event.endDate)) ? parseISO(event.endDate) : undefined,
           description: event.description || "",
           location: event.location || "",
           assignedTeamMemberIds: event.assignedTeamMemberIds || [],
@@ -136,12 +136,11 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
     
     const dataToSave = {
       ...data,
-      startDate: format(data.startDate, "yyyy-MM-dd"),
-      endDate: data.endDate ? format(data.endDate, "yyyy-MM-dd") : undefined,
+      // Dates are already Date objects from the form, will be formatted in the parent onSave function if needed.
     };
 
     await new Promise(resolve => setTimeout(resolve, 500)); 
-    onSave(dataToSave as any, event?.id); // Cast because date format changes
+    onSave(dataToSave, event?.id);
     setIsSaving(false);
   };
 
@@ -254,7 +253,7 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
                         </FormControl>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={isReadOnly || ((date: Date) => date < (form.getValues("startDate") || new Date()) || date < subDays(new Date(),1) && !isEqual(date, subDays(new Date(),1)) ) } initialFocus locale={es}/>
+                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={isReadOnly || ((date: Date) => date < (form.getValues("startDate") || subDays(new Date(),1)) || (date < subDays(new Date(),1) && !isEqual(date, subDays(new Date(),1))) ) } initialFocus locale={es}/>
                       </PopoverContent>
                     </Popover>
                     <FormMessage />
@@ -297,51 +296,42 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
             <FormField
               control={form.control}
               name="assignedTeamMemberIds"
-              render={() => ( // Note: We don't directly use 'field' here for the outer FormField's render, but rely on nested FormFields
+              render={({ field }) => (
                 <FormItem>
                   <FormLabel>Responsables Asignados</FormLabel>
-                  <ScrollArea className="h-32 w-full rounded-md border p-2">
-                    {assignableTeamMembers.map((member) => (
-                      <FormField
-                        key={member.id}
-                        control={form.control}
-                        name="assignedTeamMemberIds" // This links to the array field
-                        render={({ field: arrayField }) => { // arrayField now correctly refers to assignedTeamMemberIds
-                          return (
-                            <FormItem
-                              key={member.id} // Unique key for the FormItem
-                              className="flex flex-row items-center space-x-3 space-y-0 py-1"
-                            >
-                              <FormControl>
+                   <FormControl>
+                      <ScrollArea className="h-32 w-full rounded-md border p-2">
+                        <div className="space-y-1">
+                          {assignableTeamMembers.map((member) => (
+                            <FormItem key={member.id} className="flex flex-row items-center space-x-3 space-y-0">
                                 <Checkbox
-                                  checked={arrayField.value?.includes(member.id)}
+                                  checked={field.value?.includes(member.id)}
                                   onCheckedChange={(checked) => {
-                                    const currentValue = arrayField.value || [];
+                                    const currentValue = field.value || [];
                                     return checked
-                                      ? arrayField.onChange([...currentValue, member.id])
-                                      : arrayField.onChange(
+                                      ? field.onChange([...currentValue, member.id])
+                                      : field.onChange(
                                           currentValue.filter(
                                             (value) => value !== member.id
                                           )
                                         );
                                   }}
                                   disabled={isReadOnly}
-                                  id={`member-${member.id}`} // Unique ID for checkbox
+                                  id={`member-checkbox-${member.id}-${event?.id || 'new'}`}
                                 />
-                              </FormControl>
-                              <FormLabel htmlFor={`member-${member.id}`} className="font-normal text-sm">
+                              <FormLabel htmlFor={`member-checkbox-${member.id}-${event?.id || 'new'}`} className="font-normal text-sm">
                                 {member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})
                               </FormLabel>
                             </FormItem>
-                          );
-                        }}
-                      />
-                    ))}
-                  </ScrollArea>
-                  <FormMessage /> {/* For errors on assignedTeamMemberIds array itself */}
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </FormControl>
+                  <FormMessage />
                 </FormItem>
               )}
             />
+
 
             <FormField
               control={form.control}
@@ -377,7 +367,7 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
                 </Button>
               </DialogClose>
               {!isReadOnly && (
-                <Button type="submit" disabled={isSaving}>
+                <Button type="submit" disabled={isSaving || !form.formState.isDirty && !!event}>
                   {isSaving ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />

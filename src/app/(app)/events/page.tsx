@@ -12,7 +12,7 @@ import { mockCrmEvents, crmEventTypeList, crmEventStatusList, mockTeamMembers } 
 import type { CrmEvent, CrmEventType, CrmEventStatus } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, Edit, Trash2, MoreHorizontal, PartyPopper, Filter, ChevronDown } from "lucide-react";
-import EventDialog, { type EventFormValues } from "@/components/app/event-dialog";
+// EventDialog import removed
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format, parseISO } from "date-fns";
 import { es } from 'date-fns/locale';
@@ -22,8 +22,7 @@ export default function EventsPage() {
   const { toast } = useToast();
   const { userRole } = useAuth();
   const [events, setEvents] = React.useState<CrmEvent[]>(() => [...mockCrmEvents]);
-  const [editingEvent, setEditingEvent] = React.useState<CrmEvent | null>(null);
-  const [isEventDialogOpen, setIsEventDialogOpen] = React.useState(false);
+  // editingEvent and isEventDialogOpen state removed
   const [eventToDelete, setEventToDelete] = React.useState<CrmEvent | null>(null);
   
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -32,63 +31,12 @@ export default function EventsPage() {
 
   const isAdmin = userRole === 'Admin';
 
-  const handleAddNewEvent = () => {
-    if (!isAdmin) return;
-    setEditingEvent(null);
-    setIsEventDialogOpen(true);
-  };
-
-  const handleEditEvent = (event: CrmEvent) => {
-    if (!isAdmin) return;
-    setEditingEvent(event);
-    setIsEventDialogOpen(true);
-  };
-
-  const handleSaveEvent = (data: EventFormValues) => {
-    if (!isAdmin) return;
-    const currentDate = format(new Date(), "yyyy-MM-dd");
-
-    if (editingEvent) {
-      const updatedEvents = events.map(evt =>
-        evt.id === editingEvent.id ? { 
-          ...editingEvent, 
-          ...data, 
-          startDate: format(data.startDate, "yyyy-MM-dd"),
-          endDate: data.endDate ? format(data.endDate, "yyyy-MM-dd") : undefined,
-          updatedAt: currentDate 
-        } : evt
-      );
-      setEvents(updatedEvents);
-      const mockIndex = mockCrmEvents.findIndex(evt => evt.id === editingEvent.id);
-      if (mockIndex !== -1) {
-        mockCrmEvents[mockIndex] = { 
-            ...mockCrmEvents[mockIndex], 
-            ...data, 
-            startDate: format(data.startDate, "yyyy-MM-dd"),
-            endDate: data.endDate ? format(data.endDate, "yyyy-MM-dd") : undefined,
-            updatedAt: currentDate 
-        };
-      }
-      toast({ title: "¡Evento Actualizado!", description: `El evento "${data.name}" ha sido actualizado.` });
-    } else {
-      const newEvent: CrmEvent = {
-        id: `evt_${Date.now()}`,
-        ...data,
-        startDate: format(data.startDate, "yyyy-MM-dd"),
-        endDate: data.endDate ? format(data.endDate, "yyyy-MM-dd") : undefined,
-        createdAt: currentDate,
-        updatedAt: currentDate,
-      };
-      setEvents(prev => [newEvent, ...prev]);
-      mockCrmEvents.unshift(newEvent);
-      toast({ title: "¡Evento Añadido!", description: `El evento "${data.name}" ha sido añadido.` });
-    }
-    setIsEventDialogOpen(false);
-    setEditingEvent(null);
-  };
+  // handleAddNewEvent, handleEditEvent, handleSaveEvent functions removed
 
   const handleDeleteEvent = (event: CrmEvent) => {
     if (!isAdmin) return;
+    // Direct deletion for now, or implement a simpler confirmation if needed
+    // For now, let's keep the AlertDialog confirmation if it's not causing issues itself
     setEventToDelete(event);
   };
 
@@ -131,11 +79,7 @@ export default function EventsPage() {
             <PartyPopper className="h-8 w-8 text-primary" />
             <h1 className="text-3xl font-headline font-semibold">Gestión de Eventos</h1>
         </div>
-        {isAdmin && (
-          <Button onClick={handleAddNewEvent}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Añadir Nuevo Evento
-          </Button>
-        )}
+        {/* "Añadir Nuevo Evento" button removed */}
       </header>
 
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
@@ -218,12 +162,10 @@ export default function EventsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onSelect={() => { setEditingEvent(event); setIsEventDialogOpen(true); }}>
-                            {isAdmin ? <><Edit className="mr-2 h-4 w-4" /> Editar</> : "Ver Detalles"}
-                          </DropdownMenuItem>
+                          {/* Editar and Ver Detalles (if it opened dialog) removed */}
                           {isAdmin && (
                             <>
-                              <DropdownMenuSeparator />
+                              {/* <DropdownMenuSeparator /> // Separator might not be needed if only delete remains */}
                                <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <DropdownMenuItem 
@@ -252,6 +194,7 @@ export default function EventsPage() {
                               </AlertDialog>
                             </>
                           )}
+                          {!isAdmin && <DropdownMenuItem disabled>No hay acciones disponibles</DropdownMenuItem>}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -259,7 +202,7 @@ export default function EventsPage() {
                 )) : (
                   <TableRow>
                     <TableCell colSpan={6} className="h-24 text-center">
-                      No hay eventos para mostrar. Intenta ajustar los filtros o añade un nuevo evento.
+                      No hay eventos para mostrar. Intenta ajustar los filtros.
                     </TableCell>
                   </TableRow>
                 )}
@@ -274,23 +217,7 @@ export default function EventsPage() {
         )}
       </Card>
 
-      {isAdmin && (
-        <EventDialog
-          event={editingEvent}
-          isOpen={isEventDialogOpen}
-          onOpenChange={setIsEventDialogOpen}
-          onSave={handleSaveEvent}
-        />
-      )}
-       {!isAdmin && editingEvent && (
-        <EventDialog
-          event={editingEvent}
-          isOpen={isEventDialogOpen}
-          onOpenChange={setIsEventDialogOpen}
-          onSave={()=>{}} 
-          isReadOnly={true}
-        />
-      )}
+      {/* EventDialog rendering removed */}
     </div>
   );
 }

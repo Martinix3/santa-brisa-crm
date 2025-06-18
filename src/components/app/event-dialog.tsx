@@ -1,8 +1,9 @@
+
 "use client";
 
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, Controller, useFieldArray } from "react-hook-form";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,7 +22,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  // useFormField, // No longer explicitly needed here
+  useFormField,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -36,14 +37,13 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { CrmEvent, CrmEventType, CrmEventStatus } from "@/types";
+import type { CrmEvent, CrmEventType, CrmEventStatus, TeamMember as TeamMemberType, UserRole } from "@/types";
 import { crmEventTypeList, crmEventStatusList, mockTeamMembers } from "@/lib/data";
 import { Loader2, CalendarIcon } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { es } from 'date-fns/locale';
-// import { Label } from "@/components/ui/label"; // Using FormLabel from form context
 
 const eventFormSchema = z.object({
   name: z.string().min(3, "El nombre del evento debe tener al menos 3 caracteres."),
@@ -75,6 +75,44 @@ interface EventDialogProps {
   onSave: (data: EventFormValues) => void;
   isReadOnly?: boolean;
 }
+
+// Helper component for individual Checkbox within the FormField context
+const TeamMemberCheckbox = ({ member, field, isReadOnly }: { member: { id: string; name: string; role: UserRole }, field: any, isReadOnly: boolean }) => {
+  const checkboxId = `member-checkbox-${member.id}-${field.name}`;
+
+  return (
+    <FormItem key={member.id} className="flex flex-row items-center space-x-3 space-y-0 py-1">
+      <FormControl>
+        <Checkbox
+          id={checkboxId}
+          checked={Array.isArray(field.value) && field.value.includes(member.id)}
+          onCheckedChange={(checked) => {
+            const currentValues = Array.isArray(field.value) ? field.value : [];
+            if (checked) {
+              field.onChange([...currentValues, member.id]);
+            } else {
+              field.onChange(
+                currentValues.filter(
+                  (value) => value !== member.id
+                )
+              );
+            }
+          }}
+          disabled={isReadOnly}
+          aria-labelledby={`${checkboxId}-label`}
+        />
+      </FormControl>
+      <FormLabel
+        htmlFor={checkboxId}
+        id={`${checkboxId}-label`}
+        className="text-sm font-normal cursor-pointer"
+      >
+        {member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})
+      </FormLabel>
+    </FormItem>
+  );
+};
+
 
 export default function EventDialog({ event, isOpen, onOpenChange, onSave, isReadOnly = false }: EventDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
@@ -131,13 +169,18 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
     await new Promise(resolve => setTimeout(resolve, 500)); 
     onSave(data);
     setIsSaving(false);
-    // onOpenChange(false); // Dialog close is handled by parent
+    onOpenChange(false); // Explicitly close dialog on successful save
   };
   
   const assignableTeamMembers = mockTeamMembers.filter(member => member.role === 'Admin' || member.role === 'SalesRep');
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      onOpenChange(open);
+      if (!open) {
+        form.reset(); // Reset form when dialog is closed externally
+      }
+    }}>
       <DialogContent className="sm:max-w-lg md:max-w-xl lg:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isReadOnly ? "Detalles del Evento" : (event ? "Editar Evento" : "Añadir Nuevo Evento")}</DialogTitle>
@@ -151,8 +194,8 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
             <FormField control={form.control} name="name" render={({ field }) => ( <FormItem> <FormLabel>Nombre del Evento</FormLabel> <FormControl> <Input placeholder="Ej: Feria Anual de Vinos" {...field} disabled={isReadOnly} /> </FormControl> <FormMessage /> </FormItem> )}/>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField control={form.control} name="type" render={({ field }) => ( <FormItem> <FormLabel>Tipo de Evento</FormLabel> <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isReadOnly}> <FormControl> <SelectTrigger> <SelectValue placeholder="Seleccione un tipo" /> </SelectTrigger> </FormControl> <SelectContent> {crmEventTypeList.map(type => ( <SelectItem key={type} value={type}>{type}</SelectItem> ))} </SelectContent> </Select> <FormMessage /> </FormItem> )}/>
-                <FormField control={form.control} name="status" render={({ field }) => ( <FormItem> <FormLabel>Estado del Evento</FormLabel> <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isReadOnly}> <FormControl> <SelectTrigger> <SelectValue placeholder="Seleccione un estado" /> </SelectTrigger> </FormControl> <SelectContent> {crmEventStatusList.map(status => ( <SelectItem key={status} value={status}>{status}</SelectItem> ))} </SelectContent> </Select> <FormMessage /> </FormItem> )}/>
+                <FormField control={form.control} name="type" render={({ field }) => ( <FormItem> <FormLabel>Tipo de Evento</FormLabel> <Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}> <FormControl> <SelectTrigger> <SelectValue placeholder="Seleccione un tipo" /> </SelectTrigger> </FormControl> <SelectContent> {crmEventTypeList.map(type => ( <SelectItem key={type} value={type}>{type}</SelectItem> ))} </SelectContent> </Select> <FormMessage /> </FormItem> )}/>
+                <FormField control={form.control} name="status" render={({ field }) => ( <FormItem> <FormLabel>Estado del Evento</FormLabel> <Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}> <FormControl> <SelectTrigger> <SelectValue placeholder="Seleccione un estado" /> </SelectTrigger> </FormControl> <SelectContent> {crmEventStatusList.map(status => ( <SelectItem key={status} value={status}>{status}</SelectItem> ))} </SelectContent> </Select> <FormMessage /> </FormItem> )}/>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -167,63 +210,30 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
             
             <FormField
               control={form.control}
-              name="assignedTeamMemberIds" // Main field for the array
-              render={() => ( // Outer render doesn't need 'field' if using nested FormFields for items
+              name="assignedTeamMemberIds"
+              render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Responsables Asignados</FormLabel> {/* Label for the whole group */}
-                  <ScrollArea 
-                    className={cn(
-                        "h-32 w-full rounded-md border p-2",
-                        form.getFieldState('assignedTeamMemberIds').error ? "border-destructive" : "border-input"
-                      )}
-                    role="group" // Accessibility: Indicate it's a group of related controls
-                  >
-                    {assignableTeamMembers.map((member) => (
-                      <FormField
-                        key={member.id}
-                        control={form.control}
-                        name="assignedTeamMemberIds" // Each checkbox contributes to this same array field
-                        render={({ field }) => ( // This 'field' is for the 'assignedTeamMemberIds' array
-                          <FormItem
-                            className="flex flex-row items-start space-x-3 space-y-0 py-1"
-                          >
-                            <FormControl> {/* FormControl wraps ONLY the Checkbox */}
-                              <Checkbox
-                                id={`member-checkbox-${member.id}`} // Unique ID for each checkbox
-                                checked={Array.isArray(field.value) && field.value.includes(member.id)}
-                                onCheckedChange={(checked) => {
-                                  const currentValues = Array.isArray(field.value) ? field.value : [];
-                                  if (checked) {
-                                    field.onChange([...currentValues, member.id]);
-                                  } else {
-                                    field.onChange(
-                                      currentValues.filter(
-                                        (value) => value !== member.id
-                                      )
-                                    );
-                                  }
-                                }}
-                                disabled={isReadOnly}
-                                aria-labelledby={`member-label-${member.id}`} // For accessibility
-                              />
-                            </FormControl>
-                            <FormLabel // This is ShadCN's FormLabel, works with the inner FormItem/FormControl context
-                              htmlFor={`member-checkbox-${member.id}`} // Links label to checkbox
-                              id={`member-label-${member.id}`} // ID for aria-labelledby
-                              className="text-sm font-normal cursor-pointer"
-                            >
-                              {member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})
-                            </FormLabel>
-                          </FormItem>
+                  <FormLabel>Responsables Asignados</FormLabel>
+                    <ScrollArea 
+                        className={cn(
+                            "h-32 w-full rounded-md border p-2",
+                            form.getFieldState('assignedTeamMemberIds').error ? "border-destructive" : "border-input"
                         )}
-                      />
-                    ))}
-                  </ScrollArea>
-                  <FormMessage /> {/* Displays errors for the 'assignedTeamMemberIds' field as a whole */}
+                        // No FormControl wrapper here
+                    >
+                        {assignableTeamMembers.map((member) => (
+                           <TeamMemberCheckbox 
+                             key={member.id} 
+                             member={member} 
+                             field={field} // Pass the main field object
+                             isReadOnly={isReadOnly} 
+                           />
+                        ))}
+                    </ScrollArea>
+                  <FormMessage />
                 </FormItem>
               )}
             />
-
 
             <FormField control={form.control} name="requiredMaterials" render={({ field }) => ( <FormItem> <FormLabel>Materiales Necesarios (Opcional)</FormLabel> <FormControl> <Textarea placeholder="Listar materiales: stands, folletos, muestras..." {...field} disabled={isReadOnly} className="min-h-[80px]" /> </FormControl> <FormMessage /> </FormItem> )}/>
             <FormField control={form.control} name="notes" render={({ field }) => ( <FormItem> <FormLabel>Notas Adicionales (Opcional)</FormLabel> <FormControl> <Textarea placeholder="Cualquier otra información relevante..." {...field} disabled={isReadOnly} className="min-h-[80px]" /> </FormControl> <FormMessage /> </FormItem> )}/>
@@ -235,7 +245,7 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
                 </Button>
               </DialogClose>
               {!isReadOnly && (
-                <Button type="submit" disabled={isSaving}>
+                <Button type="submit" disabled={isSaving || !form.formState.isDirty}>
                   {isSaving ? ( <> <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando... </> ) : ( event ? "Guardar Cambios" : "Añadir Evento" )}
                 </Button>
               )}
@@ -246,6 +256,5 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
     </Dialog>
   );
 }
-    
 
     

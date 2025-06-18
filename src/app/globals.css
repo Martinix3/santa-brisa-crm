@@ -9,86 +9,82 @@ body {
 
 @layer base {
   :root {
-    --background: 30 25% 96%; /* #F7F4F1 Off-white/light cream */
-    --foreground: 215 25% 20%; /* #1F2937 Dark gray */
+    --background: 30 25% 96%;
+    --foreground: 215 25% 20%;
 
-    --card: 0 0% 100%; /* White for cards */
-    --card-foreground: 215 25% 20%; /* Dark gray text on cards */
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 20%;
 
     --popover: 0 0% 100%;
     --popover-foreground: 215 25% 20%;
 
-    --primary: 45 100% 58%; /* Pantone 122 C (Yellow) */
-    --primary-foreground: 45 100% 15%; /* Darker for text on yellow */
+    --primary: 45 100% 58%;
+    --primary-foreground: 45 100% 15%;
 
-    --secondary: 177 70% 90%; /* Lighter tint of Pantone 324 C for backgrounds */
-    --secondary-foreground: 177 100% 20%; /* Darker shade for text on light secondary */
+    --secondary: 177 70% 90%;
+    --secondary-foreground: 177 100% 20%;
 
-    --muted: 30 25% 90%; /* Lighter cream, derived from background */
-    --muted-foreground: 215 25% 45%; /* Slightly lighter dark gray for muted text */
+    --muted: 30 25% 90%;
+    --muted-foreground: 215 25% 45%;
 
-    --accent: 45 95% 58%; /* #FBBF24 Sunny Yellow (Note: now very similar to primary) */
-    --accent-foreground: 215 25% 15%; /* Darker text on yellow for contrast */
+    --accent: 45 95% 58%;
+    --accent-foreground: 215 25% 15%;
 
     --destructive: 0 75% 55%; 
     --destructive-foreground: 0 0% 98%; 
 
-    --border: 30 20% 88%; /* Border color, subtle, related to background */
-    --input: 0 0% 100%; /* Input background, white for clarity */
-    --ring: 45 100% 60%; /* Ring color, slightly brighter yellow for focus */
+    --border: 30 20% 88%;
+    --input: 0 0% 100%;
+    --ring: 45 100% 60%;
 
-    --radius: 0.5rem; /* For rounded corners */
+    --radius: 0.5rem;
 
-    /* Custom brand colors for direct use if needed, ensure HSL format for CSS vars */
-    --brand-turquoise-hsl: 177 100% 35%; /* Pantone 324 C (Teal) */
-    --brand-terracotta-hsl: 45 100% 58%; /* Was Terracotta, now matches new Primary Yellow */
-    --brand-yellow-hsl: 45 95% 58%; /* Same as accent */
+    --brand-turquoise-hsl: 177 100% 35%;
+    --brand-terracotta-hsl: 45 100% 58%;
+    --brand-yellow-hsl: 45 95% 58%;
 
-    /* Sidebar specific theme variables */
-    --sidebar-background: 220 15% 15%; /* Darker, sophisticated sidebar bg */
-    --sidebar-foreground: 30 20% 85%; /* Light text for sidebar */
-    --sidebar-primary: 45 100% 65%; /* Brighter Yellow for active/hover in sidebar */
+    --sidebar-background: 220 15% 15%;
+    --sidebar-foreground: 30 20% 85%;
+    --sidebar-primary: 45 100% 65%;
     --sidebar-primary-foreground: 45 100% 10%;
-    --sidebar-accent: 220 15% 25%; /* Hover/active background for sidebar items */
+    --sidebar-accent: 220 15% 25%;
     --sidebar-accent-foreground: 0 0% 100%;
     --sidebar-border: 220 15% 30%;
     --sidebar-ring: 45 100% 65%;
   }
 
   .dark {
-    /* Dark theme - providing a distinct dark palette */
-    --background: 215 28% 17%; /* Dark slate blue */
-    --foreground: 210 40% 96%; /* Light greyish blue */
+    --background: 215 28% 17%;
+    --foreground: 210 40% 96%;
 
-    --card: 215 28% 22%; /* Slightly lighter slate blue for cards */
+    --card: 215 28% 22%;
     --card-foreground: 210 40% 96%;
 
     --popover: 215 28% 17%;
     --popover-foreground: 210 40% 96%;
 
-    --primary: 45 90% 60%; /* Pantone 122 C (Yellow), adjusted for dark mode */
-    --primary-foreground: 45 100% 10%; /* Very dark text on yellow for contrast */
+    --primary: 45 90% 60%;
+    --primary-foreground: 45 100% 10%;
     
-    --secondary: 177 80% 40%; /* Pantone 324 C (Teal), darker themed version */
-    --secondary-foreground: 177 70% 85%; /* Lighter Teal text for dark secondary */
+    --secondary: 177 80% 40%;
+    --secondary-foreground: 177 70% 85%;
 
     --muted: 215 28% 25%;
     --muted-foreground: 210 40% 60%; 
 
-    --accent: 45 90% 60%; /* Yellow, slightly adjusted (Note: similar to primary) */
-    --accent-foreground: 35 90% 10%; /* Dark brown/black text on yellow */
+    --accent: 45 90% 60%;
+    --accent-foreground: 35 90% 10%;
 
     --destructive: 0 60% 50%;
     --destructive-foreground: 0 0% 98%;
 
     --border: 215 28% 28%;
     --input: 215 28% 25%;
-    --ring: 45 90% 62%; /* Ring color for dark mode, yellow */
+    --ring: 45 90% 62%;
 
-    /* Sidebar specific theme variables for dark mode */
-    --sidebar-background: 215 30% 12%; /* Even darker sidebar for dark mode */
+    --sidebar-background: 215 30% 12%;
     --sidebar-foreground: 210 30% 80%; 
-    --sidebar-primary: 45 90% 68%; /* Yellow for sidebar in dark mode */
+    --sidebar-primary: 45 90% 68%;
     --sidebar-primary-foreground: 45 100% 5%;
     --sidebar-accent: 215 30% 20%;
     --sidebar-accent-foreground: 0 0% 100%;
@@ -103,7 +99,6 @@ body {
   }
   body {
     @apply bg-background text-foreground;
-    /* Smooth font rendering */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -111,20 +106,18 @@ body {
 
 @media print {
   body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; /* Common print font */
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
     font-size: 10pt;
     color: #000;
     background-color: #fff;
   }
 
-  /* Hide general UI elements */
-  [data-sidebar="sidebar"], /* Sidebar component */
-  header.sticky, /* Main app header */
+  [data-sidebar="sidebar"],
+  header.sticky,
   .print-hide {
     display: none !important;
   }
 
-  /* Ensure main content uses full width */
   main.flex-1 {
     padding: 0 !important;
     margin: 0 !important;
@@ -134,10 +127,10 @@ body {
   }
   
   #printable-account-details, 
-  .print-dialog-content { /* Specific ID for account detail page content area */
+  .print-dialog-content {
     width: 100% !important;
     margin: 0 !important;
-    padding: 1cm !important; /* Add some padding for print */
+    padding: 1cm !important;
     box-shadow: none !important;
     border: none !important;
   }
@@ -147,18 +140,16 @@ body {
      overflow-y: visible !important;
   }
 
-  /* Card styling for print */
   .card, .print-section {
     box-shadow: none !important;
     border: 1px solid #ccc !important;
-    page-break-inside: avoid !important; /* Avoid breaking cards across pages */
+    page-break-inside: avoid !important;
     margin-bottom: 1cm !important;
   }
   .card-header, .card-content, .card-footer {
     padding: 0.5cm !important;
   }
 
-  /* Table styling for print */
   table {
     width: 100% !important;
     border-collapse: collapse !important;
@@ -178,10 +169,9 @@ body {
     color: #000 !important;
   }
   a[href^="http"]:after, a[href^="mailto"]:after {
-    content: "" !important; /* Avoid showing full URLs for external links */
+    content: "" !important;
   }
 
-  /* Specific overrides for Dialog printing */
   .print-dialog-content .dialog-header,
   .print-dialog-content .dialog-footer,
   .print-dialog-content .print-hide {
@@ -200,4 +190,3 @@ body {
     font-weight: bold !important;
   }
 }
-

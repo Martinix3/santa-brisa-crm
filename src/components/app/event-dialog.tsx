@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, Controller, useFieldArray } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,7 +22,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  useFormField,
+  FormDescription, // Added for better UX on checkbox group
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -37,7 +37,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { CrmEvent, CrmEventType, CrmEventStatus, TeamMember as TeamMemberType, UserRole } from "@/types";
+import type { CrmEvent, CrmEventType, CrmEventStatus, TeamMember as TeamMemberType } from "@/types";
 import { crmEventTypeList, crmEventStatusList, mockTeamMembers } from "@/lib/data";
 import { Loader2, CalendarIcon } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
@@ -57,7 +57,7 @@ const eventFormSchema = z.object({
   requiredMaterials: z.string().optional(),
   notes: z.string().optional(),
 }).superRefine((data, ctx) => {
-  if (data.endDate && data.endDate < data.startDate) {
+  if (data.endDate && data.startDate && data.endDate < data.startDate) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "La fecha de fin no puede ser anterior a la fecha de inicio.",
@@ -76,44 +76,6 @@ interface EventDialogProps {
   isReadOnly?: boolean;
 }
 
-// Helper component for individual Checkbox within the FormField context
-const TeamMemberCheckbox = ({ member, field, isReadOnly }: { member: { id: string; name: string; role: UserRole }, field: any, isReadOnly: boolean }) => {
-  const checkboxId = `member-checkbox-${member.id}-${field.name}`;
-
-  return (
-    <FormItem key={member.id} className="flex flex-row items-center space-x-3 space-y-0 py-1">
-      <FormControl>
-        <Checkbox
-          id={checkboxId}
-          checked={Array.isArray(field.value) && field.value.includes(member.id)}
-          onCheckedChange={(checked) => {
-            const currentValues = Array.isArray(field.value) ? field.value : [];
-            if (checked) {
-              field.onChange([...currentValues, member.id]);
-            } else {
-              field.onChange(
-                currentValues.filter(
-                  (value) => value !== member.id
-                )
-              );
-            }
-          }}
-          disabled={isReadOnly}
-          aria-labelledby={`${checkboxId}-label`}
-        />
-      </FormControl>
-      <FormLabel
-        htmlFor={checkboxId}
-        id={`${checkboxId}-label`}
-        className="text-sm font-normal cursor-pointer"
-      >
-        {member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})
-      </FormLabel>
-    </FormItem>
-  );
-};
-
-
 export default function EventDialog({ event, isOpen, onOpenChange, onSave, isReadOnly = false }: EventDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   
@@ -123,7 +85,7 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
       name: "",
       type: undefined,
       status: "Planificado",
-      startDate: undefined,
+      startDate: new Date(), // Initialize with a valid date
       endDate: undefined,
       description: "",
       location: "",
@@ -134,32 +96,34 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
   });
 
   React.useEffect(() => {
-    if (event && isOpen) {
-      form.reset({
-        name: event.name,
-        type: event.type,
-        status: event.status,
-        startDate: parseISO(event.startDate),
-        endDate: event.endDate ? parseISO(event.endDate) : undefined,
-        description: event.description || "",
-        location: event.location || "",
-        assignedTeamMemberIds: event.assignedTeamMemberIds || [],
-        requiredMaterials: event.requiredMaterials || "",
-        notes: event.notes || "",
-      });
-    } else if (!event && isOpen) {
-      form.reset({
-        name: "",
-        type: undefined,
-        status: "Planificado",
-        startDate: new Date(),
-        endDate: undefined,
-        description: "",
-        location: "",
-        assignedTeamMemberIds: [],
-        requiredMaterials: "",
-        notes: "",
-      });
+    if (isOpen) {
+      if (event) {
+        form.reset({
+          name: event.name,
+          type: event.type,
+          status: event.status,
+          startDate: parseISO(event.startDate),
+          endDate: event.endDate ? parseISO(event.endDate) : undefined,
+          description: event.description || "",
+          location: event.location || "",
+          assignedTeamMemberIds: event.assignedTeamMemberIds || [],
+          requiredMaterials: event.requiredMaterials || "",
+          notes: event.notes || "",
+        });
+      } else {
+        form.reset({
+          name: "",
+          type: undefined,
+          status: "Planificado",
+          startDate: new Date(),
+          endDate: undefined,
+          description: "",
+          location: "",
+          assignedTeamMemberIds: [],
+          requiredMaterials: "",
+          notes: "",
+        });
+      }
     }
   }, [event, isOpen, form]);
 
@@ -169,18 +133,13 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
     await new Promise(resolve => setTimeout(resolve, 500)); 
     onSave(data);
     setIsSaving(false);
-    onOpenChange(false); // Explicitly close dialog on successful save
+    onOpenChange(false); 
   };
   
   const assignableTeamMembers = mockTeamMembers.filter(member => member.role === 'Admin' || member.role === 'SalesRep');
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => {
-      onOpenChange(open);
-      if (!open) {
-        form.reset(); // Reset form when dialog is closed externally
-      }
-    }}>
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg md:max-w-xl lg:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isReadOnly ? "Detalles del Evento" : (event ? "Editar Evento" : "Añadir Nuevo Evento")}</DialogTitle>
@@ -214,26 +173,55 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Responsables Asignados</FormLabel>
-                    <ScrollArea 
-                        className={cn(
-                            "h-32 w-full rounded-md border p-2",
-                            form.getFieldState('assignedTeamMemberIds').error ? "border-destructive" : "border-input"
-                        )}
-                        // No FormControl wrapper here
-                    >
-                        {assignableTeamMembers.map((member) => (
-                           <TeamMemberCheckbox 
-                             key={member.id} 
-                             member={member} 
-                             field={field} // Pass the main field object
-                             isReadOnly={isReadOnly} 
-                           />
-                        ))}
-                    </ScrollArea>
+                  <FormDescription>
+                    Seleccione uno o más responsables para el evento.
+                  </FormDescription>
+                  <ScrollArea 
+                    className={cn(
+                      "h-32 w-full rounded-md border p-3", // Added p-3 for internal spacing
+                      form.getFieldState('assignedTeamMemberIds').error ? "border-destructive" : "border-input"
+                    )}
+                  >
+                    <div className="space-y-2"> {/* Add a div to manage spacing of FormItems */}
+                      {assignableTeamMembers.map((member) => (
+                        <FormItem key={member.id} className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl> 
+                            {/* FormControl now wraps ONLY the Checkbox */}
+                            <Checkbox
+                              checked={field.value?.includes(member.id)}
+                              onCheckedChange={(checked) => {
+                                const currentValues = field.value || [];
+                                if (checked) {
+                                  field.onChange([...currentValues, member.id]);
+                                } else {
+                                  field.onChange(
+                                    currentValues.filter(
+                                      (value) => value !== member.id
+                                    )
+                                  );
+                                }
+                              }}
+                              disabled={isReadOnly}
+                              id={`member-checkbox-${member.id}`}
+                              aria-labelledby={`member-label-${member.id}`}
+                            />
+                          </FormControl>
+                          <FormLabel
+                            htmlFor={`member-checkbox-${member.id}`}
+                            id={`member-label-${member.id}`}
+                            className="text-sm font-normal cursor-pointer"
+                          >
+                            {member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})
+                          </FormLabel>
+                        </FormItem>
+                      ))}
+                    </div>
+                  </ScrollArea>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
 
             <FormField control={form.control} name="requiredMaterials" render={({ field }) => ( <FormItem> <FormLabel>Materiales Necesarios (Opcional)</FormLabel> <FormControl> <Textarea placeholder="Listar materiales: stands, folletos, muestras..." {...field} disabled={isReadOnly} className="min-h-[80px]" /> </FormControl> <FormMessage /> </FormItem> )}/>
             <FormField control={form.control} name="notes" render={({ field }) => ( <FormItem> <FormLabel>Notas Adicionales (Opcional)</FormLabel> <FormControl> <Textarea placeholder="Cualquier otra información relevante..." {...field} disabled={isReadOnly} className="min-h-[80px]" /> </FormControl> <FormMessage /> </FormItem> )}/>

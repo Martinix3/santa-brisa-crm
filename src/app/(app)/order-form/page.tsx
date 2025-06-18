@@ -183,26 +183,44 @@ export default function OrderFormPage() {
   React.useEffect(() => {
     const visitIdToUpdate = searchParams.get('updateVisitId');
     if (visitIdToUpdate) {
-      const existingVisit = mockOrders.find(o => o.id === visitIdToUpdate && o.status === 'Programada');
+      const existingVisit = mockOrders.find(o => o.id === visitIdToUpdate && (o.status === 'Programada' || o.status === 'Seguimiento' || o.status === 'Fallido'));
       if (existingVisit && teamMember && (existingVisit.salesRep === teamMember.name || userRole === 'Admin')) {
         setEditingVisitId(visitIdToUpdate);
         
         let visitDateParsed = new Date(existingVisit.visitDate);
-        if (!isValid(visitDateParsed)) visitDateParsed = new Date(); // Fallback to today if date is invalid
+        if (!isValid(visitDateParsed)) visitDateParsed = new Date(); 
         
         setPageTitle(`Registrar Resultado: ${existingVisit.clientName} (${format(visitDateParsed, "dd/MM/yy", {locale: es})})`);
         form.reset({
           clientName: existingVisit.clientName,
           visitDate: visitDateParsed,
-          clientStatus: undefined, 
-          outcome: undefined, 
+          clientStatus: existingVisit.clientStatus || undefined, // Pre-fill if available from follow-up/failed
+          outcome: undefined, // User must select new outcome
           notes: existingVisit.notes || "", 
+          // Pre-fill other details if they exist on the original task
+          clientType: existingVisit.clientType,
+          numberOfUnits: existingVisit.numberOfUnits,
+          unitPrice: existingVisit.unitPrice,
+          orderValue: existingVisit.value,
+          nombreFiscal: existingVisit.nombreFiscal || "",
+          cif: existingVisit.cif || "",
+          direccionFiscal: existingVisit.direccionFiscal || "",
+          direccionEntrega: existingVisit.direccionEntrega || "",
+          contactoNombre: existingVisit.contactoNombre || "",
+          contactoCorreo: existingVisit.contactoCorreo || "",
+          contactoTelefono: existingVisit.contactoTelefono || "",
+          observacionesAlta: existingVisit.observacionesAlta || "",
+          nextActionType: existingVisit.nextActionType,
+          nextActionCustom: existingVisit.nextActionCustom || "",
+          nextActionDate: existingVisit.nextActionDate ? parseISO(existingVisit.nextActionDate) : undefined,
+          failureReasonType: existingVisit.failureReasonType,
+          failureReasonCustom: existingVisit.failureReasonCustom || "",
         });
       } else if (existingVisit) {
-         toast({ title: "Acceso Denegado", description: "No tienes permiso para actualizar esta visita o ya ha sido procesada.", variant: "destructive"});
+         toast({ title: "Acceso Denegado", description: "No tienes permiso para actualizar esta visita o ya ha sido procesada de otra forma.", variant: "destructive"});
          router.push("/dashboard"); 
       } else {
-        toast({ title: "Error", description: "Visita programada no encontrada o ya procesada.", variant: "destructive"});
+        toast({ title: "Error", description: "Tarea no encontrada o ya procesada.", variant: "destructive"});
         router.push("/my-agenda");
       }
     } else {
@@ -275,25 +293,28 @@ export default function OrderFormPage() {
     const currentDate = format(new Date(), "yyyy-MM-dd");
     let accountCreationMessage = "";
 
-    // ---- Logic for Updating an Existing Programmed Visit ----
+    // ---- Logic for Updating an Existing Programmed Visit / Follow-up ----
     if (editingVisitId) {
         const visitIndex = mockOrders.findIndex(o => o.id === editingVisitId);
         if (visitIndex === -1) {
-            toast({ title: "Error", description: "No se pudo encontrar la visita programada para actualizar.", variant: "destructive" });
+            toast({ title: "Error", description: "No se pudo encontrar la tarea para actualizar.", variant: "destructive" });
             setIsSubmitting(false);
             return;
         }
         const originalVisit = mockOrders[visitIndex];
+        const wasProgrammedOrFollowUp = originalVisit.status === 'Programada' || originalVisit.status === 'Seguimiento' || originalVisit.status === 'Fallido';
+
 
         let updatedVisitData: Partial<Order> = {
             lastUpdated: currentDate,
-            notes: values.notes, // Carry over/update general notes
+            notes: values.notes, 
+            clientStatus: values.clientStatus,
         };
 
         if (values.outcome === "successful" && values.clientStatus && values.visitDate && values.orderValue && values.clientType && values.numberOfUnits && values.unitPrice) {
             updatedVisitData = {
                 ...updatedVisitData,
-                status: 'Confirmado', // Changed from Programada
+                status: 'Confirmado', 
                 clientType: values.clientType,
                 products: [SINGLE_PRODUCT_NAME],
                 numberOfUnits: values.numberOfUnits,
@@ -324,50 +345,51 @@ export default function OrderFormPage() {
                  if(existingAccount) updatedVisitData = {...updatedVisitData, nombreFiscal: existingAccount.legalName, cif: existingAccount.cif, direccionFiscal: existingAccount.addressBilling, direccionEntrega: existingAccount.addressShipping, contactoNombre: existingAccount.mainContactName, contactoCorreo: existingAccount.mainContactEmail, contactoTelefono: existingAccount.mainContactPhone,};
             }
 
-            // KPI updates for successful outcome from a programmed visit
-            if (userRole === 'SalesRep' || userRole === 'Admin') { // Admin can also generate sales for team KPI
+            // KPI updates for successful outcome from a programmed visit/follow-up
+            if (userRole === 'SalesRep' || userRole === 'Admin') { 
                 const memberToUpdate = mockTeamMembers.find(m => m.name === salesRepName && (m.role === 'SalesRep' || m.role === 'Admin'));
                 if (memberToUpdate) {
                   memberToUpdate.bottlesSold = (memberToUpdate.bottlesSold || 0) + values.numberOfUnits;
                   memberToUpdate.orders = (memberToUpdate.orders || 0) + 1;
-                  // Visit was already counted when programmed.
+                  // Visit count was handled when initially programmed or for the initial interaction leading to follow-up.
                 }
             }
             const kpiVentasTotales = kpiDataLaunch.find(k => k.id === 'kpi1'); if (kpiVentasTotales) kpiVentasTotales.currentValue += values.numberOfUnits;
             const kpiVentasEquipo = kpiDataLaunch.find(k => k.id === 'kpi2'); if (kpiVentasEquipo) kpiVentasEquipo.currentValue += values.numberOfUnits;
 
-            toast({ title: "¡Resultado Registrado!", description: <div className="flex items-start"><Check className="h-5 w-5 text-green-500 mr-2 mt-1" /><p>Pedido para {values.clientName} registrado.{accountCreationMessage}</p></div> });
+            toast({ title: "¡Enhorabuena!", description: <div className="flex items-start"><Check className="h-5 w-5 text-green-500 mr-2 mt-1" /><p>Pedido para {values.clientName} registrado y tarea completada.{accountCreationMessage}</p></div> });
 
         } else if (values.outcome === "follow-up" && values.clientStatus && values.visitDate && values.nextActionType) {
             updatedVisitData = { ...updatedVisitData, status: 'Seguimiento', nextActionType: values.nextActionType, nextActionCustom: values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : undefined, nextActionDate: values.nextActionDate ? format(values.nextActionDate, "yyyy-MM-dd") : undefined };
-            toast({ title: "¡Seguimiento Registrado!", description: <div className="flex items-start"><Info className="h-5 w-5 text-blue-500 mr-2 mt-1" /><p>Seguimiento para {values.clientName} actualizado.</p></div> });
+            toast({ title: "¡Seguimiento Actualizado!", description: <div className="flex items-start"><Info className="h-5 w-5 text-blue-500 mr-2 mt-1" /><p>Seguimiento para {values.clientName} actualizado.</p></div> });
         } else if (values.outcome === "failed" && values.clientStatus && values.visitDate && values.nextActionType && values.failureReasonType) {
             updatedVisitData = { ...updatedVisitData, status: 'Fallido', nextActionType: values.nextActionType, nextActionCustom: values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : undefined, nextActionDate: values.nextActionDate ? format(values.nextActionDate, "yyyy-MM-dd") : undefined, failureReasonType: values.failureReasonType, failureReasonCustom: values.failureReasonType === 'Otro (especificar)' ? values.failureReasonCustom : undefined };
-            toast({ title: "¡Visita Fallida Registrada!", description: <div className="flex items-start"><Info className="h-5 w-5 text-orange-500 mr-2 mt-1" /><p>Visita fallida a {values.clientName} actualizada.</p></div> });
+            toast({ title: "¡Visita Fallida Registrada!", description: <div className="flex items-start"><Info className="h-5 w-5 text-orange-500 mr-2 mt-1" /><p>Interacción fallida con {values.clientName} actualizada.</p></div> });
         } else {
             toast({ title: "Error de Envío", description: "Por favor, complete todos los campos obligatorios para el resultado seleccionado.", variant: "destructive" });
             setIsSubmitting(false);
             return;
         }
-        // Apply all updates to the original visit object in mockOrders
         mockOrders[visitIndex] = { ...originalVisit, ...updatedVisitData, clientName: values.clientName, visitDate: format(values.visitDate, "yyyy-MM-dd") };
 
     // ---- Logic for Creating a New Record (Programmed Visit OR Direct Result) ----
     } else {
+        // If creating a new record (not updating), a visit is always counted for SalesRep.
+        if (userRole === 'SalesRep' || userRole === 'Admin') { 
+            const memberToUpdate = mockTeamMembers.find(m => m.name === salesRepName && (m.role === 'SalesRep' || m.role === 'Admin'));
+            if (memberToUpdate) memberToUpdate.visits = (memberToUpdate.visits || 0) + 1;
+        }
+
         if (values.outcome === "Programar Visita" && values.visitDate) {
             const newProgrammedVisit: Order = {
                 id: `VISPROG_${Date.now()}`, clientName: values.clientName, visitDate: format(values.visitDate, "yyyy-MM-dd"),
-                status: 'Programada', salesRep: salesRepName, lastUpdated: currentDate, notes: values.notes,
+                status: 'Programada', salesRep: salesRepName, lastUpdated: currentDate, notes: values.notes, clientStatus: values.clientStatus
             };
             mockOrders.unshift(newProgrammedVisit);
-            if (userRole === 'SalesRep' || userRole === 'Admin') { 
-                const memberToUpdate = mockTeamMembers.find(m => m.name === salesRepName && (m.role === 'SalesRep' || m.role === 'Admin'));
-                if (memberToUpdate) memberToUpdate.visits = (memberToUpdate.visits || 0) + 1;
-            }
             toast({ title: "¡Visita Programada!", description: <div className="flex items-start"><CalendarIcon className="h-5 w-5 text-purple-500 mr-2 mt-1" /><p>Visita para {values.clientName} programada para el {format(values.visitDate, "dd/MM/yyyy", { locale: es })}.</p></div> });
 
         } else if (values.outcome === "successful" && values.clientStatus && values.visitDate && values.orderValue && values.clientType && values.numberOfUnits && values.unitPrice) {
-          let accountDetailsForOrder: Partial<Order> = {};
+          let accountDetailsForOrder: Partial<Order> = { clientStatus: values.clientStatus };
           if (values.clientStatus === "new" && values.cif && values.nombreFiscal) {
             const existingAccountByCif = mockAccounts.find(acc => acc.cif.toLowerCase() === values.cif!.toLowerCase());
             if (!existingAccountByCif) {
@@ -380,15 +402,15 @@ export default function OrderFormPage() {
               accountCreationMessage = " Nueva cuenta creada.";
               const kpiCuentasAnual = kpiDataLaunch.find(k => k.id === 'kpi3'); if (kpiCuentasAnual) kpiCuentasAnual.currentValue += 1;
               const kpiCuentasMensual = kpiDataLaunch.find(k => k.id === 'kpi4'); if (kpiCuentasMensual) kpiCuentasMensual.currentValue += 1;
-              accountDetailsForOrder = { nombreFiscal: newAccount.legalName, cif: newAccount.cif, direccionFiscal: newAccount.addressBilling, direccionEntrega: newAccount.addressShipping, contactoNombre: newAccount.mainContactName, contactoCorreo: newAccount.mainContactEmail, contactoTelefono: newAccount.mainContactPhone, observacionesAlta: values.observacionesAlta, };
+              accountDetailsForOrder = { ...accountDetailsForOrder, nombreFiscal: newAccount.legalName, cif: newAccount.cif, direccionFiscal: newAccount.addressBilling, direccionEntrega: newAccount.addressShipping, contactoNombre: newAccount.mainContactName, contactoCorreo: newAccount.mainContactEmail, contactoTelefono: newAccount.mainContactPhone, observacionesAlta: values.observacionesAlta, };
             } else {
                accountCreationMessage = ` (La cuenta con CIF ${values.cif} ya existía).`;
-                accountDetailsForOrder = { nombreFiscal: existingAccountByCif.legalName, cif: existingAccountByCif.cif, direccionFiscal: existingAccountByCif.addressBilling, direccionEntrega: existingAccountByCif.addressShipping, contactoNombre: existingAccountByCif.mainContactName, contactoCorreo: existingAccountByCif.mainContactEmail, contactoTelefono: existingAccountByCif.mainContactPhone, };
+                accountDetailsForOrder = {...accountDetailsForOrder, nombreFiscal: existingAccountByCif.legalName, cif: existingAccountByCif.cif, direccionFiscal: existingAccountByCif.addressBilling, direccionEntrega: existingAccountByCif.addressShipping, contactoNombre: existingAccountByCif.mainContactName, contactoCorreo: existingAccountByCif.mainContactEmail, contactoTelefono: existingAccountByCif.mainContactPhone, };
             }
           } else if (values.clientStatus === "existing") {
             accountCreationMessage = " (Cliente existente).";
             const existingAccount = mockAccounts.find(acc => acc.name.toLowerCase() === values.clientName.toLowerCase());
-            if (existingAccount) accountDetailsForOrder = { nombreFiscal: existingAccount.legalName, cif: existingAccount.cif, direccionFiscal: existingAccount.addressBilling, direccionEntrega: existingAccount.addressShipping, contactoNombre: existingAccount.mainContactName, contactoCorreo: existingAccount.mainContactEmail, contactoTelefono: existingAccount.mainContactPhone, };
+            if (existingAccount) accountDetailsForOrder = {...accountDetailsForOrder, nombreFiscal: existingAccount.legalName, cif: existingAccount.cif, direccionFiscal: existingAccount.addressBilling, direccionEntrega: existingAccount.addressShipping, contactoNombre: existingAccount.mainContactName, contactoCorreo: existingAccount.mainContactEmail, contactoTelefono: existingAccount.mainContactPhone, };
           }
 
           const newOrder: Order = {
@@ -402,12 +424,11 @@ export default function OrderFormPage() {
             if (memberToUpdate) {
               memberToUpdate.bottlesSold = (memberToUpdate.bottlesSold || 0) + values.numberOfUnits;
               memberToUpdate.orders = (memberToUpdate.orders || 0) + 1;
-              memberToUpdate.visits = (memberToUpdate.visits || 0) + 1; 
             }
           }
           const kpiVentasTotales = kpiDataLaunch.find(k => k.id === 'kpi1'); if (kpiVentasTotales) kpiVentasTotales.currentValue += values.numberOfUnits;
           const kpiVentasEquipo = kpiDataLaunch.find(k => k.id === 'kpi2'); if (kpiVentasEquipo) kpiVentasEquipo.currentValue += values.numberOfUnits;
-          toast({ title: "¡Operación Registrada!", description: <div className="flex items-start"><Check className="h-5 w-5 text-green-500 mr-2 mt-1" /><p>Pedido {newOrder.id} para {newOrder.clientName} registrado.{accountCreationMessage}</p></div> });
+          toast({ title: "¡Enhorabuena!", description: <div className="flex items-start"><Check className="h-5 w-5 text-green-500 mr-2 mt-1" /><p>Pedido {newOrder.id} para {newOrder.clientName} registrado.{accountCreationMessage}</p></div> });
         
         } else if (values.outcome === "follow-up" && values.clientStatus && values.visitDate && values.nextActionType) {
             const newFollowUpEntry: Order = {
@@ -416,10 +437,6 @@ export default function OrderFormPage() {
                 notes: values.notes, clientStatus: values.clientStatus, 
             };
             mockOrders.unshift(newFollowUpEntry);
-             if (userRole === 'SalesRep' || userRole === 'Admin') { 
-                const memberToUpdate = mockTeamMembers.find(m => m.name === salesRepName && (m.role === 'SalesRep' || m.role === 'Admin'));
-                if (memberToUpdate) memberToUpdate.visits = (memberToUpdate.visits || 0) + 1;
-            }
             toast({ title: "¡Seguimiento Registrado!", description: <div className="flex items-start"><Info className="h-5 w-5 text-blue-500 mr-2 mt-1" /><p>Seguimiento para {values.clientName} registrado.</p></div> });
 
         } else if (values.outcome === "failed" && values.clientStatus && values.visitDate && values.nextActionType && values.failureReasonType) {
@@ -430,10 +447,6 @@ export default function OrderFormPage() {
                 notes: values.notes, clientStatus: values.clientStatus, 
             };
             mockOrders.unshift(newFailedEntry);
-            if (userRole === 'SalesRep' || userRole === 'Admin') {
-                const memberToUpdate = mockTeamMembers.find(m => m.name === salesRepName && (m.role === 'SalesRep' || m.role === 'Admin'));
-                if (memberToUpdate) memberToUpdate.visits = (memberToUpdate.visits || 0) + 1;
-            }
             toast({ title: "¡Visita Fallida Registrada!", description: <div className="flex items-start"><Info className="h-5 w-5 text-orange-500 mr-2 mt-1" /><p>Visita fallida a {values.clientName} registrada.</p></div> });
         } else {
             toast({ title: "Error de Envío", description: "Por favor, complete todos los campos obligatorios según el resultado seleccionado.", variant: "destructive" });
@@ -484,7 +497,7 @@ export default function OrderFormPage() {
           <CardTitle>Detalles de la Interacción con el Cliente</CardTitle>
           <CardDescription>
             {editingVisitId 
-                ? "Actualice el resultado de la visita programada." 
+                ? "Actualice el resultado de la visita/tarea programada." 
                 : "Complete los detalles para registrar o programar una interacción."}
           </CardDescription>
         </CardHeader>
@@ -521,7 +534,7 @@ export default function OrderFormPage() {
                 name="outcome"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{editingVisitId ? "Resultado de la Visita Programada" : "Acción / Resultado de la Visita"}</FormLabel>
+                    <FormLabel>{editingVisitId ? "Resultado de la Interacción" : "Acción / Resultado de la Visita"}</FormLabel>
                     <FormControl>
                       <RadioGroup onValueChange={field.onChange} value={field.value} className="flex flex-col space-y-1">
                         {currentOutcomeOptions.map(opt => (
@@ -674,7 +687,7 @@ export default function OrderFormPage() {
               <FormField control={form.control} name="notes" render={({ field }) => (<FormItem><FormLabel>{outcomeWatched === "Programar Visita" ? "Objetivo de la Visita / Comentarios de Programación (Opcional)" : "Notas Adicionales Generales"}</FormLabel><FormControl><Textarea placeholder={outcomeWatched === "Programar Visita" ? "Detalles sobre el propósito de la visita programada..." : "Cualquier otra información relevante sobre la visita o pedido..."} {...field} /></FormControl><FormMessage /></FormItem>)}/>
               <CardFooter className="p-0 pt-4">
                 <Button type="submit" className="w-full" disabled={isSubmitting || !teamMember}>
-                  {isSubmitting ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Enviando...</>) : (editingVisitId ? "Guardar Resultado de Visita" : "Enviar Registro")}
+                  {isSubmitting ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Enviando...</>) : (editingVisitId ? "Guardar Resultado de Interacción" : "Enviar Registro")}
                 </Button>
               </CardFooter>
             </form>

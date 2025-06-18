@@ -63,10 +63,8 @@ export default function CrmFollowUpPage() {
         if (userRole === 'SalesRep' && teamMember) {
           return followUp.salesRep === teamMember.name;
         }
-        if (userRole === 'Admin') {
-          return salesRepFilter === "Todos" || followUp.salesRep === salesRepFilter;
-        }
-        return false; 
+        // For Admin, apply salesRepFilter. If "Todos", show all.
+        return salesRepFilter === "Todos" || followUp.salesRep === salesRepFilter;
       })
       .filter(followUp => {
         if (actionTypeFilter === "Todos") return true;
@@ -257,7 +255,7 @@ export default function CrmFollowUpPage() {
               <TableBody>
                 {filteredFollowUps.length > 0 ? filteredFollowUps.map((item: Order) => {
                   const canEditDate = userRole === 'Admin' || (userRole === 'SalesRep' && teamMember?.name === item.salesRep);
-                  const canRegisterResult = canEditDate; // Same logic for now
+                  const canRegisterResult = canEditDate; 
                   
                   const isProgrammedItem = item.status === 'Programada';
                   const relevantActionDateString = isProgrammedItem ? item.visitDate : item.nextActionDate;
@@ -332,14 +330,14 @@ export default function CrmFollowUpPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          {isProgrammedItem && canRegisterResult && (
+                          {canRegisterResult && (
                             <DropdownMenuItem asChild>
                               <Link href={`/order-form?updateVisitId=${item.id}`}>
-                                <Send className="mr-2 h-4 w-4" /> Registrar Resultado
+                                <Send className="mr-2 h-4 w-4" /> Registrar Interacción / Resultado
                               </Link>
                             </DropdownMenuItem>
                           )}
-                          {(isProgrammedItem && canRegisterResult) && <DropdownMenuSeparator />}
+                          {canRegisterResult && <DropdownMenuSeparator />}
                           <DropdownMenuItem onSelect={() => { /* Lógica para ver detalles si es necesario */ }}>
                              <CalendarDays className="mr-2 h-4 w-4" /> Ver en Agenda Completa
                           </DropdownMenuItem>

@@ -3,14 +3,14 @@
 
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import type { Kpi, StrategicObjective, Order, Account, TeamMember } from "@/types";
+import type { Kpi, StrategicObjective, Order, Account, TeamMember } from "@/types"; // Added Order, Account, TeamMember
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, LabelList, PieChart, Pie, Cell, Legend } from "recharts";
 import { Progress } from "@/components/ui/progress";
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 import { cn } from "@/lib/utils";
 import {
-  kpiDataLaunch as initialKpiDataLaunch, // Import initial structure
+  kpiDataLaunch as initialKpiDataLaunch,
   objetivoTotalVentasEquipo, 
   objetivoTotalCuentasEquipoAnual,
   mockStrategicObjectives
@@ -29,10 +29,7 @@ const distributionChartConfig = {
 
 export default function DashboardPage() {
 
-  // Dynamically calculate KPI current values
   const calculatedKpiData = React.useMemo(() => {
-    const newKpiData = JSON.parse(JSON.stringify(initialKpiDataLaunch)) as Kpi[]; // Deep clone to avoid direct mutation of imported object for recalculation
-
     const validOrderStatusesForSales = ['Confirmado', 'Procesando', 'Enviado', 'Entregado'];
     const salesTeamMemberNames = mockTeamMembers
         .filter(m => m.role === 'SalesRep' || m.role === 'Admin')
@@ -42,30 +39,29 @@ export default function DashboardPage() {
         .filter(m => m.role === 'SalesRep' || m.role === 'Admin')
         .map(m => m.id);
 
-    let totalBottlesSold = 0;
-    let teamBottlesSold = 0;
-    let newAccountsThisYearByTeam = 0;
-    let newAccountsThisMonthByTeam = 0;
-    let ordersFromExistingCustomers = 0;
-    let totalValidOrders = 0;
+    // Calculate derived values first
+    let totalBottlesSoldOverall = 0;
+    let teamBottlesSoldOverall = 0;
+    let accountsCreatedByTeamThisYear = 0;
+    let accountsCreatedByTeamThisMonth = 0;
+    let ordersFromExistingCustomersCount = 0;
+    let totalValidOrdersCount = 0;
 
-    // Calculate Sales KPIs from mockOrders
     mockOrders.forEach(order => {
-      if (validOrderStatusesForSales.includes(order.status) && order.numberOfUnits) {
-        totalBottlesSold += order.numberOfUnits;
-        if (salesTeamMemberNames.includes(order.salesRep)) {
-          teamBottlesSold += order.numberOfUnits;
-        }
-      }
       if (validOrderStatusesForSales.includes(order.status)) {
-        totalValidOrders++;
+        if (order.numberOfUnits) {
+          totalBottlesSoldOverall += order.numberOfUnits;
+          if (salesTeamMemberNames.includes(order.salesRep)) {
+            teamBottlesSoldOverall += order.numberOfUnits;
+          }
+        }
+        totalValidOrdersCount++;
         if (order.clientStatus === 'existing') {
-          ordersFromExistingCustomers++;
+          ordersFromExistingCustomersCount++;
         }
       }
     });
 
-    // Calculate Account KPIs from mockAccounts
     const currentYear = getYear(new Date());
     const currentMonth = getMonth(new Date());
 
@@ -83,30 +79,39 @@ export default function DashboardPage() {
         }
       }
     });
-    newAccountsThisYearByTeam = uniqueAccountIdsByTeamThisYear.size;
-    newAccountsThisMonthByTeam = uniqueAccountIdsByTeamThisMonth.size;
+    accountsCreatedByTeamThisYear = uniqueAccountIdsByTeamThisYear.size;
+    accountsCreatedByTeamThisMonth = uniqueAccountIdsByTeamThisMonth.size;
 
-
-    // Update KPI objects
-    const kpi1 = newKpiData.find(k => k.id === 'kpi1');
-    if (kpi1) kpi1.currentValue = totalBottlesSold;
-
-    const kpi2 = newKpiData.find(k => k.id === 'kpi2');
-    if (kpi2) kpi2.currentValue = teamBottlesSold;
-    
-    const kpi3 = newKpiData.find(k => k.id === 'kpi3');
-    if (kpi3) kpi3.currentValue = newAccountsThisYearByTeam;
-
-    const kpi4 = newKpiData.find(k => k.id === 'kpi4');
-    if (kpi4) kpi4.currentValue = newAccountsThisMonthByTeam;
-
-    const kpi5 = newKpiData.find(k => k.id === 'kpi5');
-    if (kpi5) {
-      kpi5.currentValue = totalValidOrders > 0 ? Math.round((ordersFromExistingCustomers / totalValidOrders) * 100) : 0;
-    }
-    
-    return newKpiData;
-  }, []);
+    // Map over initialKpiDataLaunch to create the new array with calculated currentValues
+    return initialKpiDataLaunch.map(kpi => {
+      let newCurrentValue = 0;
+      switch (kpi.id) {
+        case 'kpi1':
+          newCurrentValue = totalBottlesSoldOverall;
+          break;
+        case 'kpi2':
+          newCurrentValue = teamBottlesSoldOverall;
+          break;
+        case 'kpi3':
+          newCurrentValue = accountsCreatedByTeamThisYear;
+          break;
+        case 'kpi4':
+          newCurrentValue = accountsCreatedByTeamThisMonth;
+          break;
+        case 'kpi5':
+          newCurrentValue = totalValidOrdersCount > 0 
+            ? Math.round((ordersFromExistingCustomersCount / totalValidOrdersCount) * 100) 
+            : 0;
+          break;
+        default:
+          newCurrentValue = kpi.currentValue; // Fallback to original if no specific calculation
+      }
+      return {
+        ...kpi, // Spread to copy id, title, targetValue, unit, icon
+        currentValue: newCurrentValue,
+      };
+    });
+  }, []); // Empty dependency array ensures this calculation runs once on mount for mock data
 
 
   const kpiVentasTotales = calculatedKpiData.find(k => k.id === 'kpi1');
@@ -139,12 +144,12 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <h1 className="text-3xl font-headline font-semibold">Panel de Lanzamiento de Producto</h1>
       
-      <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"> {/* Adjusted grid for 5 KPIs */}
+      <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {calculatedKpiData.map((kpi: Kpi) => {
           const progress = kpi.targetValue > 0 ? Math.min((kpi.currentValue / kpi.targetValue) * 100, 100) : (kpi.currentValue > 0 ? 100 : 0);
           const isTurquoiseKpi = ['kpi2', 'kpi3', 'kpi4'].includes(kpi.id);
           const isPrimaryKpi = kpi.id === 'kpi1';
-          const isAccentKpi = kpi.id === 'kpi5'; // For the new KPI
+          const isAccentKpi = kpi.id === 'kpi5';
           
           let progressBarClass = "";
           if (isTurquoiseKpi) progressBarClass = "[&>div]:bg-[hsl(var(--brand-turquoise-hsl))]";
@@ -309,7 +314,7 @@ export default function DashboardPage() {
             <CardContent>
                 {mockStrategicObjectives.length > 0 ? (
                     <ul className="space-y-3">
-                        {mockStrategicObjectives.slice(0, 5).map((objective: StrategicObjective) => ( // Show up to 5 objectives
+                        {mockStrategicObjectives.slice(0, 5).map((objective: StrategicObjective) => (
                             <li key={objective.id} className="flex items-start space-x-3 p-3 bg-secondary/20 rounded-md shadow-sm">
                                 {objective.completed ? (
                                     <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
@@ -337,3 +342,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    

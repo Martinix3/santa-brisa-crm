@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { mockAccounts, mockOrders, mockTeamMembers } from "@/lib/data";
 import type { Account, Order, UserRole } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { Building2, Edit, ArrowLeft, AlertTriangle, UserCircle, Mail, Phone, FileText, ShoppingCart, CalendarDays, ListChecks, Info, Euro } from "lucide-react";
+import { Building2, Edit, ArrowLeft, AlertTriangle, UserCircle, Mail, Phone, FileText, ShoppingCart, CalendarDays, ListChecks, Info, Euro, Printer } from "lucide-react";
 import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
@@ -80,6 +80,10 @@ export default function AccountDetailPage() {
     router.replace(`/accounts/${accountId}`, undefined); // Remove query param
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   if (!account) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
@@ -98,8 +102,8 @@ export default function AccountDetailPage() {
   const updateDate = isValid(parseISO(account.updatedAt)) ? format(parseISO(account.updatedAt), "dd/MM/yyyy HH:mm", { locale: es }) : 'N/D';
 
   return (
-    <div className="space-y-6">
-      <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+    <div className="space-y-6" id="printable-account-details">
+      <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 print-hide">
         <div className="flex items-center space-x-3">
           <Button variant="outline" size="icon" onClick={() => router.push('/accounts')} aria-label="Volver a la lista de cuentas">
             <ArrowLeft className="h-5 w-5" />
@@ -110,11 +114,16 @@ export default function AccountDetailPage() {
             <p className="text-sm text-muted-foreground">{account.legalName || 'Nombre fiscal no especificado'}</p>
           </div>
         </div>
-        {isAdmin && (
-          <Button onClick={handleEditAccount}>
-            <Edit className="mr-2 h-4 w-4" /> Editar Cuenta
+        <div className="flex space-x-2">
+          {isAdmin && (
+            <Button onClick={handleEditAccount}>
+              <Edit className="mr-2 h-4 w-4" /> Editar Cuenta
+            </Button>
+          )}
+          <Button variant="outline" onClick={handlePrint}>
+            <Printer className="mr-2 h-4 w-4" /> Imprimir Ficha
           </Button>
-        )}
+        </div>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -183,7 +192,7 @@ export default function AccountDetailPage() {
         </div>
       </div>
 
-      <Card className="shadow-subtle">
+      <Card className="shadow-subtle print-section">
         <CardHeader>
           <CardTitle>Historial de Interacciones y Pedidos</CardTitle>
           <CardDescription>Todas las visitas, seguimientos y pedidos relacionados con esta cuenta.</CardDescription>
@@ -200,7 +209,7 @@ export default function AccountDetailPage() {
                     <TableHead className="w-[10%] text-right">Valor</TableHead>
                     <TableHead className="w-[15%] text-center">Estado</TableHead>
                     <TableHead className="w-[15%]">Comercial</TableHead>
-                    <TableHead className="w-[10%] text-right">Acciones</TableHead>
+                    <TableHead className="w-[10%] text-right print-hide">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -222,7 +231,7 @@ export default function AccountDetailPage() {
                           <StatusBadge type="order" status={interaction.status} />
                         </TableCell>
                         <TableCell>{interaction.salesRep}</TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right print-hide">
                            {interaction.status === 'Programada' || interaction.status === 'Seguimiento' || interaction.status === 'Fallido' ? (
                                 <Button variant="outline" size="sm" asChild>
                                     <Link href={`/order-form?updateVisitId=${interaction.id}`}>

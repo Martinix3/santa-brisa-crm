@@ -108,3 +108,96 @@ body {
     -moz-osx-font-smoothing: grayscale;
   }
 }
+
+@media print {
+  body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; /* Common print font */
+    font-size: 10pt;
+    color: #000;
+    background-color: #fff;
+  }
+
+  /* Hide general UI elements */
+  [data-sidebar="sidebar"], /* Sidebar component */
+  header.sticky, /* Main app header */
+  .print-hide {
+    display: none !important;
+  }
+
+  /* Ensure main content uses full width */
+  main.flex-1 {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+  }
+  
+  #printable-account-details, 
+  .print-dialog-content { /* Specific ID for account detail page content area */
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 1cm !important; /* Add some padding for print */
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  .print-dialog-content {
+     max-height: none !important;
+     overflow-y: visible !important;
+  }
+
+  /* Card styling for print */
+  .card, .print-section {
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+    page-break-inside: avoid !important; /* Avoid breaking cards across pages */
+    margin-bottom: 1cm !important;
+  }
+  .card-header, .card-content, .card-footer {
+    padding: 0.5cm !important;
+  }
+
+  /* Table styling for print */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+  th, td {
+    border: 1px solid #ddd !important;
+    padding: 0.2cm !important;
+    text-align: left !important;
+  }
+  th {
+    background-color: #f0f0f0 !important;
+    font-weight: bold !important;
+  }
+  
+  a {
+    text-decoration: none !important;
+    color: #000 !important;
+  }
+  a[href^="http"]:after, a[href^="mailto"]:after {
+    content: "" !important; /* Avoid showing full URLs for external links */
+  }
+
+  /* Specific overrides for Dialog printing */
+  .print-dialog-content .dialog-header,
+  .print-dialog-content .dialog-footer,
+  .print-dialog-content .print-hide {
+    display: none !important;
+  }
+
+  .print-dialog-content > form > h3,
+  .print-dialog-content > form > .separator {
+     margin-top: 0.5cm !important;
+     margin-bottom: 0.2cm !important;
+  }
+  .print-dialog-content > form > .form-item {
+    margin-bottom: 0.3cm !important;
+  }
+  .print-dialog-content .form-label {
+    font-weight: bold !important;
+  }
+}
+

@@ -37,7 +37,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { Order, OrderStatus, UserRole, TeamMember, NextActionType, FailureReasonType, ClientType } from "@/types";
 import { orderStatusesList, mockTeamMembers, nextActionTypeList, failureReasonList, clientTypeList } from "@/lib/data";
-import { Loader2, CalendarIcon } from "lucide-react";
+import { Loader2, CalendarIcon, Printer } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
@@ -198,6 +198,10 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     onOpenChange(false);
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   if (!order) return null;
 
   const isDistributor = currentUserRole === 'Distributor';
@@ -218,8 +222,8 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md md:max-w-lg lg:max-w-xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-md md:max-w-lg lg:max-w-xl max-h-[90vh] overflow-y-auto print-dialog-content">
+        <DialogHeader className="print-hide">
           <DialogTitle>
             {isReadOnly ? "Detalles:" : "Editar:"} {order.id} ({order.status})
           </DialogTitle>
@@ -298,7 +302,10 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
             <Separator />
             <FormField control={form.control} name="notes" render={({ field }) => (<FormItem><FormLabel>Notas Generales</FormLabel><FormControl><Textarea placeholder="Notas generales sobre el pedido o visita" {...field} className="min-h-[60px]" disabled={isReadOnly || (!isAdmin && !isDistributor)}/></FormControl><FormMessage /></FormItem>)}/>
 
-            <DialogFooter className="pt-6">
+            <DialogFooter className="pt-6 print-hide">
+              <Button type="button" variant="outline" onClick={handlePrint} className="mr-auto">
+                  <Printer className="mr-2 h-4 w-4" /> Imprimir
+              </Button>
               <DialogClose asChild><Button type="button" variant="outline" disabled={isSaving}>Cancelar</Button></DialogClose>
               {!isReadOnly && (
                 <Button type="submit" disabled={isSaving || !form.formState.isDirty}>

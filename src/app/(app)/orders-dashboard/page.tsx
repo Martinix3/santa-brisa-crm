@@ -453,7 +453,7 @@ export default function OrdersDashboardPage() {
                     <TableHead className="w-[5%] px-2">
                       <Checkbox
                         checked={isAllFilteredSelected}
-                        indeterminate={isSomeFilteredSelected && !isAllFilteredSelected}
+                        indeterminate={(isSomeFilteredSelected && !isAllFilteredSelected) || undefined}
                         onCheckedChange={(checked) => handleSelectAllChange(Boolean(checked))}
                         aria-label="Seleccionar todos los pedidos filtrados"
                       />

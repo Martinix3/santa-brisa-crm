@@ -84,15 +84,13 @@ export default function TeamMemberProfilePage() {
             <AvatarFallback>{member.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
           </Avatar>
           <div>
-            <h1 className="text-3xl font-headline font-semibold">{member.name}</h1>
+            <h1 className="text-3xl font-headline font-semibold">Perfil de Rendimiento: {member.name}</h1>
             <p className="text-sm text-muted-foreground">{member.role === 'SalesRep' ? 'Representante de Ventas' : member.role}</p>
             <div className="flex items-center space-x-2 mt-1 text-xs text-muted-foreground">
                 <Mail size={14} /> <span>{member.email}</span>
-                {/* Add phone if available in TeamMember type */}
             </div>
           </div>
         </div>
-        {/* Add Edit button for Admin if needed in future */}
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -110,7 +108,7 @@ export default function TeamMemberProfilePage() {
         </Card>
         <Card className="shadow-subtle">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Obj. Cuentas (Mes)</CardTitle><Briefcase className="h-4 w-4 text-muted-foreground" /></CardHeader>
-            <CardContent><div className="text-2xl font-bold"><FormattedNumericValue value={member.monthlyTargetAccounts || 0} /></div></CardContent>
+            <CardContent><div className="text-2xl font-bold"><FormattedNumericValue value={member.monthlyTargetAccounts || 0} /></div><p className="text-xs text-muted-foreground">Objetivo mensual de nuevas cuentas.</p></CardContent>
         </Card>
       </div>
       
@@ -118,6 +116,7 @@ export default function TeamMemberProfilePage() {
         <Card className="shadow-subtle">
           <CardHeader>
             <CardTitle>Tendencia de Ventas Mensuales (Botellas)</CardTitle>
+            <CardDescription>Evolución de las ventas de botellas en los últimos meses.</CardDescription>
           </CardHeader>
           <CardContent className="h-[300px] pr-0">
             <ChartContainer config={chartConfig('hsl(var(--primary))')} className="h-full w-full">
@@ -146,8 +145,8 @@ export default function TeamMemberProfilePage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="shadow-subtle">
           <CardHeader>
-            <CardTitle>Interacciones y Pedidos Recientes</CardTitle>
-            <CardDescription>Listado de las últimas actividades registradas por {member.name}.</CardDescription>
+            <CardTitle>Interacciones y Pedidos Recientes de {member.name}</CardTitle>
+            <CardDescription>Resumen de las últimas actividades, visitas y pedidos registrados por {member.name}.</CardDescription>
           </CardHeader>
           <CardContent>
             {memberOrders.length > 0 ? (
@@ -163,7 +162,7 @@ export default function TeamMemberProfilePage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {memberOrders.slice(0, 10).map(order => { // Show last 10 for brevity
+                    {memberOrders.slice(0, 10).map(order => { 
                        const interactionType = order.status === 'Programada' ? "Visita Programada"
                                             : (order.status === 'Seguimiento' || order.status === 'Fallido') ? `Seguimiento (${order.nextActionType || 'N/D'})`
                                             : "Pedido";
@@ -186,15 +185,15 @@ export default function TeamMemberProfilePage() {
                 {memberOrders.length > 10 && <p className="text-xs text-muted-foreground mt-2 text-center">Mostrando 10 de {memberOrders.length} interacciones. Ver todas en sus respectivos módulos.</p>}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-8">No hay interacciones o pedidos recientes para este comercial.</p>
+              <p className="text-sm text-muted-foreground text-center py-8">No hay interacciones o pedidos recientes registrados para {member.name}.</p>
             )}
           </CardContent>
         </Card>
 
         <Card className="shadow-subtle">
           <CardHeader>
-            <CardTitle>Cuentas Asignadas</CardTitle>
-            <CardDescription>Listado de cuentas gestionadas o creadas por {member.name}.</CardDescription>
+            <CardTitle>Cuentas Gestionadas por {member.name}</CardTitle>
+            <CardDescription>Directorio de las cuentas de clientes actualmente asignadas o creadas por {member.name}.</CardDescription>
           </CardHeader>
           <CardContent>
             {memberAccounts.length > 0 ? (
@@ -208,7 +207,7 @@ export default function TeamMemberProfilePage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {memberAccounts.slice(0, 10).map(account => ( // Show last 10 for brevity
+                    {memberAccounts.slice(0, 10).map(account => ( 
                       <TableRow key={account.id}>
                         <TableCell>
                           <Link href={`/accounts/${account.id}`} className="font-medium hover:underline text-primary">
@@ -224,7 +223,7 @@ export default function TeamMemberProfilePage() {
                 {memberAccounts.length > 10 && <p className="text-xs text-muted-foreground mt-2 text-center">Mostrando 10 de {memberAccounts.length} cuentas. Ver todas en el módulo de Cuentas.</p>}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-8">Este comercial no tiene cuentas asignadas actualmente.</p>
+              <p className="text-sm text-muted-foreground text-center py-8">{member.name} no tiene cuentas asignadas actualmente.</p>
             )}
           </CardContent>
         </Card>

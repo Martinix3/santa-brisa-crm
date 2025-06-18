@@ -249,7 +249,7 @@ export default function UserManagementPage() {
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
           <CardTitle>Añadir Nuevo Usuario</CardTitle>
-          <CardDescription>Complete el formulario para añadir un nuevo usuario al sistema de autenticación de Firebase y a la lista local.</CardDescription>
+          <CardDescription>Crea nuevas cuentas de usuario para el CRM. Se registrarán en el sistema de autenticación y se añadirán a la lista de miembros del equipo.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -381,7 +381,7 @@ export default function UserManagementPage() {
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
           <CardTitle>Usuarios Existentes</CardTitle>
-          <CardDescription>Lista de usuarios registrados en el sistema. Puede editar sus detalles o eliminarlos de la aplicación (requiere eliminación manual de Firebase Auth).</CardDescription>
+          <CardDescription>Visualiza y gestiona los usuarios registrados. Puedes editar sus datos o eliminarlos de la lista de la aplicación CRM. Recuerda que la eliminación completa del acceso requiere la gestión en Firebase Authentication.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -454,7 +454,7 @@ export default function UserManagementPage() {
                 )) : (
                   <TableRow>
                     <TableCell colSpan={6} className="h-24 text-center">
-                      No hay usuarios registrados.
+                      No hay usuarios registrados en el sistema. Utiliza el formulario superior para añadir nuevos usuarios.
                     </TableCell>
                   </TableRow>
                 )}
@@ -475,5 +475,3 @@ export default function UserManagementPage() {
     </div>
   );
 }
-
-    

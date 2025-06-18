@@ -111,8 +111,8 @@ export default function AccountsPage() {
 
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
-          <CardTitle>Lista de Cuentas</CardTitle>
-          <CardDescription>Administra todas las cuentas de clientes de la empresa.</CardDescription>
+          <CardTitle>Directorio de Cuentas</CardTitle>
+          <CardDescription>Visualiza, filtra y gestiona todas las cuentas de clientes. Los administradores pueden añadir, editar y eliminar cuentas.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
@@ -232,7 +232,7 @@ export default function AccountsPage() {
                 )) : (
                   <TableRow>
                     <TableCell colSpan={6} className="h-24 text-center">
-                      No hay cuentas para mostrar. Intenta ajustar los filtros o añade una nueva cuenta.
+                       No se encontraron cuentas que coincidan con tu búsqueda o filtros. {isAdmin ? "Puedes añadir una nueva cuenta." : ""}
                     </TableCell>
                   </TableRow>
                 )}

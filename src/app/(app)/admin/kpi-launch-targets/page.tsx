@@ -78,7 +78,7 @@ export default function KpiLaunchTargetsPage() {
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
           <CardTitle>Lista de Metas de KPIs</CardTitle>
-          <CardDescription>Administra los valores objetivo para los KPIs clave del panel de lanzamiento de producto.</CardDescription>
+          <CardDescription>Define y actualiza los valores objetivo para los Indicadores Clave de Rendimiento (KPIs) que se muestran en el panel de lanzamiento de producto.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -108,7 +108,7 @@ export default function KpiLaunchTargetsPage() {
                 )) : (
                   <TableRow>
                     <TableCell colSpan={4} className="h-24 text-center">
-                      No hay metas de KPIs de lanzamiento definidas para gestionar.
+                      No hay metas de KPIs de lanzamiento definidas. Esta sección permite ajustar los objetivos numéricos para el panel.
                     </TableCell>
                   </TableRow>
                 )}

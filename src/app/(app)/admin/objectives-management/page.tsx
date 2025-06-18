@@ -124,8 +124,8 @@ export default function ObjectivesManagementPage() {
 
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
-          <CardTitle>Lista de Objetivos</CardTitle>
-          <CardDescription>Administra los objetivos estratégicos de la empresa. Marca su estado, edita o elimina según sea necesario.</CardDescription>
+          <CardTitle>Lista de Objetivos Estratégicos</CardTitle>
+          <CardDescription>Define, actualiza y realiza el seguimiento del estado de los objetivos estratégicos cualitativos de la empresa.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -181,7 +181,7 @@ export default function ObjectivesManagementPage() {
                 )) : (
                   <TableRow>
                     <TableCell colSpan={3} className="h-24 text-center">
-                      No hay objetivos estratégicos definidos.
+                      No hay objetivos estratégicos definidos. Utiliza el botón superior para añadir nuevos objetivos.
                     </TableCell>
                   </TableRow>
                 )}
@@ -207,4 +207,3 @@ export default function ObjectivesManagementPage() {
     </div>
   );
 }
-

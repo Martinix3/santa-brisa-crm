@@ -25,7 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Check, Loader2, Info, Edit3, Send } from "lucide-react";
+import { Calendar as CalendarIcon, Check, Loader2, Info, Edit3, Send, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { mockOrders, mockTeamMembers, clientTypeList, nextActionTypeList, failureReasonList, mockAccounts, orderStatusesList, accountTypeList } from "@/lib/data";
@@ -122,6 +122,7 @@ export default function OrderFormPage() {
   const [subtotal, setSubtotal] = React.useState<number | undefined>(undefined);
   const [ivaAmount, setIvaAmount] = React.useState<number | undefined>(undefined);
   const [pageTitle, setPageTitle] = React.useState("Registrar Visita / Pedido de Cliente");
+  const [cardDescription, setCardDescription] = React.useState("Complete los detalles para registrar o programar una interacción.");
 
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(orderFormSchema),
@@ -161,7 +162,10 @@ export default function OrderFormPage() {
         let visitDateParsed = new Date(existingVisit.visitDate);
         if (!isValid(visitDateParsed)) visitDateParsed = new Date(); 
         
-        setPageTitle(`Registrar Resultado: ${existingVisit.clientName} (${format(visitDateParsed, "dd/MM/yy", {locale: es})})`);
+        const title = `Registrar Resultado: ${existingVisit.clientName} (${format(visitDateParsed, "dd/MM/yy", {locale: es})})`;
+        setPageTitle(title);
+        setCardDescription("Actualice el resultado de la visita o tarea de seguimiento programada.");
+
         form.reset({
           clientName: existingVisit.clientName,
           visitDate: visitDateParsed,
@@ -195,7 +199,9 @@ export default function OrderFormPage() {
       }
     } else {
         setEditingVisitId(null);
-        setPageTitle("Registrar Visita / Pedido de Cliente");
+        const title = "Registrar Visita / Pedido de Cliente";
+        setPageTitle(title);
+        setCardDescription("Complete los detalles para registrar o programar una nueva interacción con un cliente.");
         form.reset({ 
             clientName: "",
             visitDate: new Date(),
@@ -459,6 +465,7 @@ export default function OrderFormPage() {
     }
     setEditingVisitId(null); 
     setPageTitle("Registrar Visita / Pedido de Cliente");
+    setCardDescription("Complete los detalles para registrar o programar una nueva interacción con un cliente.");
   }
 
   const showAccountCreationFields = clientStatusWatched === "new";
@@ -478,15 +485,14 @@ export default function OrderFormPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-headline font-semibold">{pageTitle}</h1>
+      <header className="flex items-center space-x-2">
+        <FileText className="h-8 w-8 text-primary" />
+        <h1 className="text-3xl font-headline font-semibold">{pageTitle}</h1>
+      </header>
       <Card className="max-w-2xl mx-auto shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
-          <CardTitle>Detalles de la Interacción con el Cliente</CardTitle>
-          <CardDescription>
-            {editingVisitId 
-                ? "Actualice el resultado de la visita/tarea programada." 
-                : "Complete los detalles para registrar o programar una interacción."}
-          </CardDescription>
+          <CardTitle>{pageTitle}</CardTitle>
+          <CardDescription>{cardDescription}</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -692,5 +698,3 @@ export default function OrderFormPage() {
     </div>
   );
 }
-
-    

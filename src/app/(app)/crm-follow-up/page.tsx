@@ -142,8 +142,8 @@ export default function CrmFollowUpPage() {
   }
   
   const pageDescription = userRole === 'Admin'
-    ? "Visitas y seguimientos planificados. Puede editar la fecha de próxima acción/visita y ver tareas vencidas."
-    : "Tus visitas y seguimientos planificados. Puedes editar la fecha de próxima acción/visita y ver tareas vencidas.";
+    ? "Administra todas las visitas y seguimientos planificados. Puedes editar la fecha de próxima acción/visita y ver tareas vencidas."
+    : "Revisa y gestiona tus visitas y seguimientos planificados. Puedes editar la fecha de próxima acción/visita y ver tareas vencidas.";
 
   const today = startOfDay(new Date());
 
@@ -156,7 +156,7 @@ export default function CrmFollowUpPage() {
 
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
-          <CardTitle>Tareas de Seguimiento y Visitas Programadas</CardTitle>
+          <CardTitle>Panel de Seguimiento y Visitas</CardTitle>
           <CardDescription>{pageDescription}</CardDescription>
         </CardHeader>
         <CardContent>
@@ -352,8 +352,10 @@ export default function CrmFollowUpPage() {
                             </DropdownMenuItem>
                           )}
                           {canRegisterResult && <DropdownMenuSeparator />}
-                          <DropdownMenuItem onSelect={() => { /* Lógica para ver detalles si es necesario */ }}>
-                             <CalendarDays className="mr-2 h-4 w-4" /> Ver en Agenda Completa
+                          <DropdownMenuItem asChild>
+                             <Link href="/my-agenda"> {/* Simplified for now */}
+                                <CalendarDays className="mr-2 h-4 w-4" /> Ver en Agenda Completa
+                             </Link>
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -362,7 +364,7 @@ export default function CrmFollowUpPage() {
                 )}) : (
                   <TableRow>
                     <TableCell colSpan={userRole === 'Admin' ? 7 : 6} className="h-24 text-center">
-                      No hay tareas de seguimiento que coincidan con los filtros.
+                      No se encontraron tareas de seguimiento o visitas que coincidan con los filtros seleccionados.
                     </TableCell>
                   </TableRow>
                 )}

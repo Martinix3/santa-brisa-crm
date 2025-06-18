@@ -53,7 +53,7 @@ export default function AdminSettingsPage() {
         <h1 className="text-3xl font-headline font-semibold">Configuración de Administración</h1>
       </header>
       <CardDescription>
-        Seleccione una sección para gestionar diferentes aspectos de la aplicación.
+        Accede a las diferentes secciones de configuración para gestionar usuarios, objetivos estratégicos y metas de KPIs.
       </CardDescription>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

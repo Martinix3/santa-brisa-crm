@@ -58,13 +58,13 @@ export default function TeamTrackingPage() {
     <div className="space-y-6">
       <header className="flex items-center space-x-2">
         <Users className="h-8 w-8 text-primary" />
-        <h1 className="text-3xl font-headline font-semibold">Seguimiento de Equipo de Ventas</h1>
+        <h1 className="text-3xl font-headline font-semibold">Rendimiento del Equipo Comercial</h1>
       </header>
       
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
-          <CardTitle>Rendimiento del Equipo de Ventas</CardTitle>
-          <CardDescription>Métricas de rendimiento individual y progreso hacia objetivos mensuales de los Representantes de Ventas.</CardDescription>
+          <CardTitle>Rendimiento Individual y Objetivos</CardTitle>
+          <CardDescription>Visualiza el rendimiento general e individual de los representantes de ventas, incluyendo progreso hacia objetivos y métricas clave.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -80,8 +80,8 @@ export default function TeamTrackingPage() {
             <TableBody>
               {salesTeamMembers.map((member: TeamMember) => {
                 const bottlesSold = member.bottlesSold || 0;
-                const accountsAchieved = member.orders || 0; // Using 'orders' as proxy for 'cuentas conseguidas mes' for now
-                const visitsMade = member.visits || 0; // Using 'visits' as proxy for 'visitas hechas mes'
+                const accountsAchieved = member.orders || 0; 
+                const visitsMade = member.visits || 0; 
                 const targetAccounts = member.monthlyTargetAccounts || 0;
                 const targetVisits = member.monthlyTargetVisits || 0;
                 
@@ -123,7 +123,7 @@ export default function TeamTrackingPage() {
                {salesTeamMembers.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center">
-                      No hay Representantes de Ventas para mostrar.
+                      No hay representantes de ventas configurados en el sistema para mostrar.
                     </TableCell>
                   </TableRow>
                 )}
@@ -142,6 +142,7 @@ export default function TeamTrackingPage() {
             <div className="text-2xl font-bold">
               <FormattedNumericValue value={teamTotalBottlesValue} locale="es-ES" />
             </div>
+            <p className="text-xs text-muted-foreground">Suma de todas las botellas vendidas por el equipo.</p>
           </CardContent>
         </Card>
         <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
@@ -153,6 +154,7 @@ export default function TeamTrackingPage() {
             <div className="text-2xl font-bold">
               <FormattedNumericValue value={teamTotalOrdersValue} locale="es-ES" />
             </div>
+            <p className="text-xs text-muted-foreground">Número total de pedidos registrados por el equipo.</p>
           </CardContent>
         </Card>
         <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
@@ -164,6 +166,7 @@ export default function TeamTrackingPage() {
             <div className="text-2xl font-bold">
                  <FormattedNumericValue value={teamTotalVisitsValue} locale="es-ES" />
             </div>
+            <p className="text-xs text-muted-foreground">Número total de visitas (exitosas, fallidas o seguimiento) por el equipo.</p>
           </CardContent>
         </Card>
       </div>

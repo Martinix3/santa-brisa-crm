@@ -6,11 +6,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox"; // Import Checkbox
+import { Checkbox } from "@/components/ui/checkbox"; 
 import type { Order, OrderStatus, UserRole } from "@/types";
 import { mockOrders, orderStatusesList, mockTeamMembers } from "@/lib/data";
 import { kpiDataLaunch } from "@/lib/launch-dashboard-data";
-import { MoreHorizontal, Eye, Edit, Trash2, Filter, CalendarDays, ChevronDown, Check, Download } from "lucide-react"; // Import Download
+import { MoreHorizontal, Eye, Edit, Trash2, Filter, CalendarDays, ChevronDown, Check, Download, ShoppingCart } from "lucide-react"; 
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -347,12 +347,15 @@ export default function OrdersDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-headline font-semibold">Panel de Pedidos</h1>
+      <header className="flex items-center space-x-2">
+        <ShoppingCart className="h-8 w-8 text-primary" />
+        <h1 className="text-3xl font-headline font-semibold">Gestión Integral de Pedidos</h1>
+      </header>
 
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
           <CardTitle>Gestionar Pedidos</CardTitle>
-          <CardDescription>Ver, filtrar y gestionar todos los pedidos de clientes registrados. Los distribuidores pueden seleccionar y descargar pedidos en formato CSV.</CardDescription>
+          <CardDescription>Visualiza, filtra y administra todos los pedidos de clientes. Los administradores y distribuidores pueden cambiar estados y descargar información relevante.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
@@ -576,7 +579,7 @@ export default function OrdersDashboardPage() {
                  {filteredOrders.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={canDownloadCsv ? 8 : 7} className="h-24 text-center">
-                      No se encontraron pedidos. Intente ajustar sus filtros.
+                      No se encontraron pedidos que coincidan con los filtros seleccionados.
                     </TableCell>
                   </TableRow>
                 )}
@@ -597,5 +600,3 @@ export default function OrdersDashboardPage() {
     </div>
   );
 }
-
-    

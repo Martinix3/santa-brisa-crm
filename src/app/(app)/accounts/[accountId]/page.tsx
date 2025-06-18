@@ -195,7 +195,7 @@ export default function AccountDetailPage() {
       <Card className="shadow-subtle print-section">
         <CardHeader>
           <CardTitle>Historial de Interacciones y Pedidos</CardTitle>
-          <CardDescription>Todas las visitas, seguimientos y pedidos relacionados con esta cuenta.</CardDescription>
+          <CardDescription>Registro de todas las visitas, seguimientos y pedidos asociados a esta cuenta.</CardDescription>
         </CardHeader>
         <CardContent>
           {relatedInteractions.length > 0 ? (
@@ -253,7 +253,7 @@ export default function AccountDetailPage() {
               </Table>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground text-center py-8">No hay interacciones o pedidos registrados para esta cuenta.</p>
+            <p className="text-sm text-muted-foreground text-center py-8">Actualmente no hay interacciones ni pedidos registrados para esta cuenta.</p>
           )}
         </CardContent>
       </Card>

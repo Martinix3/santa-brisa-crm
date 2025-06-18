@@ -11,7 +11,7 @@ import type { Order, TeamMember, OrderStatus, NextActionType, CrmEvent, CrmEvent
 import { mockOrders, mockTeamMembers, mockCrmEvents } from "@/lib/data";
 import { parseISO, format, isEqual, startOfDay, isSameMonth, isWithinInterval, addDays } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarCheck, User, Info, Filter, PartyPopper, Users as UsersIcon, Send } from "lucide-react";
+import { CalendarCheck, User, Info, Filter, PartyPopper, Users as UsersIcon, Send, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import StatusBadge from "@/components/app/status-badge";
@@ -133,12 +133,15 @@ export default function AgendaPage() {
       </Card>
     );
   }
+  
+  const pageTitle = userRole === 'Admin' ? "Agenda del Equipo" : "Mi Agenda Personal";
+
 
   return (
     <div className="space-y-6">
       <header className="flex items-center space-x-2">
           <CalendarCheck className="h-8 w-8 text-primary" />
-          <h1 className="text-3xl font-headline font-semibold">Agenda de Acciones y Eventos</h1>
+          <h1 className="text-3xl font-headline font-semibold">{pageTitle}</h1>
       </header>
 
       <Card className="shadow-subtle">
@@ -147,7 +150,7 @@ export default function AgendaPage() {
                 <Filter className="h-5 w-5 text-muted-foreground" />
                 <CardTitle className="text-xl">Filtros de Agenda</CardTitle>
             </div>
-            <CardDescription>Ajusta los filtros para refinar las acciones y eventos mostrados.</CardDescription>
+            <CardDescription>Utiliza los filtros para personalizar la vista de tu agenda, mostrando acciones de seguimiento o eventos específicos.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col sm:flex-row gap-4 items-end">
             {userRole === 'Admin' && (
@@ -185,8 +188,8 @@ export default function AgendaPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-1 shadow-subtle hover:shadow-md transition-shadow duration-300">
             <CardHeader>
-                <CardTitle>Calendario</CardTitle>
-                <CardDescription>Selecciona un día para ver detalles. Los días con actividades están resaltados.</CardDescription>
+                <CardTitle>Calendario de Actividades</CardTitle>
+                <CardDescription>Navega por el calendario para seleccionar un día específico. Los días con acciones o eventos programados aparecerán resaltados.</CardDescription>
             </CardHeader>
           <CardContent className="flex justify-center">
             <Calendar
@@ -207,12 +210,12 @@ export default function AgendaPage() {
         <Card className="lg:col-span-2 shadow-subtle hover:shadow-md transition-shadow duration-300">
           <CardHeader>
             <CardTitle>
-              Actividades para {selectedDate ? format(selectedDate, "PPP", { locale: es }) : "Hoy"}
+              {selectedDate ? `Actividades para ${format(selectedDate, "PPP", { locale: es })}` : "Actividades del Día"}
             </CardTitle>
             <CardDescription>
                 {itemsForSelectedDay.length > 0
                     ? `Tienes ${itemsForSelectedDay.length} actividad(es) programada(s).`
-                    : "No hay actividades programadas para este día."}
+                    : `No tienes actividades programadas para este día${selectedDate ? "" : " actual"}, o no coinciden con los filtros aplicados.`}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -222,12 +225,17 @@ export default function AgendaPage() {
                   {itemsForSelectedDay.map(item => {
                     const orderItem = item.sourceType === 'order' ? item as AgendaOrderItem : null;
                     const eventItem = item.sourceType === 'event' ? item as AgendaCrmEventItem : null;
+                    const isOverdue = orderItem && (orderItem.status === 'Programada' || orderItem.status === 'Seguimiento') && isBefore(item.itemDate, startOfDay(new Date()));
+
 
                     return (
-                    <li key={item.id} className="p-3 bg-secondary/30 rounded-md shadow-sm">
+                    <li key={item.id} className={cn("p-3 bg-secondary/30 rounded-md shadow-sm", isOverdue && "border-l-4 border-yellow-500")}>
                       {orderItem && (
                         <>
-                          <h4 className="font-semibold text-sm mb-1">{orderItem.clientName}</h4>
+                          <div className="flex items-center justify-between mb-1">
+                            <h4 className="font-semibold text-sm">{orderItem.clientName}</h4>
+                            {isOverdue && <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />}
+                          </div>
                           <p className="text-xs text-muted-foreground flex items-center mb-1">
                             <Info size={14} className="mr-1.5 text-primary" />
                             {orderItem.status === 'Programada' ? 'Visita Programada' : `Acción: ${orderItem.nextActionType}`}
@@ -248,14 +256,14 @@ export default function AgendaPage() {
                             </span>
                           </div>
                           {orderItem.notes && (
-                              <p className="text-xs text-muted-foreground mt-2 pt-1 border-t border-border/50">
+                              <p className="text-xs text-muted-foreground mt-2 pt-1 border-t border-border/50" title={orderItem.notes}>
                                 <span className="font-medium">{(orderItem.status === 'Programada' && orderItem.notes) ? "Objetivo/Comentarios:" : "Notas visita:"}</span> {orderItem.notes.length > 70 ? orderItem.notes.substring(0, 70) + "..." : orderItem.notes}
                               </p>
                           )}
-                          {orderItem.status === 'Programada' && (
+                          {(orderItem.status === 'Programada' || orderItem.status === 'Seguimiento' || orderItem.status === 'Fallido') && (
                             <Button asChild size="sm" className="mt-3 w-full">
                                <Link href={`/order-form?updateVisitId=${orderItem.id}`}>
-                                <Send className="mr-2 h-4 w-4" /> Registrar Resultado de Visita
+                                <Send className="mr-2 h-4 w-4" /> Registrar Resultado de Interacción
                               </Link>
                             </Button>
                           )}
@@ -286,7 +294,7 @@ export default function AgendaPage() {
                             </p>
                           )}
                            {eventItem.description && (
-                              <p className="text-xs text-muted-foreground mt-2 pt-1 border-t border-border/50">
+                              <p className="text-xs text-muted-foreground mt-2 pt-1 border-t border-border/50" title={eventItem.description}>
                                 <span className="font-medium">Desc:</span> {eventItem.description.length > 70 ? eventItem.description.substring(0, 70) + "..." : eventItem.description}
                               </p>
                           )}
@@ -297,7 +305,7 @@ export default function AgendaPage() {
                 </ul>
               ) : (
                 <p className="text-sm text-muted-foreground text-center pt-10">
-                  Selecciona un día en el calendario para ver las actividades o asegúrate de tener entradas que coincidan con los filtros.
+                  Selecciona un día en el calendario para ver tus actividades programadas. Si has aplicado filtros, asegúrate de que haya tareas o eventos que coincidan.
                 </p>
               )}
             </ScrollArea>

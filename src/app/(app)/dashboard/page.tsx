@@ -201,7 +201,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-headline font-semibold">Panel de Lanzamiento de Producto</h1>
+      <h1 className="text-3xl font-headline font-semibold">Panel Principal: Lanzamiento de Producto</h1>
       
       {/* KPIs Principales (Progreso Anual) */}
       <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
@@ -353,7 +353,7 @@ export default function DashboardPage() {
         <Card className="md:col-span-2 shadow-subtle hover:shadow-md transition-shadow duration-300">
           <CardHeader>
             <CardTitle>Distribución de Ventas (Botellas)</CardTitle>
-            <CardDescription>Comparativa de ventas del equipo vs. otros canales.</CardDescription>
+            <CardDescription>Visualiza la contribución de las ventas del equipo frente a otros canales de venta de la empresa.</CardDescription>
           </CardHeader>
           <CardContent className="h-[300px] pr-0">
             <ChartContainer config={distributionChartConfig} className="h-full w-full">
@@ -379,7 +379,7 @@ export default function DashboardPage() {
           <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
             <CardHeader>
               <CardTitle>Progreso Ventas del Equipo</CardTitle>
-              <CardDescription>Objetivo: <FormattedNumericValue value={objetivoTotalVentasEquipo} locale="es-ES" /> botellas</CardDescription>
+              <CardDescription>Seguimiento del objetivo anual de ventas en botellas para el equipo comercial.</CardDescription>
             </CardHeader>
             <CardContent className="h-[150px] flex items-center justify-center">
               <ChartContainer config={{}} className="h-full w-full aspect-square">
@@ -425,7 +425,7 @@ export default function DashboardPage() {
           <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
             <CardHeader>
               <CardTitle>Progreso Cuentas Equipo (Anual)</CardTitle>
-              <CardDescription>Objetivo: <FormattedNumericValue value={objetivoTotalCuentasEquipoAnual} locale="es-ES" /> cuentas</CardDescription>
+              <CardDescription>Seguimiento del objetivo anual de creación de nuevas cuentas para el equipo comercial.</CardDescription>
             </CardHeader>
             <CardContent className="h-[150px] flex items-center justify-center">
                 <ChartContainer config={{}} className="h-full w-full aspect-square">
@@ -474,7 +474,7 @@ export default function DashboardPage() {
         <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
             <CardHeader>
                 <CardTitle>Objetivos Estratégicos Clave</CardTitle>
-                <CardDescription>Un vistazo rápido a los objetivos estratégicos actuales de la empresa.</CardDescription>
+                <CardDescription>Resumen de los principales objetivos estratégicos cualitativos de la empresa. Gestión completa en Configuración.</CardDescription>
             </CardHeader>
             <CardContent>
                 {mockStrategicObjectives.length > 0 ? (
@@ -493,7 +493,7 @@ export default function DashboardPage() {
                         ))}
                     </ul>
                 ) : (
-                    <p className="text-sm text-muted-foreground">No hay objetivos estratégicos definidos.</p>
+                    <p className="text-sm text-muted-foreground">No hay objetivos estratégicos definidos. Pueden gestionarse desde la sección de Configuración.</p>
                 )}
                 {mockStrategicObjectives.length > 5 && (
                     <p className="text-xs text-muted-foreground mt-3">
@@ -506,6 +506,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-    
-
-    

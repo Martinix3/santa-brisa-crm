@@ -25,11 +25,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Check, Loader2, Info, Edit3 } from "lucide-react";
+import { Calendar as CalendarIcon, Check, Loader2, Info, Edit3, Send } from "lucide-react"; // Added Send
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { mockOrders, mockTeamMembers, clientTypeList, nextActionTypeList, failureReasonList, mockAccounts, orderStatusesList } from "@/lib/data";
-import { kpiDataLaunch } from "@/lib/launch-dashboard-data";
+import { kpiDataLaunch } from "@/lib/launch-dashboard-data"; // Still used for sales KPIs kpi1, kpi2
 import type { Order, ClientType, NextActionType, FailureReasonType, Account, AccountType, OrderStatus } from "@/types";
 import { useAuth } from "@/contexts/auth-context"; 
 import { useSearchParams, useRouter } from "next/navigation";
@@ -134,7 +134,7 @@ const orderFormSchema = orderFormSchemaBase.superRefine((data, ctx) => {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Debe especificar el motivo del fallo personalizado.", path: ["failureReasonCustom"] });
     }
   }
-  // No specific field validations for "Programar Visita" beyond clientName and visitDate (handled by base schema)
+  // No specific field validations for "Programar Visita" beyond clientName and visitDate (handled by base schema) and notes
 });
 
 
@@ -194,10 +194,9 @@ export default function OrderFormPage() {
         form.reset({
           clientName: existingVisit.clientName,
           visitDate: visitDateParsed,
-          clientStatus: existingVisit.clientStatus || undefined, // Pre-fill if available from follow-up/failed
-          outcome: undefined, // User must select new outcome
+          clientStatus: existingVisit.clientStatus || undefined, 
+          outcome: undefined, 
           notes: existingVisit.notes || "", 
-          // Pre-fill other details if they exist on the original task
           clientType: existingVisit.clientType,
           numberOfUnits: existingVisit.numberOfUnits,
           unitPrice: existingVisit.unitPrice,
@@ -293,7 +292,6 @@ export default function OrderFormPage() {
     const currentDate = format(new Date(), "yyyy-MM-dd");
     let accountCreationMessage = "";
 
-    // ---- Logic for Updating an Existing Programmed Visit / Follow-up ----
     if (editingVisitId) {
         const visitIndex = mockOrders.findIndex(o => o.id === editingVisitId);
         if (visitIndex === -1) {
@@ -302,9 +300,7 @@ export default function OrderFormPage() {
             return;
         }
         const originalVisit = mockOrders[visitIndex];
-        const wasProgrammedOrFollowUp = originalVisit.status === 'Programada' || originalVisit.status === 'Seguimiento' || originalVisit.status === 'Fallido';
-
-
+        
         let updatedVisitData: Partial<Order> = {
             lastUpdated: currentDate,
             notes: values.notes, 
@@ -332,8 +328,7 @@ export default function OrderFormPage() {
                   };
                   mockAccounts.unshift(newAccount);
                   accountCreationMessage = " Nueva cuenta creada.";
-                  const kpiCuentasAnual = kpiDataLaunch.find(k => k.id === 'kpi3'); if (kpiCuentasAnual) kpiCuentasAnual.currentValue += 1;
-                  const kpiCuentasMensual = kpiDataLaunch.find(k => k.id === 'kpi4'); if (kpiCuentasMensual) kpiCuentasMensual.currentValue += 1;
+                  // KPIs de cuentas (kpi3, kpi4) se calculan dinámicamente en el dashboard.
                   updatedVisitData = {...updatedVisitData, nombreFiscal: newAccount.legalName, cif: newAccount.cif, direccionFiscal: newAccount.addressBilling, direccionEntrega: newAccount.addressShipping, contactoNombre: newAccount.mainContactName, contactoCorreo: newAccount.mainContactEmail, contactoTelefono: newAccount.mainContactPhone, observacionesAlta: values.observacionesAlta, };
                 } else {
                   accountCreationMessage = ` (Cuenta con CIF ${values.cif} ya existía).`;
@@ -345,13 +340,11 @@ export default function OrderFormPage() {
                  if(existingAccount) updatedVisitData = {...updatedVisitData, nombreFiscal: existingAccount.legalName, cif: existingAccount.cif, direccionFiscal: existingAccount.addressBilling, direccionEntrega: existingAccount.addressShipping, contactoNombre: existingAccount.mainContactName, contactoCorreo: existingAccount.mainContactEmail, contactoTelefono: existingAccount.mainContactPhone,};
             }
 
-            // KPI updates for successful outcome from a programmed visit/follow-up
             if (userRole === 'SalesRep' || userRole === 'Admin') { 
                 const memberToUpdate = mockTeamMembers.find(m => m.name === salesRepName && (m.role === 'SalesRep' || m.role === 'Admin'));
                 if (memberToUpdate) {
                   memberToUpdate.bottlesSold = (memberToUpdate.bottlesSold || 0) + values.numberOfUnits;
                   memberToUpdate.orders = (memberToUpdate.orders || 0) + 1;
-                  // Visit count was handled when initially programmed or for the initial interaction leading to follow-up.
                 }
             }
             const kpiVentasTotales = kpiDataLaunch.find(k => k.id === 'kpi1'); if (kpiVentasTotales) kpiVentasTotales.currentValue += values.numberOfUnits;
@@ -372,9 +365,7 @@ export default function OrderFormPage() {
         }
         mockOrders[visitIndex] = { ...originalVisit, ...updatedVisitData, clientName: values.clientName, visitDate: format(values.visitDate, "yyyy-MM-dd") };
 
-    // ---- Logic for Creating a New Record (Programmed Visit OR Direct Result) ----
     } else {
-        // If creating a new record (not updating), a visit is always counted for SalesRep.
         if (userRole === 'SalesRep' || userRole === 'Admin') { 
             const memberToUpdate = mockTeamMembers.find(m => m.name === salesRepName && (m.role === 'SalesRep' || m.role === 'Admin'));
             if (memberToUpdate) memberToUpdate.visits = (memberToUpdate.visits || 0) + 1;
@@ -400,8 +391,7 @@ export default function OrderFormPage() {
               };
               mockAccounts.unshift(newAccount);
               accountCreationMessage = " Nueva cuenta creada.";
-              const kpiCuentasAnual = kpiDataLaunch.find(k => k.id === 'kpi3'); if (kpiCuentasAnual) kpiCuentasAnual.currentValue += 1;
-              const kpiCuentasMensual = kpiDataLaunch.find(k => k.id === 'kpi4'); if (kpiCuentasMensual) kpiCuentasMensual.currentValue += 1;
+              // KPIs de cuentas (kpi3, kpi4) se calculan dinámicamente en el dashboard.
               accountDetailsForOrder = { ...accountDetailsForOrder, nombreFiscal: newAccount.legalName, cif: newAccount.cif, direccionFiscal: newAccount.addressBilling, direccionEntrega: newAccount.addressShipping, contactoNombre: newAccount.mainContactName, contactoCorreo: newAccount.mainContactEmail, contactoTelefono: newAccount.mainContactPhone, observacionesAlta: values.observacionesAlta, };
             } else {
                accountCreationMessage = ` (La cuenta con CIF ${values.cif} ya existía).`;
@@ -473,9 +463,7 @@ export default function OrderFormPage() {
   }
 
   const showBillingInfo = outcomeWatched === "successful" && clientStatusWatched === "new";
-  
   const showClientStatusRadio = outcomeWatched !== "Programar Visita" && (!editingVisitId || (editingVisitId && outcomeWatched && outcomeWatched !== "Programar Visita"));
-
 
   const outcomeOptionsBase = [
     { value: "Programar Visita", label: "Programar Nueva Visita" },

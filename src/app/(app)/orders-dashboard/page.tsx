@@ -44,14 +44,13 @@ export default function OrdersDashboardPage() {
     .filter(order =>
       (order.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
        order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       order.salesRep.toLowerCase().includes(searchTerm.toLowerCase())) // Keep salesRep for search
+       order.salesRep.toLowerCase().includes(searchTerm.toLowerCase()))
     )
     .filter(order => statusFilter === "Todos" || order.status === statusFilter)
     .filter(order => {
-      if (!dateRange?.from) return true; // No date filter if 'from' is not set
+      if (!dateRange?.from) return true; 
       const orderDate = parseISO(order.visitDate); 
       const fromDate = dateRange.from;
-      // If 'to' is not set, filter up to a very distant future date (effectively no upper bound for 'from' only range)
       const toDate = dateRange.to ? addDays(dateRange.to, 1) : new Date(8640000000000000) ; 
       return orderDate >= fromDate && orderDate < toDate;
     });
@@ -104,7 +103,7 @@ export default function OrdersDashboardPage() {
     const originalUnits = originalOrder.numberOfUnits || 0;
     const updatedUnits = updatedOrderDataInMock.numberOfUnits || 0;
 
-    // 1. Adjust KPIs globales
+    // Adjust sales KPIs (kpi1, kpi2)
     const kpiVentasTotales = kpiDataLaunch.find(k => k.id === 'kpi1');
     const kpiVentasEquipo = kpiDataLaunch.find(k => k.id === 'kpi2');
 
@@ -117,28 +116,27 @@ export default function OrdersDashboardPage() {
        if (updatedOrderContributed) kpiVentasEquipo.currentValue += updatedUnits;
     }
     
-    // 2. Adjust mockTeamMembers for sales rep changes or contribution changes
+    // Adjust mockTeamMembers for sales rep changes or contribution changes
     const originalSalesRepMember = mockTeamMembers.find(m => m.name === originalOrder.salesRep && (m.role === 'SalesRep' || m.role === 'Admin'));
     if (originalSalesRepMember) {
-        if (originalOrderContributed && originalOrder.salesRep !== updatedOrderDataInMock.salesRep) { // If rep changed
+        if (originalOrderContributed && originalOrder.salesRep !== updatedOrderDataInMock.salesRep) { 
             originalSalesRepMember.bottlesSold = (originalSalesRepMember.bottlesSold || 0) - originalUnits;
             originalSalesRepMember.orders = (originalSalesRepMember.orders || 0) - 1;
-        } else if (originalOrderContributed && !updatedOrderContributed) { // If rep same, but status no longer contributes
+        } else if (originalOrderContributed && !updatedOrderContributed) { 
             originalSalesRepMember.bottlesSold = (originalSalesRepMember.bottlesSold || 0) - originalUnits;
             originalSalesRepMember.orders = (originalSalesRepMember.orders || 0) - 1;
-        } else if (!originalOrderContributed && updatedOrderContributed && originalOrder.salesRep === updatedOrderDataInMock.salesRep) { // If rep same, but status NOW contributes
-             // This case is handled by the new sales rep logic below if rep is same.
-        } else if (originalOrderContributed && updatedOrderContributed && originalOrder.salesRep === updatedOrderDataInMock.salesRep && originalUnits !== updatedUnits) { // rep same, status same, units changed
+        } else if (!originalOrderContributed && updatedOrderContributed && originalOrder.salesRep === updatedOrderDataInMock.salesRep) { 
+        } else if (originalOrderContributed && updatedOrderContributed && originalOrder.salesRep === updatedOrderDataInMock.salesRep && originalUnits !== updatedUnits) { 
             originalSalesRepMember.bottlesSold = (originalSalesRepMember.bottlesSold || 0) - originalUnits + updatedUnits;
         }
     }
 
     const newSalesRepMember = mockTeamMembers.find(m => m.name === updatedOrderDataInMock.salesRep && (m.role === 'SalesRep' || m.role === 'Admin'));
     if (newSalesRepMember) {
-        if (updatedOrderContributed && originalOrder.salesRep !== updatedOrderDataInMock.salesRep) { // If rep changed and new status contributes
+        if (updatedOrderContributed && originalOrder.salesRep !== updatedOrderDataInMock.salesRep) { 
             newSalesRepMember.bottlesSold = (newSalesRepMember.bottlesSold || 0) + updatedUnits;
             newSalesRepMember.orders = (newSalesRepMember.orders || 0) + 1;
-        } else if (updatedOrderContributed && !originalOrderContributed && originalOrder.salesRep === updatedOrderDataInMock.salesRep) { // rep same, but status NOW contributes
+        } else if (updatedOrderContributed && !originalOrderContributed && originalOrder.salesRep === updatedOrderDataInMock.salesRep) { 
             newSalesRepMember.bottlesSold = (newSalesRepMember.bottlesSold || 0) + updatedUnits;
             newSalesRepMember.orders = (newSalesRepMember.orders || 0) + 1;
         }
@@ -382,7 +380,7 @@ export default function OrdersDashboardPage() {
                            <DropdownMenuItem onSelect={() => handleViewOrEditClick(order)}>
                             <Eye className="mr-2 h-4 w-4" /> Ver Detalles
                           </DropdownMenuItem>
-                          {(canEditOrderDetails || canEditOrderStatus) && ( // Admin can edit all, Distributor only status (handled in dialog)
+                          {(canEditOrderDetails || canEditOrderStatus) && ( 
                             <DropdownMenuItem onSelect={() => handleViewOrEditClick(order)}>
                               <Edit className="mr-2 h-4 w-4" /> Editar
                             </DropdownMenuItem>
@@ -449,4 +447,3 @@ export default function OrdersDashboardPage() {
     </div>
   );
 }
-

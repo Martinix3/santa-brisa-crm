@@ -3,19 +3,21 @@
 
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import type { Kpi, StrategicObjective } from "@/types";
+import type { Kpi, StrategicObjective, Order, Account, TeamMember } from "@/types";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, LabelList, PieChart, Pie, Cell, Legend } from "recharts";
 import { Progress } from "@/components/ui/progress";
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 import { cn } from "@/lib/utils";
 import {
-  kpiDataLaunch,
+  kpiDataLaunch as initialKpiDataLaunch, // Import initial structure
   objetivoTotalVentasEquipo, 
   objetivoTotalCuentasEquipoAnual,
   mockStrategicObjectives
 } from "@/lib/launch-dashboard-data";
+import { mockOrders, mockAccounts, mockTeamMembers } from "@/lib/data"; // Import data sources
 import { CheckCircle2, Circle } from "lucide-react";
+import { parseISO, getYear, getMonth, isSameYear, isSameMonth } from 'date-fns';
 
 
 const distributionChartConfig = {
@@ -27,9 +29,89 @@ const distributionChartConfig = {
 
 export default function DashboardPage() {
 
-  const kpiVentasTotales = kpiDataLaunch.find(k => k.id === 'kpi1');
-  const kpiVentasEquipo = kpiDataLaunch.find(k => k.id === 'kpi2');
-  const kpiCuentasAnual = kpiDataLaunch.find(k => k.id === 'kpi3');
+  // Dynamically calculate KPI current values
+  const calculatedKpiData = React.useMemo(() => {
+    const newKpiData = JSON.parse(JSON.stringify(initialKpiDataLaunch)) as Kpi[]; // Deep clone to avoid direct mutation of imported object for recalculation
+
+    const validOrderStatusesForSales = ['Confirmado', 'Procesando', 'Enviado', 'Entregado'];
+    const salesTeamMemberNames = mockTeamMembers
+        .filter(m => m.role === 'SalesRep' || m.role === 'Admin')
+        .map(m => m.name);
+    
+    const salesTeamMemberIds = mockTeamMembers
+        .filter(m => m.role === 'SalesRep' || m.role === 'Admin')
+        .map(m => m.id);
+
+    let totalBottlesSold = 0;
+    let teamBottlesSold = 0;
+    let newAccountsThisYearByTeam = 0;
+    let newAccountsThisMonthByTeam = 0;
+    let ordersFromExistingCustomers = 0;
+    let totalValidOrders = 0;
+
+    // Calculate Sales KPIs from mockOrders
+    mockOrders.forEach(order => {
+      if (validOrderStatusesForSales.includes(order.status) && order.numberOfUnits) {
+        totalBottlesSold += order.numberOfUnits;
+        if (salesTeamMemberNames.includes(order.salesRep)) {
+          teamBottlesSold += order.numberOfUnits;
+        }
+      }
+      if (validOrderStatusesForSales.includes(order.status)) {
+        totalValidOrders++;
+        if (order.clientStatus === 'existing') {
+          ordersFromExistingCustomers++;
+        }
+      }
+    });
+
+    // Calculate Account KPIs from mockAccounts
+    const currentYear = getYear(new Date());
+    const currentMonth = getMonth(new Date());
+
+    const uniqueAccountIdsByTeamThisYear = new Set<string>();
+    const uniqueAccountIdsByTeamThisMonth = new Set<string>();
+
+    mockAccounts.forEach(account => {
+      if (account.salesRepId && salesTeamMemberIds.includes(account.salesRepId)) {
+        const accountCreationDate = parseISO(account.createdAt);
+        if (isSameYear(accountCreationDate, new Date())) {
+           uniqueAccountIdsByTeamThisYear.add(account.id);
+        }
+        if (isSameMonth(accountCreationDate, new Date()) && isSameYear(accountCreationDate, new Date())) {
+           uniqueAccountIdsByTeamThisMonth.add(account.id);
+        }
+      }
+    });
+    newAccountsThisYearByTeam = uniqueAccountIdsByTeamThisYear.size;
+    newAccountsThisMonthByTeam = uniqueAccountIdsByTeamThisMonth.size;
+
+
+    // Update KPI objects
+    const kpi1 = newKpiData.find(k => k.id === 'kpi1');
+    if (kpi1) kpi1.currentValue = totalBottlesSold;
+
+    const kpi2 = newKpiData.find(k => k.id === 'kpi2');
+    if (kpi2) kpi2.currentValue = teamBottlesSold;
+    
+    const kpi3 = newKpiData.find(k => k.id === 'kpi3');
+    if (kpi3) kpi3.currentValue = newAccountsThisYearByTeam;
+
+    const kpi4 = newKpiData.find(k => k.id === 'kpi4');
+    if (kpi4) kpi4.currentValue = newAccountsThisMonthByTeam;
+
+    const kpi5 = newKpiData.find(k => k.id === 'kpi5');
+    if (kpi5) {
+      kpi5.currentValue = totalValidOrders > 0 ? Math.round((ordersFromExistingCustomers / totalValidOrders) * 100) : 0;
+    }
+    
+    return newKpiData;
+  }, []);
+
+
+  const kpiVentasTotales = calculatedKpiData.find(k => k.id === 'kpi1');
+  const kpiVentasEquipo = calculatedKpiData.find(k => k.id === 'kpi2');
+  const kpiCuentasAnual = calculatedKpiData.find(k => k.id === 'kpi3');
 
   const ventasTotalesActuales = kpiVentasTotales?.currentValue ?? 0;
   const ventasEquipoActuales = kpiVentasEquipo?.currentValue ?? 0;
@@ -57,18 +139,18 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <h1 className="text-3xl font-headline font-semibold">Panel de Lanzamiento de Producto</h1>
       
-      <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        {kpiDataLaunch.map((kpi: Kpi) => {
-          const progress = kpi.targetValue > 0 ? (kpi.currentValue / kpi.targetValue) * 100 : 0;
+      <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"> {/* Adjusted grid for 5 KPIs */}
+        {calculatedKpiData.map((kpi: Kpi) => {
+          const progress = kpi.targetValue > 0 ? Math.min((kpi.currentValue / kpi.targetValue) * 100, 100) : (kpi.currentValue > 0 ? 100 : 0);
           const isTurquoiseKpi = ['kpi2', 'kpi3', 'kpi4'].includes(kpi.id);
           const isPrimaryKpi = kpi.id === 'kpi1';
+          const isAccentKpi = kpi.id === 'kpi5'; // For the new KPI
           
           let progressBarClass = "";
-          if (isTurquoiseKpi) {
-            progressBarClass = "[&>div]:bg-[hsl(var(--brand-turquoise-hsl))]";
-          } else if (isPrimaryKpi) {
-            progressBarClass = "[&>div]:bg-primary";
-          }
+          if (isTurquoiseKpi) progressBarClass = "[&>div]:bg-[hsl(var(--brand-turquoise-hsl))]";
+          else if (isPrimaryKpi) progressBarClass = "[&>div]:bg-primary";
+          else if (isAccentKpi) progressBarClass = "[&>div]:bg-accent";
+
 
           return (
             <Card key={kpi.id} className="shadow-subtle hover:shadow-md transition-shadow duration-300">
@@ -81,6 +163,7 @@ export default function DashboardPage() {
               <CardContent className="space-y-2">
                 <div className="text-3xl font-bold">
                   <FormattedNumericValue value={kpi.currentValue} locale="es-ES" />
+                  {kpi.unit === '%' && '%'}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Objetivo: <FormattedNumericValue value={kpi.targetValue} locale="es-ES" /> {kpi.unit}

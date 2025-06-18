@@ -10,7 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 import { cn } from "@/lib/utils";
 import {
-  kpiDataLaunch, // Corrected import name
+  kpiDataLaunch, 
   objetivoTotalVentasEquipo, 
   objetivoTotalCuentasEquipoAnual,
   mockStrategicObjectives
@@ -22,8 +22,8 @@ import { useAuth } from "@/contexts/auth-context";
 
 const distributionChartConfig = {
   value: { label: "Botellas" },
-  VentasEquipo: { label: "Ventas Equipo", color: "hsl(var(--primary))" },
-  RestoCanales: { label: "Resto Canales", color: "hsl(var(--brand-turquoise-hsl))" },
+  VentasEquipo: { label: "Ventas Equipo", color: "hsl(var(--brand-turquoise-hsl))" }, // Actualizado a turquesa
+  RestoCanales: { label: "Resto Canales", color: "hsl(var(--primary))" }, // Actualizado a primario (amarillo)
 };
 
 const calculateProgressValue = (current: number, target: number): number => {
@@ -85,10 +85,8 @@ export default function DashboardPage() {
     accountsCreatedByTeamThisYear = uniqueAccountIdsByTeamThisYear.size;
     accountsCreatedByTeamThisMonth = uniqueAccountIdsByTeamThisMonth.size; 
 
-    // Use the correctly imported kpiDataLaunch
     return kpiDataLaunch.map(kpi => {
       let newCurrentValue = 0;
-      // The original kpiDataLaunch is used as the source for icon, title, targetValue, unit
       const originalKpi = kpiDataLaunch.find(ik => ik.id === kpi.id); 
       switch (kpi.id) {
         case 'kpi1': newCurrentValue = totalBottlesSoldOverall; break;
@@ -100,17 +98,16 @@ export default function DashboardPage() {
             ? Math.round((ordersFromExistingCustomersCount / totalValidOrdersCount) * 100) 
             : 0;
           break;
-        default: newCurrentValue = kpi.currentValue; // Fallback for any other KPIs
+        default: newCurrentValue = kpi.currentValue; 
       }
       return {
-        ...kpi, // This ensures id, title, targetValue, unit are from the original kpi definition
-        icon: originalKpi?.icon, // Explicitly preserve icon from original
+        ...kpi, 
+        icon: originalKpi?.icon, 
         currentValue: newCurrentValue,
       };
     });
-  }, [mockOrders, mockAccounts, mockTeamMembers, userRole, teamMember]); // Added mock data to dependencies
+  }, []); 
 
-  // Calculations for SalesRep/Admin personal progress
   const currentMonthNewAccountsByRep = React.useMemo(() => {
     if (!teamMember) return 0; 
     const currentDate = new Date();
@@ -119,7 +116,7 @@ export default function DashboardPage() {
       isSameMonth(parseISO(acc.createdAt), currentDate) &&
       isSameYear(parseISO(acc.createdAt), currentDate)
     ).length;
-  }, [teamMember, mockAccounts]);
+  }, [teamMember]);
 
   const currentMonthVisitsByRep = React.useMemo(() => {
     if (!teamMember) return 0; 
@@ -129,7 +126,7 @@ export default function DashboardPage() {
       isSameMonth(parseISO(order.visitDate), currentDate) &&
       isSameYear(parseISO(order.visitDate), currentDate)
     ).length;
-  }, [teamMember, mockOrders]);
+  }, [teamMember]);
 
 
   const kpiVentasTotales = calculatedKpiData.find(k => k.id === 'kpi1');
@@ -141,8 +138,8 @@ export default function DashboardPage() {
   const restoCanalesVentas = ventasTotalesActuales - ventasEquipoActuales;
 
   const ventasDistribucionData = [
-    { name: "Ventas Equipo", value: ventasEquipoActuales, fill: "hsl(var(--primary))" },
-    { name: "Resto Canales", value: restoCanalesVentas, fill: "hsl(var(--brand-turquoise-hsl))" },
+    { name: "Ventas Equipo", value: ventasEquipoActuales, fill: "hsl(var(--brand-turquoise-hsl))" }, // Actualizado a turquesa
+    { name: "Resto Canales", value: restoCanalesVentas, fill: "hsl(var(--primary))" }, // Actualizado a primario (amarillo)
   ];
 
   const faltanteVentasEquipo = Math.max(0, objetivoTotalVentasEquipo - ventasEquipoActuales);
@@ -411,4 +408,6 @@ export default function DashboardPage() {
     </div>
   );
 }
+    
+
     

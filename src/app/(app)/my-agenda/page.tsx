@@ -244,7 +244,7 @@ export default function AgendaPage() {
                           <div className="flex justify-between items-center mt-1.5">
                             <StatusBadge type="order" status={orderItem.status} className="text-xs" />
                              <span className="text-xs text-muted-foreground">
-                                Fecha Original Visita: {format(parseISO(orderItem.visitDate), "dd/MM/yy")}
+                                Fecha Original Visita: {format(parseISO(orderItem.visitDate), "dd/MM/yy", {locale: es})}
                             </span>
                           </div>
                           {orderItem.notes && (
@@ -307,5 +307,3 @@ export default function AgendaPage() {
     </div>
   );
 }
-
-    

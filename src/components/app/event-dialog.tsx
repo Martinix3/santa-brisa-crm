@@ -35,9 +35,8 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import type { CrmEvent, CrmEventType, CrmEventStatus, TeamMember as TeamMemberType } from "@/types";
+// Checkbox and ScrollArea are no longer used directly here for assignedTeamMemberIds
+import type { CrmEvent, CrmEventType, CrmEventStatus } from "@/types";
 import { crmEventTypeList, crmEventStatusList, mockTeamMembers } from "@/lib/data";
 import { Loader2, CalendarIcon } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
@@ -53,7 +52,7 @@ const eventFormSchema = z.object({
   endDate: z.date().optional(),
   description: z.string().optional(),
   location: z.string().optional(),
-  assignedTeamMemberIds: z.array(z.string()).min(1, "Debe seleccionar al menos un responsable."),
+  assignedTeamMemberIds: z.array(z.string()).optional().default([]), // Made optional and default to empty array
   requiredMaterials: z.string().optional(),
   notes: z.string().optional(),
 }).superRefine((data, ctx) => {
@@ -89,7 +88,7 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
       endDate: undefined,
       description: "",
       location: "",
-      assignedTeamMemberIds: [],
+      assignedTeamMemberIds: [], // Default to empty array
       requiredMaterials: "",
       notes: "",
     },
@@ -130,13 +129,18 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
   const onSubmit = async (data: EventFormValues) => {
     if (isReadOnly) return;
     setIsSaving(true);
+    // Ensure assignedTeamMemberIds is always an array, even if undefined from form data somehow
+    const dataToSave = {
+      ...data,
+      assignedTeamMemberIds: data.assignedTeamMemberIds || [],
+    };
     await new Promise(resolve => setTimeout(resolve, 500)); 
-    onSave(data);
+    onSave(dataToSave);
     setIsSaving(false);
     onOpenChange(false); 
   };
   
-  const assignableTeamMembers = mockTeamMembers.filter(member => member.role === 'Admin' || member.role === 'SalesRep');
+  // const assignableTeamMembers = mockTeamMembers.filter(member => member.role === 'Admin' || member.role === 'SalesRep');
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -167,10 +171,11 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
             
             <Separator className="my-4"/>
             
+            {/*
             <FormField
               control={form.control}
               name="assignedTeamMemberIds"
-              render={({ field: arrayField }) => (
+              render={({ field }) => (
                 <FormItem>
                   <FormLabel>Responsables Asignados</FormLabel>
                   <FormDescription>Seleccione uno o más responsables para el evento.</FormDescription>
@@ -179,25 +184,29 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
                       "h-32 w-full rounded-md border",
                       form.getFieldState('assignedTeamMemberIds').error ? "border-destructive" : "border-input"
                     )}
+                    id={form.getFieldState('assignedTeamMemberIds').error ? `assignedTeamMemberIds-error` : `assignedTeamMemberIds`}
+                    aria-invalid={!!form.getFieldState('assignedTeamMemberIds').error}
+                    aria-describedby={form.getFieldState('assignedTeamMemberIds').error ? `assignedTeamMemberIds-error-message` : undefined}
                   >
                     <div className="p-3 space-y-2">
                       {assignableTeamMembers.map((member) => (
-                        <FormItem key={member.id} className="flex flex-row items-center space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={arrayField.value?.includes(member.id)}
-                              onCheckedChange={(checked) => {
-                                const currentValues = arrayField.value || [];
-                                return checked
-                                  ? arrayField.onChange([...currentValues, member.id])
-                                  : arrayField.onChange(currentValues.filter((value) => value !== member.id));
-                              }}
-                              id={`member-checkbox-${member.id}`}
-                              disabled={isReadOnly}
-                            />
-                          </FormControl>
+                        <FormItem key={member.id} className="flex flex-row items-start space-x-3 space-y-0">
+                           <FormControl>
+                              <Checkbox
+                                checked={field.value?.includes(member.id)}
+                                onCheckedChange={(checked) => {
+                                  const currentValues = field.value || [];
+                                  const newValues = checked
+                                    ? [...currentValues, member.id]
+                                    : currentValues.filter((value) => value !== member.id);
+                                  field.onChange(newValues);
+                                }}
+                                id={`member-checkbox-${member.id}`} // Unique ID for each checkbox
+                                disabled={isReadOnly}
+                              />
+                            </FormControl>
                           <FormLabel
-                            htmlFor={`member-checkbox-${member.id}`}
+                            htmlFor={`member-checkbox-${member.id}`} // Associate label with checkbox
                             className="text-sm font-normal cursor-pointer"
                           >
                             {member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})
@@ -206,10 +215,12 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
                       ))}
                     </div>
                   </ScrollArea>
-                  <FormMessage />
+                   <FormMessage id="assignedTeamMemberIds-error-message" />
                 </FormItem>
               )}
             />
+            */}
+
 
             <FormField control={form.control} name="requiredMaterials" render={({ field }) => ( <FormItem> <FormLabel>Materiales Necesarios (Opcional)</FormLabel> <FormControl> <Textarea placeholder="Listar materiales: stands, folletos, muestras..." {...field} disabled={isReadOnly} className="min-h-[80px]" /> </FormControl> <FormMessage /> </FormItem> )}/>
             <FormField control={form.control} name="notes" render={({ field }) => ( <FormItem> <FormLabel>Notas Adicionales (Opcional)</FormLabel> <FormControl> <Textarea placeholder="Cualquier otra información relevante..." {...field} disabled={isReadOnly} className="min-h-[80px]" /> </FormControl> <FormMessage /> </FormItem> )}/>
@@ -232,3 +243,4 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
     </Dialog>
   );
 }
+

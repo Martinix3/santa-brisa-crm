@@ -28,9 +28,9 @@ import { es } from 'date-fns/locale';
 import { Calendar as CalendarIcon, Check, Loader2, Info, Edit3, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { mockOrders, mockTeamMembers, clientTypeList, nextActionTypeList, failureReasonList, mockAccounts, orderStatusesList } from "@/lib/data";
+import { mockOrders, mockTeamMembers, clientTypeList, nextActionTypeList, failureReasonList, mockAccounts, orderStatusesList, accountTypeList } from "@/lib/data";
 import { kpiDataLaunch } from "@/lib/launch-dashboard-data";
-import type { Order, ClientType, NextActionType, FailureReasonType, Account, AccountType, OrderStatus } from "@/types";
+import type { Order, ClientType, NextActionType, FailureReasonType, Account, AccountType, AccountStatus } from "@/types";
 import { useAuth } from "@/contexts/auth-context"; 
 import { useSearchParams, useRouter } from "next/navigation";
 
@@ -43,15 +43,13 @@ const orderFormSchemaBase = z.object({
   clientStatus: z.enum(["new", "existing"], { required_error: "Debe indicar si es un cliente nuevo o existente." }).optional(),
   outcome: z.enum(["Programar Visita", "successful", "failed", "follow-up"], { required_error: "Por favor, seleccione un resultado." }),
   
-  // Fields for successful outcome
   clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
   numberOfUnits: z.coerce.number().positive("El número de unidades debe ser un número positivo.").optional(),
   unitPrice: z.coerce.number().positive("El precio unitario debe ser un número positivo.").optional(),
   orderValue: z.coerce.number().positive("El valor del pedido debe ser positivo.").optional(), 
   
-  // Optional Account creation fields (for clientStatus: "new" and outcome: "successful")
   nombreFiscal: z.string().optional(),
-  cif: z.string().optional(), // Optional, but if provided, should ideally be unique
+  cif: z.string().optional(),
   direccionFiscal: z.string().optional(),
   direccionEntrega: z.string().optional(),
   contactoNombre: z.string().optional(),
@@ -59,7 +57,6 @@ const orderFormSchemaBase = z.object({
   contactoTelefono: z.string().optional(),
   observacionesAlta: z.string().optional(),
 
-  // Fields for follow-up / failure
   nextActionType: z.enum(nextActionTypeList as [NextActionType, ...NextActionType[]]).optional(),
   nextActionCustom: z.string().optional(),
   nextActionDate: z.date().optional(),
@@ -75,7 +72,7 @@ const orderFormSchema = orderFormSchemaBase.superRefine((data, ctx) => {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Debe indicar si es cliente nuevo o existente.", path: ["clientStatus"] });
     }
     if (!data.clientType) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El tipo de cliente es obligatorio.", path: ["clientType"] });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El tipo de cliente es obligatorio para un pedido exitoso.", path: ["clientType"] });
     }
     if (data.numberOfUnits === undefined || data.numberOfUnits <= 0) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El número de unidades es obligatorio y positivo.", path: ["numberOfUnits"] });
@@ -86,13 +83,13 @@ const orderFormSchema = orderFormSchemaBase.superRefine((data, ctx) => {
     if ((data.numberOfUnits && data.unitPrice) && (data.orderValue === undefined || data.orderValue <= 0)) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El valor del pedido calculado debe ser positivo.", path: ["orderValue"] });
     }
-    // CIF uniqueness is handled in onSubmit if CIF is provided. Other account fields are optional.
   }
 
-  if (data.outcome === "failed" || data.outcome === "follow-up") {
-     if (!data.clientStatus && data.outcome !== "Programar Visita") { 
+  if ((data.outcome === "failed" || data.outcome === "follow-up" || data.outcome === "Programar Visita") && !data.clientStatus) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Debe indicar si es cliente nuevo o existente.", path: ["clientStatus"] });
-    }
+  }
+  
+  if (data.outcome === "failed" || data.outcome === "follow-up") {
     if (!data.nextActionType) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La próxima acción es obligatoria.", path: ["nextActionType"] });
     }
@@ -233,7 +230,7 @@ export default function OrderFormPage() {
   const unitPriceWatched = form.watch("unitPrice");
   const nextActionTypeWatched = form.watch("nextActionType");
   const failureReasonTypeWatched = form.watch("failureReasonType");
-  const clientNameWatched = form.watch("clientName"); // Used for toast messages
+  const clientNameWatched = form.watch("clientName"); 
 
   React.useEffect(() => {
     if (outcomeWatched === "successful" && typeof numberOfUnitsWatched === 'number' && typeof unitPriceWatched === 'number' && numberOfUnitsWatched > 0 && unitPriceWatched > 0) {
@@ -265,66 +262,71 @@ export default function OrderFormPage() {
     const salesRepName = teamMember.name;
     const currentDate = format(new Date(), "yyyy-MM-dd");
     let accountCreationMessage = "";
-    let orderDetailsForMock: Partial<Order> = {}; // For storing account details with the order
+    let orderDetailsForMock: Partial<Order> = {};
+    let associatedAccountId: string | undefined = undefined;
 
-    if (values.outcome === "successful" && values.clientStatus === "new") {
-        let newAccountId: string | undefined = undefined;
-        if (values.cif) { // Only proceed with CIF check if provided
+    if (values.clientStatus === "new") {
+        let accountExists = false;
+        if (values.cif) {
             const existingAccountByCif = mockAccounts.find(acc => acc.cif && acc.cif.toLowerCase() === values.cif!.toLowerCase());
             if (existingAccountByCif) {
-                accountCreationMessage = ` (Cuenta con CIF ${values.cif} ya existía. Pedido asociado a cuenta existente).`;
-                newAccountId = existingAccountByCif.id; 
-                // Populate orderDetailsForMock from existingAccountByCif for consistency
-                orderDetailsForMock = {
+                associatedAccountId = existingAccountByCif.id;
+                accountCreationMessage = ` (Cliente con CIF ${values.cif} ya existía. Visita/Pedido asociado a cuenta existente: ${existingAccountByCif.name}).`;
+                accountExists = true;
+                orderDetailsForMock = { // Populate details from existing account
                     nombreFiscal: existingAccountByCif.legalName, cif: existingAccountByCif.cif, direccionFiscal: existingAccountByCif.addressBilling,
                     direccionEntrega: existingAccountByCif.addressShipping, contactoNombre: existingAccountByCif.mainContactName,
                     contactoCorreo: existingAccountByCif.mainContactEmail, contactoTelefono: existingAccountByCif.mainContactPhone,
                 };
-            } else if (values.clientType) { // If CIF is new (or not provided but other details are), create account
-                 const newAccount: Account = {
-                    id: `acc_${Date.now()}`, name: values.clientName, legalName: values.nombreFiscal || values.clientName, cif: values.cif || `AUTOGEN_${Date.now()}`, // Auto-generate CIF if not provided
-                    type: values.clientType as AccountType, status: 'Activo',
-                    addressBilling: values.direccionFiscal, addressShipping: values.direccionEntrega, mainContactName: values.contactoNombre,
-                    mainContactEmail: values.contactoCorreo, mainContactPhone: values.contactoTelefono,
-                    notes: values.observacionesAlta, salesRepId: teamMember.id, createdAt: currentDate, updatedAt: currentDate,
-                };
-                mockAccounts.unshift(newAccount);
-                newAccountId = newAccount.id;
-                accountCreationMessage = " Nueva cuenta creada.";
-                // Populate orderDetailsForMock from newAccount
-                orderDetailsForMock = {
-                    nombreFiscal: newAccount.legalName, cif: newAccount.cif, direccionFiscal: newAccount.addressBilling,
-                    direccionEntrega: newAccount.addressShipping, contactoNombre: newAccount.mainContactName,
-                    contactoCorreo: newAccount.mainContactEmail, contactoTelefono: newAccount.mainContactPhone, observacionesAlta: values.observacionesAlta,
-                };
             }
-        } else if (values.clientType) { // No CIF provided, but other details might be for a new account
+        }
+
+        if (!accountExists) {
+            let newAccountStatus: AccountStatus = 'Potencial';
+            if (values.outcome === "successful") newAccountStatus = 'Activo';
+            else if (values.outcome === "failed") newAccountStatus = 'Inactivo';
+            else if (values.outcome === "follow-up") newAccountStatus = 'Potencial';
+            else if (values.outcome === "Programar Visita") newAccountStatus = 'Potencial';
+
+            const newAccountType: AccountType = (values.outcome === "successful" && values.clientType) ? values.clientType : (accountTypeList.includes(values.clientType as AccountType) ? values.clientType as AccountType : 'Otro');
+            
             const newAccount: Account = {
-                id: `acc_${Date.now()}`, name: values.clientName, legalName: values.nombreFiscal || values.clientName, cif: `AUTOGEN_${Date.now()}`, // Auto-generate CIF
-                type: values.clientType as AccountType, status: 'Activo',
-                addressBilling: values.direccionFiscal, addressShipping: values.direccionEntrega, mainContactName: values.contactoNombre,
-                mainContactEmail: values.contactoCorreo, mainContactPhone: values.contactoTelefono,
-                notes: values.observacionesAlta, salesRepId: teamMember.id, createdAt: currentDate, updatedAt: currentDate,
+                id: `acc_${Date.now()}`,
+                name: values.clientName,
+                legalName: values.nombreFiscal || values.clientName,
+                cif: values.cif || `AUTOGEN_${Date.now()}`,
+                type: newAccountType,
+                status: newAccountStatus,
+                addressBilling: values.direccionFiscal,
+                addressShipping: values.direccionEntrega,
+                mainContactName: values.contactoNombre,
+                mainContactEmail: values.contactoCorreo,
+                mainContactPhone: values.contactoTelefono,
+                notes: values.observacionesAlta,
+                salesRepId: teamMember.id,
+                createdAt: currentDate,
+                updatedAt: currentDate,
             };
             mockAccounts.unshift(newAccount);
-            newAccountId = newAccount.id;
-            accountCreationMessage = " Nueva cuenta creada (sin CIF especificado).";
-             orderDetailsForMock = {
+            associatedAccountId = newAccount.id;
+            accountCreationMessage = ` Nueva cuenta "${newAccount.name}" creada con estado: ${newAccountStatus}.`;
+             orderDetailsForMock = { // Populate details from new account
                 nombreFiscal: newAccount.legalName, cif: newAccount.cif, direccionFiscal: newAccount.addressBilling,
                 direccionEntrega: newAccount.addressShipping, contactoNombre: newAccount.mainContactName,
                 contactoCorreo: newAccount.mainContactEmail, contactoTelefono: newAccount.mainContactPhone, observacionesAlta: values.observacionesAlta,
             };
         }
-    } else if (values.outcome === "successful" && values.clientStatus === "existing") {
-        accountCreationMessage = " (Cliente existente).";
+    } else if (values.clientStatus === "existing") {
         const existingAccount = mockAccounts.find(acc => acc.name.toLowerCase() === values.clientName.toLowerCase());
-        if(existingAccount) {
-            orderDetailsForMock = {
+        if (existingAccount) {
+            associatedAccountId = existingAccount.id;
+             orderDetailsForMock = {
                 nombreFiscal: existingAccount.legalName, cif: existingAccount.cif, direccionFiscal: existingAccount.addressBilling,
                 direccionEntrega: existingAccount.addressShipping, contactoNombre: existingAccount.mainContactName,
                 contactoCorreo: existingAccount.mainContactEmail, contactoTelefono: existingAccount.mainContactPhone,
             };
         }
+        accountCreationMessage = " (Cliente existente).";
     }
 
 
@@ -341,6 +343,7 @@ export default function OrderFormPage() {
             lastUpdated: currentDate,
             notes: values.notes, 
             clientStatus: values.clientStatus,
+            ...orderDetailsForMock, // Add account details from new/existing account
         };
 
         if (values.outcome === "successful" && values.clientStatus && values.visitDate && values.orderValue && values.clientType && values.numberOfUnits && values.unitPrice) {
@@ -352,7 +355,6 @@ export default function OrderFormPage() {
                 numberOfUnits: values.numberOfUnits,
                 unitPrice: values.unitPrice,
                 value: values.orderValue,
-                ...orderDetailsForMock // Add account details to the order
             };
             
             if (userRole === 'SalesRep' || userRole === 'Admin') { 
@@ -369,10 +371,10 @@ export default function OrderFormPage() {
 
         } else if (values.outcome === "follow-up" && values.visitDate && values.nextActionType) {
             updatedVisitData = { ...updatedVisitData, status: 'Seguimiento', nextActionType: values.nextActionType, nextActionCustom: values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : undefined, nextActionDate: values.nextActionDate ? format(values.nextActionDate, "yyyy-MM-dd") : undefined };
-            toast({ title: "¡Seguimiento Actualizado!", description: <div className="flex items-start"><Info className="h-5 w-5 text-blue-500 mr-2 mt-1" /><p>Seguimiento para {values.clientName} actualizado.</p></div> });
+            toast({ title: "¡Seguimiento Actualizado!", description: <div className="flex items-start"><Info className="h-5 w-5 text-blue-500 mr-2 mt-1" /><p>Seguimiento para {values.clientName} actualizado.{accountCreationMessage}</p></div> });
         } else if (values.outcome === "failed" && values.visitDate && values.nextActionType && values.failureReasonType) {
             updatedVisitData = { ...updatedVisitData, status: 'Fallido', nextActionType: values.nextActionType, nextActionCustom: values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : undefined, nextActionDate: values.nextActionDate ? format(values.nextActionDate, "yyyy-MM-dd") : undefined, failureReasonType: values.failureReasonType, failureReasonCustom: values.failureReasonType === 'Otro (especificar)' ? values.failureReasonCustom : undefined };
-            toast({ title: "¡Visita Fallida Registrada!", description: <div className="flex items-start"><Info className="h-5 w-5 text-orange-500 mr-2 mt-1" /><p>Interacción fallida con {values.clientName} actualizada.</p></div> });
+            toast({ title: "¡Visita Fallida Registrada!", description: <div className="flex items-start"><Info className="h-5 w-5 text-orange-500 mr-2 mt-1" /><p>Interacción fallida con {values.clientName} actualizada.{accountCreationMessage}</p></div> });
         } else {
             toast({ title: "Error de Envío", description: "Por favor, complete todos los campos obligatorios para el resultado seleccionado.", variant: "destructive" });
             setIsSubmitting(false);
@@ -389,17 +391,18 @@ export default function OrderFormPage() {
         if (values.outcome === "Programar Visita" && values.visitDate) {
             const newProgrammedVisit: Order = {
                 id: `VISPROG_${Date.now()}`, clientName: values.clientName, visitDate: format(values.visitDate, "yyyy-MM-dd"),
-                status: 'Programada', salesRep: salesRepName, lastUpdated: currentDate, notes: values.notes, clientStatus: values.clientStatus
+                status: 'Programada', salesRep: salesRepName, lastUpdated: currentDate, notes: values.notes, clientStatus: values.clientStatus,
+                ...orderDetailsForMock
             };
             mockOrders.unshift(newProgrammedVisit);
-            toast({ title: "¡Visita Programada!", description: <div className="flex items-start"><CalendarIcon className="h-5 w-5 text-purple-500 mr-2 mt-1" /><p>Visita para {values.clientName} programada para el {format(values.visitDate, "dd/MM/yyyy", { locale: es })}.</p></div> });
+            toast({ title: "¡Visita Programada!", description: <div className="flex items-start"><CalendarIcon className="h-5 w-5 text-purple-500 mr-2 mt-1" /><p>Visita para {values.clientName} programada para el {format(values.visitDate, "dd/MM/yyyy", { locale: es })}.{accountCreationMessage}</p></div> });
 
         } else if (values.outcome === "successful" && values.clientStatus && values.visitDate && values.orderValue && values.clientType && values.numberOfUnits && values.unitPrice) {
           const newOrder: Order = {
             id: `ORD_${Date.now()}`, clientName: values.clientName, visitDate: format(values.visitDate, "yyyy-MM-dd"), clientType: values.clientType, products: [SINGLE_PRODUCT_NAME], 
             numberOfUnits: values.numberOfUnits, unitPrice: values.unitPrice, value: values.orderValue, status: 'Confirmado', salesRep: salesRepName, lastUpdated: currentDate, 
             notes: values.notes, clientStatus: values.clientStatus,
-            ...orderDetailsForMock // Add account details to the new order
+            ...orderDetailsForMock 
           };
           mockOrders.unshift(newOrder);
 
@@ -419,9 +422,10 @@ export default function OrderFormPage() {
                 id: `VISFLW_${Date.now()}`, clientName: values.clientName, visitDate: format(values.visitDate, "yyyy-MM-dd"), status: 'Seguimiento', salesRep: salesRepName, lastUpdated: currentDate,
                 nextActionType: values.nextActionType, nextActionCustom: values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : undefined, nextActionDate: values.nextActionDate ? format(values.nextActionDate, "yyyy-MM-dd") : undefined,
                 notes: values.notes, clientStatus: values.clientStatus, 
+                ...orderDetailsForMock
             };
             mockOrders.unshift(newFollowUpEntry);
-            toast({ title: "¡Seguimiento Registrado!", description: <div className="flex items-start"><Info className="h-5 w-5 text-blue-500 mr-2 mt-1" /><p>Seguimiento para {values.clientName} registrado.</p></div> });
+            toast({ title: "¡Seguimiento Registrado!", description: <div className="flex items-start"><Info className="h-5 w-5 text-blue-500 mr-2 mt-1" /><p>Seguimiento para {values.clientName} registrado.{accountCreationMessage}</p></div> });
 
         } else if (values.outcome === "failed" && values.visitDate && values.nextActionType && values.failureReasonType) {
             const newFailedEntry: Order = {
@@ -429,9 +433,10 @@ export default function OrderFormPage() {
                 nextActionType: values.nextActionType, nextActionCustom: values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : undefined, nextActionDate: values.nextActionDate ? format(values.nextActionDate, "yyyy-MM-dd") : undefined,
                 failureReasonType: values.failureReasonType, failureReasonCustom: values.failureReasonType === 'Otro (especificar)' ? values.failureReasonCustom : undefined,
                 notes: values.notes, clientStatus: values.clientStatus, 
+                ...orderDetailsForMock
             };
             mockOrders.unshift(newFailedEntry);
-            toast({ title: "¡Visita Fallida Registrada!", description: <div className="flex items-start"><Info className="h-5 w-5 text-orange-500 mr-2 mt-1" /><p>Visita fallida a {values.clientName} registrada.</p></div> });
+            toast({ title: "¡Visita Fallida Registrada!", description: <div className="flex items-start"><Info className="h-5 w-5 text-orange-500 mr-2 mt-1" /><p>Visita fallida a {values.clientName} registrada.{accountCreationMessage}</p></div> });
         } else {
             toast({ title: "Error de Envío", description: "Por favor, complete todos los campos obligatorios según el resultado seleccionado.", variant: "destructive" });
             setIsSubmitting(false);
@@ -456,9 +461,9 @@ export default function OrderFormPage() {
     setPageTitle("Registrar Visita / Pedido de Cliente");
   }
 
-  const showBillingInfo = outcomeWatched === "successful" && clientStatusWatched === "new";
+  const showAccountCreationFields = clientStatusWatched === "new";
   const showClientStatusRadio = outcomeWatched !== "Programar Visita" && (!editingVisitId || (editingVisitId && outcomeWatched && outcomeWatched !== "Programar Visita"));
-
+  
   const outcomeOptionsBase = [
     { value: "Programar Visita", label: "Programar Nueva Visita" },
     { value: "successful", label: "Pedido Exitoso" },
@@ -566,32 +571,40 @@ export default function OrderFormPage() {
                   <FormItem><FormLabel>Subtotal (€)</FormLabel><FormControl><Input type="number" readOnly disabled className="bg-muted/50" value={subtotal === undefined ? '' : subtotal.toFixed(2)} placeholder="Cálculo automático"/></FormControl></FormItem>
                   <FormItem><FormLabel>IVA ({IVA_RATE}%) (€)</FormLabel><FormControl><Input type="number" readOnly disabled className="bg-muted/50" value={ivaAmount === undefined ? '' : ivaAmount.toFixed(2)} placeholder="Cálculo automático"/></FormControl></FormItem>
                   <FormField control={form.control} name="orderValue" render={({ field }) => (<FormItem><FormLabel>Valor Total del Pedido (€ con IVA)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Cálculo automático" {...field} readOnly disabled className="bg-muted/50" value={field.value === undefined ? '' : field.value.toFixed(2)}/></FormControl><FormMessage /></FormItem>)}/>
-                  
-                  {showBillingInfo && (
-                    <>
-                      <Separator className="my-6" />
-                      <div className="space-y-1"><h3 className="text-lg font-medium">Información de Alta del Cliente Nuevo (Opcional)</h3><p className="text-sm text-muted-foreground">Complete estos datos si desea crear una nueva cuenta.</p></div>
-                      <FormField control={form.control} name="nombreFiscal" render={({ field }) => (<FormItem><FormLabel>Nombre Fiscal</FormLabel><FormControl><Input placeholder="Nombre legal completo de la empresa" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                      <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF</FormLabel><FormControl><Input placeholder="Número de Identificación Fiscal" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                      <FormField control={form.control} name="direccionFiscal" render={({ field }) => (<FormItem><FormLabel>Dirección Fiscal</FormLabel><FormControl><Textarea placeholder="Calle, número, piso, ciudad, código postal, provincia" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                      <FormField control={form.control} name="direccionEntrega" render={({ field }) => (<FormItem><FormLabel>Dirección de Entrega</FormLabel><FormControl><Textarea placeholder="Si es diferente a la fiscal: calle, número, piso, ciudad, código postal, provincia" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                      <Separator className="my-4" /><h4 className="text-md font-medium mb-2">Datos de Contacto (Cliente Nuevo - Opcional)</h4>
-                      <FormField control={form.control} name="contactoNombre" render={({ field }) => (<FormItem><FormLabel>Nombre de Contacto</FormLabel><FormControl><Input placeholder="Persona de contacto principal" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                      <FormField control={form.control} name="contactoCorreo" render={({ field }) => (<FormItem><FormLabel>Correo Electrónico de Contacto</FormLabel><FormControl><Input type="email" placeholder="ejemplo@empresa.com" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                      <FormField control={form.control} name="contactoTelefono" render={({ field }) => (<FormItem><FormLabel>Teléfono de Contacto</FormLabel><FormControl><Input type="tel" placeholder="Número de teléfono" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                      <Separator className="my-4" />
-                      <FormField control={form.control} name="observacionesAlta" render={({ field }) => (<FormItem><FormLabel>Observaciones (Alta Cliente)</FormLabel><FormControl><Textarea placeholder="Cualquier detalle adicional para el alta del cliente..." {...field} /></FormControl><FormDescription>Este campo es opcional.</FormDescription><FormMessage /></FormItem>)}/>
-                    </>
-                  )}
-                   {!showBillingInfo && clientStatusWatched === "existing" && outcomeWatched === "successful" && (
-                     <div className="my-4 p-3 bg-secondary/30 rounded-md">
-                       <p className="text-sm text-muted-foreground">
-                         Se registrará el pedido para el cliente existente <strong className="text-foreground">{clientNameWatched}</strong>. Los datos de facturación se tomarán de la cuenta existente.
-                       </p>
-                     </div>
-                   )}
                 </>
               )}
+              
+              {/* Account creation fields for new clients, shown always when clientStatus is "new" */}
+              {showAccountCreationFields && (
+                <>
+                  <Separator className="my-6" />
+                  <div className="space-y-1">
+                    <h3 className="text-lg font-medium">Información de la Nueva Cuenta (Opcional)</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Se creará una cuenta para "{clientNameWatched || 'este cliente'}". Puede añadir detalles adicionales aquí.
+                      Estado de la cuenta: {outcomeWatched === "successful" ? "Activo" : (outcomeWatched === "follow-up" || outcomeWatched === "Programar Visita" ? "Potencial" : (outcomeWatched === "failed" ? "Inactivo" : "Pendiente de definir"))}.
+                    </p>
+                  </div>
+                  <FormField control={form.control} name="nombreFiscal" render={({ field }) => (<FormItem><FormLabel>Nombre Fiscal</FormLabel><FormControl><Input placeholder="Nombre legal completo de la empresa" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                  <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF</FormLabel><FormControl><Input placeholder="Número de Identificación Fiscal" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                  <FormField control={form.control} name="direccionFiscal" render={({ field }) => (<FormItem><FormLabel>Dirección Fiscal</FormLabel><FormControl><Textarea placeholder="Calle, número, piso, ciudad, código postal, provincia" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                  <FormField control={form.control} name="direccionEntrega" render={({ field }) => (<FormItem><FormLabel>Dirección de Entrega</FormLabel><FormControl><Textarea placeholder="Si es diferente a la fiscal: calle, número, piso, ciudad, código postal, provincia" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                  <Separator className="my-4" /><h4 className="text-md font-medium mb-2">Datos de Contacto (Cliente Nuevo - Opcional)</h4>
+                  <FormField control={form.control} name="contactoNombre" render={({ field }) => (<FormItem><FormLabel>Nombre de Contacto</FormLabel><FormControl><Input placeholder="Persona de contacto principal" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                  <FormField control={form.control} name="contactoCorreo" render={({ field }) => (<FormItem><FormLabel>Correo Electrónico de Contacto</FormLabel><FormControl><Input type="email" placeholder="ejemplo@empresa.com" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                  <FormField control={form.control} name="contactoTelefono" render={({ field }) => (<FormItem><FormLabel>Teléfono de Contacto</FormLabel><FormControl><Input type="tel" placeholder="Número de teléfono" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                  <Separator className="my-4" />
+                  <FormField control={form.control} name="observacionesAlta" render={({ field }) => (<FormItem><FormLabel>Observaciones (Alta Cliente)</FormLabel><FormControl><Textarea placeholder="Cualquier detalle adicional para el alta del cliente..." {...field} /></FormControl><FormDescription>Este campo es opcional.</FormDescription><FormMessage /></FormItem>)}/>
+                </>
+              )}
+               {clientStatusWatched === "existing" && outcomeWatched === "successful" && (
+                 <div className="my-4 p-3 bg-secondary/30 rounded-md">
+                   <p className="text-sm text-muted-foreground">
+                     Se registrará el pedido para el cliente existente <strong className="text-foreground">{clientNameWatched}</strong>. Los datos de facturación se tomarán de la cuenta existente.
+                   </p>
+                 </div>
+               )}
+
 
               {/* Fields for Follow-up or Failed Outcome */}
               {(outcomeWatched === "follow-up" || outcomeWatched === "failed") && (
@@ -679,3 +692,5 @@ export default function OrderFormPage() {
     </div>
   );
 }
+
+    

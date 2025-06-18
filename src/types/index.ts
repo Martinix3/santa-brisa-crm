@@ -41,17 +41,18 @@ export interface Order {
   id: string;
   clientName: string;
   visitDate: string; // Should be YYYY-MM-DD
-  products?: string[]; // Made optional
-  value?: number; // Made optional
+  products?: string[]; 
+  value?: number; 
   status: OrderStatus;
   salesRep: string;
   lastUpdated: string; // Should be YYYY-MM-DD
 
   clientType?: ClientType;
-  numberOfUnits?: number; // Already optional in form, ensure type reflects this if needed
-  unitPrice?: number; // Already optional in form
+  numberOfUnits?: number; 
+  unitPrice?: number; 
+  clientStatus?: "new" | "existing"; // Added to Order for clarity during processing
 
-  // Customer and billing information
+  // Customer and billing information (snapshot for the order)
   nombreFiscal?: string;
   cif?: string;
   direccionFiscal?: string;
@@ -59,10 +60,10 @@ export interface Order {
   contactoNombre?: string;
   contactoCorreo?: string;
   contactoTelefono?: string;
-  observacionesAlta?: string;
-  notes?: string; 
+  observacionesAlta?: string; // Notes specific to new client sign-up with this order
+  notes?: string; // General notes for the visit/order
 
-  // New fields for follow-up / failure
+  // Fields for follow-up / failure
   nextActionType?: NextActionType;
   nextActionCustom?: string;
   nextActionDate?: string; // YYYY-MM-DD
@@ -94,7 +95,7 @@ export interface Account {
   id: string;
   name: string; 
   legalName?: string;
-  cif: string; 
+  cif: string; // While optional in form, it's a key identifier for an account
   type: AccountType;
   status: AccountStatus;
   addressBilling?: string;
@@ -102,7 +103,7 @@ export interface Account {
   mainContactName?: string;
   mainContactEmail?: string;
   mainContactPhone?: string;
-  notes?: string;
+  notes?: string; // General notes for the account
   salesRepId?: string; 
   createdAt: string; // YYYY-MM-DD
   updatedAt: string; // YYYY-MM-DD

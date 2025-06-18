@@ -25,11 +25,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Check, Loader2, Info, Edit3, Send } from "lucide-react"; // Added Send
+import { Calendar as CalendarIcon, Check, Loader2, Info, Edit3, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { mockOrders, mockTeamMembers, clientTypeList, nextActionTypeList, failureReasonList, mockAccounts, orderStatusesList } from "@/lib/data";
-import { kpiDataLaunch } from "@/lib/launch-dashboard-data"; // Still used for sales KPIs kpi1, kpi2
+import { kpiDataLaunch } from "@/lib/launch-dashboard-data";
 import type { Order, ClientType, NextActionType, FailureReasonType, Account, AccountType, OrderStatus } from "@/types";
 import { useAuth } from "@/contexts/auth-context"; 
 import { useSearchParams, useRouter } from "next/navigation";
@@ -40,7 +40,7 @@ const IVA_RATE = 21; // 21%
 const orderFormSchemaBase = z.object({
   clientName: z.string().min(2, "El nombre del cliente debe tener al menos 2 caracteres."),
   visitDate: z.date({ required_error: "La fecha de visita es obligatoria." }),
-  clientStatus: z.enum(["new", "existing"], { required_error: "Debe indicar si es un cliente nuevo o existente." }).optional(), // Optional for "Programar Visita"
+  clientStatus: z.enum(["new", "existing"], { required_error: "Debe indicar si es un cliente nuevo o existente." }).optional(),
   outcome: z.enum(["Programar Visita", "successful", "failed", "follow-up"], { required_error: "Por favor, seleccione un resultado." }),
   
   // Fields for successful outcome
@@ -48,8 +48,10 @@ const orderFormSchemaBase = z.object({
   numberOfUnits: z.coerce.number().positive("El número de unidades debe ser un número positivo.").optional(),
   unitPrice: z.coerce.number().positive("El precio unitario debe ser un número positivo.").optional(),
   orderValue: z.coerce.number().positive("El valor del pedido debe ser positivo.").optional(), 
+  
+  // Optional Account creation fields (for clientStatus: "new" and outcome: "successful")
   nombreFiscal: z.string().optional(),
-  cif: z.string().optional(),
+  cif: z.string().optional(), // Optional, but if provided, should ideally be unique
   direccionFiscal: z.string().optional(),
   direccionEntrega: z.string().optional(),
   contactoNombre: z.string().optional(),
@@ -57,14 +59,14 @@ const orderFormSchemaBase = z.object({
   contactoTelefono: z.string().optional(),
   observacionesAlta: z.string().optional(),
 
-  // New fields for follow-up / failure
+  // Fields for follow-up / failure
   nextActionType: z.enum(nextActionTypeList as [NextActionType, ...NextActionType[]]).optional(),
   nextActionCustom: z.string().optional(),
   nextActionDate: z.date().optional(),
   failureReasonType: z.enum(failureReasonList as [FailureReasonType, ...FailureReasonType[]]).optional(),
   failureReasonCustom: z.string().optional(),
   
-  notes: z.string().optional(), // General notes, can be used for "Objetivo de la visita"
+  notes: z.string().optional(), 
 });
 
 const orderFormSchema = orderFormSchemaBase.superRefine((data, ctx) => {
@@ -84,38 +86,11 @@ const orderFormSchema = orderFormSchemaBase.superRefine((data, ctx) => {
     if ((data.numberOfUnits && data.unitPrice) && (data.orderValue === undefined || data.orderValue <= 0)) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El valor del pedido calculado debe ser positivo.", path: ["orderValue"] });
     }
-    if (data.clientStatus === "new") {
-      if (!data.nombreFiscal || data.nombreFiscal.trim() === "") {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El nombre fiscal es obligatorio para un cliente nuevo.", path: ["nombreFiscal"] });
-      }
-      if (!data.cif || data.cif.trim() === "") {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El CIF es obligatorio para un cliente nuevo.", path: ["cif"] });
-      }
-      if (!data.direccionFiscal || data.direccionFiscal.trim() === "") {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La dirección fiscal es obligatoria para un cliente nuevo.", path: ["direccionFiscal"] });
-      }
-      if (!data.direccionEntrega || data.direccionEntrega.trim() === "") {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La dirección de entrega es obligatoria para un cliente nuevo.", path: ["direccionEntrega"] });
-      }
-      if (!data.contactoNombre || data.contactoNombre.trim() === "") {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El nombre de contacto es obligatorio para un cliente nuevo.", path: ["contactoNombre"] });
-      }
-      if (!data.contactoCorreo || data.contactoCorreo.trim() === "") {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El correo de contacto es obligatorio para un cliente nuevo.", path: ["contactoCorreo"] });
-      } else {
-          const emailValidation = z.string().email().safeParse(data.contactoCorreo);
-          if (!emailValidation.success) {
-              ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El formato del correo de contacto no es válido.", path: ["contactoCorreo"] });
-          }
-      }
-      if (!data.contactoTelefono || data.contactoTelefono.trim() === "") {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El teléfono de contacto es obligatorio para un cliente nuevo.", path: ["contactoTelefono"] });
-      }
-    }
+    // CIF uniqueness is handled in onSubmit if CIF is provided. Other account fields are optional.
   }
 
   if (data.outcome === "failed" || data.outcome === "follow-up") {
-     if (!data.clientStatus) { // Also require clientStatus for these outcomes
+     if (!data.clientStatus && data.outcome !== "Programar Visita") { 
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Debe indicar si es cliente nuevo o existente.", path: ["clientStatus"] });
     }
     if (!data.nextActionType) {
@@ -134,7 +109,6 @@ const orderFormSchema = orderFormSchemaBase.superRefine((data, ctx) => {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Debe especificar el motivo del fallo personalizado.", path: ["failureReasonCustom"] });
     }
   }
-  // No specific field validations for "Programar Visita" beyond clientName and visitDate (handled by base schema) and notes
 });
 
 
@@ -156,7 +130,7 @@ export default function OrderFormPage() {
     resolver: zodResolver(orderFormSchema),
     defaultValues: {
       clientName: "",
-      visitDate: new Date(), // Default to today
+      visitDate: new Date(), 
       clientStatus: undefined,
       outcome: undefined,
       clientType: undefined,
@@ -259,7 +233,7 @@ export default function OrderFormPage() {
   const unitPriceWatched = form.watch("unitPrice");
   const nextActionTypeWatched = form.watch("nextActionType");
   const failureReasonTypeWatched = form.watch("failureReasonType");
-  const clientNameWatched = form.watch("clientName");
+  const clientNameWatched = form.watch("clientName"); // Used for toast messages
 
   React.useEffect(() => {
     if (outcomeWatched === "successful" && typeof numberOfUnitsWatched === 'number' && typeof unitPriceWatched === 'number' && numberOfUnitsWatched > 0 && unitPriceWatched > 0) {
@@ -291,6 +265,68 @@ export default function OrderFormPage() {
     const salesRepName = teamMember.name;
     const currentDate = format(new Date(), "yyyy-MM-dd");
     let accountCreationMessage = "";
+    let orderDetailsForMock: Partial<Order> = {}; // For storing account details with the order
+
+    if (values.outcome === "successful" && values.clientStatus === "new") {
+        let newAccountId: string | undefined = undefined;
+        if (values.cif) { // Only proceed with CIF check if provided
+            const existingAccountByCif = mockAccounts.find(acc => acc.cif && acc.cif.toLowerCase() === values.cif!.toLowerCase());
+            if (existingAccountByCif) {
+                accountCreationMessage = ` (Cuenta con CIF ${values.cif} ya existía. Pedido asociado a cuenta existente).`;
+                newAccountId = existingAccountByCif.id; 
+                // Populate orderDetailsForMock from existingAccountByCif for consistency
+                orderDetailsForMock = {
+                    nombreFiscal: existingAccountByCif.legalName, cif: existingAccountByCif.cif, direccionFiscal: existingAccountByCif.addressBilling,
+                    direccionEntrega: existingAccountByCif.addressShipping, contactoNombre: existingAccountByCif.mainContactName,
+                    contactoCorreo: existingAccountByCif.mainContactEmail, contactoTelefono: existingAccountByCif.mainContactPhone,
+                };
+            } else if (values.clientType) { // If CIF is new (or not provided but other details are), create account
+                 const newAccount: Account = {
+                    id: `acc_${Date.now()}`, name: values.clientName, legalName: values.nombreFiscal || values.clientName, cif: values.cif || `AUTOGEN_${Date.now()}`, // Auto-generate CIF if not provided
+                    type: values.clientType as AccountType, status: 'Activo',
+                    addressBilling: values.direccionFiscal, addressShipping: values.direccionEntrega, mainContactName: values.contactoNombre,
+                    mainContactEmail: values.contactoCorreo, mainContactPhone: values.contactoTelefono,
+                    notes: values.observacionesAlta, salesRepId: teamMember.id, createdAt: currentDate, updatedAt: currentDate,
+                };
+                mockAccounts.unshift(newAccount);
+                newAccountId = newAccount.id;
+                accountCreationMessage = " Nueva cuenta creada.";
+                // Populate orderDetailsForMock from newAccount
+                orderDetailsForMock = {
+                    nombreFiscal: newAccount.legalName, cif: newAccount.cif, direccionFiscal: newAccount.addressBilling,
+                    direccionEntrega: newAccount.addressShipping, contactoNombre: newAccount.mainContactName,
+                    contactoCorreo: newAccount.mainContactEmail, contactoTelefono: newAccount.mainContactPhone, observacionesAlta: values.observacionesAlta,
+                };
+            }
+        } else if (values.clientType) { // No CIF provided, but other details might be for a new account
+            const newAccount: Account = {
+                id: `acc_${Date.now()}`, name: values.clientName, legalName: values.nombreFiscal || values.clientName, cif: `AUTOGEN_${Date.now()}`, // Auto-generate CIF
+                type: values.clientType as AccountType, status: 'Activo',
+                addressBilling: values.direccionFiscal, addressShipping: values.direccionEntrega, mainContactName: values.contactoNombre,
+                mainContactEmail: values.contactoCorreo, mainContactPhone: values.contactoTelefono,
+                notes: values.observacionesAlta, salesRepId: teamMember.id, createdAt: currentDate, updatedAt: currentDate,
+            };
+            mockAccounts.unshift(newAccount);
+            newAccountId = newAccount.id;
+            accountCreationMessage = " Nueva cuenta creada (sin CIF especificado).";
+             orderDetailsForMock = {
+                nombreFiscal: newAccount.legalName, cif: newAccount.cif, direccionFiscal: newAccount.addressBilling,
+                direccionEntrega: newAccount.addressShipping, contactoNombre: newAccount.mainContactName,
+                contactoCorreo: newAccount.mainContactEmail, contactoTelefono: newAccount.mainContactPhone, observacionesAlta: values.observacionesAlta,
+            };
+        }
+    } else if (values.outcome === "successful" && values.clientStatus === "existing") {
+        accountCreationMessage = " (Cliente existente).";
+        const existingAccount = mockAccounts.find(acc => acc.name.toLowerCase() === values.clientName.toLowerCase());
+        if(existingAccount) {
+            orderDetailsForMock = {
+                nombreFiscal: existingAccount.legalName, cif: existingAccount.cif, direccionFiscal: existingAccount.addressBilling,
+                direccionEntrega: existingAccount.addressShipping, contactoNombre: existingAccount.mainContactName,
+                contactoCorreo: existingAccount.mainContactEmail, contactoTelefono: existingAccount.mainContactPhone,
+            };
+        }
+    }
+
 
     if (editingVisitId) {
         const visitIndex = mockOrders.findIndex(o => o.id === editingVisitId);
@@ -316,30 +352,9 @@ export default function OrderFormPage() {
                 numberOfUnits: values.numberOfUnits,
                 unitPrice: values.unitPrice,
                 value: values.orderValue,
+                ...orderDetailsForMock // Add account details to the order
             };
             
-            if (values.clientStatus === "new" && values.cif && values.nombreFiscal) {
-                const existingAccountByCif = mockAccounts.find(acc => acc.cif.toLowerCase() === values.cif!.toLowerCase());
-                if (!existingAccountByCif) {
-                  const newAccount: Account = {
-                      id: `acc_${Date.now()}`, name: values.clientName, legalName: values.nombreFiscal, cif: values.cif, type: values.clientType as AccountType, status: 'Activo',
-                      addressBilling: values.direccionFiscal, addressShipping: values.direccionEntrega, mainContactName: values.contactoNombre, mainContactEmail: values.contactoCorreo, mainContactPhone: values.contactoTelefono,
-                      notes: values.observacionesAlta, salesRepId: teamMember.id, createdAt: currentDate, updatedAt: currentDate,
-                  };
-                  mockAccounts.unshift(newAccount);
-                  accountCreationMessage = " Nueva cuenta creada.";
-                  // KPIs de cuentas (kpi3, kpi4) se calculan dinámicamente en el dashboard.
-                  updatedVisitData = {...updatedVisitData, nombreFiscal: newAccount.legalName, cif: newAccount.cif, direccionFiscal: newAccount.addressBilling, direccionEntrega: newAccount.addressShipping, contactoNombre: newAccount.mainContactName, contactoCorreo: newAccount.mainContactEmail, contactoTelefono: newAccount.mainContactPhone, observacionesAlta: values.observacionesAlta, };
-                } else {
-                  accountCreationMessage = ` (Cuenta con CIF ${values.cif} ya existía).`;
-                  updatedVisitData = {...updatedVisitData, nombreFiscal: existingAccountByCif.legalName, cif: existingAccountByCif.cif, direccionFiscal: existingAccountByCif.addressBilling, direccionEntrega: existingAccountByCif.addressShipping, contactoNombre: existingAccountByCif.mainContactName, contactoCorreo: existingAccountByCif.mainContactEmail, contactoTelefono: existingAccountByCif.mainContactPhone, };
-                }
-            } else if (values.clientStatus === "existing") {
-                 accountCreationMessage = " (Cliente existente).";
-                 const existingAccount = mockAccounts.find(acc => acc.name.toLowerCase() === values.clientName.toLowerCase());
-                 if(existingAccount) updatedVisitData = {...updatedVisitData, nombreFiscal: existingAccount.legalName, cif: existingAccount.cif, direccionFiscal: existingAccount.addressBilling, direccionEntrega: existingAccount.addressShipping, contactoNombre: existingAccount.mainContactName, contactoCorreo: existingAccount.mainContactEmail, contactoTelefono: existingAccount.mainContactPhone,};
-            }
-
             if (userRole === 'SalesRep' || userRole === 'Admin') { 
                 const memberToUpdate = mockTeamMembers.find(m => m.name === salesRepName && (m.role === 'SalesRep' || m.role === 'Admin'));
                 if (memberToUpdate) {
@@ -352,10 +367,10 @@ export default function OrderFormPage() {
 
             toast({ title: "¡Enhorabuena!", description: <div className="flex items-start"><Check className="h-5 w-5 text-green-500 mr-2 mt-1" /><p>Pedido para {values.clientName} registrado y tarea completada.{accountCreationMessage}</p></div> });
 
-        } else if (values.outcome === "follow-up" && values.clientStatus && values.visitDate && values.nextActionType) {
+        } else if (values.outcome === "follow-up" && values.visitDate && values.nextActionType) {
             updatedVisitData = { ...updatedVisitData, status: 'Seguimiento', nextActionType: values.nextActionType, nextActionCustom: values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : undefined, nextActionDate: values.nextActionDate ? format(values.nextActionDate, "yyyy-MM-dd") : undefined };
             toast({ title: "¡Seguimiento Actualizado!", description: <div className="flex items-start"><Info className="h-5 w-5 text-blue-500 mr-2 mt-1" /><p>Seguimiento para {values.clientName} actualizado.</p></div> });
-        } else if (values.outcome === "failed" && values.clientStatus && values.visitDate && values.nextActionType && values.failureReasonType) {
+        } else if (values.outcome === "failed" && values.visitDate && values.nextActionType && values.failureReasonType) {
             updatedVisitData = { ...updatedVisitData, status: 'Fallido', nextActionType: values.nextActionType, nextActionCustom: values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : undefined, nextActionDate: values.nextActionDate ? format(values.nextActionDate, "yyyy-MM-dd") : undefined, failureReasonType: values.failureReasonType, failureReasonCustom: values.failureReasonType === 'Otro (especificar)' ? values.failureReasonCustom : undefined };
             toast({ title: "¡Visita Fallida Registrada!", description: <div className="flex items-start"><Info className="h-5 w-5 text-orange-500 mr-2 mt-1" /><p>Interacción fallida con {values.clientName} actualizada.</p></div> });
         } else {
@@ -365,7 +380,7 @@ export default function OrderFormPage() {
         }
         mockOrders[visitIndex] = { ...originalVisit, ...updatedVisitData, clientName: values.clientName, visitDate: format(values.visitDate, "yyyy-MM-dd") };
 
-    } else {
+    } else { // Not editing an existing visit, creating a new record
         if (userRole === 'SalesRep' || userRole === 'Admin') { 
             const memberToUpdate = mockTeamMembers.find(m => m.name === salesRepName && (m.role === 'SalesRep' || m.role === 'Admin'));
             if (memberToUpdate) memberToUpdate.visits = (memberToUpdate.visits || 0) + 1;
@@ -380,32 +395,11 @@ export default function OrderFormPage() {
             toast({ title: "¡Visita Programada!", description: <div className="flex items-start"><CalendarIcon className="h-5 w-5 text-purple-500 mr-2 mt-1" /><p>Visita para {values.clientName} programada para el {format(values.visitDate, "dd/MM/yyyy", { locale: es })}.</p></div> });
 
         } else if (values.outcome === "successful" && values.clientStatus && values.visitDate && values.orderValue && values.clientType && values.numberOfUnits && values.unitPrice) {
-          let accountDetailsForOrder: Partial<Order> = { clientStatus: values.clientStatus };
-          if (values.clientStatus === "new" && values.cif && values.nombreFiscal) {
-            const existingAccountByCif = mockAccounts.find(acc => acc.cif.toLowerCase() === values.cif!.toLowerCase());
-            if (!existingAccountByCif) {
-              const newAccount: Account = {
-                  id: `acc_${Date.now()}`, name: values.clientName, legalName: values.nombreFiscal, cif: values.cif, type: values.clientType as AccountType, status: 'Activo',
-                  addressBilling: values.direccionFiscal, addressShipping: values.direccionEntrega, mainContactName: values.contactoNombre, mainContactEmail: values.contactoCorreo, mainContactPhone: values.contactoTelefono,
-                  notes: values.observacionesAlta, salesRepId: teamMember.id, createdAt: currentDate, updatedAt: currentDate,
-              };
-              mockAccounts.unshift(newAccount);
-              accountCreationMessage = " Nueva cuenta creada.";
-              // KPIs de cuentas (kpi3, kpi4) se calculan dinámicamente en el dashboard.
-              accountDetailsForOrder = { ...accountDetailsForOrder, nombreFiscal: newAccount.legalName, cif: newAccount.cif, direccionFiscal: newAccount.addressBilling, direccionEntrega: newAccount.addressShipping, contactoNombre: newAccount.mainContactName, contactoCorreo: newAccount.mainContactEmail, contactoTelefono: newAccount.mainContactPhone, observacionesAlta: values.observacionesAlta, };
-            } else {
-               accountCreationMessage = ` (La cuenta con CIF ${values.cif} ya existía).`;
-                accountDetailsForOrder = {...accountDetailsForOrder, nombreFiscal: existingAccountByCif.legalName, cif: existingAccountByCif.cif, direccionFiscal: existingAccountByCif.addressBilling, direccionEntrega: existingAccountByCif.addressShipping, contactoNombre: existingAccountByCif.mainContactName, contactoCorreo: existingAccountByCif.mainContactEmail, contactoTelefono: existingAccountByCif.mainContactPhone, };
-            }
-          } else if (values.clientStatus === "existing") {
-            accountCreationMessage = " (Cliente existente).";
-            const existingAccount = mockAccounts.find(acc => acc.name.toLowerCase() === values.clientName.toLowerCase());
-            if (existingAccount) accountDetailsForOrder = {...accountDetailsForOrder, nombreFiscal: existingAccount.legalName, cif: existingAccount.cif, direccionFiscal: existingAccount.addressBilling, direccionEntrega: existingAccount.addressShipping, contactoNombre: existingAccount.mainContactName, contactoCorreo: existingAccount.mainContactEmail, contactoTelefono: existingAccount.mainContactPhone, };
-          }
-
           const newOrder: Order = {
             id: `ORD_${Date.now()}`, clientName: values.clientName, visitDate: format(values.visitDate, "yyyy-MM-dd"), clientType: values.clientType, products: [SINGLE_PRODUCT_NAME], 
-            numberOfUnits: values.numberOfUnits, unitPrice: values.unitPrice, value: values.orderValue, status: 'Confirmado', salesRep: salesRepName, lastUpdated: currentDate, ...accountDetailsForOrder, notes: values.notes,
+            numberOfUnits: values.numberOfUnits, unitPrice: values.unitPrice, value: values.orderValue, status: 'Confirmado', salesRep: salesRepName, lastUpdated: currentDate, 
+            notes: values.notes, clientStatus: values.clientStatus,
+            ...orderDetailsForMock // Add account details to the new order
           };
           mockOrders.unshift(newOrder);
 
@@ -420,7 +414,7 @@ export default function OrderFormPage() {
           const kpiVentasEquipo = kpiDataLaunch.find(k => k.id === 'kpi2'); if (kpiVentasEquipo) kpiVentasEquipo.currentValue += values.numberOfUnits;
           toast({ title: "¡Enhorabuena!", description: <div className="flex items-start"><Check className="h-5 w-5 text-green-500 mr-2 mt-1" /><p>Pedido {newOrder.id} para {newOrder.clientName} registrado.{accountCreationMessage}</p></div> });
         
-        } else if (values.outcome === "follow-up" && values.clientStatus && values.visitDate && values.nextActionType) {
+        } else if (values.outcome === "follow-up" && values.visitDate && values.nextActionType) {
             const newFollowUpEntry: Order = {
                 id: `VISFLW_${Date.now()}`, clientName: values.clientName, visitDate: format(values.visitDate, "yyyy-MM-dd"), status: 'Seguimiento', salesRep: salesRepName, lastUpdated: currentDate,
                 nextActionType: values.nextActionType, nextActionCustom: values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : undefined, nextActionDate: values.nextActionDate ? format(values.nextActionDate, "yyyy-MM-dd") : undefined,
@@ -429,7 +423,7 @@ export default function OrderFormPage() {
             mockOrders.unshift(newFollowUpEntry);
             toast({ title: "¡Seguimiento Registrado!", description: <div className="flex items-start"><Info className="h-5 w-5 text-blue-500 mr-2 mt-1" /><p>Seguimiento para {values.clientName} registrado.</p></div> });
 
-        } else if (values.outcome === "failed" && values.clientStatus && values.visitDate && values.nextActionType && values.failureReasonType) {
+        } else if (values.outcome === "failed" && values.visitDate && values.nextActionType && values.failureReasonType) {
             const newFailedEntry: Order = {
                 id: `VISFLD_${Date.now()}`, clientName: values.clientName, visitDate: format(values.visitDate, "yyyy-MM-dd"), status: 'Fallido', salesRep: salesRepName, lastUpdated: currentDate,
                 nextActionType: values.nextActionType, nextActionCustom: values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : undefined, nextActionDate: values.nextActionDate ? format(values.nextActionDate, "yyyy-MM-dd") : undefined,
@@ -576,12 +570,12 @@ export default function OrderFormPage() {
                   {showBillingInfo && (
                     <>
                       <Separator className="my-6" />
-                      <div className="space-y-1"><h3 className="text-lg font-medium">Información de Alta del Cliente Nuevo</h3><p className="text-sm text-muted-foreground">Complete estos datos para la nueva cuenta.</p></div>
+                      <div className="space-y-1"><h3 className="text-lg font-medium">Información de Alta del Cliente Nuevo (Opcional)</h3><p className="text-sm text-muted-foreground">Complete estos datos si desea crear una nueva cuenta.</p></div>
                       <FormField control={form.control} name="nombreFiscal" render={({ field }) => (<FormItem><FormLabel>Nombre Fiscal</FormLabel><FormControl><Input placeholder="Nombre legal completo de la empresa" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                       <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF</FormLabel><FormControl><Input placeholder="Número de Identificación Fiscal" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                       <FormField control={form.control} name="direccionFiscal" render={({ field }) => (<FormItem><FormLabel>Dirección Fiscal</FormLabel><FormControl><Textarea placeholder="Calle, número, piso, ciudad, código postal, provincia" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                       <FormField control={form.control} name="direccionEntrega" render={({ field }) => (<FormItem><FormLabel>Dirección de Entrega</FormLabel><FormControl><Textarea placeholder="Si es diferente a la fiscal: calle, número, piso, ciudad, código postal, provincia" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                      <Separator className="my-4" /><h4 className="text-md font-medium mb-2">Datos de Contacto (Cliente Nuevo)</h4>
+                      <Separator className="my-4" /><h4 className="text-md font-medium mb-2">Datos de Contacto (Cliente Nuevo - Opcional)</h4>
                       <FormField control={form.control} name="contactoNombre" render={({ field }) => (<FormItem><FormLabel>Nombre de Contacto</FormLabel><FormControl><Input placeholder="Persona de contacto principal" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                       <FormField control={form.control} name="contactoCorreo" render={({ field }) => (<FormItem><FormLabel>Correo Electrónico de Contacto</FormLabel><FormControl><Input type="email" placeholder="ejemplo@empresa.com" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                       <FormField control={form.control} name="contactoTelefono" render={({ field }) => (<FormItem><FormLabel>Teléfono de Contacto</FormLabel><FormControl><Input type="tel" placeholder="Número de teléfono" {...field} /></FormControl><FormMessage /></FormItem>)}/>

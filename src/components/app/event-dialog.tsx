@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -22,7 +21,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  useFormField,
+  // useFormField, // No longer explicitly needed here
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -44,7 +43,7 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { es } from 'date-fns/locale';
-import { Label } from "@/components/ui/label";
+// import { Label } from "@/components/ui/label"; // Using FormLabel from form context
 
 const eventFormSchema = z.object({
   name: z.string().min(3, "El nombre del evento debe tener al menos 3 caracteres."),
@@ -165,66 +164,64 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
             <FormField control={form.control} name="description" render={({ field }) => ( <FormItem> <FormLabel>Descripción (Opcional)</FormLabel> <FormControl> <Textarea placeholder="Breve descripción del evento, objetivos..." {...field} disabled={isReadOnly} className="min-h-[80px]" /> </FormControl> <FormMessage /> </FormItem> )}/>
             
             <Separator className="my-4"/>
+            
             <FormField
               control={form.control}
-              name="assignedTeamMemberIds"
-              render={({ field }) => {
-                // We need to get the id for ARIA attributes from useFormField context implicitly used by FormField
-                // This id is usually on FormItemContext.
-                // Let's explicitly get it via useFormField to be safe for ARIA linking.
-                const { id: generatedFieldId, error } = useFormField();
-                return (
-                  <FormItem>
-                    <FormLabel htmlFor={generatedFieldId}>Responsables Asignados</FormLabel>
-                    {/*
-                      No FormControl here.
-                      ScrollArea acts as the container for our custom group of inputs.
-                      FormLabel's htmlFor points to the ScrollArea's id.
-                    */}
-                    <ScrollArea
-                      id={generatedFieldId} // ID for the FormLabel to target
-                      className={cn(
+              name="assignedTeamMemberIds" // Main field for the array
+              render={() => ( // Outer render doesn't need 'field' if using nested FormFields for items
+                <FormItem>
+                  <FormLabel>Responsables Asignados</FormLabel> {/* Label for the whole group */}
+                  <ScrollArea 
+                    className={cn(
                         "h-32 w-full rounded-md border p-2",
-                        error ? "border-destructive" : "border-input" // Style based on error state
+                        form.getFieldState('assignedTeamMemberIds').error ? "border-destructive" : "border-input"
                       )}
-                      aria-invalid={!!error}
-                      aria-describedby={error ? `${generatedFieldId}-form-item-message` : undefined} // Link to FormMessage on error
-                      role="group" // Indicate it's a group of related controls
-                      aria-labelledby={form.getFieldState('assignedTeamMemberIds').error ? undefined : `${generatedFieldId}-label`} // Ensure label is correctly associated
-                    >
-                      {assignableTeamMembers.map((member) => (
-                        <div key={member.id} className="flex flex-row items-center space-x-3 space-y-0 py-1">
-                          <Checkbox
-                            id={`member-checkbox-${member.id}-${generatedFieldId}`}
-                            checked={Array.isArray(field.value) && field.value.includes(member.id)}
-                            onCheckedChange={(checked) => {
-                              const currentValues = Array.isArray(field.value) ? field.value : [];
-                              if (checked) {
-                                field.onChange([...currentValues, member.id]);
-                              } else {
-                                field.onChange(
-                                  currentValues.filter((value) => value !== member.id)
-                                );
-                              }
-                            }}
-                            disabled={isReadOnly}
-                            aria-labelledby={`member-label-${member.id}-${generatedFieldId}`}
-                          />
-                          <Label
-                            htmlFor={`member-checkbox-${member.id}-${generatedFieldId}`}
-                            id={`member-label-${member.id}-${generatedFieldId}`}
-                            className="text-sm font-normal cursor-pointer"
+                    role="group" // Accessibility: Indicate it's a group of related controls
+                  >
+                    {assignableTeamMembers.map((member) => (
+                      <FormField
+                        key={member.id}
+                        control={form.control}
+                        name="assignedTeamMemberIds" // Each checkbox contributes to this same array field
+                        render={({ field }) => ( // This 'field' is for the 'assignedTeamMemberIds' array
+                          <FormItem
+                            className="flex flex-row items-start space-x-3 space-y-0 py-1"
                           >
-                            {member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})
-                          </Label>
-                        </div>
-                      ))}
-                    </ScrollArea>
-                    {/* FormMessage will correctly pick up the error associated with "assignedTeamMemberIds" */}
-                    <FormMessage id={`${generatedFieldId}-form-item-message`} />
-                  </FormItem>
-                );
-              }}
+                            <FormControl> {/* FormControl wraps ONLY the Checkbox */}
+                              <Checkbox
+                                id={`member-checkbox-${member.id}`} // Unique ID for each checkbox
+                                checked={Array.isArray(field.value) && field.value.includes(member.id)}
+                                onCheckedChange={(checked) => {
+                                  const currentValues = Array.isArray(field.value) ? field.value : [];
+                                  if (checked) {
+                                    field.onChange([...currentValues, member.id]);
+                                  } else {
+                                    field.onChange(
+                                      currentValues.filter(
+                                        (value) => value !== member.id
+                                      )
+                                    );
+                                  }
+                                }}
+                                disabled={isReadOnly}
+                                aria-labelledby={`member-label-${member.id}`} // For accessibility
+                              />
+                            </FormControl>
+                            <FormLabel // This is ShadCN's FormLabel, works with the inner FormItem/FormControl context
+                              htmlFor={`member-checkbox-${member.id}`} // Links label to checkbox
+                              id={`member-label-${member.id}`} // ID for aria-labelledby
+                              className="text-sm font-normal cursor-pointer"
+                            >
+                              {member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})
+                            </FormLabel>
+                          </FormItem>
+                        )}
+                      />
+                    ))}
+                  </ScrollArea>
+                  <FormMessage /> {/* Displays errors for the 'assignedTeamMemberIds' field as a whole */}
+                </FormItem>
+              )}
             />
 
 

@@ -37,6 +37,8 @@ import { accountTypeList, accountStatusList, mockTeamMembers } from "@/lib/data"
 import { Loader2 } from "lucide-react";
 import { Separator } from "../ui/separator";
 
+const NO_SALES_REP_VALUE = "##NONE##"; // Special value for "Sin asignar"
+
 const accountFormSchema = z.object({
   name: z.string().min(2, "El nombre comercial debe tener al menos 2 caracteres."),
   legalName: z.string().optional(),
@@ -49,7 +51,7 @@ const accountFormSchema = z.object({
   mainContactEmail: z.string().email("Formato de correo inválido.").optional().or(z.literal("")),
   mainContactPhone: z.string().optional(),
   notes: z.string().optional(),
-  salesRepId: z.string().optional(),
+  salesRepId: z.string().optional(), // This will hold either a real ID or NO_SALES_REP_VALUE in the form
 });
 
 export type AccountFormValues = z.infer<typeof accountFormSchema>;
@@ -58,7 +60,7 @@ interface AccountDialogProps {
   account: Account | null;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (data: AccountFormValues) => void;
+  onSave: (data: AccountFormValues) => void; // The onSave expects salesRepId as string | undefined
   allAccounts: Account[]; // For CIF uniqueness check
   isReadOnly?: boolean;
 }
@@ -69,7 +71,6 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
   const form = useForm<AccountFormValues>({
     resolver: zodResolver(accountFormSchema.refine(
       (data) => {
-        // CIF uniqueness check (only if CIF is provided and we are not editing the same account)
         if (!data.cif) return true;
         const existingAccountWithCif = allAccounts.find(
           (acc) => acc.cif.toLowerCase() === data.cif.toLowerCase() && acc.id !== account?.id
@@ -93,49 +94,57 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
       mainContactEmail: "",
       mainContactPhone: "",
       notes: "",
-      salesRepId: undefined,
+      salesRepId: NO_SALES_REP_VALUE, // Default to "Sin asignar"
     },
   });
 
   React.useEffect(() => {
-    if (account && isOpen) {
-      form.reset({
-        name: account.name,
-        legalName: account.legalName || "",
-        cif: account.cif,
-        type: account.type,
-        status: account.status,
-        addressBilling: account.addressBilling || "",
-        addressShipping: account.addressShipping || "",
-        mainContactName: account.mainContactName || "",
-        mainContactEmail: account.mainContactEmail || "",
-        mainContactPhone: account.mainContactPhone || "",
-        notes: account.notes || "",
-        salesRepId: account.salesRepId || undefined,
-      });
-    } else if (!account && isOpen) {
-      form.reset({ // Reset to defaults for new account
-        name: "",
-        legalName: "",
-        cif: "",
-        type: undefined,
-        status: "Potencial",
-        addressBilling: "",
-        addressShipping: "",
-        mainContactName: "",
-        mainContactEmail: "",
-        mainContactPhone: "",
-        notes: "",
-        salesRepId: undefined,
-      });
+    if (isOpen) {
+      if (account) {
+        form.reset({
+          name: account.name,
+          legalName: account.legalName || "",
+          cif: account.cif,
+          type: account.type,
+          status: account.status,
+          addressBilling: account.addressBilling || "",
+          addressShipping: account.addressShipping || "",
+          mainContactName: account.mainContactName || "",
+          mainContactEmail: account.mainContactEmail || "",
+          mainContactPhone: account.mainContactPhone || "",
+          notes: account.notes || "",
+          salesRepId: account.salesRepId || NO_SALES_REP_VALUE,
+        });
+      } else {
+        form.reset({ 
+          name: "",
+          legalName: "",
+          cif: "",
+          type: undefined,
+          status: "Potencial",
+          addressBilling: "",
+          addressShipping: "",
+          mainContactName: "",
+          mainContactEmail: "",
+          mainContactPhone: "",
+          notes: "",
+          salesRepId: NO_SALES_REP_VALUE,
+        });
+      }
     }
   }, [account, isOpen, form]);
 
   const onSubmit = async (data: AccountFormValues) => {
     if (isReadOnly) return;
     setIsSaving(true);
-    await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API call
-    onSave(data);
+    
+    const dataToSave = { ...data };
+    if (dataToSave.salesRepId === NO_SALES_REP_VALUE) {
+      dataToSave.salesRepId = undefined; // Convert back for saving
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 500)); 
+    onSave(dataToSave); // Pass the processed data
     setIsSaving(false);
   };
   
@@ -204,7 +213,7 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
                 render={({ field }) => (
                     <FormItem>
                     <FormLabel>Tipo de Cuenta</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isReadOnly}>
+                    <Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}>
                         <FormControl>
                         <SelectTrigger>
                             <SelectValue placeholder="Seleccione un tipo" />
@@ -226,7 +235,7 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
                 render={({ field }) => (
                     <FormItem>
                     <FormLabel>Estado de la Cuenta</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isReadOnly}>
+                    <Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}>
                         <FormControl>
                         <SelectTrigger>
                             <SelectValue placeholder="Seleccione un estado" />
@@ -333,7 +342,7 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="">Sin asignar</SelectItem>
+                      <SelectItem value={NO_SALES_REP_VALUE}>Sin asignar</SelectItem>
                       {salesRepList.map(rep => (
                         <SelectItem key={rep.id} value={rep.id}>{rep.name}</SelectItem>
                       ))}
@@ -382,3 +391,4 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
     </Dialog>
   );
 }
+

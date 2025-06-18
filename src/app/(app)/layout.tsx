@@ -2,7 +2,7 @@
 "use client";
 
 import type React from 'react';
-import { useEffect, useMemo, useState } from 'react'; // Added useMemo, useState
+import { useEffect, useMemo, useState } from 'react';
 import {
   SidebarProvider,
   Sidebar,
@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button';
 import Logo from '@/components/icons/Logo';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2, Building2, ClipboardList, CalendarCheck, PartyPopper, ListChecks } from 'lucide-react'; // Added ListChecks
+import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2, Building2, ClipboardList, CalendarCheck, PartyPopper, ListChecks, Footprints, Briefcase, Target } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
   DropdownMenu, 
@@ -29,13 +29,14 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
-import type { UserRole, Order, CrmEvent } from '@/types'; // Added Order, CrmEvent
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import type { UserRole, Order, CrmEvent, TeamMember } from '@/types';
 import { useAuth } from '@/contexts/auth-context';
-import DailyTasksWidget from '@/components/app/daily-tasks-widget'; // New import
-import { Badge } from '@/components/ui/badge'; // For task count
-import { mockOrders, mockCrmEvents } from '@/lib/data'; // For task count
-import { parseISO, startOfDay, isEqual, isWithinInterval, format } from 'date-fns'; // For task count
-import { es } from 'date-fns/locale'; // For task count
+import DailyTasksWidget from '@/components/app/daily-tasks-widget';
+import { Badge } from '@/components/ui/badge';
+import { mockOrders, mockCrmEvents, mockAccounts } from '@/lib/data';
+import { parseISO, startOfDay, isEqual, isWithinInterval, format, getMonth, getYear, isSameMonth, isSameYear } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 const allNavItems = [
   { href: '/dashboard', label: 'Panel', icon: LayoutDashboard, roles: ['Admin', 'SalesRep', 'Distributor'] as UserRole[] },
@@ -143,9 +144,82 @@ function DailyTasksMenu() {
   );
 }
 
+interface MonthlyProgressIndicatorProps {
+  type: 'visits' | 'accounts';
+  teamMember: TeamMember;
+}
+
+function MonthlyProgressIndicator({ type, teamMember }: MonthlyProgressIndicatorProps) {
+  const [achieved, setAchieved] = useState(0);
+  const currentDate = useMemo(() => new Date(), []);
+  const currentMonth = useMemo(() => getMonth(currentDate), [currentDate]);
+  const currentYearValue = useMemo(() => getYear(currentDate), [currentDate]);
+
+  const target = type === 'visits' ? teamMember.monthlyTargetVisits : teamMember.monthlyTargetAccounts;
+  const Icon = type === 'visits' ? Footprints : Briefcase;
+  const unitLabel = type === 'visits' ? 'visitas' : 'cuentas';
+  const title = type === 'visits' ? 'Visitas Pendientes (Mes)' : 'Cuentas Pendientes (Mes)';
+
+  useEffect(() => {
+    if (!teamMember) return;
+
+    if (type === 'visits') {
+      const visitsThisMonth = mockOrders.filter(order =>
+        order.salesRep === teamMember.name &&
+        isSameMonth(parseISO(order.visitDate), currentDate) &&
+        isSameYear(parseISO(order.visitDate), currentDate)
+      ).length;
+      setAchieved(visitsThisMonth);
+    } else if (type === 'accounts') {
+      const accountsThisMonth = mockAccounts.filter(acc =>
+        acc.salesRepId === teamMember.id &&
+        isSameMonth(parseISO(acc.createdAt), currentDate) &&
+        isSameYear(parseISO(acc.createdAt), currentDate)
+      ).length;
+      setAchieved(accountsThisMonth);
+    }
+  }, [teamMember, type, currentDate, currentMonth, currentYearValue]);
+
+  if (!target || target <= 0) return null;
+
+  const remaining = Math.max(0, target - achieved);
+
+  if (remaining <= 0) { // Target achieved or exceeded
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-auto px-2 text-green-600">
+                    <Icon className="h-5 w-5" />
+                    <Target className="ml-1 h-4 w-4" /> 
+                </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+                <p>¡Objetivo de {unitLabel} mensual cumplido! ({achieved}/{target})</p>
+            </TooltipContent>
+        </Tooltip>
+    );
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-9 w-auto px-2">
+          <Icon className="h-5 w-5 text-muted-foreground" />
+          <Badge variant="outline" className="ml-1.5 text-xs">
+            {remaining}
+          </Badge>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>Faltan {remaining} {unitLabel} para el objetivo de {target} este mes. ({achieved}/{target})</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 
 function MainAppLayout({ children }: { children: React.ReactNode }) {
-  const { user, userRole, loading, logout } = useAuth();
+  const { user, userRole, teamMember, loading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -179,6 +253,9 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
     await logout();
     router.push('/login'); 
   };
+
+  const showMonthlyProgress = (userRole === 'SalesRep' || userRole === 'Admin') && teamMember;
+
 
   return (
     <SidebarProvider defaultOpen>
@@ -231,7 +308,13 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
             </div>
             {/* Breadcrumbs or page title can go here */}
           </div>
-          <div className="flex items-center gap-3"> {/* Aumentado gap si es necesario */}
+          <div className="flex items-center gap-2">
+            {showMonthlyProgress && teamMember && (
+              <>
+                <MonthlyProgressIndicator type="accounts" teamMember={teamMember} />
+                <MonthlyProgressIndicator type="visits" teamMember={teamMember} />
+              </>
+            )}
             <DailyTasksMenu />
             <UserMenu userRole={userRole} userEmail={user?.email} />
           </div>
@@ -306,37 +389,40 @@ function UserMenu({ userRole, userEmail }: UserMenuProps) {
   };
   
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={teamMember?.avatarUrl || "https://placehold.co/40x40.png"} alt="Avatar de usuario" data-ai-hint="user avatar" />
-            <AvatarFallback>{teamMember?.name?.substring(0,2).toUpperCase() || userEmail?.substring(0,2).toUpperCase() || 'U'}</AvatarFallback>
-          </Avatar>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56" align="end" forceMount>
-        <DropdownMenuLabel className="font-normal">
-          <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">{teamMember?.name || 'Usuario de Santa Brisa'}</p>
-            <p className="text-xs leading-none text-muted-foreground">
-              ({getRoleDisplayName(userRole)}) {userEmail || 'email@example.com'}
-            </p>
-          </div>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem>
-          <UserCircle className="mr-2 h-4 w-4" />
-          <span>Perfil</span>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleLogout}>
-          <LogOut className="mr-2 h-4 w-4" />
-          <span>Cerrar sesión</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <TooltipProvider>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+            <Avatar className="h-8 w-8">
+              <AvatarImage src={teamMember?.avatarUrl || "https://placehold.co/40x40.png"} alt="Avatar de usuario" data-ai-hint="user avatar" />
+              <AvatarFallback>{teamMember?.name?.substring(0,2).toUpperCase() || userEmail?.substring(0,2).toUpperCase() || 'U'}</AvatarFallback>
+            </Avatar>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-56" align="end" forceMount>
+          <DropdownMenuLabel className="font-normal">
+            <div className="flex flex-col space-y-1">
+              <p className="text-sm font-medium leading-none">{teamMember?.name || 'Usuario de Santa Brisa'}</p>
+              <p className="text-xs leading-none text-muted-foreground">
+                ({getRoleDisplayName(userRole)}) {userEmail || 'email@example.com'}
+              </p>
+            </div>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem disabled>
+            <UserCircle className="mr-2 h-4 w-4" />
+            <span>Perfil (Próximamente)</span>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={handleLogout}>
+            <LogOut className="mr-2 h-4 w-4" />
+            <span>Cerrar sesión</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </TooltipProvider>
   );
 }
 
 export default MainAppLayout;
+

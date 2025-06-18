@@ -38,6 +38,7 @@ export default function OrdersDashboardPage() {
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<OrderStatus | "Todos">("Todos");
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
+  const [cityFilter, setCityFilter] = React.useState("");
 
   const [editingOrder, setEditingOrder] = React.useState<Order | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
@@ -59,6 +60,12 @@ export default function OrdersDashboardPage() {
       const fromDate = dateRange.from;
       const toDate = dateRange.to ? addDays(dateRange.to, 1) : new Date(8640000000000000) ; 
       return orderDate >= fromDate && orderDate < toDate;
+    })
+    .filter(order => {
+      if (!cityFilter) return true;
+      const cityLower = cityFilter.toLowerCase();
+      return (order.direccionEntrega && order.direccionEntrega.toLowerCase().includes(cityLower)) ||
+             (order.direccionFiscal && order.direccionFiscal.toLowerCase().includes(cityLower));
     });
 
   const handleViewOrEditClick = (order: Order) => {
@@ -260,7 +267,13 @@ export default function OrdersDashboardPage() {
               placeholder="Buscar pedidos (ID, Cliente, Rep)..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-sm"
+              className="max-w-xs"
+            />
+            <Input
+              placeholder="Filtrar por ciudad..."
+              value={cityFilter}
+              onChange={(e) => setCityFilter(e.target.value)}
+              className="max-w-xs"
             />
             <div className="flex gap-2 flex-wrap sm:flex-nowrap">
             <DropdownMenu>

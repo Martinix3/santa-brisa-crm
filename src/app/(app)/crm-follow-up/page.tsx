@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input"; 
 import type { Order, NextActionType, TeamMember, UserRole, OrderStatus } from "@/types";
-import { mockOrders, nextActionTypeList, mockTeamMembers } from "@/lib/data";
+import { mockOrders, nextActionTypeList, mockTeamMembers, mockAccounts } from "@/lib/data";
 import { Filter, CalendarDays, ClipboardList, ChevronDown, Edit2, AlertTriangle, MoreHorizontal, Send } from "lucide-react";
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -25,6 +25,7 @@ export default function CrmFollowUpPage() {
   const { userRole, teamMember } = useAuth();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = React.useState(""); 
+  const [cityFilter, setCityFilter] = React.useState("");
   
   const [salesRepFilter, setSalesRepFilter] = React.useState<string>(() => {
     if (userRole === 'SalesRep' && teamMember) {
@@ -85,8 +86,15 @@ export default function CrmFollowUpPage() {
       })
       .filter(followUp => 
         followUp.clientName.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-  }, [followUps, userRole, teamMember, salesRepFilter, actionTypeFilter, dateRange, searchTerm]);
+      )
+      .filter(followUp => {
+        if (!cityFilter) return true;
+        const cityLower = cityFilter.toLowerCase();
+        // Check address fields directly on the followUp (Order) object
+        return (followUp.direccionEntrega && followUp.direccionEntrega.toLowerCase().includes(cityLower)) ||
+               (followUp.direccionFiscal && followUp.direccionFiscal.toLowerCase().includes(cityLower));
+      });
+  }, [followUps, userRole, teamMember, salesRepFilter, actionTypeFilter, dateRange, searchTerm, cityFilter]);
 
   const handleSaveNewDate = (followUpId: string) => {
     if (!selectedNewDate) return;
@@ -157,6 +165,12 @@ export default function CrmFollowUpPage() {
               placeholder="Buscar por cliente..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              className="max-w-xs"
+            />
+            <Input
+              placeholder="Filtrar por ciudad..."
+              value={cityFilter}
+              onChange={(e) => setCityFilter(e.target.value)}
               className="max-w-xs"
             />
             {userRole === 'Admin' && (

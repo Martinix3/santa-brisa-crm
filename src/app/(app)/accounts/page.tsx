@@ -27,6 +27,7 @@ export default function AccountsPage() {
   const [accountToDelete, setAccountToDelete] = React.useState<Account | null>(null);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<AccountStatus | "Todos">("Todos");
+  const [cityFilter, setCityFilter] = React.useState("");
 
   const isAdmin = userRole === 'Admin';
 
@@ -83,7 +84,13 @@ export default function AccountsPage() {
        (account.legalName && account.legalName.toLowerCase().includes(searchTerm.toLowerCase())) ||
        (account.mainContactName && account.mainContactName.toLowerCase().includes(searchTerm.toLowerCase())))
     )
-    .filter(account => statusFilter === "Todos" || account.status === statusFilter);
+    .filter(account => statusFilter === "Todos" || account.status === statusFilter)
+    .filter(account => {
+      if (!cityFilter) return true;
+      const cityLower = cityFilter.toLowerCase();
+      return (account.addressShipping && account.addressShipping.toLowerCase().includes(cityLower)) ||
+             (account.addressBilling && account.addressBilling.toLowerCase().includes(cityLower));
+    });
   
   const uniqueAccountStatuses = ["Todos", ...accountStatusList] as (AccountStatus | "Todos")[];
 
@@ -110,10 +117,16 @@ export default function AccountsPage() {
         <CardContent>
           <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
             <Input
-              placeholder="Buscar cuentas (Nombre, CIF, Contacto)..."
+              placeholder="Buscar (Nombre, CIF, Contacto)..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="max-w-sm"
+            />
+             <Input
+              placeholder="Filtrar por ciudad..."
+              value={cityFilter}
+              onChange={(e) => setCityFilter(e.target.value)}
+              className="max-w-xs"
             />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

@@ -46,11 +46,15 @@ export const mockTeamMembers: TeamMember[] = [
   },
   {
     id: 'admin01', name: 'Admin User', email: 'admin@santabrisa.com', role: 'Admin', avatarUrl: 'https://placehold.co/100x100.png?text=AU',
-    bottlesSold: 0, orders: 0, visits: 0, performanceData: []
+    bottlesSold: 0, orders: 0, visits: 0, performanceData: [],
+    monthlyTargetAccounts: 10, // Added for Admin
+    monthlyTargetVisits: 40,   // Added for Admin
   },
   {
     id: 'adminMJ', name: 'Martín (Admin)', email: 'mj@santabrisa.com', role: 'Admin', avatarUrl: 'https://placehold.co/100x100.png?text=MJ',
-    bottlesSold: 0, orders: 0, visits: 0, performanceData: []
+    bottlesSold: 0, orders: 0, visits: 0, performanceData: [],
+    monthlyTargetAccounts: 15, // Added for Admin
+    monthlyTargetVisits: 50,   // Added for Admin
   },
   {
     id: 'dist01', name: 'Distribuidor Principal', email: 'distribuidor@example.com', role: 'Distributor', avatarUrl: 'https://placehold.co/100x100.png?text=DP',

@@ -38,13 +38,13 @@ export default function DashboardPage() {
   const calculatedKpiData = React.useMemo(() => {
     const validOrderStatusesForSales = ['Confirmado', 'Procesando', 'Enviado', 'Entregado'];
     const salesTeamMemberIds = mockTeamMembers
-        .filter(m => m.role === 'SalesRep' || m.role === 'Admin')
+        .filter(m => m.role === 'SalesRep') // Only SalesRep contribute to specific team KPIs here
         .map(m => m.id);
     
     let totalBottlesSoldOverall = 0;
-    let teamBottlesSoldOverall = 0;
-    let accountsCreatedByTeamThisYear = 0;
-    let accountsCreatedByTeamThisMonth = 0; 
+    let teamBottlesSoldOverall = 0; // SalesRep only for this KPI
+    let accountsCreatedByTeamThisYear = 0; // SalesRep only for this KPI
+    let accountsCreatedByTeamThisMonth = 0; // SalesRep only for this KPI
     let ordersFromExistingCustomersCount = 0;
     let totalValidOrdersCount = 0;
 
@@ -52,8 +52,9 @@ export default function DashboardPage() {
       if (validOrderStatusesForSales.includes(order.status)) {
         if (order.numberOfUnits) {
           totalBottlesSoldOverall += order.numberOfUnits;
-          const orderSalesRep = mockTeamMembers.find(m => m.name === order.salesRep);
-          if (orderSalesRep && (orderSalesRep.role === 'SalesRep' || orderSalesRep.role === 'Admin')) {
+          // For kpi2 (Ventas del Equipo), we count if the salesRep is a SalesRep.
+          const orderSalesRepDetails = mockTeamMembers.find(m => m.name === order.salesRep);
+          if (orderSalesRepDetails && orderSalesRepDetails.role === 'SalesRep') {
             teamBottlesSoldOverall += order.numberOfUnits;
           }
         }
@@ -72,6 +73,7 @@ export default function DashboardPage() {
     const uniqueAccountIdsByTeamThisMonth = new Set<string>();
 
     mockAccounts.forEach(account => {
+      // For kpi3 & kpi4 (Cuentas Nuevas Equipo), we count if salesRepId is a SalesRep.
       if (account.salesRepId && salesTeamMemberIds.includes(account.salesRepId)) {
         const accountCreationDate = parseISO(account.createdAt);
         if (isSameYear(accountCreationDate, currentDate)) {
@@ -108,25 +110,63 @@ export default function DashboardPage() {
     });
   }, []); 
 
+  // Personal SalesRep Progress (current month)
   const currentMonthNewAccountsByRep = React.useMemo(() => {
-    if (!teamMember) return 0; 
+    if (!teamMember || userRole !== 'SalesRep') return 0; 
     const currentDate = new Date();
     return mockAccounts.filter(acc => 
       acc.salesRepId === teamMember.id &&
       isSameMonth(parseISO(acc.createdAt), currentDate) &&
       isSameYear(parseISO(acc.createdAt), currentDate)
     ).length;
-  }, [teamMember]);
+  }, [teamMember, userRole]);
 
   const currentMonthVisitsByRep = React.useMemo(() => {
-    if (!teamMember) return 0; 
+    if (!teamMember || userRole !== 'SalesRep') return 0; 
     const currentDate = new Date();
     return mockOrders.filter(order =>
       order.salesRep === teamMember.name &&
       isSameMonth(parseISO(order.visitDate), currentDate) &&
-      isSameYear(parseISO(order.visitDate), currentDate)
+      isSameYear(parseISO(order.visitDate), currentDate) &&
+      order.status !== 'Programada' // Only count completed/attempted visits, not just scheduled
     ).length;
-  }, [teamMember]);
+  }, [teamMember, userRole]);
+
+  // Team Monthly Progress (for Admin view)
+  const salesRepsForTeamProgress = React.useMemo(() => mockTeamMembers.filter(m => m.role === 'SalesRep'), []);
+  
+  const teamMonthlyTargetAccounts = React.useMemo(() => {
+    if (userRole !== 'Admin') return 0;
+    return salesRepsForTeamProgress.reduce((sum, rep) => sum + (rep.monthlyTargetAccounts || 0), 0);
+  }, [userRole, salesRepsForTeamProgress]);
+
+  const teamMonthlyAchievedAccounts = React.useMemo(() => {
+    if (userRole !== 'Admin') return 0;
+    const currentDate = new Date();
+    const salesRepIds = salesRepsForTeamProgress.map(rep => rep.id);
+    return mockAccounts.filter(acc => 
+      acc.salesRepId && salesRepIds.includes(acc.salesRepId) &&
+      isSameMonth(parseISO(acc.createdAt), currentDate) &&
+      isSameYear(parseISO(acc.createdAt), currentDate)
+    ).length;
+  }, [userRole, salesRepsForTeamProgress]);
+
+  const teamMonthlyTargetVisits = React.useMemo(() => {
+    if (userRole !== 'Admin') return 0;
+    return salesRepsForTeamProgress.reduce((sum, rep) => sum + (rep.monthlyTargetVisits || 0), 0);
+  }, [userRole, salesRepsForTeamProgress]);
+
+  const teamMonthlyAchievedVisits = React.useMemo(() => {
+    if (userRole !== 'Admin') return 0;
+    const currentDate = new Date();
+    const salesRepNames = salesRepsForTeamProgress.map(rep => rep.name);
+    return mockOrders.filter(order =>
+      salesRepNames.includes(order.salesRep) &&
+      isSameMonth(parseISO(order.visitDate), currentDate) &&
+      isSameYear(parseISO(order.visitDate), currentDate) &&
+      order.status !== 'Programada' // Only count completed/attempted visits
+    ).length;
+  }, [userRole, salesRepsForTeamProgress]);
 
 
   const kpiVentasTotales = calculatedKpiData.find(k => k.id === 'kpi1');
@@ -155,10 +195,15 @@ export default function DashboardPage() {
     { name: "Faltante", value: faltanteCuentasEquipoAnual, color: "hsl(var(--muted))" },
   ];
 
+  const monthlyProgressTitle = userRole === 'Admin' ? "Progreso Mensual del Equipo" : "Tu Progreso Mensual";
+  
+  const showMonthlyProgressSection = userRole === 'Admin' || (userRole === 'SalesRep' && teamMember);
+
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-headline font-semibold">Panel de Lanzamiento de Producto</h1>
       
+      {/* KPIs Principales (Progreso Anual) */}
       <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {calculatedKpiData.map((kpi: Kpi) => {
           const progress = kpi.targetValue > 0 ? Math.min((kpi.currentValue / kpi.targetValue) * 100, 100) : (kpi.currentValue > 0 ? 100 : 0);
@@ -198,58 +243,112 @@ export default function DashboardPage() {
         })}
       </section>
 
-      {userRole === 'SalesRep' && teamMember && (
+      {/* Progreso Mensual (Equipo o Personal) */}
+      {showMonthlyProgressSection && (
         <section className="mt-6">
-          <h2 className="text-2xl font-headline font-semibold mb-4">Tu Progreso Mensual Personal</h2>
+          <h2 className="text-2xl font-headline font-semibold mb-4">{monthlyProgressTitle}</h2>
           <div className="grid gap-6 md:grid-cols-2">
-            <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
-              <CardHeader>
-                <CardTitle>Cuentas Nuevas (Este Mes)</CardTitle>
-                <CardDescription>
-                  Objetivo: <FormattedNumericValue value={teamMember.monthlyTargetAccounts || 0} locale="es-ES" /> cuentas
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">
-                  <FormattedNumericValue value={currentMonthNewAccountsByRep} locale="es-ES" />
-                </div>
-                <Progress 
-                  value={calculateProgressValue(currentMonthNewAccountsByRep, teamMember.monthlyTargetAccounts || 0)} 
-                  className={cn("mt-2 h-2", calculateProgressValue(currentMonthNewAccountsByRep, teamMember.monthlyTargetAccounts || 0) >= 100 ? "[&>div]:bg-green-500" : "[&>div]:bg-primary")} 
-                />
-                 <p className="text-xs text-muted-foreground mt-1">
-                    {currentMonthNewAccountsByRep >= (teamMember.monthlyTargetAccounts || 0) && (teamMember.monthlyTargetAccounts || 0) > 0
-                      ? "¡Objetivo mensual cumplido!"
-                      : `Faltan: ${Math.max(0, (teamMember.monthlyTargetAccounts || 0) - currentMonthNewAccountsByRep)} cuentas`}
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
-              <CardHeader>
-                <CardTitle>Visitas Realizadas (Este Mes)</CardTitle>
-                <CardDescription>
-                  Objetivo: <FormattedNumericValue value={teamMember.monthlyTargetVisits || 0} locale="es-ES" /> visitas
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">
-                  <FormattedNumericValue value={currentMonthVisitsByRep} locale="es-ES" />
-                </div>
-                <Progress 
-                    value={calculateProgressValue(currentMonthVisitsByRep, teamMember.monthlyTargetVisits || 0)} 
-                    className={cn("mt-2 h-2", calculateProgressValue(currentMonthVisitsByRep, teamMember.monthlyTargetVisits || 0) >= 100 ? "[&>div]:bg-green-500" : "[&>div]:bg-primary")} 
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                    {currentMonthVisitsByRep >= (teamMember.monthlyTargetVisits || 0) && (teamMember.monthlyTargetVisits || 0) > 0
-                      ? "¡Objetivo mensual cumplido!"
-                      : `Faltan: ${Math.max(0, (teamMember.monthlyTargetVisits || 0) - currentMonthVisitsByRep)} visitas`}
-                </p>
-              </CardContent>
-            </Card>
+            {userRole === 'Admin' && (
+              <>
+                <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
+                  <CardHeader>
+                    <CardTitle>Cuentas Nuevas del Equipo (Este Mes)</CardTitle>
+                    <CardDescription>
+                      Objetivo Equipo: <FormattedNumericValue value={teamMonthlyTargetAccounts} locale="es-ES" /> cuentas
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">
+                      <FormattedNumericValue value={teamMonthlyAchievedAccounts} locale="es-ES" />
+                    </div>
+                    <Progress 
+                      value={calculateProgressValue(teamMonthlyAchievedAccounts, teamMonthlyTargetAccounts)} 
+                      className={cn("mt-2 h-2", calculateProgressValue(teamMonthlyAchievedAccounts, teamMonthlyTargetAccounts) >= 100 ? "[&>div]:bg-green-500" : "[&>div]:bg-[hsl(var(--brand-turquoise-hsl))]")} 
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {teamMonthlyAchievedAccounts >= teamMonthlyTargetAccounts && teamMonthlyTargetAccounts > 0
+                        ? "¡Objetivo mensual del equipo cumplido!"
+                        : `Faltan: ${Math.max(0, teamMonthlyTargetAccounts - teamMonthlyAchievedAccounts)} cuentas`}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
+                  <CardHeader>
+                    <CardTitle>Visitas del Equipo (Este Mes)</CardTitle>
+                    <CardDescription>
+                      Objetivo Equipo: <FormattedNumericValue value={teamMonthlyTargetVisits} locale="es-ES" /> visitas
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">
+                      <FormattedNumericValue value={teamMonthlyAchievedVisits} locale="es-ES" />
+                    </div>
+                    <Progress 
+                        value={calculateProgressValue(teamMonthlyAchievedVisits, teamMonthlyTargetVisits)} 
+                        className={cn("mt-2 h-2", calculateProgressValue(teamMonthlyAchievedVisits, teamMonthlyTargetVisits) >= 100 ? "[&>div]:bg-green-500" : "[&>div]:bg-[hsl(var(--brand-turquoise-hsl))]")} 
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                        {teamMonthlyAchievedVisits >= teamMonthlyTargetVisits && teamMonthlyTargetVisits > 0
+                          ? "¡Objetivo mensual del equipo cumplido!"
+                          : `Faltan: ${Math.max(0, teamMonthlyTargetVisits - teamMonthlyAchievedVisits)} visitas`}
+                    </p>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+            {userRole === 'SalesRep' && teamMember && (
+              <>
+                <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
+                  <CardHeader>
+                    <CardTitle>Cuentas Nuevas (Este Mes)</CardTitle>
+                    <CardDescription>
+                      Objetivo: <FormattedNumericValue value={teamMember.monthlyTargetAccounts || 0} locale="es-ES" /> cuentas
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">
+                      <FormattedNumericValue value={currentMonthNewAccountsByRep} locale="es-ES" />
+                    </div>
+                    <Progress 
+                      value={calculateProgressValue(currentMonthNewAccountsByRep, teamMember.monthlyTargetAccounts || 0)} 
+                      className={cn("mt-2 h-2", calculateProgressValue(currentMonthNewAccountsByRep, teamMember.monthlyTargetAccounts || 0) >= 100 ? "[&>div]:bg-green-500" : "[&>div]:bg-primary")} 
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                        {currentMonthNewAccountsByRep >= (teamMember.monthlyTargetAccounts || 0) && (teamMember.monthlyTargetAccounts || 0) > 0
+                          ? "¡Objetivo mensual cumplido!"
+                          : `Faltan: ${Math.max(0, (teamMember.monthlyTargetAccounts || 0) - currentMonthNewAccountsByRep)} cuentas`}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
+                  <CardHeader>
+                    <CardTitle>Visitas Realizadas (Este Mes)</CardTitle>
+                    <CardDescription>
+                      Objetivo: <FormattedNumericValue value={teamMember.monthlyTargetVisits || 0} locale="es-ES" /> visitas
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">
+                      <FormattedNumericValue value={currentMonthVisitsByRep} locale="es-ES" />
+                    </div>
+                    <Progress 
+                        value={calculateProgressValue(currentMonthVisitsByRep, teamMember.monthlyTargetVisits || 0)} 
+                        className={cn("mt-2 h-2", calculateProgressValue(currentMonthVisitsByRep, teamMember.monthlyTargetVisits || 0) >= 100 ? "[&>div]:bg-green-500" : "[&>div]:bg-primary")} 
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                        {currentMonthVisitsByRep >= (teamMember.monthlyTargetVisits || 0) && (teamMember.monthlyTargetVisits || 0) > 0
+                          ? "¡Objetivo mensual cumplido!"
+                          : `Faltan: ${Math.max(0, (teamMember.monthlyTargetVisits || 0) - currentMonthVisitsByRep)} visitas`}
+                    </p>
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </div>
         </section>
       )}
 
+      {/* Resto de las secciones del Dashboard */}
       <section className="grid gap-6 md:grid-cols-3">
         <Card className="md:col-span-2 shadow-subtle hover:shadow-md transition-shadow duration-300">
           <CardHeader>
@@ -404,7 +503,6 @@ export default function DashboardPage() {
             </CardContent>
         </Card>
       </section>
-
     </div>
   );
 }

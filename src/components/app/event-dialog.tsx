@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -22,6 +21,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  useFormField, // Import useFormField
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -43,7 +43,7 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { es } from 'date-fns/locale';
-import { Label } from "@/components/ui/label"; // Use the general Label for checkbox items
+import { Label } from "@/components/ui/label";
 
 const eventFormSchema = z.object({
   name: z.string().min(3, "El nombre del evento debe tener al menos 3 caracteres."),
@@ -75,6 +75,47 @@ interface EventDialogProps {
   onSave: (data: EventFormValues) => void;
   isReadOnly?: boolean;
 }
+
+// Custom CheckboxGroup component to avoid FormControl Slot issue
+const CheckboxGroupField = ({ field, members, isReadOnly, formItemId }: { field: any, members: any[], isReadOnly: boolean, formItemId: string }) => {
+  return (
+    <ScrollArea
+      className="h-32 w-full rounded-md border p-2"
+      id={formItemId} // Apply the form item ID here for accessibility
+      aria-describedby={`${formItemId}-description`}
+      aria-invalid={!!useFormField().error}
+    >
+      {members.map((member) => (
+        <div key={member.id} className="flex flex-row items-center space-x-3 space-y-0 py-1">
+          <Checkbox
+            id={`member-checkbox-${member.id}-${formItemId}`} // Ensure unique ID
+            checked={Array.isArray(field.value) && field.value.includes(member.id)}
+            onCheckedChange={(checked) => {
+              const currentValues = Array.isArray(field.value) ? field.value : [];
+              if (checked) {
+                field.onChange([...currentValues, member.id]);
+              } else {
+                field.onChange(
+                  currentValues.filter((value) => value !== member.id)
+                );
+              }
+            }}
+            disabled={isReadOnly}
+            aria-labelledby={`member-label-${member.id}-${formItemId}`}
+          />
+          <Label
+            htmlFor={`member-checkbox-${member.id}-${formItemId}`}
+            id={`member-label-${member.id}-${formItemId}`}
+            className="text-sm font-normal cursor-pointer"
+          >
+            {member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})
+          </Label>
+        </div>
+      ))}
+    </ScrollArea>
+  );
+};
+
 
 export default function EventDialog({ event, isOpen, onOpenChange, onSave, isReadOnly = false }: EventDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
@@ -167,44 +208,20 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
             <FormField
               control={form.control}
               name="assignedTeamMemberIds"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Responsables Asignados</FormLabel>
-                  <FormControl>
-                    <ScrollArea className="h-32 w-full rounded-md border p-2">
-                      {assignableTeamMembers.map((member) => (
-                        <div key={member.id} className="flex flex-row items-center space-x-3 space-y-0 py-1">
-                          <Checkbox
-                            id={`member-checkbox-${member.id}`}
-                            checked={Array.isArray(field.value) && field.value.includes(member.id)}
-                            onCheckedChange={(checked) => {
-                              const currentValues = Array.isArray(field.value) ? field.value : [];
-                              if (checked) {
-                                field.onChange([...currentValues, member.id]);
-                              } else {
-                                field.onChange(
-                                  currentValues.filter((value) => value !== member.id)
-                                );
-                              }
-                            }}
-                            disabled={isReadOnly}
-                            aria-labelledby={`member-label-${member.id}`}
-                          />
-                          <Label
-                            htmlFor={`member-checkbox-${member.id}`}
-                            id={`member-label-${member.id}`}
-                            className="text-sm font-normal cursor-pointer"
-                          >
-                            {member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})
-                          </Label>
-                        </div>
-                      ))}
-                    </ScrollArea>
-                  </FormControl>
-                  <FormMessage /> 
-                </FormItem>
-              )}
+              render={({ field }) => {
+                // Manually get form item ID for accessibility connection
+                const { id: formItemId, formDescriptionId, formMessageId, error } = useFormField();
+                return (
+                  <FormItem>
+                    <FormLabel>Responsables Asignados</FormLabel>
+                    {/* The ScrollArea itself will now act as the described control */}
+                     <CheckboxGroupField field={field} members={assignableTeamMembers} isReadOnly={isReadOnly} formItemId={formItemId} />
+                    <FormMessage />
+                  </FormItem>
+                );
+              }}
             />
+
 
             <FormField control={form.control} name="requiredMaterials" render={({ field }) => ( <FormItem> <FormLabel>Materiales Necesarios (Opcional)</FormLabel> <FormControl> <Textarea placeholder="Listar materiales: stands, folletos, muestras..." {...field} disabled={isReadOnly} className="min-h-[80px]" /> </FormControl> <FormMessage /> </FormItem> )}/>
             <FormField control={form.control} name="notes" render={({ field }) => ( <FormItem> <FormLabel>Notas Adicionales (Opcional)</FormLabel> <FormControl> <Textarea placeholder="Cualquier otra información relevante..." {...field} disabled={isReadOnly} className="min-h-[80px]" /> </FormControl> <FormMessage /> </FormItem> )}/>

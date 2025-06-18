@@ -22,7 +22,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  FormDescription, // Added for better UX on checkbox group
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -85,7 +85,7 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
       name: "",
       type: undefined,
       status: "Planificado",
-      startDate: new Date(), // Initialize with a valid date
+      startDate: new Date(),
       endDate: undefined,
       description: "",
       location: "",
@@ -170,45 +170,34 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
             <FormField
               control={form.control}
               name="assignedTeamMemberIds"
-              render={({ field }) => (
+              render={({ field: arrayField }) => (
                 <FormItem>
                   <FormLabel>Responsables Asignados</FormLabel>
-                  <FormDescription>
-                    Seleccione uno o más responsables para el evento.
-                  </FormDescription>
+                  <FormDescription>Seleccione uno o más responsables para el evento.</FormDescription>
                   <ScrollArea 
                     className={cn(
-                      "h-32 w-full rounded-md border p-3", // Added p-3 for internal spacing
+                      "h-32 w-full rounded-md border",
                       form.getFieldState('assignedTeamMemberIds').error ? "border-destructive" : "border-input"
                     )}
                   >
-                    <div className="space-y-2"> {/* Add a div to manage spacing of FormItems */}
+                    <div className="p-3 space-y-2">
                       {assignableTeamMembers.map((member) => (
                         <FormItem key={member.id} className="flex flex-row items-center space-x-3 space-y-0">
-                          <FormControl> 
-                            {/* FormControl now wraps ONLY the Checkbox */}
+                          <FormControl>
                             <Checkbox
-                              checked={field.value?.includes(member.id)}
+                              checked={arrayField.value?.includes(member.id)}
                               onCheckedChange={(checked) => {
-                                const currentValues = field.value || [];
-                                if (checked) {
-                                  field.onChange([...currentValues, member.id]);
-                                } else {
-                                  field.onChange(
-                                    currentValues.filter(
-                                      (value) => value !== member.id
-                                    )
-                                  );
-                                }
+                                const currentValues = arrayField.value || [];
+                                return checked
+                                  ? arrayField.onChange([...currentValues, member.id])
+                                  : arrayField.onChange(currentValues.filter((value) => value !== member.id));
                               }}
-                              disabled={isReadOnly}
                               id={`member-checkbox-${member.id}`}
-                              aria-labelledby={`member-label-${member.id}`}
+                              disabled={isReadOnly}
                             />
                           </FormControl>
                           <FormLabel
                             htmlFor={`member-checkbox-${member.id}`}
-                            id={`member-label-${member.id}`}
                             className="text-sm font-normal cursor-pointer"
                           >
                             {member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})
@@ -222,7 +211,6 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
               )}
             />
 
-
             <FormField control={form.control} name="requiredMaterials" render={({ field }) => ( <FormItem> <FormLabel>Materiales Necesarios (Opcional)</FormLabel> <FormControl> <Textarea placeholder="Listar materiales: stands, folletos, muestras..." {...field} disabled={isReadOnly} className="min-h-[80px]" /> </FormControl> <FormMessage /> </FormItem> )}/>
             <FormField control={form.control} name="notes" render={({ field }) => ( <FormItem> <FormLabel>Notas Adicionales (Opcional)</FormLabel> <FormControl> <Textarea placeholder="Cualquier otra información relevante..." {...field} disabled={isReadOnly} className="min-h-[80px]" /> </FormControl> <FormMessage /> </FormItem> )}/>
             
@@ -233,7 +221,7 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
                 </Button>
               </DialogClose>
               {!isReadOnly && (
-                <Button type="submit" disabled={isSaving || !form.formState.isDirty}>
+                <Button type="submit" disabled={isSaving || (!form.formState.isDirty && !!event) || (isSaving && !event)}>
                   {isSaving ? ( <> <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando... </> ) : ( event ? "Guardar Cambios" : "Añadir Evento" )}
                 </Button>
               )}
@@ -244,5 +232,3 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
     </Dialog>
   );
 }
-
-    

@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -21,7 +22,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  useFormField, // Import useFormField
+  useFormField,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -75,47 +76,6 @@ interface EventDialogProps {
   onSave: (data: EventFormValues) => void;
   isReadOnly?: boolean;
 }
-
-// Custom CheckboxGroup component to avoid FormControl Slot issue
-const CheckboxGroupField = ({ field, members, isReadOnly, formItemId }: { field: any, members: any[], isReadOnly: boolean, formItemId: string }) => {
-  return (
-    <ScrollArea
-      className="h-32 w-full rounded-md border p-2"
-      id={formItemId} // Apply the form item ID here for accessibility
-      aria-describedby={`${formItemId}-description`}
-      aria-invalid={!!useFormField().error}
-    >
-      {members.map((member) => (
-        <div key={member.id} className="flex flex-row items-center space-x-3 space-y-0 py-1">
-          <Checkbox
-            id={`member-checkbox-${member.id}-${formItemId}`} // Ensure unique ID
-            checked={Array.isArray(field.value) && field.value.includes(member.id)}
-            onCheckedChange={(checked) => {
-              const currentValues = Array.isArray(field.value) ? field.value : [];
-              if (checked) {
-                field.onChange([...currentValues, member.id]);
-              } else {
-                field.onChange(
-                  currentValues.filter((value) => value !== member.id)
-                );
-              }
-            }}
-            disabled={isReadOnly}
-            aria-labelledby={`member-label-${member.id}-${formItemId}`}
-          />
-          <Label
-            htmlFor={`member-checkbox-${member.id}-${formItemId}`}
-            id={`member-label-${member.id}-${formItemId}`}
-            className="text-sm font-normal cursor-pointer"
-          >
-            {member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})
-          </Label>
-        </div>
-      ))}
-    </ScrollArea>
-  );
-};
-
 
 export default function EventDialog({ event, isOpen, onOpenChange, onSave, isReadOnly = false }: EventDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
@@ -209,14 +169,59 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
               control={form.control}
               name="assignedTeamMemberIds"
               render={({ field }) => {
-                // Manually get form item ID for accessibility connection
-                const { id: formItemId, formDescriptionId, formMessageId, error } = useFormField();
+                // We need to get the id for ARIA attributes from useFormField context implicitly used by FormField
+                // This id is usually on FormItemContext.
+                // Let's explicitly get it via useFormField to be safe for ARIA linking.
+                const { id: generatedFieldId, error } = useFormField();
                 return (
                   <FormItem>
-                    <FormLabel>Responsables Asignados</FormLabel>
-                    {/* The ScrollArea itself will now act as the described control */}
-                     <CheckboxGroupField field={field} members={assignableTeamMembers} isReadOnly={isReadOnly} formItemId={formItemId} />
-                    <FormMessage />
+                    <FormLabel htmlFor={generatedFieldId}>Responsables Asignados</FormLabel>
+                    {/*
+                      No FormControl here.
+                      ScrollArea acts as the container for our custom group of inputs.
+                      FormLabel's htmlFor points to the ScrollArea's id.
+                    */}
+                    <ScrollArea
+                      id={generatedFieldId} // ID for the FormLabel to target
+                      className={cn(
+                        "h-32 w-full rounded-md border p-2",
+                        error ? "border-destructive" : "border-input" // Style based on error state
+                      )}
+                      aria-invalid={!!error}
+                      aria-describedby={error ? `${generatedFieldId}-form-item-message` : undefined} // Link to FormMessage on error
+                      role="group" // Indicate it's a group of related controls
+                      aria-labelledby={form.getFieldState('assignedTeamMemberIds').error ? undefined : `${generatedFieldId}-label`} // Ensure label is correctly associated
+                    >
+                      {assignableTeamMembers.map((member) => (
+                        <div key={member.id} className="flex flex-row items-center space-x-3 space-y-0 py-1">
+                          <Checkbox
+                            id={`member-checkbox-${member.id}-${generatedFieldId}`}
+                            checked={Array.isArray(field.value) && field.value.includes(member.id)}
+                            onCheckedChange={(checked) => {
+                              const currentValues = Array.isArray(field.value) ? field.value : [];
+                              if (checked) {
+                                field.onChange([...currentValues, member.id]);
+                              } else {
+                                field.onChange(
+                                  currentValues.filter((value) => value !== member.id)
+                                );
+                              }
+                            }}
+                            disabled={isReadOnly}
+                            aria-labelledby={`member-label-${member.id}-${generatedFieldId}`}
+                          />
+                          <Label
+                            htmlFor={`member-checkbox-${member.id}-${generatedFieldId}`}
+                            id={`member-label-${member.id}-${generatedFieldId}`}
+                            className="text-sm font-normal cursor-pointer"
+                          >
+                            {member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})
+                          </Label>
+                        </div>
+                      ))}
+                    </ScrollArea>
+                    {/* FormMessage will correctly pick up the error associated with "assignedTeamMemberIds" */}
+                    <FormMessage id={`${generatedFieldId}-form-item-message`} />
                   </FormItem>
                 );
               }}
@@ -244,4 +249,6 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
     </Dialog>
   );
 }
+    
+
     

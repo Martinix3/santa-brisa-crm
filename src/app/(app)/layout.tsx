@@ -34,7 +34,7 @@ import type { UserRole, Order, CrmEvent, TeamMember } from '@/types';
 import { useAuth } from '@/contexts/auth-context';
 import DailyTasksWidget from '@/components/app/daily-tasks-widget';
 import { Badge } from '@/components/ui/badge';
-import { mockOrders, mockCrmEvents, mockAccounts } from '@/lib/data';
+import { mockOrders, mockCrmEvents, mockAccounts, mockTeamMembers } from '@/lib/data'; // Import mockTeamMembers
 import { parseISO, startOfDay, isEqual, isWithinInterval, format, getMonth, getYear, isSameMonth, isSameYear } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -146,45 +146,99 @@ function DailyTasksMenu() {
 
 interface MonthlyProgressIndicatorProps {
   type: 'visits' | 'accounts';
-  teamMember: TeamMember;
+  teamMember: TeamMember | null; // Nullable if admin is viewing team progress
+  userRole: UserRole | null;
 }
 
-function MonthlyProgressIndicator({ type, teamMember }: MonthlyProgressIndicatorProps) {
+function MonthlyProgressIndicator({ type, teamMember, userRole }: MonthlyProgressIndicatorProps) {
   const [achieved, setAchieved] = useState(0);
-  const currentDate = useMemo(() => new Date(), []);
-  const currentMonth = useMemo(() => getMonth(currentDate), [currentDate]);
-  const currentYearValue = useMemo(() => getYear(currentDate), [currentDate]);
+  const [target, setTarget] = useState(0);
+  const [tooltipTitle, setTooltipTitle] = useState("");
 
-  const target = type === 'visits' ? teamMember.monthlyTargetVisits : teamMember.monthlyTargetAccounts;
+  const currentDate = useMemo(() => new Date(), []);
   const Icon = type === 'visits' ? Footprints : Briefcase;
   const unitLabel = type === 'visits' ? 'visitas' : 'cuentas';
-  const title = type === 'visits' ? 'Visitas Pendientes (Mes)' : 'Cuentas Pendientes (Mes)';
 
   useEffect(() => {
-    if (!teamMember) return;
+    const currentMonthValue = getMonth(currentDate);
+    const currentYearValue = getYear(currentDate);
 
-    if (type === 'visits') {
-      const visitsThisMonth = mockOrders.filter(order =>
-        order.salesRep === teamMember.name &&
-        isSameMonth(parseISO(order.visitDate), currentDate) &&
-        isSameYear(parseISO(order.visitDate), currentDate)
-      ).length;
-      setAchieved(visitsThisMonth);
-    } else if (type === 'accounts') {
-      const accountsThisMonth = mockAccounts.filter(acc =>
-        acc.salesRepId === teamMember.id &&
-        isSameMonth(parseISO(acc.createdAt), currentDate) &&
-        isSameYear(parseISO(acc.createdAt), currentDate)
-      ).length;
-      setAchieved(accountsThisMonth);
+    if (userRole === 'Admin') {
+      const salesReps = mockTeamMembers.filter(m => m.role === 'SalesRep');
+      let teamTarget = 0;
+      let teamAchieved = 0;
+
+      if (type === 'visits') {
+        teamTarget = salesReps.reduce((sum, rep) => sum + (rep.monthlyTargetVisits || 0), 0);
+        teamAchieved = mockOrders.filter(order => 
+          salesReps.some(rep => rep.name === order.salesRep) &&
+          isSameMonth(parseISO(order.visitDate), currentDate) &&
+          isSameYear(parseISO(order.visitDate), currentDate)
+        ).length;
+        setTooltipTitle(`Equipo: Visitas`);
+      } else if (type === 'accounts') {
+        teamTarget = salesReps.reduce((sum, rep) => sum + (rep.monthlyTargetAccounts || 0), 0);
+        teamAchieved = mockAccounts.filter(acc => 
+          salesReps.some(rep => rep.id === acc.salesRepId) &&
+          isSameMonth(parseISO(acc.createdAt), currentDate) &&
+          isSameYear(parseISO(acc.createdAt), currentDate)
+        ).length;
+        setTooltipTitle(`Equipo: Cuentas`);
+      }
+      setTarget(teamTarget);
+      setAchieved(teamAchieved);
+
+    } else if (userRole === 'SalesRep' && teamMember) {
+      let individualTarget = 0;
+      let individualAchieved = 0;
+
+      if (type === 'visits') {
+        individualTarget = teamMember.monthlyTargetVisits || 0;
+        individualAchieved = mockOrders.filter(order =>
+          order.salesRep === teamMember.name &&
+          isSameMonth(parseISO(order.visitDate), currentDate) &&
+          isSameYear(parseISO(order.visitDate), currentDate)
+        ).length;
+         setTooltipTitle(`Personal: Visitas`);
+      } else if (type === 'accounts') {
+        individualTarget = teamMember.monthlyTargetAccounts || 0;
+        individualAchieved = mockAccounts.filter(acc =>
+          acc.salesRepId === teamMember.id &&
+          isSameMonth(parseISO(acc.createdAt), currentDate) &&
+          isSameYear(parseISO(acc.createdAt), currentDate)
+        ).length;
+        setTooltipTitle(`Personal: Cuentas`);
+      }
+      setTarget(individualTarget);
+      setAchieved(individualAchieved);
+    } else {
+      setTarget(0);
+      setAchieved(0);
+      setTooltipTitle("");
     }
-  }, [teamMember, type, currentDate, currentMonth, currentYearValue]);
+  }, [teamMember, userRole, type, currentDate]);
 
-  if (!target || target <= 0) return null;
+  if (!target && achieved === 0 && userRole !== 'Admin') return null; // Don't show if no target and no achievement for SalesRep
+  if (userRole === 'Admin' && target === 0 && achieved === 0) { // For Admin, if no salesreps or no targets/achievements, show nothing or a specific message
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-auto px-2 text-muted-foreground">
+                    <Icon className="h-5 w-5" />
+                    <span className="ml-1.5 text-xs">-/-</span>
+                </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+                <p>Equipo sin objetivos de {unitLabel} definidos o sin actividad este mes.</p>
+            </TooltipContent>
+        </Tooltip>
+    );
+  }
+
 
   const remaining = Math.max(0, target - achieved);
 
-  if (remaining <= 0) { // Target achieved or exceeded
+  if (remaining <= 0 && target > 0) { // Target achieved or exceeded
     return (
         <Tooltip>
             <TooltipTrigger asChild>
@@ -194,7 +248,7 @@ function MonthlyProgressIndicator({ type, teamMember }: MonthlyProgressIndicator
                 </Button>
             </TooltipTrigger>
             <TooltipContent>
-                <p>¡Objetivo de {unitLabel} mensual cumplido! ({achieved}/{target})</p>
+                <p>{tooltipTitle} - ¡Objetivo mensual cumplido! ({achieved.toLocaleString('es-ES')}/{target.toLocaleString('es-ES')})</p>
             </TooltipContent>
         </Tooltip>
     );
@@ -206,12 +260,12 @@ function MonthlyProgressIndicator({ type, teamMember }: MonthlyProgressIndicator
         <Button variant="ghost" size="icon" className="h-9 w-auto px-2">
           <Icon className="h-5 w-5 text-muted-foreground" />
           <Badge variant="outline" className="ml-1.5 text-xs">
-            {remaining}
+            {remaining.toLocaleString('es-ES')}
           </Badge>
         </Button>
       </TooltipTrigger>
       <TooltipContent>
-        <p>Faltan {remaining} {unitLabel} para el objetivo de {target} este mes. ({achieved}/{target})</p>
+        <p>{tooltipTitle} - Faltan {remaining.toLocaleString('es-ES')} {unitLabel} para objetivo de {target.toLocaleString('es-ES')}. ({achieved.toLocaleString('es-ES')}/{target.toLocaleString('es-ES')})</p>
       </TooltipContent>
     </Tooltip>
   );
@@ -254,7 +308,7 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
     router.push('/login'); 
   };
 
-  const showMonthlyProgress = (userRole === 'SalesRep' || userRole === 'Admin') && teamMember;
+  const showMonthlyProgress = (userRole === 'SalesRep' || userRole === 'Admin');
 
 
   return (
@@ -309,10 +363,10 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
             {/* Breadcrumbs or page title can go here */}
           </div>
           <div className="flex items-center gap-2">
-            {showMonthlyProgress && teamMember && (
+            {showMonthlyProgress && (
               <>
-                <MonthlyProgressIndicator type="accounts" teamMember={teamMember} />
-                <MonthlyProgressIndicator type="visits" teamMember={teamMember} />
+                <MonthlyProgressIndicator type="accounts" teamMember={teamMember} userRole={userRole} />
+                <MonthlyProgressIndicator type="visits" teamMember={teamMember} userRole={userRole} />
               </>
             )}
             <DailyTasksMenu />
@@ -425,4 +479,3 @@ function UserMenu({ userRole, userEmail }: UserMenuProps) {
 }
 
 export default MainAppLayout;
-

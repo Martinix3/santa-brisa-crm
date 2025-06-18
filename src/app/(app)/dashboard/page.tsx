@@ -3,7 +3,7 @@
 
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import type { Kpi, StrategicObjective, Order, Account, TeamMember } from "@/types"; // Added Order, Account, TeamMember
+import type { Kpi, StrategicObjective, Order, Account, TeamMember } from "@/types";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, LabelList, PieChart, Pie, Cell, Legend } from "recharts";
 import { Progress } from "@/components/ui/progress";
@@ -15,10 +15,10 @@ import {
   objetivoTotalCuentasEquipoAnual,
   mockStrategicObjectives
 } from "@/lib/launch-dashboard-data";
-import { mockOrders, mockAccounts, mockTeamMembers } from "@/lib/data"; // Import data sources
+import { mockOrders, mockAccounts, mockTeamMembers } from "@/lib/data"; 
 import { CheckCircle2, Circle } from "lucide-react";
 import { parseISO, getYear, getMonth, isSameYear, isSameMonth } from 'date-fns';
-
+import { useAuth } from "@/contexts/auth-context"; // Import useAuth
 
 const distributionChartConfig = {
   value: { label: "Botellas" },
@@ -26,24 +26,25 @@ const distributionChartConfig = {
   RestoCanales: { label: "Resto Canales", color: "hsl(var(--brand-turquoise-hsl))" },
 };
 
+const calculateProgressValue = (current: number, target: number): number => {
+  if (target <= 0) return current > 0 ? 100 : 0;
+  return Math.min((current / target) * 100, 100);
+};
+
 
 export default function DashboardPage() {
+  const { userRole, teamMember } = useAuth(); // Get user role and team member data
 
   const calculatedKpiData = React.useMemo(() => {
     const validOrderStatusesForSales = ['Confirmado', 'Procesando', 'Enviado', 'Entregado'];
-    const salesTeamMemberNames = mockTeamMembers
-        .filter(m => m.role === 'SalesRep' || m.role === 'Admin')
-        .map(m => m.name);
-    
     const salesTeamMemberIds = mockTeamMembers
         .filter(m => m.role === 'SalesRep' || m.role === 'Admin')
         .map(m => m.id);
-
-    // Calculate derived values first
+    
     let totalBottlesSoldOverall = 0;
     let teamBottlesSoldOverall = 0;
     let accountsCreatedByTeamThisYear = 0;
-    let accountsCreatedByTeamThisMonth = 0;
+    let accountsCreatedByTeamThisMonth = 0; // For specific KPI
     let ordersFromExistingCustomersCount = 0;
     let totalValidOrdersCount = 0;
 
@@ -51,7 +52,8 @@ export default function DashboardPage() {
       if (validOrderStatusesForSales.includes(order.status)) {
         if (order.numberOfUnits) {
           totalBottlesSoldOverall += order.numberOfUnits;
-          if (salesTeamMemberNames.includes(order.salesRep)) {
+          const orderSalesRep = mockTeamMembers.find(m => m.name === order.salesRep);
+          if (orderSalesRep && (orderSalesRep.role === 'SalesRep' || orderSalesRep.role === 'Admin')) {
             teamBottlesSoldOverall += order.numberOfUnits;
           }
         }
@@ -62,8 +64,9 @@ export default function DashboardPage() {
       }
     });
 
-    const currentYear = getYear(new Date());
-    const currentMonth = getMonth(new Date());
+    const currentDate = new Date();
+    const currentYear = getYear(currentDate);
+    const currentMonth = getMonth(currentDate);
 
     const uniqueAccountIdsByTeamThisYear = new Set<string>();
     const uniqueAccountIdsByTeamThisMonth = new Set<string>();
@@ -71,47 +74,60 @@ export default function DashboardPage() {
     mockAccounts.forEach(account => {
       if (account.salesRepId && salesTeamMemberIds.includes(account.salesRepId)) {
         const accountCreationDate = parseISO(account.createdAt);
-        if (isSameYear(accountCreationDate, new Date())) {
+        if (isSameYear(accountCreationDate, currentDate)) {
            uniqueAccountIdsByTeamThisYear.add(account.id);
         }
-        if (isSameMonth(accountCreationDate, new Date()) && isSameYear(accountCreationDate, new Date())) {
+        if (isSameMonth(accountCreationDate, currentDate) && isSameYear(accountCreationDate, currentDate)) {
            uniqueAccountIdsByTeamThisMonth.add(account.id);
         }
       }
     });
     accountsCreatedByTeamThisYear = uniqueAccountIdsByTeamThisYear.size;
-    accountsCreatedByTeamThisMonth = uniqueAccountIdsByTeamThisMonth.size;
+    accountsCreatedByTeamThisMonth = uniqueAccountIdsByTeamThisMonth.size; // For KPI kpi4
 
-    // Map over initialKpiDataLaunch to create the new array with calculated currentValues
     return initialKpiDataLaunch.map(kpi => {
       let newCurrentValue = 0;
+      const originalKpi = initialKpiDataLaunch.find(ik => ik.id === kpi.id);
       switch (kpi.id) {
-        case 'kpi1':
-          newCurrentValue = totalBottlesSoldOverall;
-          break;
-        case 'kpi2':
-          newCurrentValue = teamBottlesSoldOverall;
-          break;
-        case 'kpi3':
-          newCurrentValue = accountsCreatedByTeamThisYear;
-          break;
-        case 'kpi4':
-          newCurrentValue = accountsCreatedByTeamThisMonth;
-          break;
+        case 'kpi1': newCurrentValue = totalBottlesSoldOverall; break;
+        case 'kpi2': newCurrentValue = teamBottlesSoldOverall; break;
+        case 'kpi3': newCurrentValue = accountsCreatedByTeamThisYear; break;
+        case 'kpi4': newCurrentValue = accountsCreatedByTeamThisMonth; break; // Uses the monthly calculation
         case 'kpi5':
           newCurrentValue = totalValidOrdersCount > 0 
             ? Math.round((ordersFromExistingCustomersCount / totalValidOrdersCount) * 100) 
             : 0;
           break;
-        default:
-          newCurrentValue = kpi.currentValue; // Fallback to original if no specific calculation
+        default: newCurrentValue = kpi.currentValue;
       }
       return {
-        ...kpi, // Spread to copy id, title, targetValue, unit, icon
+        ...kpi, // This ensures id, title, targetValue, unit are from the original kpi definition
+        icon: originalKpi?.icon, // Explicitly preserve icon from original
         currentValue: newCurrentValue,
       };
     });
-  }, []); // Empty dependency array ensures this calculation runs once on mount for mock data
+  }, []); 
+
+  // Calculations for SalesRep personal progress
+  const currentMonthNewAccountsByRep = React.useMemo(() => {
+    if (userRole !== 'SalesRep' || !teamMember) return 0;
+    const currentDate = new Date();
+    return mockAccounts.filter(acc => 
+      acc.salesRepId === teamMember.id &&
+      isSameMonth(parseISO(acc.createdAt), currentDate) &&
+      isSameYear(parseISO(acc.createdAt), currentDate)
+    ).length;
+  }, [userRole, teamMember]);
+
+  const currentMonthVisitsByRep = React.useMemo(() => {
+    if (userRole !== 'SalesRep' || !teamMember) return 0;
+    const currentDate = new Date();
+    return mockOrders.filter(order =>
+      order.salesRep === teamMember.name &&
+      isSameMonth(parseISO(order.visitDate), currentDate) &&
+      isSameYear(parseISO(order.visitDate), currentDate)
+    ).length;
+  }, [userRole, teamMember]);
 
 
   const kpiVentasTotales = calculatedKpiData.find(k => k.id === 'kpi1');
@@ -156,7 +172,6 @@ export default function DashboardPage() {
           else if (isPrimaryKpi) progressBarClass = "[&>div]:bg-primary";
           else if (isAccentKpi) progressBarClass = "[&>div]:bg-accent";
 
-
           return (
             <Card key={kpi.id} className="shadow-subtle hover:shadow-md transition-shadow duration-300">
               <CardHeader className="pb-2">
@@ -183,6 +198,58 @@ export default function DashboardPage() {
           );
         })}
       </section>
+
+      {userRole === 'SalesRep' && teamMember && (
+        <section className="mt-6">
+          <h2 className="text-2xl font-headline font-semibold mb-4">Tu Progreso Mensual Personal</h2>
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
+              <CardHeader>
+                <CardTitle>Cuentas Nuevas (Este Mes)</CardTitle>
+                <CardDescription>
+                  Objetivo: <FormattedNumericValue value={teamMember.monthlyTargetAccounts || 0} locale="es-ES" /> cuentas
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">
+                  <FormattedNumericValue value={currentMonthNewAccountsByRep} locale="es-ES" />
+                </div>
+                <Progress 
+                  value={calculateProgressValue(currentMonthNewAccountsByRep, teamMember.monthlyTargetAccounts || 0)} 
+                  className={cn("mt-2 h-2", calculateProgressValue(currentMonthNewAccountsByRep, teamMember.monthlyTargetAccounts || 0) >= 100 ? "[&>div]:bg-green-500" : "[&>div]:bg-primary")} 
+                />
+                 <p className="text-xs text-muted-foreground mt-1">
+                    {currentMonthNewAccountsByRep >= (teamMember.monthlyTargetAccounts || 0) && (teamMember.monthlyTargetAccounts || 0) > 0
+                      ? "¡Objetivo mensual cumplido!"
+                      : `Faltan: ${Math.max(0, (teamMember.monthlyTargetAccounts || 0) - currentMonthNewAccountsByRep)} cuentas`}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
+              <CardHeader>
+                <CardTitle>Visitas Realizadas (Este Mes)</CardTitle>
+                <CardDescription>
+                  Objetivo: <FormattedNumericValue value={teamMember.monthlyTargetVisits || 0} locale="es-ES" /> visitas
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">
+                  <FormattedNumericValue value={currentMonthVisitsByRep} locale="es-ES" />
+                </div>
+                <Progress 
+                    value={calculateProgressValue(currentMonthVisitsByRep, teamMember.monthlyTargetVisits || 0)} 
+                    className={cn("mt-2 h-2", calculateProgressValue(currentMonthVisitsByRep, teamMember.monthlyTargetVisits || 0) >= 100 ? "[&>div]:bg-green-500" : "[&>div]:bg-primary")} 
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                    {currentMonthVisitsByRep >= (teamMember.monthlyTargetVisits || 0) && (teamMember.monthlyTargetVisits || 0) > 0
+                      ? "¡Objetivo mensual cumplido!"
+                      : `Faltan: ${Math.max(0, (teamMember.monthlyTargetVisits || 0) - currentMonthVisitsByRep)} visitas`}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+      )}
 
       <section className="grid gap-6 md:grid-cols-3">
         <Card className="md:col-span-2 shadow-subtle hover:shadow-md transition-shadow duration-300">

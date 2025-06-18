@@ -11,8 +11,8 @@ import { useToast } from "@/hooks/use-toast";
 import { mockCrmEvents, crmEventTypeList, crmEventStatusList, mockTeamMembers } from "@/lib/data";
 import type { CrmEvent, CrmEventType, CrmEventStatus } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { PlusCircle, Edit, Trash2, MoreHorizontal, PartyPopper, Filter, ChevronDown } from "lucide-react";
-// EventDialog import removed
+import { PlusCircle, Edit, Trash2, MoreHorizontal, PartyPopper, Filter, ChevronDown, Eye } from "lucide-react";
+import EventDialog, { type EventFormValues } from "@/components/app/event-dialog"; // Re-added import
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format, parseISO } from "date-fns";
 import { es } from 'date-fns/locale';
@@ -22,7 +22,9 @@ export default function EventsPage() {
   const { toast } = useToast();
   const { userRole } = useAuth();
   const [events, setEvents] = React.useState<CrmEvent[]>(() => [...mockCrmEvents]);
-  // editingEvent and isEventDialogOpen state removed
+  const [editingEvent, setEditingEvent] = React.useState<CrmEvent | null>(null); // Re-added
+  const [isEventDialogOpen, setIsEventDialogOpen] = React.useState(false); // Re-added
+  const [isReadOnlyDialog, setIsReadOnlyDialog] = React.useState(false); // For "Ver Detalles"
   const [eventToDelete, setEventToDelete] = React.useState<CrmEvent | null>(null);
   
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -31,12 +33,77 @@ export default function EventsPage() {
 
   const isAdmin = userRole === 'Admin';
 
-  // handleAddNewEvent, handleEditEvent, handleSaveEvent functions removed
+  const handleAddNewEvent = () => {
+    if (!isAdmin) return;
+    setEditingEvent(null);
+    setIsReadOnlyDialog(false);
+    setIsEventDialogOpen(true);
+  };
+
+  const handleViewDetailsEvent = (event: CrmEvent) => {
+    setEditingEvent(event);
+    setIsReadOnlyDialog(true);
+    setIsEventDialogOpen(true);
+  }
+
+  const handleEditEvent = (event: CrmEvent) => {
+    if (!isAdmin) return;
+    setEditingEvent(event);
+    setIsReadOnlyDialog(false);
+    setIsEventDialogOpen(true);
+  };
+  
+  const handleSaveEvent = (data: EventFormValues, eventId?: string) => {
+    if (!isAdmin && !eventId) return; // Ensure admin for new, or allow edit if eventId (though edit button is admin only)
+
+    const currentDate = format(new Date(), "yyyy-MM-dd");
+    let successMessage = "";
+
+    if (eventId) { // Editing existing event
+      const updatedEvents = events.map(evt =>
+        evt.id === eventId ? { 
+            ...evt, 
+            ...data, 
+            startDate: format(data.startDate, "yyyy-MM-dd"), // Ensure date is string
+            endDate: data.endDate ? format(data.endDate, "yyyy-MM-dd") : undefined,
+            updatedAt: currentDate 
+        } : evt
+      );
+      setEvents(updatedEvents);
+      // Update mock data source
+      const mockIndex = mockCrmEvents.findIndex(evt => evt.id === eventId);
+      if (mockIndex !== -1) {
+        mockCrmEvents[mockIndex] = { 
+            ...mockCrmEvents[mockIndex], 
+            ...data, 
+            startDate: format(data.startDate, "yyyy-MM-dd"),
+            endDate: data.endDate ? format(data.endDate, "yyyy-MM-dd") : undefined,
+            updatedAt: currentDate 
+        };
+      }
+      successMessage = `El evento "${data.name}" ha sido actualizado.`;
+    } else { // Adding new event
+      if (!isAdmin) return; // Double check admin for new
+      const newEvent: CrmEvent = {
+        id: `evt_${Date.now()}`,
+        ...data,
+        startDate: format(data.startDate, "yyyy-MM-dd"), // Ensure date is string
+        endDate: data.endDate ? format(data.endDate, "yyyy-MM-dd") : undefined,
+        createdAt: currentDate,
+        updatedAt: currentDate,
+      };
+      setEvents(prev => [newEvent, ...prev]);
+      mockCrmEvents.unshift(newEvent); 
+      successMessage = `El evento "${data.name}" ha sido añadido.`;
+    }
+    toast({ title: "¡Operación Exitosa!", description: successMessage });
+    setIsEventDialogOpen(false);
+    setEditingEvent(null);
+  };
+
 
   const handleDeleteEvent = (event: CrmEvent) => {
     if (!isAdmin) return;
-    // Direct deletion for now, or implement a simpler confirmation if needed
-    // For now, let's keep the AlertDialog confirmation if it's not causing issues itself
     setEventToDelete(event);
   };
 
@@ -55,6 +122,7 @@ export default function EventsPage() {
   };
 
   const getAssignedTeamMemberNames = (teamMemberIds: string[]): string => {
+    if (!teamMemberIds || teamMemberIds.length === 0) return 'N/A';
     return teamMemberIds
       .map(id => mockTeamMembers.find(member => member.id === id)?.name)
       .filter(name => !!name)
@@ -79,7 +147,11 @@ export default function EventsPage() {
             <PartyPopper className="h-8 w-8 text-primary" />
             <h1 className="text-3xl font-headline font-semibold">Gestión de Eventos</h1>
         </div>
-        {/* "Añadir Nuevo Evento" button removed */}
+        {isAdmin && ( // Re-added button
+          <Button onClick={handleAddNewEvent}>
+            <PlusCircle className="mr-2 h-4 w-4" /> Añadir Nuevo Evento
+          </Button>
+        )}
       </header>
 
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
@@ -162,10 +234,15 @@ export default function EventsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          {/* Editar and Ver Detalles (if it opened dialog) removed */}
+                           <DropdownMenuItem onSelect={() => handleViewDetailsEvent(event)}>
+                            <Eye className="mr-2 h-4 w-4" /> Ver Detalles
+                          </DropdownMenuItem>
                           {isAdmin && (
                             <>
-                              {/* <DropdownMenuSeparator /> // Separator might not be needed if only delete remains */}
+                              <DropdownMenuItem onSelect={() => handleEditEvent(event)}>
+                                <Edit className="mr-2 h-4 w-4" /> Editar Evento
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
                                <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <DropdownMenuItem 
@@ -194,7 +271,7 @@ export default function EventsPage() {
                               </AlertDialog>
                             </>
                           )}
-                          {!isAdmin && <DropdownMenuItem disabled>No hay acciones disponibles</DropdownMenuItem>}
+                           {!isAdmin && !['Ver Detalles'].length && <DropdownMenuItem disabled>No hay acciones disponibles</DropdownMenuItem>}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -202,7 +279,7 @@ export default function EventsPage() {
                 )) : (
                   <TableRow>
                     <TableCell colSpan={6} className="h-24 text-center">
-                      No hay eventos para mostrar. Intenta ajustar los filtros.
+                      No hay eventos para mostrar. Intenta ajustar los filtros o añade un nuevo evento.
                     </TableCell>
                   </TableRow>
                 )}
@@ -217,7 +294,22 @@ export default function EventsPage() {
         )}
       </Card>
 
-      {/* EventDialog rendering removed */}
+      {(isAdmin || isEventDialogOpen) && ( // Ensure dialog can open for read-only for non-admins if triggered
+        <EventDialog
+          event={editingEvent}
+          isOpen={isEventDialogOpen}
+          onOpenChange={(open) => {
+            setIsEventDialogOpen(open);
+            if (!open) {
+              setEditingEvent(null); // Clear editing state when dialog closes
+              setIsReadOnlyDialog(false); // Reset read-only state
+            }
+          }}
+          onSave={handleSaveEvent}
+          isReadOnly={isReadOnlyDialog || (!isAdmin && !!editingEvent)} // Read-only if viewing details or if not admin and editing (though edit button is admin only)
+        />
+      )}
     </div>
   );
 }
+

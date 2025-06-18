@@ -22,8 +22,8 @@ import { useAuth } from "@/contexts/auth-context";
 
 const distributionChartConfig = {
   value: { label: "Botellas" },
-  VentasEquipo: { label: "Ventas Equipo", color: "hsl(var(--brand-turquoise-hsl))" }, // Actualizado a turquesa
-  RestoCanales: { label: "Resto Canales", color: "hsl(var(--primary))" }, // Actualizado a primario (amarillo)
+  VentasEquipo: { label: "Ventas Equipo", color: "hsl(var(--brand-turquoise-hsl))" },
+  RestoCanales: { label: "Resto Canales", color: "hsl(var(--primary))" },
 };
 
 const calculateProgressValue = (current: number, target: number): number => {
@@ -138,8 +138,8 @@ export default function DashboardPage() {
   const restoCanalesVentas = ventasTotalesActuales - ventasEquipoActuales;
 
   const ventasDistribucionData = [
-    { name: "Ventas Equipo", value: ventasEquipoActuales, fill: "hsl(var(--brand-turquoise-hsl))" }, // Actualizado a turquesa
-    { name: "Resto Canales", value: restoCanalesVentas, fill: "hsl(var(--primary))" }, // Actualizado a primario (amarillo)
+    { name: "Ventas Equipo", value: ventasEquipoActuales, fill: "hsl(var(--brand-turquoise-hsl))" },
+    { name: "Resto Canales", value: restoCanalesVentas, fill: "hsl(var(--primary))" },
   ];
 
   const faltanteVentasEquipo = Math.max(0, objetivoTotalVentasEquipo - ventasEquipoActuales);
@@ -198,7 +198,7 @@ export default function DashboardPage() {
         })}
       </section>
 
-      {(userRole === 'SalesRep' || userRole === 'Admin') && teamMember && (
+      {userRole === 'SalesRep' && teamMember && (
         <section className="mt-6">
           <h2 className="text-2xl font-headline font-semibold mb-4">Tu Progreso Mensual Personal</h2>
           <div className="grid gap-6 md:grid-cols-2">

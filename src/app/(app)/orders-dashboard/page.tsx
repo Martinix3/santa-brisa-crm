@@ -31,10 +31,7 @@ export default function OrdersDashboardPage() {
   const [orders, setOrders] = React.useState<Order[]>(mockOrders);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<OrderStatus | "Todos">("Todos");
-  const [dateRange, setDateRange] = React.useState<DateRange | undefined>({
-    from: addDays(new Date(), -30),
-    to: new Date(),
-  });
+  const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
 
   const [editingOrder, setEditingOrder] = React.useState<Order | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
@@ -47,14 +44,15 @@ export default function OrdersDashboardPage() {
     .filter(order =>
       (order.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
        order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       order.salesRep.toLowerCase().includes(searchTerm.toLowerCase()))
+       order.salesRep.toLowerCase().includes(searchTerm.toLowerCase())) // Keep salesRep for search
     )
     .filter(order => statusFilter === "Todos" || order.status === statusFilter)
     .filter(order => {
-      if (!dateRange?.from) return true;
-      const orderDate = parseISO(order.visitDate); // Assuming visitDate is the primary date for filtering
+      if (!dateRange?.from) return true; // No date filter if 'from' is not set
+      const orderDate = parseISO(order.visitDate); 
       const fromDate = dateRange.from;
-      const toDate = dateRange.to ? addDays(dateRange.to,1) : addDays(new Date(), 1) ; 
+      // If 'to' is not set, filter up to a very distant future date (effectively no upper bound for 'from' only range)
+      const toDate = dateRange.to ? addDays(dateRange.to, 1) : new Date(8640000000000000) ; 
       return orderDate >= fromDate && orderDate < toDate;
     });
 
@@ -328,7 +326,7 @@ export default function OrdersDashboardPage() {
                   <TableHead>ID Pedido</TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Fecha</TableHead>
-                  <TableHead>Rep. Ventas</TableHead>
+                  <TableHead className="text-right">Nº Botellas</TableHead>
                   <TableHead className="text-right">Valor</TableHead>
                   <TableHead className="text-center">Estado</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
@@ -340,7 +338,9 @@ export default function OrdersDashboardPage() {
                     <TableCell className="font-medium">{order.id}</TableCell>
                     <TableCell>{order.clientName}</TableCell>
                     <TableCell>{order.visitDate ? format(parseISO(order.visitDate), "MMM dd, yyyy", { locale: es }) : "N/D"}</TableCell>
-                    <TableCell>{order.salesRep}</TableCell>
+                    <TableCell className="text-right">
+                       <FormattedNumericValue value={order.numberOfUnits} locale="es-ES" placeholder="N/D" />
+                    </TableCell>
                     <TableCell className="text-right">
                       <FormattedNumericValue value={order.value} locale="es-ES" options={{ style: 'currency', currency: 'EUR' }} placeholder="—" />
                     </TableCell>
@@ -449,3 +449,4 @@ export default function OrdersDashboardPage() {
     </div>
   );
 }
+

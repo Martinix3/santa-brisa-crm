@@ -11,18 +11,19 @@ import { useToast } from "@/hooks/use-toast";
 import { mockAccounts, accountTypeList, accountStatusList } from "@/lib/data";
 import type { Account, AccountStatus, UserRole } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { PlusCircle, Edit, Trash2, MoreHorizontal, Building2, Filter, ChevronDown } from "lucide-react";
+import { PlusCircle, Edit, Trash2, MoreHorizontal, Building2, Filter, ChevronDown, Eye } from "lucide-react";
 import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import StatusBadge from "@/components/app/status-badge";
+import Link from "next/link";
 
 export default function AccountsPage() {
   const { toast } = useToast();
   const { userRole } = useAuth();
   const [accounts, setAccounts] = React.useState<Account[]>(() => [...mockAccounts]);
-  const [editingAccount, setEditingAccount] = React.useState<Account | null>(null);
-  const [isAccountDialogOpen, setIsAccountDialogOpen] = React.useState(false);
+  const [editingAccount, setEditingAccount] = React.useState<Account | null>(null); // For new account dialog
+  const [isAccountDialogOpen, setIsAccountDialogOpen] = React.useState(false); // For new account dialog
   const [accountToDelete, setAccountToDelete] = React.useState<Account | null>(null);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<AccountStatus | "Todos">("Todos");
@@ -31,44 +32,27 @@ export default function AccountsPage() {
 
   const handleAddNewAccount = () => {
     if (!isAdmin) return;
-    setEditingAccount(null);
+    setEditingAccount(null); // Ensure it's for a new account
     setIsAccountDialogOpen(true);
   };
 
-  const handleEditAccount = (account: Account) => {
-    if (!isAdmin) return;
-    setEditingAccount(account);
-    setIsAccountDialogOpen(true);
-  };
-
-  const handleSaveAccount = (data: AccountFormValues) => {
+  // This function will now primarily be used for SAVING a NEW account from the dialog.
+  // Editing will be handled on the detail page.
+  const handleSaveNewAccount = (data: AccountFormValues) => {
     if (!isAdmin) return;
     const currentDate = format(new Date(), "yyyy-MM-dd");
 
-    if (editingAccount) {
-      // Edit existing account
-      const updatedAccounts = accounts.map(acc =>
-        acc.id === editingAccount.id ? { ...editingAccount, ...data, updatedAt: currentDate } : acc
-      );
-      setAccounts(updatedAccounts);
-      // Update mock data source
-      const mockIndex = mockAccounts.findIndex(acc => acc.id === editingAccount.id);
-      if (mockIndex !== -1) {
-        mockAccounts[mockIndex] = { ...mockAccounts[mockIndex], ...data, updatedAt: currentDate };
-      }
-      toast({ title: "¡Cuenta Actualizada!", description: `La cuenta "${data.name}" ha sido actualizada.` });
-    } else {
-      // Add new account
-      const newAccount: Account = {
-        id: `acc_${Date.now()}`,
-        ...data,
-        createdAt: currentDate,
-        updatedAt: currentDate,
-      };
-      setAccounts(prev => [newAccount, ...prev]);
-      mockAccounts.unshift(newAccount); // Add to mock data source
-      toast({ title: "¡Cuenta Añadida!", description: `La cuenta "${data.name}" ha sido añadida.` });
-    }
+    // Add new account
+    const newAccount: Account = {
+      id: `acc_${Date.now()}`,
+      ...data,
+      createdAt: currentDate,
+      updatedAt: currentDate,
+    };
+    setAccounts(prev => [newAccount, ...prev]);
+    mockAccounts.unshift(newAccount); // Add to mock data source
+    toast({ title: "¡Cuenta Añadida!", description: `La cuenta "${data.name}" ha sido añadida.` });
+    
     setIsAccountDialogOpen(false);
     setEditingAccount(null);
   };
@@ -187,11 +171,18 @@ export default function AccountsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onSelect={() => { setEditingAccount(account); setIsAccountDialogOpen(true); }}>
-                            {isAdmin ? <><Edit className="mr-2 h-4 w-4" /> Editar</> : "Ver Detalles"}
+                          <DropdownMenuItem asChild>
+                            <Link href={`/accounts/${account.id}`}>
+                              <Eye className="mr-2 h-4 w-4" /> Ver Detalles
+                            </Link>
                           </DropdownMenuItem>
                           {isAdmin && (
                             <>
+                              <DropdownMenuItem asChild>
+                                <Link href={`/accounts/${account.id}?edit=true`}>
+                                  <Edit className="mr-2 h-4 w-4" /> Editar
+                                </Link>
+                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
                                <AlertDialog>
                                 <AlertDialogTrigger asChild>
@@ -243,23 +234,14 @@ export default function AccountsPage() {
         )}
       </Card>
 
+      {/* This dialog is now only for NEW accounts from this page */}
       {isAdmin && (
         <AccountDialog
-          account={editingAccount}
+          account={null} 
           isOpen={isAccountDialogOpen}
           onOpenChange={setIsAccountDialogOpen}
-          onSave={handleSaveAccount}
+          onSave={handleSaveNewAccount}
           allAccounts={accounts}
-        />
-      )}
-       {!isAdmin && editingAccount && ( // Read-only view for non-admins
-        <AccountDialog
-          account={editingAccount}
-          isOpen={isAccountDialogOpen}
-          onOpenChange={setIsAccountDialogOpen}
-          onSave={()=>{}} // No-op save for read-only
-          allAccounts={accounts}
-          isReadOnly={true}
         />
       )}
     </div>

@@ -7,22 +7,15 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { TeamMember } from "@/types";
 import { mockTeamMembers } from "@/lib/data";
-import { Package, Briefcase, Footprints, Users } from 'lucide-react'; // Changed Walking to Footprints
-import { ChartContainer } from "@/components/ui/chart";
-import { Line, LineChart, ResponsiveContainer, Tooltip } from "recharts";
+import { Package, Briefcase, Footprints, Users, Eye } from 'lucide-react';
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-
-const chartConfig = (color: string) => ({
-  bottles: { 
-    label: "Botellas", 
-    color: color,
-  },
-});
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
 const renderProgress = (current: number, target: number, unit: string, targetAchievedText: string) => {
-  const progress = target > 0 ? Math.min((current / target) * 100, 100) : (current > 0 ? 100 : 0); // Cap progress at 100% if target is 0 but current is >0
+  const progress = target > 0 ? Math.min((current / target) * 100, 100) : (current > 0 ? 100 : 0);
   const remaining = Math.max(0, target - current);
   const targetAchieved = current >= target && target > 0;
 
@@ -45,7 +38,7 @@ const renderProgress = (current: number, target: number, unit: string, targetAch
         )}
       >
         {target === 0 && current === 0 ? "Sin objetivo" :
-         target === 0 && current > 0 ? targetAchievedText : // If no target but has value, consider achieved
+         target === 0 && current > 0 ? targetAchievedText : 
          targetAchieved ? targetAchievedText : 
          `Faltan: ${remaining.toLocaleString('es-ES')}`}
       </p>
@@ -58,12 +51,16 @@ export default function TeamTrackingPage() {
   const salesTeamMembers = useMemo(() => mockTeamMembers.filter(m => m.role === 'SalesRep'), []);
 
   const teamTotalBottlesValue = useMemo(() => salesTeamMembers.reduce((sum, m) => sum + (m.bottlesSold || 0), 0), [salesTeamMembers]);
-  const teamTotalOrdersValue = useMemo(() => salesTeamMembers.reduce((sum, m) => sum + (m.orders || 0), 0), [salesTeamMembers]); // Used as "cuentas"
+  const teamTotalOrdersValue = useMemo(() => salesTeamMembers.reduce((sum, m) => sum + (m.orders || 0), 0), [salesTeamMembers]);
   const teamTotalVisitsValue = useMemo(() => salesTeamMembers.reduce((sum, m) => sum + (m.visits || 0), 0), [salesTeamMembers]);
   
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-headline font-semibold">Seguimiento de Equipo de Ventas</h1>
+      <header className="flex items-center space-x-2">
+        <Users className="h-8 w-8 text-primary" />
+        <h1 className="text-3xl font-headline font-semibold">Seguimiento de Equipo de Ventas</h1>
+      </header>
+      
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
           <CardTitle>Rendimiento del Equipo de Ventas</CardTitle>
@@ -73,18 +70,18 @@ export default function TeamTrackingPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[200px]">Representante</TableHead>
-                <TableHead className="text-right">Botellas Vendidas</TableHead>
-                <TableHead className="text-center w-[200px]">Progreso Cuentas (Mes)</TableHead>
-                <TableHead className="text-center w-[200px]">Progreso Visitas (Mes)</TableHead>
-                <TableHead className="w-[180px] text-center">Tendencia Mensual (Botellas)</TableHead>
+                <TableHead className="w-[25%]">Representante</TableHead>
+                <TableHead className="text-right w-[15%]">Botellas Vendidas (Total)</TableHead>
+                <TableHead className="text-center w-[20%]">Progreso Cuentas (Mes)</TableHead>
+                <TableHead className="text-center w-[20%]">Progreso Visitas (Mes)</TableHead>
+                <TableHead className="text-right w-[20%]">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {salesTeamMembers.map((member: TeamMember) => {
                 const bottlesSold = member.bottlesSold || 0;
-                const accountsAchieved = member.orders || 0;
-                const visitsMade = member.visits || 0;
+                const accountsAchieved = member.orders || 0; // Using 'orders' as proxy for 'cuentas conseguidas mes' for now
+                const visitsMade = member.visits || 0; // Using 'visits' as proxy for 'visitas hechas mes'
                 const targetAccounts = member.monthlyTargetAccounts || 0;
                 const targetVisits = member.monthlyTargetVisits || 0;
                 
@@ -93,11 +90,13 @@ export default function TeamTrackingPage() {
                     <TableCell>
                       <div className="flex items-center space-x-3">
                         <Avatar>
-                          <AvatarImage src={member.avatarUrl || `https://placehold.co/100x100.png?text=${member.name.split(' ').map(n => n[0]).join('')}`} alt={member.name} data-ai-hint="person portrait" />
+                          <AvatarImage src={member.avatarUrl || `https://placehold.co/40x40.png?text=${member.name.split(' ').map(n => n[0]).join('')}`} alt={member.name} data-ai-hint="person portrait" />
                           <AvatarFallback>{member.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="font-medium">{member.name}</p>
+                           <Link href={`/team-tracking/${member.id}`} className="font-medium hover:underline text-primary">
+                            {member.name}
+                          </Link>
                            <p className="text-xs text-muted-foreground">{member.role === 'SalesRep' ? 'Rep. Ventas' : member.role}</p>
                         </div>
                       </div>
@@ -105,32 +104,18 @@ export default function TeamTrackingPage() {
                     <TableCell className="text-right font-medium">
                       <FormattedNumericValue value={bottlesSold} locale="es-ES" />
                     </TableCell>
-                    <TableCell className="w-[200px]">
+                    <TableCell>
                       {renderProgress(accountsAchieved, targetAccounts, "cuentas", "¡Obj. Cuentas Cumplido!")}
                     </TableCell>
-                    <TableCell className="w-[200px]">
+                    <TableCell>
                        {renderProgress(visitsMade, targetVisits, "visitas", "¡Obj. Visitas Cumplido!")}
                     </TableCell>
-                    <TableCell className="p-0 h-[60px]">
-                      {member.performanceData && member.performanceData.length > 0 && (
-                        <ChartContainer config={chartConfig('hsl(var(--primary))')} className="h-full w-full">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={member.performanceData.map(d => ({...d, month: d.month.substring(0,3)}))} margin={{ top: 10, right: 5, left: 5, bottom: 0 }}>
-                              <Line type="monotone" dataKey="bottles" stroke="var(--color-bottles)" strokeWidth={2} dot={false} /> 
-                              <Tooltip 
-                                cursor={{stroke: 'hsl(var(--border))', strokeWidth: 1, strokeDasharray: '3 3'}}
-                                contentStyle={{backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)'}}
-                                itemStyle={{color: 'hsl(var(--foreground))'}}
-                                formatter={(value: number) => [`${value.toLocaleString('es-ES')} botellas`, 'Botellas']} 
-                                labelFormatter={(label: string) => {
-                                    const monthMap: { [key: string]: string } = { Ene: 'Enero', Feb: 'Febrero', Mar: 'Marzo', Abr: 'Abril', May: 'Mayo', Jun: 'Junio', Jul: 'Julio', Ago: 'Agosto', Sep: 'Septiembre', Oct: 'Octubre', Nov: 'Noviembre', Dic: 'Diciembre'};
-                                    return monthMap[label] || label;
-                                }}
-                              />
-                            </LineChart>
-                          </ResponsiveContainer>
-                        </ChartContainer>
-                      )}
+                    <TableCell className="text-right">
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href={`/team-tracking/${member.id}`}>
+                          <Eye className="mr-1 h-3 w-3" /> Ver Perfil
+                        </Link>
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );
@@ -185,4 +170,3 @@ export default function TeamTrackingPage() {
     </div>
   );
 }
-

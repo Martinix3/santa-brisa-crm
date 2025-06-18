@@ -6,10 +6,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox"; // Import Checkbox
 import type { Order, OrderStatus, UserRole } from "@/types";
 import { mockOrders, orderStatusesList, mockTeamMembers } from "@/lib/data";
 import { kpiDataLaunch } from "@/lib/launch-dashboard-data";
-import { MoreHorizontal, Eye, Edit, Trash2, Filter, CalendarDays, ChevronDown, Check } from "lucide-react";
+import { MoreHorizontal, Eye, Edit, Trash2, Filter, CalendarDays, ChevronDown, Check, Download } from "lucide-react"; // Import Download
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -24,7 +25,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import StatusBadge from "@/components/app/status-badge";
 
-const relevantOrderStatuses: OrderStatus[] = ['Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Cancelado'];
+const relevantOrderStatusesForDashboard: OrderStatus[] = ['Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Cancelado'];
 
 
 export default function OrdersDashboardPage() {
@@ -32,22 +33,24 @@ export default function OrdersDashboardPage() {
   const { userRole: currentUserRole } = useAuth();
   
   const [allOrders, setAllOrders] = React.useState<Order[]>(() => 
-    mockOrders.filter(order => relevantOrderStatuses.includes(order.status))
+    mockOrders.filter(order => relevantOrderStatusesForDashboard.includes(order.status))
   );
 
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<OrderStatus | "Todos">("Todos");
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
   const [cityFilter, setCityFilter] = React.useState("");
+  const [selectedOrderIds, setSelectedOrderIds] = React.useState<string[]>([]);
 
   const [editingOrder, setEditingOrder] = React.useState<Order | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
   const [orderToDelete, setOrderToDelete] = React.useState<Order | null>(null);
 
-  const uniqueStatusesForFilter = ["Todos", ...Array.from(new Set(allOrders.map(order => order.status).filter(Boolean)))] as (OrderStatus | "Todos")[];
+  const uniqueStatusesForFilter = ["Todos", ...relevantOrderStatusesForDashboard] as (OrderStatus | "Todos")[];
 
 
-  const filteredOrders = allOrders
+  const filteredOrders = React.useMemo(() => {
+    return allOrders
     .filter(order =>
       (order.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
        order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -67,6 +70,7 @@ export default function OrdersDashboardPage() {
       return (order.direccionEntrega && order.direccionEntrega.toLowerCase().includes(cityLower)) ||
              (order.direccionFiscal && order.direccionFiscal.toLowerCase().includes(cityLower));
     });
+  }, [allOrders, searchTerm, statusFilter, dateRange, cityFilter]);
 
   const handleViewOrEditClick = (order: Order) => {
     setEditingOrder(order);
@@ -154,7 +158,7 @@ export default function OrdersDashboardPage() {
     }
         
     mockOrders[orderIndexInMock] = updatedOrderDataInMock;
-    setAllOrders(mockOrders.filter(order => relevantOrderStatuses.includes(order.status)));
+    setAllOrders(mockOrders.filter(order => relevantOrderStatusesForDashboard.includes(order.status)));
     
     if (isEditDialogOpen) setIsEditDialogOpen(false);
     setEditingOrder(null);
@@ -205,6 +209,7 @@ export default function OrdersDashboardPage() {
     if (mockIndex !== -1) {
       mockOrders.splice(mockIndex, 1);
     }
+    setSelectedOrderIds(prev => prev.filter(id => id !== orderToDelete.id)); // Remove from selection
     toast({ 
       title: "¡Pedido Eliminado!", 
       description: `El pedido "${orderToDelete.id}" ha sido eliminado. Las métricas asociadas han sido ajustadas.`, 
@@ -218,7 +223,6 @@ export default function OrdersDashboardPage() {
         toast({ title: "Permiso Denegado", description: "No tienes permiso para cambiar el estado del pedido.", variant: "destructive" });
         return;
     }
-    // Create the form values object based on the order and new status
     const updatedFormValues: EditOrderFormValues = {
         clientName: order.clientName,
         products: order.products?.join(", "),
@@ -246,10 +250,99 @@ export default function OrdersDashboardPage() {
     handleUpdateOrder(updatedFormValues, order.id);
   }
 
+  const handleSelectAllChange = (checked: boolean) => {
+    if (checked) {
+      setSelectedOrderIds(filteredOrders.map(order => order.id));
+    } else {
+      setSelectedOrderIds([]);
+    }
+  };
+
+  const handleRowSelectChange = (orderId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedOrderIds(prev => [...prev, orderId]);
+    } else {
+      setSelectedOrderIds(prev => prev.filter(id => id !== orderId));
+    }
+  };
+
+  const isAllFilteredSelected = filteredOrders.length > 0 && selectedOrderIds.length === filteredOrders.length && filteredOrders.every(fo => selectedOrderIds.includes(fo.id));
+  const isSomeFilteredSelected = selectedOrderIds.length > 0 && selectedOrderIds.length < filteredOrders.length;
+
+
+  const escapeCsvCell = (cellData: any): string => {
+    if (cellData === null || cellData === undefined) {
+      return "";
+    }
+    const stringData = String(cellData);
+    if (stringData.includes(',') || stringData.includes('\n') || stringData.includes('"')) {
+      return `"${stringData.replace(/"/g, '""')}"`;
+    }
+    return stringData;
+  };
+  
+  const handleDownloadCsv = () => {
+    if (selectedOrderIds.length === 0) {
+      toast({ title: "No hay pedidos seleccionados", description: "Por favor, seleccione al menos un pedido para descargar.", variant: "destructive" });
+      return;
+    }
+  
+    const ordersToExport = mockOrders.filter(order => selectedOrderIds.includes(order.id));
+  
+    const headers = [
+      "ID Pedido", "Fecha Pedido", "Cliente", "Nombre Fiscal", "CIF",
+      "Dirección Entrega", "Dirección Fiscal", "Contacto Nombre", "Contacto Email", "Contacto Teléfono",
+      "Tipo Cliente", "Productos (Lista)", "Nº Unidades", "Precio Unitario (€ sin IVA)",
+      "Valor Total Pedido (€ IVA incl.)", "Estado Pedido", "Comercial Asignado", "Notas Pedido", "Observaciones Alta"
+    ];
+  
+    const csvRows = [
+      headers.join(','),
+      ...ordersToExport.map(order => [
+        escapeCsvCell(order.id),
+        escapeCsvCell(order.visitDate ? format(parseISO(order.visitDate), "dd/MM/yyyy") : ''),
+        escapeCsvCell(order.clientName),
+        escapeCsvCell(order.nombreFiscal),
+        escapeCsvCell(order.cif),
+        escapeCsvCell(order.direccionEntrega),
+        escapeCsvCell(order.direccionFiscal),
+        escapeCsvCell(order.contactoNombre),
+        escapeCsvCell(order.contactoCorreo),
+        escapeCsvCell(order.contactoTelefono),
+        escapeCsvCell(order.clientType),
+        escapeCsvCell(order.products?.join('; ')), // Join multiple products with semicolon
+        escapeCsvCell(order.numberOfUnits),
+        escapeCsvCell(order.unitPrice), // Raw number
+        escapeCsvCell(order.value), // Raw number (already includes IVA as per form logic)
+        escapeCsvCell(order.status),
+        escapeCsvCell(order.salesRep),
+        escapeCsvCell(order.notes),
+        escapeCsvCell(order.observacionesAlta)
+      ].join(','))
+    ];
+  
+    const csvString = csvRows.join('\n');
+    const blob = new Blob(['\uFEFF' + csvString], { type: 'text/csv;charset=utf-8;' }); // Add BOM for Excel UTF-8 compatibility
+    const link = document.createElement("a");
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", `pedidos_santabrisa_${format(new Date(), "yyyyMMdd_HHmmss")}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+    toast({ title: "Descarga Iniciada", description: `${ordersToExport.length} pedidos se están descargando como CSV.` });
+    setSelectedOrderIds([]); // Clear selection after download
+  };
+
 
   const canEditOrderDetails = currentUserRole === 'Admin';
   const canEditOrderStatus = currentUserRole === 'Admin' || currentUserRole === 'Distributor';
   const canDeleteOrder = currentUserRole === 'Admin';
+  const canDownloadCsv = currentUserRole === 'Admin' || currentUserRole === 'Distributor';
 
 
   return (
@@ -259,7 +352,7 @@ export default function OrdersDashboardPage() {
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
           <CardTitle>Gestionar Pedidos</CardTitle>
-          <CardDescription>Ver, filtrar y gestionar todos los pedidos de clientes registrados.</CardDescription>
+          <CardDescription>Ver, filtrar y gestionar todos los pedidos de clientes registrados. Los distribuidores pueden seleccionar y descargar pedidos en formato CSV.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
@@ -291,11 +384,11 @@ export default function OrdersDashboardPage() {
                   >
                     Todos
                   </DropdownMenuCheckboxItem>
-                {relevantOrderStatuses.map(status => (
+                {uniqueStatusesForFilter.filter(s => s !== "Todos").map(status => (
                    <DropdownMenuCheckboxItem
                     key={status}
                     checked={statusFilter === status}
-                    onCheckedChange={() => setStatusFilter(status)}
+                    onCheckedChange={() => setStatusFilter(status as OrderStatus)}
                   >
                     {status}
                   </DropdownMenuCheckboxItem>
@@ -339,6 +432,16 @@ export default function OrdersDashboardPage() {
                 />
               </PopoverContent>
             </Popover>
+            {canDownloadCsv && (
+              <Button 
+                onClick={handleDownloadCsv} 
+                disabled={selectedOrderIds.length === 0}
+                className="w-full sm:w-auto"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Descargar CSV ({selectedOrderIds.length})
+              </Button>
+            )}
             </div>
           </div>
 
@@ -346,18 +449,40 @@ export default function OrdersDashboardPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>ID Pedido</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead className="text-right">Nº Botellas</TableHead>
-                  <TableHead className="text-right">Valor</TableHead>
-                  <TableHead className="text-center">Estado</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
+                  {canDownloadCsv && (
+                    <TableHead className="w-[5%] px-2">
+                      <Checkbox
+                        checked={isAllFilteredSelected}
+                        indeterminate={isSomeFilteredSelected && !isAllFilteredSelected}
+                        onCheckedChange={(checked) => handleSelectAllChange(Boolean(checked))}
+                        aria-label="Seleccionar todos los pedidos filtrados"
+                      />
+                    </TableHead>
+                  )}
+                  <TableHead className={cn(canDownloadCsv ? "w-[15%]" : "w-[20%]")}>ID Pedido</TableHead>
+                  <TableHead className="w-[20%]">Cliente</TableHead>
+                  <TableHead className="w-[15%]">Fecha</TableHead>
+                  <TableHead className="text-right w-[10%]">Nº Botellas</TableHead>
+                  <TableHead className="text-right w-[15%]">Valor</TableHead>
+                  <TableHead className="text-center w-[10%]">Estado</TableHead>
+                  <TableHead className="text-right w-[10%]">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredOrders.map((order: Order) => (
-                  <TableRow key={order.id}>
+                  <TableRow 
+                    key={order.id}
+                    data-state={selectedOrderIds.includes(order.id) ? "selected" : ""}
+                  >
+                     {canDownloadCsv && (
+                        <TableCell className="px-2">
+                          <Checkbox
+                            checked={selectedOrderIds.includes(order.id)}
+                            onCheckedChange={(checked) => handleRowSelectChange(order.id, Boolean(checked))}
+                            aria-label={`Seleccionar pedido ${order.id}`}
+                          />
+                        </TableCell>
+                      )}
                     <TableCell className="font-medium">{order.id}</TableCell>
                     <TableCell>{order.clientName}</TableCell>
                     <TableCell>{order.visitDate ? format(parseISO(order.visitDate), "MMM dd, yyyy", { locale: es }) : "N/D"}</TableCell>
@@ -381,8 +506,8 @@ export default function OrdersDashboardPage() {
                                 value={order.status} 
                                 onValueChange={(newStatus) => handleChangeOrderStatus(order, newStatus as OrderStatus)}
                             >
-                              {relevantOrderStatuses.map((statusVal) => (
-                                <DropdownMenuRadioItem key={statusVal} value={statusVal} disabled={!relevantOrderStatuses.includes(statusVal as OrderStatus)}>
+                              {relevantOrderStatusesForDashboard.map((statusVal) => (
+                                <DropdownMenuRadioItem key={statusVal} value={statusVal} disabled={!relevantOrderStatusesForDashboard.includes(statusVal as OrderStatus)}>
                                   {statusVal}
                                 </DropdownMenuRadioItem>
                               ))}
@@ -450,7 +575,7 @@ export default function OrdersDashboardPage() {
                 ))}
                  {filteredOrders.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center">
+                    <TableCell colSpan={canDownloadCsv ? 8 : 7} className="h-24 text-center">
                       No se encontraron pedidos. Intente ajustar sus filtros.
                     </TableCell>
                   </TableRow>
@@ -472,3 +597,5 @@ export default function OrdersDashboardPage() {
     </div>
   );
 }
+
+    

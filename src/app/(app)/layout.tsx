@@ -35,7 +35,7 @@ import { useAuth } from '@/contexts/auth-context';
 import DailyTasksWidget from '@/components/app/daily-tasks-widget';
 import { Badge } from '@/components/ui/badge';
 import { mockOrders, mockCrmEvents, mockAccounts, mockTeamMembers } from '@/lib/data'; // Import mockTeamMembers
-import { parseISO, startOfDay, isEqual, isWithinInterval, format, getMonth, getYear, isSameMonth, isSameYear } from 'date-fns';
+import { parseISO, startOfDay, endOfDay, isWithinInterval, format, getMonth, getYear, isSameMonth, isSameYear, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 const allNavItems = [
@@ -55,6 +55,7 @@ const allNavItems = [
 function DailyTasksMenu() {
   const { userRole, teamMember } = useAuth();
   const today = startOfDay(new Date());
+  const nextSevenDaysEnd = endOfDay(addDays(today, 6)); // Hoy + 6 días más = 7 días en total
   const [taskCount, setTaskCount] = useState(0);
 
   useEffect(() => {
@@ -103,13 +104,15 @@ function DailyTasksMenu() {
         const itemStartDate = startOfDay(item.itemDate);
         if (item.sourceType === 'event' && (item.rawItem as CrmEvent).endDate) {
           const itemEndDate = startOfDay(parseISO((item.rawItem as CrmEvent).endDate!));
-          return isWithinInterval(today, { start: itemStartDate, end: itemEndDate });
+          // Check if any part of the event range falls within our "next seven days" window
+          return (itemStartDate <= nextSevenDaysEnd && itemEndDate >= today);
         }
-        return isEqual(itemStartDate, today);
+        // For single-day items (orders or events without endDate)
+        return isWithinInterval(itemStartDate, { start: today, end: nextSevenDaysEnd });
       }).length;
     setTaskCount(count);
 
-  }, [userRole, teamMember, today]);
+  }, [userRole, teamMember, today, nextSevenDaysEnd]);
 
 
   if (userRole === 'Distributor') return null;
@@ -127,14 +130,14 @@ function DailyTasksMenu() {
               {taskCount > 9 ? '9+' : taskCount}
             </Badge>
           )}
-          <span className="sr-only">Tareas del Día</span>
+          <span className="sr-only">Próximas Tareas</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-auto p-0 mr-2" align="end" forceMount>
           <DropdownMenuLabel className="font-normal text-center py-2">
-            <p className="text-sm font-medium leading-none">Tareas para Hoy</p>
+            <p className="text-sm font-medium leading-none">Próximas Tareas</p>
             <p className="text-xs leading-none text-muted-foreground">
-              {format(today, "eeee, dd 'de' MMMM", { locale: es })}
+              Hasta el {format(nextSevenDaysEnd, "dd 'de' MMMM", { locale: es })}
             </p>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />

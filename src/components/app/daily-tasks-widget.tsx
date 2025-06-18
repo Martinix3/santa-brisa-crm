@@ -3,9 +3,9 @@
 
 import * as React from 'react';
 import { useAuth } from '@/contexts/auth-context';
-import type { Order, CrmEvent } from '@/types';
+import type { Order, CrmEvent, CrmEventStatus } from '@/types';
 import { mockOrders, mockCrmEvents } from '@/lib/data';
-import { parseISO, format, isEqual, startOfDay, isWithinInterval } from 'date-fns';
+import { parseISO, format, startOfDay, endOfDay, isWithinInterval, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent } from '@/components/ui/card';
@@ -36,6 +36,7 @@ type AgendaItem = AgendaOrderItem | AgendaCrmEventItem;
 export default function DailyTasksWidget() {
   const { userRole, teamMember } = useAuth();
   const today = startOfDay(new Date());
+  const nextSevenDaysEnd = endOfDay(addDays(today, 6)); // Hoy + 6 días más
 
   const dailyItems = React.useMemo<AgendaItem[]>(() => {
     if ((!teamMember && userRole === 'SalesRep') || userRole === 'Distributor') {
@@ -89,11 +90,11 @@ export default function DailyTasksWidget() {
         const itemStartDate = startOfDay(item.itemDate);
         if (item.sourceType === 'event' && (item.rawItem as CrmEvent).endDate) {
           const itemEndDate = startOfDay(parseISO((item.rawItem as CrmEvent).endDate!));
-          return isWithinInterval(today, { start: itemStartDate, end: itemEndDate });
+          return (itemStartDate <= nextSevenDaysEnd && itemEndDate >= today);
         }
-        return isEqual(itemStartDate, today);
+        return isWithinInterval(itemStartDate, { start: today, end: nextSevenDaysEnd });
       })
-      .sort((a, b) => { // Sort by date, then by type (events first for example)
+      .sort((a, b) => { 
         if (a.itemDate.getTime() !== b.itemDate.getTime()) {
           return a.itemDate.getTime() - b.itemDate.getTime();
         }
@@ -102,12 +103,12 @@ export default function DailyTasksWidget() {
         return 0;
       });
 
-  }, [userRole, teamMember, today]);
+  }, [userRole, teamMember, today, nextSevenDaysEnd]);
 
   if (dailyItems.length === 0) {
     return (
       <div className="p-4 text-sm text-muted-foreground">
-        No tienes tareas programadas para hoy.
+        No tienes próximas tareas programadas.
       </div>
     );
   }
@@ -143,8 +144,11 @@ export default function DailyTasksWidget() {
                 <CardContent className="p-2">
                    <div className="flex items-start space-x-2.5">
                       {getIconForItem(item)}
-                      <div className="flex-grow min-w-0"> {/* Added min-w-0 for better truncation */}
-                        <p className="text-sm font-semibold leading-tight truncate" title={item.title}>{item.title}</p>
+                      <div className="flex-grow min-w-0">
+                        <div className="flex justify-between items-baseline">
+                           <p className="text-sm font-semibold leading-tight truncate" title={item.title}>{item.title}</p>
+                           <p className="text-xs text-muted-foreground ml-2 flex-shrink-0">{format(item.itemDate, "dd/MM", { locale: es })}</p>
+                        </div>
                         <p className="text-xs text-muted-foreground truncate" title={item.description}>{item.description}</p>
                       </div>
                     </div>
@@ -155,7 +159,7 @@ export default function DailyTasksWidget() {
                   )}
                   {item.sourceType === 'event' && (
                      <div className="mt-1.5 flex justify-end">
-                        <StatusBadge type="event" status={(item.rawItem as CrmEvent).status} className="text-xs px-1.5 py-0.5 h-auto" />
+                        <StatusBadge type="event" status={(item.rawItem as CrmEvent).status as CrmEventStatus} className="text-xs px-1.5 py-0.5 h-auto" />
                     </div>
                   )}
                 </CardContent>

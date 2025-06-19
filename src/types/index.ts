@@ -40,18 +40,26 @@ export type FailureReasonType = 'No interesado' | 'Ya trabaja con otro proveedor
 // Promotional Materials
 export type PromotionalMaterialType = 'Merchandising Físico' | 'Material PLV' | 'Servicio de Personal' | 'Digital/Software';
 
+export interface LatestPurchaseInfo {
+  quantityPurchased: number;
+  totalPurchaseCost: number;
+  purchaseDate: string; // YYYY-MM-DD
+  calculatedUnitCost: number;
+  notes?: string; // Optional notes for this specific purchase
+}
+
 export interface PromotionalMaterial {
   id: string;
   name: string;
   description?: string;
   type: PromotionalMaterialType;
-  unitCost: number; // Cost per unit or per hour for services
+  latestPurchase?: LatestPurchaseInfo; 
 }
 
 export interface AssignedPromotionalMaterial {
   materialId: string; // Corresponds to PromotionalMaterial.id
   quantity: number;
-  // Optional: estimatedCost can be calculated on the fly: material.unitCost * quantity
+  // Optional: estimatedCost can be calculated on the fly: material.latestPurchase.calculatedUnitCost * quantity
 }
 
 export interface Order {

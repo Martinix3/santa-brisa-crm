@@ -115,7 +115,8 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
   const totalEstimatedMaterialCost = React.useMemo(() => {
     return watchedMaterials.reduce((total, current) => {
       const materialDetails = mockPromotionalMaterials.find(m => m.id === current.materialId);
-      return total + (materialDetails ? materialDetails.unitCost * current.quantity : 0);
+      const unitCost = materialDetails?.latestPurchase?.calculatedUnitCost || 0;
+      return total + (unitCost * current.quantity);
     }, 0);
   }, [watchedMaterials]);
 
@@ -353,6 +354,7 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
               <FormLabel className="flex items-center"><Package className="mr-2 h-4 w-4 text-primary"/> Materiales Promocionales Asignados</FormLabel>
               {materialFields.map((item, index) => {
                 const selectedMaterial = mockPromotionalMaterials.find(m => m.id === watchedMaterials[index]?.materialId);
+                const unitCost = selectedMaterial?.latestPurchase?.calculatedUnitCost || 0;
                 return (
                   <div key={item.id} className="flex items-end gap-2 p-3 border rounded-md bg-secondary/30">
                     <FormField
@@ -365,7 +367,7 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
                             <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar material" /></SelectTrigger></FormControl>
                             <SelectContent>
                               {mockPromotionalMaterials.map(mat => (
-                                <SelectItem key={mat.id} value={mat.id}>{mat.name} ({mat.type}) - <FormattedNumericValue value={mat.unitCost} options={{style:'currency', currency:'EUR'}}/></SelectItem>
+                                <SelectItem key={mat.id} value={mat.id}>{mat.name} ({mat.type}) - <FormattedNumericValue value={mat.latestPurchase?.calculatedUnitCost || 0} options={{style:'currency', currency:'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4}}/></SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -379,14 +381,17 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
                       render={({ field }) => (
                         <FormItem className="w-24">
                           <FormLabel className="text-xs">Cantidad</FormLabel>
-                          <FormControl><Input type="number" {...field} disabled={isReadOnly} /></FormControl>
+                          <FormControl><Input type="number" {...field} disabled={isReadOnly} 
+                            onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))}
+                            value={field.value ?? ""}
+                          /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
                     <div className="text-sm text-muted-foreground w-28 text-right whitespace-nowrap">
-                       {selectedMaterial && watchedMaterials[index]?.quantity > 0 ? (
-                          <FormattedNumericValue value={selectedMaterial.unitCost * watchedMaterials[index].quantity} options={{style:'currency', currency:'EUR'}} />
+                       {watchedMaterials[index]?.quantity > 0 ? (
+                          <FormattedNumericValue value={unitCost * watchedMaterials[index].quantity} options={{style:'currency', currency:'EUR'}} />
                        ) : <FormattedNumericValue value={0} options={{style:'currency', currency:'EUR'}} />}
                     </div>
                     {!isReadOnly && (
@@ -438,7 +443,7 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
                 </Button>
               </DialogClose>
               {!isReadOnly && (
-                <Button type="submit" disabled={isSaving || !form.formState.isDirty && !!event}>
+                <Button type="submit" disabled={isSaving || (!form.formState.isDirty && !!event)}>
                   {isSaving ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -175,7 +175,8 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const totalEstimatedMaterialCostForDialog = React.useMemo(() => {
     return watchedMaterials.reduce((total, current) => {
       const materialDetails = mockPromotionalMaterials.find(m => m.id === current.materialId);
-      return total + (materialDetails ? materialDetails.unitCost * current.quantity : 0);
+      const unitCost = materialDetails?.latestPurchase?.calculatedUnitCost || 0;
+      return total + (unitCost * current.quantity);
     }, 0);
   }, [watchedMaterials]);
 
@@ -248,8 +249,8 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const isReadOnly = isSalesRep && !isAdmin; 
 
   const formFieldsGenericDisabled = isReadOnly || (!canEditFullOrderDetails && !canEditStatusAndFollowUp);
-  const productRelatedFieldsDisabled = isReadOnly || !canEditFullOrderDetails || currentStatus === 'Seguimiento' || currentStatus === 'Fallido';
-  const billingFieldsDisabled = isReadOnly || !canEditFullOrderDetails || currentStatus === 'Seguimiento' || currentStatus === 'Fallido';
+  const productRelatedFieldsDisabled = isReadOnly || !canEditFullOrderDetails || currentStatus === 'Seguimiento' || currentStatus === 'Fallido' || currentStatus === 'Programada';
+  const billingFieldsDisabled = isReadOnly || !canEditFullOrderDetails || currentStatus === 'Seguimiento' || currentStatus === 'Fallido' || currentStatus === 'Programada';
   const followUpFieldsDisabled = isReadOnly || !canEditStatusAndFollowUp;
   const statusFieldDisabled = isReadOnly || (!isAdmin && !isDistributor);
   const salesRepFieldDisabled = isReadOnly || !isAdmin;
@@ -308,7 +309,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 <Separator />
                  <FormField control={form.control} name="clientType" render={({ field }) => (<FormItem><FormLabel>Tipo de Cliente</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value} disabled={productRelatedFieldsDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione tipo cliente" /></SelectTrigger></FormControl><SelectContent>{clientTypeList.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
                 <FormField control={form.control} name="products" render={({ field }) => (<FormItem><FormLabel>Productos Pedidos</FormLabel><FormControl><Textarea placeholder="Listar productos y cantidades..." className="min-h-[80px]" {...field} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="value" render={({ field }) => (<FormItem><FormLabel>Valor del Pedido (€)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="p. ej., 250.75" {...field} onChange={event => field.onChange(parseFloat(event.target.value))} value={field.value === undefined ? '' : field.value} disabled={productRelatedFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="value" render={({ field }) => (<FormItem><FormLabel>Valor del Pedido (€)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="p. ej., 250.75" {...field} onChange={event => field.onChange(event.target.value === '' ? undefined : parseFloat(event.target.value))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
                 <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades</FormLabel><FormControl><Input type="number" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value,10))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
                 <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
 
@@ -367,6 +368,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                   <div className="space-y-3">
                     {materialFields.map((item, index) => {
                       const selectedMaterial = mockPromotionalMaterials.find(m => m.id === watchedMaterials[index]?.materialId);
+                      const unitCost = selectedMaterial?.latestPurchase?.calculatedUnitCost || 0;
                       return (
                         <div key={item.id} className="flex items-end gap-2 p-3 border rounded-md bg-secondary/30">
                           <FormField
@@ -379,7 +381,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                                   <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar material" /></SelectTrigger></FormControl>
                                   <SelectContent>
                                     {mockPromotionalMaterials.map(mat => (
-                                      <SelectItem key={mat.id} value={mat.id}>{mat.name} ({mat.type}) - <FormattedNumericValue value={mat.unitCost} options={{style:'currency', currency:'EUR'}}/></SelectItem>
+                                      <SelectItem key={mat.id} value={mat.id}>{mat.name} ({mat.type}) - <FormattedNumericValue value={mat.latestPurchase?.calculatedUnitCost || 0} options={{style:'currency', currency:'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4 }}/></SelectItem>
                                     ))}
                                   </SelectContent>
                                 </Select>
@@ -393,14 +395,17 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                             render={({ field }) => (
                               <FormItem className="w-24">
                                 <FormLabel className="text-xs">Cantidad</FormLabel>
-                                <FormControl><Input type="number" {...field} disabled={materialsSectionDisabled} /></FormControl>
+                                <FormControl><Input type="number" {...field} disabled={materialsSectionDisabled} 
+                                  onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))}
+                                  value={field.value ?? ""}
+                                /></FormControl>
                                 <FormMessage />
                               </FormItem>
                             )}
                           />
                           <div className="text-sm text-muted-foreground w-28 text-right whitespace-nowrap">
-                             {selectedMaterial && watchedMaterials[index]?.quantity > 0 ? (
-                                <FormattedNumericValue value={selectedMaterial.unitCost * watchedMaterials[index].quantity} options={{style:'currency', currency:'EUR'}} />
+                             {watchedMaterials[index]?.quantity > 0 ? (
+                                <FormattedNumericValue value={unitCost * watchedMaterials[index].quantity} options={{style:'currency', currency:'EUR'}} />
                              ) : <FormattedNumericValue value={0} options={{style:'currency', currency:'EUR'}} />}
                           </div>
                           {!materialsSectionDisabled && (
@@ -453,4 +458,3 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     </Dialog>
   );
 }
-

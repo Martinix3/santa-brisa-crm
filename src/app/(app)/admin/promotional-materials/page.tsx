@@ -9,12 +9,14 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { mockPromotionalMaterials, promotionalMaterialTypeList } from "@/lib/data";
-import type { PromotionalMaterial, PromotionalMaterialType, UserRole } from "@/types";
+import type { PromotionalMaterial, PromotionalMaterialType, UserRole, LatestPurchaseInfo } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { PlusCircle, Edit, Trash2, MoreHorizontal, PackagePlus, Filter, ChevronDown, AlertTriangle } from "lucide-react";
+import { PlusCircle, Edit, Trash2, MoreHorizontal, PackagePlus, Filter, ChevronDown, AlertTriangle, CalendarDays } from "lucide-react";
 import PromotionalMaterialDialog, { type PromotionalMaterialFormValues } from "@/components/app/promotional-material-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
+import { format, parseISO } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 export default function PromotionalMaterialsPage() {
   const { toast } = useToast();
@@ -45,21 +47,49 @@ export default function PromotionalMaterialsPage() {
     if (!isAdmin) return;
     
     let successMessage = "";
+    let newLatestPurchase: LatestPurchaseInfo | undefined = undefined;
+
+    if (data.latestPurchaseQuantity && data.latestPurchaseTotalCost && data.latestPurchaseDate) {
+        const calculatedUnitCost = data.latestPurchaseTotalCost / data.latestPurchaseQuantity;
+        newLatestPurchase = {
+            quantityPurchased: data.latestPurchaseQuantity,
+            totalPurchaseCost: data.latestPurchaseTotalCost,
+            purchaseDate: format(data.latestPurchaseDate, "yyyy-MM-dd"),
+            calculatedUnitCost: parseFloat(calculatedUnitCost.toFixed(4)), // Store with more precision
+            notes: data.latestPurchaseNotes
+        };
+    }
+
 
     if (materialId) { 
       const updatedMaterials = materials.map(mat =>
-        mat.id === materialId ? { ...mat, ...data } : mat
+        mat.id === materialId ? { 
+            ...mat, 
+            name: data.name,
+            description: data.description,
+            type: data.type,
+            latestPurchase: newLatestPurchase || mat.latestPurchase // Keep old purchase if new one is not provided
+        } : mat
       );
       setMaterials(updatedMaterials);
       const mockIndex = mockPromotionalMaterials.findIndex(mat => mat.id === materialId);
       if (mockIndex !== -1) {
-        mockPromotionalMaterials[mockIndex] = { ...mockPromotionalMaterials[mockIndex], ...data };
+        mockPromotionalMaterials[mockIndex] = { 
+            ...mockPromotionalMaterials[mockIndex], 
+            name: data.name,
+            description: data.description,
+            type: data.type,
+            latestPurchase: newLatestPurchase || mockPromotionalMaterials[mockIndex].latestPurchase
+        };
       }
       successMessage = `El material "${data.name}" ha sido actualizado.`;
     } else { 
       const newMaterial: PromotionalMaterial = {
         id: `mat_${Date.now()}`,
-        ...data,
+        name: data.name,
+        description: data.description,
+        type: data.type,
+        latestPurchase: newLatestPurchase
       };
       setMaterials(prev => [newMaterial, ...prev]);
       mockPromotionalMaterials.unshift(newMaterial); 
@@ -125,8 +155,8 @@ export default function PromotionalMaterialsPage() {
 
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
-          <CardTitle>Catálogo de Materiales</CardTitle>
-          <CardDescription>Administra todos los materiales promocionales disponibles, sus tipos y costes.</CardDescription>
+          <CardTitle>Catálogo de Tipos de Materiales</CardTitle>
+          <CardDescription>Administra los tipos de materiales promocionales y la información de su última compra para calcular costes.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
@@ -156,9 +186,10 @@ export default function PromotionalMaterialsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[40%]">Nombre del Material</TableHead>
-                  <TableHead className="w-[25%]">Tipo</TableHead>
+                  <TableHead className="w-[30%]">Nombre del Material</TableHead>
+                  <TableHead className="w-[20%]">Tipo</TableHead>
                   <TableHead className="text-right w-[20%]">Coste Unitario (€)</TableHead>
+                  <TableHead className="text-center w-[15%]">Última Compra</TableHead>
                   <TableHead className="text-right w-[15%]">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -168,7 +199,21 @@ export default function PromotionalMaterialsPage() {
                     <TableCell className="font-medium">{material.name}</TableCell>
                     <TableCell>{material.type}</TableCell>
                     <TableCell className="text-right">
-                       <FormattedNumericValue value={material.unitCost} locale="es-ES" options={{ style: 'currency', currency: 'EUR' }} />
+                       {material.latestPurchase ? (
+                           <FormattedNumericValue value={material.latestPurchase.calculatedUnitCost} locale="es-ES" options={{ style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4 }} />
+                       ) : (
+                           <span className="text-muted-foreground">N/D</span>
+                       )}
+                    </TableCell>
+                    <TableCell className="text-center text-xs">
+                        {material.latestPurchase ? (
+                            <div className="flex items-center justify-center">
+                                <CalendarDays size={14} className="mr-1 text-muted-foreground" />
+                                {format(parseISO(material.latestPurchase.purchaseDate), "dd/MM/yy", { locale: es })}
+                            </div>
+                        ) : (
+                           <span className="text-muted-foreground">Sin registrar</span>
+                        )}
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
@@ -215,7 +260,7 @@ export default function PromotionalMaterialsPage() {
                   </TableRow>
                 )) : (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center">
+                    <TableCell colSpan={5} className="h-24 text-center">
                       No se encontraron materiales que coincidan con tu búsqueda o filtros. Puedes añadir nuevos materiales.
                     </TableCell>
                   </TableRow>

@@ -332,13 +332,34 @@ mockOrders.forEach(order => {
 export const promotionalMaterialTypeList: PromotionalMaterialType[] = ['Merchandising Físico', 'Material PLV', 'Servicio de Personal', 'Digital/Software'];
 
 export const mockPromotionalMaterials: PromotionalMaterial[] = [
-  { id: 'mat_001', name: 'Cubitera Metálica Santa Brisa', type: 'Merchandising Físico', unitCost: 12.50, description: 'Cubitera elegante con logo grabado.' },
-  { id: 'mat_002', name: 'Bandeja de Camarero Santa Brisa', type: 'Merchandising Físico', unitCost: 8.00, description: 'Bandeja antideslizante con marca.' },
-  { id: 'mat_003', name: 'Set 6 Copas Grabadas Santa Brisa', type: 'Merchandising Físico', unitCost: 25.00, description: 'Copas de cristal de alta calidad.' },
-  { id: 'mat_004', name: 'Expositor de Mesa (PLV)', type: 'Material PLV', unitCost: 15.00, description: 'Pequeño expositor para mostrador o mesa.' },
-  { id: 'mat_005', name: 'Roll-up Promocional (PLV)', type: 'Material PLV', unitCost: 60.00, description: 'Banner enrollable para eventos o tiendas.' },
-  { id: 'mat_006', name: 'Servicio de Camarero/Coctelero (por hora)', type: 'Servicio de Personal', unitCost: 20.00, description: 'Personal cualificado para eventos.' },
-  { id: 'mat_007', name: 'Flyers Promocionales (pack 100u)', type: 'Material PLV', unitCost: 10.00, description: 'Folletos A6 a color.' },
+  { 
+    id: 'mat_001', name: 'Cubitera Metálica Santa Brisa', type: 'Merchandising Físico', description: 'Cubitera elegante con logo grabado.',
+    latestPurchase: { quantityPurchased: 100, totalPurchaseCost: 1250, purchaseDate: '2024-01-15', calculatedUnitCost: 12.50 }
+  },
+  { 
+    id: 'mat_002', name: 'Bandeja de Camarero Santa Brisa', type: 'Merchandising Físico', description: 'Bandeja antideslizante con marca.',
+    latestPurchase: { quantityPurchased: 200, totalPurchaseCost: 1600, purchaseDate: '2024-02-01', calculatedUnitCost: 8.00 }
+  },
+  { 
+    id: 'mat_003', name: 'Set 6 Copas Grabadas Santa Brisa', type: 'Merchandising Físico', description: 'Copas de cristal de alta calidad.',
+    latestPurchase: { quantityPurchased: 50, totalPurchaseCost: 1250, purchaseDate: '2024-03-10', calculatedUnitCost: 25.00 }
+  },
+  { 
+    id: 'mat_004', name: 'Expositor de Mesa (PLV)', type: 'Material PLV', description: 'Pequeño expositor para mostrador o mesa.',
+    latestPurchase: { quantityPurchased: 30, totalPurchaseCost: 450, purchaseDate: '2024-04-05', calculatedUnitCost: 15.00 }
+  },
+  { 
+    id: 'mat_005', name: 'Roll-up Promocional (PLV)', type: 'Material PLV', description: 'Banner enrollable para eventos o tiendas.',
+    latestPurchase: { quantityPurchased: 10, totalPurchaseCost: 600, purchaseDate: '2024-04-20', calculatedUnitCost: 60.00 }
+  },
+  { 
+    id: 'mat_006', name: 'Servicio de Camarero/Coctelero (por hora)', type: 'Servicio de Personal', description: 'Personal cualificado para eventos.',
+    latestPurchase: { quantityPurchased: 1, totalPurchaseCost: 20, purchaseDate: '2024-01-01', calculatedUnitCost: 20.00 } // Cost per hour
+  },
+  { 
+    id: 'mat_007', name: 'Flyers Promocionales (pack 100u)', type: 'Material PLV', description: 'Folletos A6 a color.',
+    latestPurchase: { quantityPurchased: 10, totalPurchaseCost: 100, purchaseDate: '2024-05-01', calculatedUnitCost: 10.00 } // Cost per pack of 100
+  },
 ];
 
 // CRM Event Management Data

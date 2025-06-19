@@ -22,6 +22,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,9 +33,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { PromotionalMaterial, PromotionalMaterialType } from "@/types";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import type { PromotionalMaterial, PromotionalMaterialType, LatestPurchaseInfo } from "@/types";
 import { promotionalMaterialTypeList } from "@/lib/data";
-import { Loader2 } from "lucide-react";
+import { Loader2, Calendar as CalendarIcon, Euro } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
+import { format, parseISO, isValid } from "date-fns";
+import { es } from 'date-fns/locale';
+import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
+
 
 const materialFormSchema = z.object({
   name: z.string().min(3, "El nombre del material debe tener al menos 3 caracteres."),
@@ -42,7 +51,11 @@ const materialFormSchema = z.object({
   type: z.enum(promotionalMaterialTypeList as [PromotionalMaterialType, ...PromotionalMaterialType[]], {
     required_error: "El tipo de material es obligatorio.",
   }),
-  unitCost: z.coerce.number().min(0, "El coste unitario debe ser un número no negativo."),
+  // Fields for the latest purchase
+  latestPurchaseQuantity: z.coerce.number().min(1, "La cantidad comprada debe ser al menos 1.").optional(),
+  latestPurchaseTotalCost: z.coerce.number().min(0, "El coste total debe ser no negativo.").optional(),
+  latestPurchaseDate: z.date().optional(),
+  latestPurchaseNotes: z.string().optional(),
 });
 
 export type PromotionalMaterialFormValues = z.infer<typeof materialFormSchema>;
@@ -57,6 +70,7 @@ interface PromotionalMaterialDialogProps {
 
 export default function PromotionalMaterialDialog({ material, isOpen, onOpenChange, onSave, isReadOnly = false }: PromotionalMaterialDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
+  const [calculatedUnitCost, setCalculatedUnitCost] = React.useState<number | null>(null);
   
   const form = useForm<PromotionalMaterialFormValues>({
     resolver: zodResolver(materialFormSchema),
@@ -64,9 +78,23 @@ export default function PromotionalMaterialDialog({ material, isOpen, onOpenChan
       name: "",
       description: "",
       type: undefined,
-      unitCost: 0,
+      latestPurchaseQuantity: undefined,
+      latestPurchaseTotalCost: undefined,
+      latestPurchaseDate: undefined,
+      latestPurchaseNotes: "",
     },
   });
+
+  const watchedQuantity = form.watch("latestPurchaseQuantity");
+  const watchedTotalCost = form.watch("latestPurchaseTotalCost");
+
+  React.useEffect(() => {
+    if (typeof watchedQuantity === 'number' && typeof watchedTotalCost === 'number' && watchedQuantity > 0) {
+      setCalculatedUnitCost(watchedTotalCost / watchedQuantity);
+    } else {
+      setCalculatedUnitCost(null);
+    }
+  }, [watchedQuantity, watchedTotalCost]);
 
   React.useEffect(() => {
     if (isOpen) {
@@ -75,15 +103,27 @@ export default function PromotionalMaterialDialog({ material, isOpen, onOpenChan
           name: material.name,
           description: material.description || "",
           type: material.type,
-          unitCost: material.unitCost,
+          latestPurchaseQuantity: material.latestPurchase?.quantityPurchased,
+          latestPurchaseTotalCost: material.latestPurchase?.totalPurchaseCost,
+          latestPurchaseDate: material.latestPurchase?.purchaseDate ? parseISO(material.latestPurchase.purchaseDate) : undefined,
+          latestPurchaseNotes: material.latestPurchase?.notes || "",
         });
+        if (material.latestPurchase) {
+          setCalculatedUnitCost(material.latestPurchase.calculatedUnitCost);
+        } else {
+          setCalculatedUnitCost(null);
+        }
       } else {
         form.reset({
           name: "",
           description: "",
           type: undefined,
-          unitCost: 0,
+          latestPurchaseQuantity: undefined,
+          latestPurchaseTotalCost: undefined,
+          latestPurchaseDate: new Date(), // Default to today for new purchase
+          latestPurchaseNotes: "",
         });
+        setCalculatedUnitCost(null);
       }
     }
   }, [material, isOpen, form]);
@@ -91,18 +131,22 @@ export default function PromotionalMaterialDialog({ material, isOpen, onOpenChan
   const onSubmit = async (data: PromotionalMaterialFormValues) => {
     if (isReadOnly) return;
     setIsSaving(true);
+    
+    // Prepare data for saving, especially the latestPurchase object
+    const saveData = { ...data }; 
+    
     await new Promise(resolve => setTimeout(resolve, 500)); 
-    onSave(data, material?.id);
+    onSave(saveData, material?.id);
     setIsSaving(false);
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg md:max-w-xl">
         <DialogHeader>
           <DialogTitle>{isReadOnly ? "Detalles del Material Promocional" : (material ? "Editar Material Promocional" : "Añadir Nuevo Material Promocional")}</DialogTitle>
           <DialogDescription>
-            {isReadOnly ? `Viendo detalles de "${material?.name}".` : (material ? "Modifica los detalles del material, asegurándote que el coste unitario refleje el coste de adquisición actual." : "Introduce la información del nuevo material promocional, incluyendo el coste real de adquisición por unidad.")}
+            {isReadOnly ? `Viendo detalles de "${material?.name}".` : (material ? "Modifica los detalles del material y/o registra la última compra." : "Introduce la información del nuevo material y los detalles de su adquisición.")}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -142,19 +186,6 @@ export default function PromotionalMaterialDialog({ material, isOpen, onOpenChan
             />
             <FormField
               control={form.control}
-              name="unitCost"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Coste Unitario de Adquisición (€)</FormLabel>
-                  <FormControl>
-                    <Input type="number" step="0.01" placeholder="Ej: 10.75 (coste por unidad comprada)" {...field} disabled={isReadOnly} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
               name="description"
               render={({ field }) => (
                 <FormItem>
@@ -166,6 +197,97 @@ export default function PromotionalMaterialDialog({ material, isOpen, onOpenChan
                 </FormItem>
               )}
             />
+            
+            <Separator className="my-6" />
+            <h3 className="text-md font-semibold text-primary">Detalles de la Última Compra Registrada</h3>
+            <FormDescription>
+              {material ? "Actualice los datos si ha habido una nueva compra." : "Introduzca los datos de la primera compra de este material."}
+              Si no introduce datos de compra, el material se guardará sin un coste unitario definido.
+            </FormDescription>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              <FormField
+                control={form.control}
+                name="latestPurchaseQuantity"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Cantidad Comprada</FormLabel>
+                    <FormControl>
+                      <Input type="number" placeholder="Ej: 500" {...field} disabled={isReadOnly} 
+                             onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))}
+                             value={field.value ?? ""}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="latestPurchaseTotalCost"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Coste Total de esta Compra (€)</FormLabel>
+                    <FormControl>
+                      <Input type="number" step="0.01" placeholder="Ej: 550.25 (incluye todo)" {...field} disabled={isReadOnly} 
+                             onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
+                             value={field.value ?? ""}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <FormField
+              control={form.control}
+              name="latestPurchaseDate"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>Fecha de esta Compra</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")} disabled={isReadOnly}>
+                            {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={isReadOnly} initialFocus locale={es}/>
+                      </PopoverContent>
+                    </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+             <FormField
+              control={form.control}
+              name="latestPurchaseNotes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Notas de la Compra (Opcional)</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Ej: Lote con descuento, proveedor XYZ..." {...field} disabled={isReadOnly} className="min-h-[60px]" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {calculatedUnitCost !== null && (
+              <div className="mt-3 p-3 bg-secondary/30 rounded-md">
+                <p className="text-sm font-medium">
+                  Coste Unitario Calculado para esta Compra: 
+                  <strong className="ml-1 text-primary">
+                    <FormattedNumericValue value={calculatedUnitCost} options={{ style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4 }} />
+                  </strong>
+                </p>
+                <p className="text-xs text-muted-foreground">Este será el coste utilizado al asignar este material a eventos/pedidos.</p>
+              </div>
+            )}
+            
             <DialogFooter className="pt-6">
               <DialogClose asChild>
                 <Button type="button" variant="outline" disabled={isSaving && !isReadOnly}>
@@ -173,7 +295,7 @@ export default function PromotionalMaterialDialog({ material, isOpen, onOpenChan
                 </Button>
               </DialogClose>
               {!isReadOnly && (
-                <Button type="submit" disabled={isSaving || !form.formState.isDirty && !!material}>
+                <Button type="submit" disabled={isSaving || (!form.formState.isDirty && !!material && !form.formState.dirtyFields.latestPurchaseQuantity && !form.formState.dirtyFields.latestPurchaseTotalCost)}>
                   {isSaving ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />

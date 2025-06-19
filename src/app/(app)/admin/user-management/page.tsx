@@ -57,6 +57,12 @@ const userFormSchema = z.object({
       });
     }
   }
+  // Clavadista and Distributor roles do not require these target fields
+  if (data.role === "Clavadista" || data.role === "Distributor") {
+    // Ensure these fields are not set or clear them if they are
+    data.monthlyTargetAccounts = undefined;
+    data.monthlyTargetVisits = undefined;
+  }
 });
 
 type UserFormValues = z.infer<typeof userFormSchema>;
@@ -117,8 +123,6 @@ export default function UserManagementPage() {
       return;
     }
     
-    // If Firebase user creation was successful, add to mockTeamMembers.
-    // The pre-check above ensures we don't add if it's already in mockTeamMembers.
     const newMockUser: TeamMember = {
         id: firebaseUser.uid, 
         name: values.name,
@@ -141,7 +145,7 @@ export default function UserManagementPage() {
         <div className="flex items-start">
           <Check className="h-5 w-5 text-green-500 mr-2 mt-1" />
           <p>
-            Usuario {values.name} ({values.role === 'SalesRep' ? 'Rep. Ventas' : values.role}) 
+            Usuario {values.name} ({values.role}) 
             creado en Firebase Auth y añadido a la lista local. Contraseña por defecto: {defaultPassword}.
           </p>
         </div>
@@ -238,6 +242,13 @@ export default function UserManagementPage() {
     setUserToDelete(null);
   };
 
+  const getRoleDisplayName = (role: UserRole): string => {
+    switch (role) {
+        case 'SalesRep': return 'Rep. Ventas';
+        case 'Clavadista': return 'Clavadista';
+        default: return role;
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -296,7 +307,7 @@ export default function UserManagementPage() {
                         <SelectContent>
                           {userRolesList.map(roleValue => (
                             <SelectItem key={roleValue} value={roleValue}>
-                              {roleValue === 'SalesRep' ? 'Rep. Ventas' : roleValue}
+                              {getRoleDisplayName(roleValue)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -401,7 +412,7 @@ export default function UserManagementPage() {
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">{user.name}</TableCell>
                     <TableCell>{user.email}</TableCell>
-                    <TableCell>{user.role === 'SalesRep' ? 'Rep. Ventas' : user.role}</TableCell>
+                    <TableCell>{getRoleDisplayName(user.role)}</TableCell>
                     <TableCell className="text-right">
                       {user.role === "SalesRep" && user.monthlyTargetAccounts !== undefined ? (
                          <FormattedNumericValue value={user.monthlyTargetAccounts} locale="es-ES" />

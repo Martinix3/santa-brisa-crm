@@ -58,6 +58,10 @@ const editUserFormSchema = z.object({
       });
     }
   }
+  if (data.role === "Clavadista" || data.role === "Distributor" || data.role === "Admin") {
+    data.monthlyTargetAccounts = undefined;
+    data.monthlyTargetVisits = undefined;
+  }
 });
 
 export type EditUserFormValues = z.infer<typeof editUserFormSchema>;
@@ -107,6 +111,14 @@ export default function EditUserDialog({ user, isOpen, onOpenChange, onSave }: E
   };
 
   if (!user) return null;
+
+  const getRoleDisplayName = (role: UserRole): string => {
+    switch (role) {
+        case 'SalesRep': return 'Rep. Ventas';
+        case 'Clavadista': return 'Clavadista';
+        default: return role;
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -160,7 +172,7 @@ export default function EditUserDialog({ user, isOpen, onOpenChange, onSave }: E
                     <SelectContent>
                       {userRolesList.map(roleValue => (
                         <SelectItem key={roleValue} value={roleValue}>
-                          {roleValue === 'SalesRep' ? 'Rep. Ventas' : roleValue}
+                         {getRoleDisplayName(roleValue)}
                         </SelectItem>
                       ))}
                     </SelectContent>

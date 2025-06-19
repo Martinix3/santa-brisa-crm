@@ -1,5 +1,5 @@
 
-export type UserRole = 'Admin' | 'SalesRep' | 'Distributor';
+export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
 
 export interface Kpi {
   id: string;
@@ -46,6 +46,7 @@ export interface Order {
   status: OrderStatus;
   salesRep: string;
   lastUpdated: string; // Should be YYYY-MM-DD
+  clavadistaId?: string; // ID of the Clavadista involved
 
   clientType?: ClientType;
   numberOfUnits?: number; 

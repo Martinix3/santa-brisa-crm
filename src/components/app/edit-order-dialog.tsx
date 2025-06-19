@@ -37,11 +37,13 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { Order, OrderStatus, UserRole, TeamMember, NextActionType, FailureReasonType, ClientType } from "@/types";
 import { orderStatusesList, mockTeamMembers, nextActionTypeList, failureReasonList, clientTypeList } from "@/lib/data";
-import { Loader2, CalendarIcon, Printer } from "lucide-react";
+import { Loader2, CalendarIcon, Printer, Award } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { es } from 'date-fns/locale';
+
+const NO_CLAVADISTA_VALUE = "##NONE##";
 
 const editOrderFormSchema = z.object({
   clientName: z.string().min(2, "El nombre del cliente debe tener al menos 2 caracteres."),
@@ -49,6 +51,7 @@ const editOrderFormSchema = z.object({
   value: z.coerce.number().positive("El valor del pedido debe ser positivo.").optional(), // Optional for follow-up/failed
   status: z.enum(orderStatusesList as [OrderStatus, ...OrderStatus[]]),
   salesRep: z.string().min(1, "El representante de ventas es obligatorio."),
+  clavadistaId: z.string().optional(), // Can be "##NONE##" or an actual ID
   
   clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
   numberOfUnits: z.coerce.number().positive().optional(),
@@ -121,6 +124,7 @@ interface EditOrderDialogProps {
 
 export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, currentUserRole }: EditOrderDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
+  const clavadistas = React.useMemo(() => mockTeamMembers.filter(m => m.role === 'Clavadista'), []);
   const form = useForm<EditOrderFormValues>({
     resolver: zodResolver(editOrderFormSchema),
     defaultValues: {
@@ -129,6 +133,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
       value: undefined,
       status: "Pendiente",
       salesRep: "",
+      clavadistaId: NO_CLAVADISTA_VALUE,
       clientType: undefined,
       numberOfUnits: undefined,
       unitPrice: undefined,
@@ -162,6 +167,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         value: order.value,
         status: order.status,
         salesRep: order.salesRep,
+        clavadistaId: order.clavadistaId || NO_CLAVADISTA_VALUE,
         clientType: order.clientType,
         numberOfUnits: order.numberOfUnits,
         unitPrice: order.unitPrice,
@@ -189,6 +195,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
 
     const saveData: EditOrderFormValues = {
         ...data,
+        clavadistaId: data.clavadistaId === NO_CLAVADISTA_VALUE ? undefined : data.clavadistaId,
         nextActionDate: data.nextActionDate ? data.nextActionDate : undefined,
     };
 
@@ -218,6 +225,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const followUpFieldsDisabled = isReadOnly || !canEditStatusAndFollowUp;
   const statusFieldDisabled = isReadOnly || (!isAdmin && !isDistributor);
   const salesRepFieldDisabled = isReadOnly || !isAdmin;
+  const clavadistaFieldDisabled = isReadOnly || !canEditFullOrderDetails;
 
 
   return (
@@ -240,6 +248,30 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
             <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="Nombre del cliente" {...field} disabled={formFieldsGenericDisabled || !canEditFullOrderDetails} /></FormControl><FormMessage /></FormItem>)} />
             <FormField control={form.control} name="salesRep" render={({ field }) => (<FormItem><FormLabel>Representante de Ventas</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={salesRepFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un representante" /></SelectTrigger></FormControl><SelectContent>{mockTeamMembers.filter(member => member.role === 'SalesRep' || member.role === 'Admin').map((member: TeamMember) => (<SelectItem key={member.id} value={member.name}>{member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
             <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value} disabled={statusFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un estado" /></SelectTrigger></FormControl><SelectContent>{orderStatusesList.map((statusVal) => (<SelectItem key={statusVal} value={statusVal}>{statusVal}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+            
+            <FormField
+                control={form.control}
+                name="clavadistaId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center"><Award className="mr-2 h-4 w-4 text-primary" />Clavadista (Brand Ambassador)</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || NO_CLAVADISTA_VALUE} disabled={clavadistaFieldDisabled}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar clavadista" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={NO_CLAVADISTA_VALUE}>Ninguno</SelectItem>
+                        {clavadistas.map((clava: TeamMember) => (
+                          <SelectItem key={clava.id} value={clava.id}>{clava.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
             {(currentStatus === 'Confirmado' || currentStatus === 'Procesando' || currentStatus === 'Enviado' || currentStatus === 'Entregado' || currentStatus === 'Pendiente') && (
               <>
@@ -319,4 +351,3 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     </Dialog>
   );
 }
-

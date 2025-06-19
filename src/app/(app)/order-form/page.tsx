@@ -25,23 +25,25 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Check, Loader2, Info, Edit3, Send, FileText } from "lucide-react";
+import { Calendar as CalendarIcon, Check, Loader2, Info, Edit3, Send, FileText, Award } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { mockOrders, mockTeamMembers, clientTypeList, nextActionTypeList, failureReasonList, mockAccounts, orderStatusesList, accountTypeList } from "@/lib/data";
 import { kpiDataLaunch } from "@/lib/launch-dashboard-data";
-import type { Order, ClientType, NextActionType, FailureReasonType, Account, AccountType, AccountStatus } from "@/types";
+import type { Order, ClientType, NextActionType, FailureReasonType, Account, AccountType, AccountStatus, TeamMember } from "@/types";
 import { useAuth } from "@/contexts/auth-context"; 
 import { useSearchParams, useRouter } from "next/navigation";
 
 const SINGLE_PRODUCT_NAME = "Santa Brisa 750ml";
 const IVA_RATE = 21; // 21%
+const NO_CLAVADISTA_VALUE = "##NONE##";
 
 const orderFormSchemaBase = z.object({
   clientName: z.string().min(2, "El nombre del cliente debe tener al menos 2 caracteres."),
   visitDate: z.date({ required_error: "La fecha de visita es obligatoria." }),
   clientStatus: z.enum(["new", "existing"], { required_error: "Debe indicar si es un cliente nuevo o existente." }).optional(),
   outcome: z.enum(["Programar Visita", "successful", "failed", "follow-up"], { required_error: "Por favor, seleccione un resultado." }),
+  clavadistaId: z.string().optional(), // Can be "##NONE##" or an actual ID
   
   clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
   numberOfUnits: z.coerce.number().positive("El número de unidades debe ser un número positivo.").optional(),
@@ -124,6 +126,8 @@ export default function OrderFormPage() {
   const [pageTitle, setPageTitle] = React.useState("Registrar Visita / Pedido de Cliente");
   const [cardDescription, setCardDescription] = React.useState("Complete los detalles para registrar o programar una interacción.");
 
+  const clavadistas = React.useMemo(() => mockTeamMembers.filter(m => m.role === 'Clavadista'), []);
+
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(orderFormSchema),
     defaultValues: {
@@ -131,6 +135,7 @@ export default function OrderFormPage() {
       visitDate: new Date(), 
       clientStatus: undefined,
       outcome: undefined,
+      clavadistaId: NO_CLAVADISTA_VALUE,
       clientType: undefined,
       numberOfUnits: undefined,
       unitPrice: undefined,
@@ -171,6 +176,7 @@ export default function OrderFormPage() {
           visitDate: visitDateParsed,
           clientStatus: existingVisit.clientStatus || undefined, 
           outcome: undefined, 
+          clavadistaId: existingVisit.clavadistaId || NO_CLAVADISTA_VALUE,
           notes: existingVisit.notes || "", 
           clientType: existingVisit.clientType,
           numberOfUnits: existingVisit.numberOfUnits,
@@ -207,6 +213,7 @@ export default function OrderFormPage() {
             visitDate: new Date(),
             clientStatus: undefined,
             outcome: undefined,
+            clavadistaId: NO_CLAVADISTA_VALUE,
             notes: "", 
             nombreFiscal: "",
             cif: "",
@@ -270,6 +277,8 @@ export default function OrderFormPage() {
     let accountCreationMessage = "";
     let orderDetailsForMock: Partial<Order> = {};
     let associatedAccountId: string | undefined = undefined;
+    
+    const finalClavadistaId = values.clavadistaId === NO_CLAVADISTA_VALUE ? undefined : values.clavadistaId;
 
     if (values.clientStatus === "new") {
         let accountExists = false;
@@ -349,6 +358,7 @@ export default function OrderFormPage() {
             lastUpdated: currentDate,
             notes: values.notes, 
             clientStatus: values.clientStatus,
+            clavadistaId: finalClavadistaId,
             ...orderDetailsForMock, // Add account details from new/existing account
         };
 
@@ -398,6 +408,7 @@ export default function OrderFormPage() {
             const newProgrammedVisit: Order = {
                 id: `VISPROG_${Date.now()}`, clientName: values.clientName, visitDate: format(values.visitDate, "yyyy-MM-dd"),
                 status: 'Programada', salesRep: salesRepName, lastUpdated: currentDate, notes: values.notes, clientStatus: values.clientStatus,
+                clavadistaId: finalClavadistaId,
                 ...orderDetailsForMock
             };
             mockOrders.unshift(newProgrammedVisit);
@@ -407,7 +418,7 @@ export default function OrderFormPage() {
           const newOrder: Order = {
             id: `ORD_${Date.now()}`, clientName: values.clientName, visitDate: format(values.visitDate, "yyyy-MM-dd"), clientType: values.clientType, products: [SINGLE_PRODUCT_NAME], 
             numberOfUnits: values.numberOfUnits, unitPrice: values.unitPrice, value: values.orderValue, status: 'Confirmado', salesRep: salesRepName, lastUpdated: currentDate, 
-            notes: values.notes, clientStatus: values.clientStatus,
+            notes: values.notes, clientStatus: values.clientStatus, clavadistaId: finalClavadistaId,
             ...orderDetailsForMock 
           };
           mockOrders.unshift(newOrder);
@@ -427,7 +438,7 @@ export default function OrderFormPage() {
             const newFollowUpEntry: Order = {
                 id: `VISFLW_${Date.now()}`, clientName: values.clientName, visitDate: format(values.visitDate, "yyyy-MM-dd"), status: 'Seguimiento', salesRep: salesRepName, lastUpdated: currentDate,
                 nextActionType: values.nextActionType, nextActionCustom: values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : undefined, nextActionDate: values.nextActionDate ? format(values.nextActionDate, "yyyy-MM-dd") : undefined,
-                notes: values.notes, clientStatus: values.clientStatus, 
+                notes: values.notes, clientStatus: values.clientStatus, clavadistaId: finalClavadistaId,
                 ...orderDetailsForMock
             };
             mockOrders.unshift(newFollowUpEntry);
@@ -438,7 +449,7 @@ export default function OrderFormPage() {
                 id: `VISFLD_${Date.now()}`, clientName: values.clientName, visitDate: format(values.visitDate, "yyyy-MM-dd"), status: 'Fallido', salesRep: salesRepName, lastUpdated: currentDate,
                 nextActionType: values.nextActionType, nextActionCustom: values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : undefined, nextActionDate: values.nextActionDate ? format(values.nextActionDate, "yyyy-MM-dd") : undefined,
                 failureReasonType: values.failureReasonType, failureReasonCustom: values.failureReasonType === 'Otro (especificar)' ? values.failureReasonCustom : undefined,
-                notes: values.notes, clientStatus: values.clientStatus, 
+                notes: values.notes, clientStatus: values.clientStatus, clavadistaId: finalClavadistaId,
                 ...orderDetailsForMock
             };
             mockOrders.unshift(newFailedEntry);
@@ -451,7 +462,7 @@ export default function OrderFormPage() {
     }
 
     form.reset({ 
-        clientName: "", visitDate: new Date(), clientStatus: undefined, outcome: undefined, notes: "",
+        clientName: "", visitDate: new Date(), clientStatus: undefined, outcome: undefined, clavadistaId: NO_CLAVADISTA_VALUE, notes: "",
         nombreFiscal: "", cif: "", direccionFiscal: "", direccionEntrega: "", contactoNombre: "", contactoCorreo: "", contactoTelefono: "", observacionesAlta: "",
         clientType: undefined, numberOfUnits: undefined, unitPrice: undefined, orderValue: undefined,
         nextActionType: undefined, nextActionCustom: "", nextActionDate: undefined,
@@ -561,6 +572,32 @@ export default function OrderFormPage() {
                     )}
                 />
               )}
+
+              {/* Clavadista Select */}
+              <FormField
+                control={form.control}
+                name="clavadistaId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center"><Award className="mr-2 h-4 w-4 text-primary" />Clavadista (Brand Ambassador)</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || NO_CLAVADISTA_VALUE}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar clavadista (opcional)" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={NO_CLAVADISTA_VALUE}>Ninguno</SelectItem>
+                        {clavadistas.map((clava: TeamMember) => (
+                          <SelectItem key={clava.id} value={clava.id}>{clava.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>Seleccione si un clavadista participó en esta visita/venta.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
 
               {/* Fields for Successful Outcome */}

@@ -12,7 +12,7 @@ export const mockKpis: Kpi[] = [
 
 export const mockTeamMembers: TeamMember[] = [
   {
-    id: 'tm1', name: 'Nico', email: 'nico@santabrisa.com', avatarUrl: 'https://placehold.co/100x100.png?text=NI', role: 'SalesRep',
+    id: 'tm1', name: 'Nico (Rep)', email: 'nico@santabrisa.com', avatarUrl: 'https://placehold.co/100x100.png?text=NI', role: 'SalesRep',
     bottlesSold: 0,
     monthlyTargetAccounts: 20,
     monthlyTargetVisits: 100,
@@ -23,7 +23,7 @@ export const mockTeamMembers: TeamMember[] = [
     ],
   },
   {
-    id: 'tm2', name: 'Alfonso', email: 'alfonso@santabrisa.com', avatarUrl: 'https://placehold.co/100x100.png?text=AL', role: 'SalesRep',
+    id: 'tm2', name: 'Alfonso (Rep)', email: 'alfonso@santabrisa.com', avatarUrl: 'https://placehold.co/100x100.png?text=AL', role: 'SalesRep',
     bottlesSold: 0,
     monthlyTargetAccounts: 15,
     monthlyTargetVisits: 80,
@@ -34,7 +34,7 @@ export const mockTeamMembers: TeamMember[] = [
     ],
   },
   {
-    id: 'tm3', name: 'Federica', email: 'federica@santabrisa.com', avatarUrl: 'https://placehold.co/100x100.png?text=FE', role: 'SalesRep',
+    id: 'tm3', name: 'Federica (Rep)', email: 'federica@santabrisa.com', avatarUrl: 'https://placehold.co/100x100.png?text=FE', role: 'SalesRep',
     bottlesSold: 0,
     monthlyTargetAccounts: 10,
     monthlyTargetVisits: 60,
@@ -47,17 +47,25 @@ export const mockTeamMembers: TeamMember[] = [
   {
     id: 'admin01', name: 'Admin User', email: 'admin@santabrisa.com', role: 'Admin', avatarUrl: 'https://placehold.co/100x100.png?text=AU',
     bottlesSold: 0, orders: 0, visits: 0, performanceData: [],
-    monthlyTargetAccounts: 10, // Added for Admin
-    monthlyTargetVisits: 40,   // Added for Admin
+    monthlyTargetAccounts: 10, 
+    monthlyTargetVisits: 40,   
   },
   {
     id: 'adminMJ', name: 'Martín (Admin)', email: 'mj@santabrisa.com', role: 'Admin', avatarUrl: 'https://placehold.co/100x100.png?text=MJ',
     bottlesSold: 0, orders: 0, visits: 0, performanceData: [],
-    monthlyTargetAccounts: 15, // Added for Admin
-    monthlyTargetVisits: 50,   // Added for Admin
+    monthlyTargetAccounts: 15, 
+    monthlyTargetVisits: 50,   
   },
   {
     id: 'dist01', name: 'Distribuidor Principal', email: 'distribuidor@example.com', role: 'Distributor', avatarUrl: 'https://placehold.co/100x100.png?text=DP',
+    bottlesSold: 0, orders: 0, visits: 0, performanceData: []
+  },
+  {
+    id: 'clv01', name: 'Laura (Clavadista)', email: 'laura.clava@example.com', role: 'Clavadista', avatarUrl: 'https://placehold.co/100x100.png?text=LC',
+    bottlesSold: 0, orders: 0, visits: 0, performanceData: []
+  },
+  {
+    id: 'clv02', name: 'Carlos (Clavadista)', email: 'carlos.clava@example.com', role: 'Clavadista', avatarUrl: 'https://placehold.co/100x100.png?text=CC',
     bottlesSold: 0, orders: 0, visits: 0, performanceData: []
   }
 ];
@@ -73,33 +81,33 @@ const today = new Date();
 export const mockOrders: Order[] = [
   {
     id: 'ORD001', clientName: 'Bar El Estudiante', visitDate: format(subDays(today, 15), 'yyyy-MM-dd'),
-    products: ['Santa Brisa 750ml'], value: 350.75, status: 'Entregado', salesRep: 'Nico', lastUpdated: format(subDays(today, 10), 'yyyy-MM-dd'),
-    clientType: 'HORECA', numberOfUnits: 20, unitPrice: 14.50,
+    products: ['Santa Brisa 750ml'], value: 350.75, status: 'Entregado', salesRep: 'Nico (Rep)', lastUpdated: format(subDays(today, 10), 'yyyy-MM-dd'),
+    clientType: 'HORECA', numberOfUnits: 20, unitPrice: 14.50, clavadistaId: 'clv01',
     nombreFiscal: 'Bar El Estudiante SL', cif: 'B11111111', direccionFiscal: 'Calle Universidad 1, Madrid', direccionEntrega: 'Calle Universidad 1, Madrid',
     contactoNombre: 'Juan Dueño', contactoCorreo: 'juan@estudiante.es', contactoTelefono: '600111222'
   },
   {
     id: 'ORD002', clientName: 'Supermercado La Compra Feliz', visitDate: format(subDays(today, 5), 'yyyy-MM-dd'),
-    products: ['Santa Brisa 750ml'], value: 1200.50, status: 'Confirmado', salesRep: 'Alfonso', lastUpdated: format(subDays(today, 2), 'yyyy-MM-dd'),
-    clientType: 'Retail', numberOfUnits: 80, unitPrice: 12.50,
+    products: ['Santa Brisa 750ml'], value: 1200.50, status: 'Confirmado', salesRep: 'Alfonso (Rep)', lastUpdated: format(subDays(today, 2), 'yyyy-MM-dd'),
+    clientType: 'Retail', numberOfUnits: 80, unitPrice: 12.50, clavadistaId: undefined,
     nombreFiscal: 'La Compra Feliz SA', cif: 'A22222222', direccionFiscal: 'Avenida Comercial 5, Valencia', direccionEntrega: 'Avenida Comercial 5, Valencia',
     contactoNombre: 'Luisa Gerente', contactoCorreo: 'luisa@comprafeliz.com', contactoTelefono: '600222333'
   },
   {
     id: 'VISFLW001', clientName: 'Restaurante La Tertulia', visitDate: format(subDays(today, 8), 'yyyy-MM-dd'),
-    status: 'Seguimiento', salesRep: 'Nico', lastUpdated: format(subDays(today, 8), 'yyyy-MM-dd'),
+    status: 'Seguimiento', salesRep: 'Nico (Rep)', lastUpdated: format(subDays(today, 8), 'yyyy-MM-dd'), clavadistaId: 'clv02',
     nextActionType: 'Llamar al responsable de compras', nextActionDate: format(addDays(today, 2), 'yyyy-MM-dd'),
     notes: 'El responsable estaba de vacaciones, volver a contactar esta semana.'
   },
   {
     id: 'VISFLW002', clientName: 'Hotel Vista Hermosa', visitDate: format(subDays(today, 3), 'yyyy-MM-dd'),
-    status: 'Seguimiento', salesRep: 'Federica', lastUpdated: format(subDays(today, 3), 'yyyy-MM-dd'),
+    status: 'Seguimiento', salesRep: 'Federica (Rep)', lastUpdated: format(subDays(today, 3), 'yyyy-MM-dd'), clavadistaId: undefined,
     nextActionType: 'Enviar muestra', nextActionDate: format(addDays(today, 5), 'yyyy-MM-dd'),
     notes: 'Pidieron muestra del nuevo etiquetado.'
   },
   {
     id: 'VISFLD001', clientName: 'Tienda Gourmet El Rincón Sibarita', visitDate: format(subDays(today, 12), 'yyyy-MM-dd'),
-    status: 'Fallido', salesRep: 'Alfonso', lastUpdated: format(subDays(today, 12), 'yyyy-MM-dd'),
+    status: 'Fallido', salesRep: 'Alfonso (Rep)', lastUpdated: format(subDays(today, 12), 'yyyy-MM-dd'), clavadistaId: undefined,
     nextActionType: 'Visitar de nuevo', nextActionDate: format(addDays(today, 20), 'yyyy-MM-dd'),
     failureReasonType: 'Ya trabaja con otro proveedor',
     notes: 'Tienen exclusividad con otra marca, pero abiertos a revisar en 1 mes.'
@@ -107,61 +115,61 @@ export const mockOrders: Order[] = [
   {
     id: 'ORD003', clientName: 'Distribuciones Rápidas SL', visitDate: format(subDays(today, 25), 'yyyy-MM-dd'),
     products: ['Santa Brisa 750ml'], value: 2500.00, status: 'Entregado', salesRep: 'Admin User', lastUpdated: format(subDays(today, 20), 'yyyy-MM-dd'),
-    clientType: 'Distribuidor', numberOfUnits: 200, unitPrice: 10.00, 
+    clientType: 'Distribuidor', numberOfUnits: 200, unitPrice: 10.00, clavadistaId: undefined,
     nombreFiscal: 'Distribuciones Rápidas SL', cif: 'B33333333', direccionFiscal: 'Polígono Industrial El Viento, Parcela 10, Zaragoza',
     contactoNombre: 'Carlos Almacén', contactoCorreo: 'calmacen@rapidas.es', contactoTelefono: '600333444'
   },
   {
     id: 'VISFLW003', clientName: 'Catering Los Eventos Felices', visitDate: format(subDays(today, 1), 'yyyy-MM-dd'),
-    status: 'Seguimiento', salesRep: 'Nico', lastUpdated: format(subDays(today, 1), 'yyyy-MM-dd'),
+    status: 'Seguimiento', salesRep: 'Nico (Rep)', lastUpdated: format(subDays(today, 1), 'yyyy-MM-dd'), clavadistaId: 'clv01',
     nextActionType: 'Opción personalizada', nextActionCustom: 'Preparar propuesta para boda de 200 pax',
     nextActionDate: format(addDays(today, 7), 'yyyy-MM-dd'),
     notes: 'Necesitan presupuesto ajustado para un evento grande.'
   },
    {
     id: 'ORD004', clientName: 'Bar El Estudiante', visitDate: format(subDays(today, 2), 'yyyy-MM-dd'), 
-    products: ['Santa Brisa 750ml'], value: 175.50, status: 'Confirmado', salesRep: 'Nico', lastUpdated: format(subDays(today, 1), 'yyyy-MM-dd'),
-    clientType: 'HORECA', numberOfUnits: 10, unitPrice: 14.50,
+    products: ['Santa Brisa 750ml'], value: 175.50, status: 'Confirmado', salesRep: 'Nico (Rep)', lastUpdated: format(subDays(today, 1), 'yyyy-MM-dd'),
+    clientType: 'HORECA', numberOfUnits: 10, unitPrice: 14.50, clavadistaId: undefined,
     nombreFiscal: 'Bar El Estudiante SL', cif: 'B11111111', direccionFiscal: 'Calle Universidad 1, Madrid', direccionEntrega: 'Calle Universidad 1, Madrid',
     contactoNombre: 'Juan Dueño', contactoCorreo: 'juan@estudiante.es', contactoTelefono: '600111222'
   },
   {
     id: 'VISFLD002', clientName: 'Nuevo Bar Plaza', visitDate: format(subDays(today, 6), 'yyyy-MM-dd'),
-    status: 'Fallido', salesRep: 'Federica', lastUpdated: format(subDays(today, 6), 'yyyy-MM-dd'),
+    status: 'Fallido', salesRep: 'Federica (Rep)', lastUpdated: format(subDays(today, 6), 'yyyy-MM-dd'), clavadistaId: undefined,
     nextActionType: 'Mandar información', nextActionDate: format(addDays(today, 1), 'yyyy-MM-dd'),
     failureReasonType: 'No interesado',
     notes: 'Acaban de abrir, de momento no quieren más proveedores.'
   },
   {
     id: 'ORD005', clientName: 'Restaurante La Tertulia', visitDate: format(subDays(today, 1), 'yyyy-MM-dd'),
-    products: ['Santa Brisa 750ml'], value: 290.00, status: 'Procesando', salesRep: 'Nico', lastUpdated: format(subDays(today, 1), 'yyyy-MM-dd'),
+    products: ['Santa Brisa 750ml'], value: 290.00, status: 'Procesando', salesRep: 'Nico (Rep)', lastUpdated: format(subDays(today, 1), 'yyyy-MM-dd'),
     clientType: 'HORECA', numberOfUnits: 15, unitPrice: 16.00, // Adjusted price
     nombreFiscal: 'La Tertulia Gastronómica SLU', cif: 'B44444444', direccionFiscal: 'Calle Poeta 12, Sevilla', direccionEntrega: 'Calle Poeta 12, Sevilla',
-    contactoNombre: 'Elena Chef', contactoCorreo: 'elena.chef@latertulia.es', contactoTelefono: '600444555'
+    contactoNombre: 'Elena Chef', contactoCorreo: 'elena.chef@latertulia.es', contactoTelefono: '600444555', clavadistaId: 'clv02'
   },
   {
     id: 'VISFLW004', clientName: 'Vinoteca El Buen Gusto', visitDate: format(subDays(today, 4), 'yyyy-MM-dd'),
-    status: 'Seguimiento', salesRep: 'Alfonso', lastUpdated: format(subDays(today, 4), 'yyyy-MM-dd'),
+    status: 'Seguimiento', salesRep: 'Alfonso (Rep)', lastUpdated: format(subDays(today, 4), 'yyyy-MM-dd'), clavadistaId: undefined,
     nextActionType: 'Visitar de nuevo', nextActionDate: format(addDays(today, 10), 'yyyy-MM-dd'),
     notes: 'Interesados, pero quieren comparar con su proveedor actual. Nueva visita para cerrar.'
   },
   {
     id: 'ORD006', clientName: 'Hotel Vista Hermosa', visitDate: format(subDays(today, 9), 'yyyy-MM-dd'),
-    products: ['Santa Brisa 750ml'], value: 600.00, status: 'Entregado', salesRep: 'Federica', lastUpdated: format(subDays(today, 3), 'yyyy-MM-dd'),
-    clientType: 'HORECA', numberOfUnits: 40, unitPrice: 12.50,
+    products: ['Santa Brisa 750ml'], value: 600.00, status: 'Entregado', salesRep: 'Federica (Rep)', lastUpdated: format(subDays(today, 3), 'yyyy-MM-dd'),
+    clientType: 'HORECA', numberOfUnits: 40, unitPrice: 12.50, clavadistaId: undefined,
     nombreFiscal: 'Hotel Vista Hermosa SA', cif: 'A55555555', direccionFiscal: 'Carretera de la Costa km 25, Marbella',
     contactoNombre: 'Roberto Director', contactoCorreo: 'director@vistahotel.com', contactoTelefono: '600555666'
   },
    {
     id: 'ORD007', clientName: 'Supermercado La Compra Feliz', visitDate: format(addDays(today, -1), 'yyyy-MM-dd'), // Recent order
-    products: ['Santa Brisa 750ml'], value: 1500.00, status: 'Enviado', salesRep: 'Alfonso', lastUpdated: format(addDays(today, -1), 'yyyy-MM-dd'),
-    clientType: 'Retail', numberOfUnits: 100, unitPrice: 12.50,
+    products: ['Santa Brisa 750ml'], value: 1500.00, status: 'Enviado', salesRep: 'Alfonso (Rep)', lastUpdated: format(addDays(today, -1), 'yyyy-MM-dd'),
+    clientType: 'Retail', numberOfUnits: 100, unitPrice: 12.50, clavadistaId: undefined,
     nombreFiscal: 'La Compra Feliz SA', cif: 'A22222222', direccionFiscal: 'Avenida Comercial 5, Valencia',
     contactoNombre: 'Luisa Gerente', contactoCorreo: 'luisa@comprafeliz.com', contactoTelefono: '600222333'
   },
   {
     id: 'VISFLD003', clientName: 'Gastrobar Innova', visitDate: format(addDays(today, -10), 'yyyy-MM-dd'),
-    status: 'Fallido', salesRep: 'Nico', lastUpdated: format(addDays(today, -10), 'yyyy-MM-dd'),
+    status: 'Fallido', salesRep: 'Nico (Rep)', lastUpdated: format(addDays(today, -10), 'yyyy-MM-dd'), clavadistaId: 'clv01',
     nextActionType: 'Opción personalizada', nextActionCustom: 'Revisar contacto en 6 meses, cambio de gerencia',
     nextActionDate: format(addDays(today, 170), 'yyyy-MM-dd'), // Approx 6 months
     failureReasonType: 'Otro (especificar)', failureReasonCustom: 'Cambio reciente de propietario, no toman decisiones ahora.',
@@ -223,7 +231,7 @@ export const mockMarketingResources: MarketingResourceCategory[] = [
   },
 ];
 
-export const userRolesList: UserRole[] = ['Admin', 'SalesRep', 'Distributor'];
+export const userRolesList: UserRole[] = ['Admin', 'SalesRep', 'Distributor', 'Clavadista'];
 
 // CRM Account Data
 export const accountTypeList: AccountType[] = ['HORECA', 'Distribuidor', 'Retail Minorista', 'Gran Superficie', 'Evento Especial', 'Otro'];

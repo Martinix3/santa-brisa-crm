@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, Controller, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,14 +37,16 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { CrmEvent, CrmEventType, CrmEventStatus, TeamMember, AssignedPromotionalMaterial, PromotionalMaterial } from "@/types";
-import { crmEventTypeList, crmEventStatusList, mockPromotionalMaterials } from "@/lib/data"; // mockTeamMembers removed
-import { Loader2, Calendar as CalendarIcon, PlusCircle, Trash2, Package, Euro } from "lucide-react";
+import type { CrmEvent, CrmEventType, CrmEventStatus, TeamMember, PromotionalMaterial } from "@/types"; // Added PromotionalMaterial
+import { crmEventTypeList, crmEventStatusList } from "@/lib/data"; // mockPromotionalMaterials removed
+import { Loader2, Calendar as CalendarIcon, PlusCircle, Trash2, Package } from "lucide-react"; // Removed Euro
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid, subDays, isEqual } from "date-fns";
 import { es } from 'date-fns/locale';
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
+import { getPromotionalMaterialsFS } from "@/services/promotional-material-service"; // Service to fetch materials
+import { useToast } from "@/hooks/use-toast";
 
 const assignedMaterialSchema = z.object({
   materialId: z.string().min(1, "Debe seleccionar un material."),
@@ -80,12 +82,15 @@ interface EventDialogProps {
   onOpenChange: (open: boolean) => void;
   onSave: (data: EventFormValues, eventId?: string) => void;
   isReadOnly?: boolean;
-  allTeamMembers: TeamMember[]; // Pass all team members from the parent page
+  allTeamMembers: TeamMember[];
 }
 
 
 export default function EventDialog({ event, isOpen, onOpenChange, onSave, isReadOnly = false, allTeamMembers }: EventDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
+  const [availableMaterials, setAvailableMaterials] = React.useState<PromotionalMaterial[]>([]);
+  const [isLoadingMaterials, setIsLoadingMaterials] = React.useState(false);
+  const { toast } = useToast();
   
   const assignableTeamMembers = React.useMemo(() => {
     return allTeamMembers.filter(
@@ -107,13 +112,32 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
 
   const watchedMaterials = form.watch("assignedMaterials");
 
+  React.useEffect(() => {
+    async function loadMaterialsForDialog() {
+      if (isOpen) {
+        setIsLoadingMaterials(true);
+        try {
+          const materialsFromFS = await getPromotionalMaterialsFS();
+          setAvailableMaterials(materialsFromFS.filter(m => m.latestPurchase && m.latestPurchase.calculatedUnitCost > 0));
+        } catch (error) {
+          console.error("Error loading promotional materials for event dialog:", error);
+          toast({ title: "Error Materiales", description: "No se pudieron cargar los materiales promocionales.", variant: "destructive"});
+        } finally {
+          setIsLoadingMaterials(false);
+        }
+      }
+    }
+    loadMaterialsForDialog();
+  }, [isOpen, toast]);
+
+
   const totalEstimatedMaterialCost = React.useMemo(() => {
     return watchedMaterials.reduce((total, current) => {
-      const materialDetails = mockPromotionalMaterials.find(m => m.id === current.materialId);
+      const materialDetails = availableMaterials.find(m => m.id === current.materialId);
       const unitCost = materialDetails?.latestPurchase?.calculatedUnitCost || 0;
       return total + (unitCost * current.quantity);
     }, 0);
-  }, [watchedMaterials]);
+  }, [watchedMaterials, availableMaterials]);
 
 
   React.useEffect(() => {
@@ -206,25 +230,26 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
             />
             <div className="space-y-3">
               <FormLabel className="flex items-center"><Package className="mr-2 h-4 w-4 text-primary"/> Materiales Promocionales Asignados</FormLabel>
-              {materialFields.map((item, index) => {
-                const selectedMaterial = mockPromotionalMaterials.find(m => m.id === watchedMaterials[index]?.materialId);
-                const unitCost = selectedMaterial?.latestPurchase?.calculatedUnitCost || 0;
+              {isLoadingMaterials && <Loader2 className="h-4 w-4 animate-spin" />}
+              {!isLoadingMaterials && materialFields.map((item, index) => {
+                const selectedMaterialInfo = availableMaterials.find(m => m.id === watchedMaterials[index]?.materialId);
+                const unitCost = selectedMaterialInfo?.latestPurchase?.calculatedUnitCost || 0;
                 return (
                   <div key={item.id} className="flex items-end gap-2 p-3 border rounded-md bg-secondary/30">
-                    <FormField control={form.control} name={`assignedMaterials.${index}.materialId`} render={({ field }) => ( <FormItem className="flex-grow"><FormLabel className="text-xs">Material</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar material" /></SelectTrigger></FormControl><SelectContent>{mockPromotionalMaterials.map(mat => (<SelectItem key={mat.id} value={mat.id}>{mat.name} ({mat.type}) - <FormattedNumericValue value={mat.latestPurchase?.calculatedUnitCost || 0} options={{style:'currency', currency:'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4}}/></SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name={`assignedMaterials.${index}.materialId`} render={({ field }) => ( <FormItem className="flex-grow"><FormLabel className="text-xs">Material</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly || isLoadingMaterials}><FormControl><SelectTrigger><SelectValue placeholder={isLoadingMaterials ? "Cargando..." : "Seleccionar material"} /></SelectTrigger></FormControl><SelectContent>{availableMaterials.map(mat => (<SelectItem key={mat.id} value={mat.id}>{mat.name} ({mat.type}) - <FormattedNumericValue value={mat.latestPurchase?.calculatedUnitCost || 0} options={{style:'currency', currency:'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4}}/></SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name={`assignedMaterials.${index}.quantity`} render={({ field }) => (<FormItem className="w-24"><FormLabel className="text-xs">Cantidad</FormLabel><FormControl><Input type="number" {...field} disabled={isReadOnly} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} value={field.value ?? ""}/></FormControl><FormMessage /></FormItem>)} />
                     <div className="text-sm text-muted-foreground w-28 text-right whitespace-nowrap">{watchedMaterials[index]?.quantity > 0 ? (<FormattedNumericValue value={unitCost * watchedMaterials[index].quantity} options={{style:'currency', currency:'EUR'}} />) : <FormattedNumericValue value={0} options={{style:'currency', currency:'EUR'}} />}</div>
                     {!isReadOnly && (<Button type="button" variant="ghost" size="icon" onClick={() => removeMaterial(index)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>)}
                   </div>);
               })}
-              {!isReadOnly && (<Button type="button" variant="outline" size="sm" onClick={() => appendMaterial({ materialId: "", quantity: 1 })} className="mt-2"><PlusCircle className="mr-2 h-4 w-4" /> Añadir Material al Evento</Button>)}
+              {!isReadOnly && (<Button type="button" variant="outline" size="sm" onClick={() => appendMaterial({ materialId: "", quantity: 1 })} className="mt-2" disabled={isLoadingMaterials}><PlusCircle className="mr-2 h-4 w-4" /> Añadir Material al Evento</Button>)}
               {watchedMaterials.length > 0 && (<div className="text-right font-medium text-primary pt-2">Coste Total Estimado Materiales: <FormattedNumericValue value={totalEstimatedMaterialCost} options={{style:'currency', currency:'EUR'}} /></div>)}
             </div>
             <Separator className="my-4"/>
             <FormField control={form.control} name="notes" render={({ field }) => (<FormItem><FormLabel>Notas Internas (Opcional)</FormLabel><FormControl><Textarea placeholder="Cualquier información relevante para el equipo..." {...field} disabled={isReadOnly} className="min-h-[80px]" /></FormControl><FormMessage /></FormItem>)} />
             <DialogFooter className="pt-6">
               <DialogClose asChild><Button type="button" variant="outline" disabled={isSaving && !isReadOnly}>{isReadOnly ? "Cerrar" : "Cancelar"}</Button></DialogClose>
-              {!isReadOnly && (<Button type="submit" disabled={isSaving || (!form.formState.isDirty && !!event)}>{isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>) : (event ? "Guardar Cambios" : "Añadir Evento")}</Button>)}
+              {!isReadOnly && (<Button type="submit" disabled={isSaving || isLoadingMaterials || (!form.formState.isDirty && !!event)}>{isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>) : (event ? "Guardar Cambios" : "Añadir Evento")}</Button>)}
             </DialogFooter>
           </form>
         </Form>

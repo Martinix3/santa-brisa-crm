@@ -8,20 +8,24 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { mockPromotionalMaterials, promotionalMaterialTypeList } from "@/lib/data"; // Data for materials is still mock
+import { promotionalMaterialTypeList } from "@/lib/data"; // mockPromotionalMaterials removed from here
 import type { PromotionalMaterial, PromotionalMaterialType, UserRole, LatestPurchaseInfo } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { PlusCircle, Edit, Trash2, MoreHorizontal, PackagePlus, Filter, ChevronDown, AlertTriangle, CalendarDays } from "lucide-react";
+import { PlusCircle, Edit, Trash2, MoreHorizontal, PackagePlus, Filter, ChevronDown, AlertTriangle, CalendarDays, Loader2 } from "lucide-react";
 import PromotionalMaterialDialog, { type PromotionalMaterialFormValues } from "@/components/app/promotional-material-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { getPromotionalMaterialsFS, addPromotionalMaterialFS, updatePromotionalMaterialFS, deletePromotionalMaterialFS, initializeMockPromotionalMaterialsInFirestore } from "@/services/promotional-material-service";
+import { mockPromotionalMaterials as initialMockMaterialsForSeeding } from "@/lib/data"; // For seeding only
+
 
 export default function PromotionalMaterialsPage() {
   const { toast } = useToast();
   const { userRole } = useAuth();
-  const [materials, setMaterials] = React.useState<PromotionalMaterial[]>(() => [...mockPromotionalMaterials]);
+  const [materials, setMaterials] = React.useState<PromotionalMaterial[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
   const [editingMaterial, setEditingMaterial] = React.useState<PromotionalMaterial | null>(null);
   const [isMaterialDialogOpen, setIsMaterialDialogOpen] = React.useState(false);
   const [materialToDelete, setMaterialToDelete] = React.useState<PromotionalMaterial | null>(null);
@@ -30,6 +34,24 @@ export default function PromotionalMaterialsPage() {
   const [typeFilter, setTypeFilter] = React.useState<PromotionalMaterialType | "Todos">("Todos");
 
   const isAdmin = userRole === 'Admin';
+
+  React.useEffect(() => {
+    async function loadMaterials() {
+      setIsLoading(true);
+      try {
+        // await initializeMockPromotionalMaterialsInFirestore(initialMockMaterialsForSeeding); // Uncomment for one-time seeding
+        const firestoreMaterials = await getPromotionalMaterialsFS();
+        setMaterials(firestoreMaterials);
+      } catch (error) {
+        console.error("Error fetching promotional materials:", error);
+        toast({ title: "Error al Cargar Materiales", description: "No se pudieron cargar los materiales desde Firestore.", variant: "destructive" });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadMaterials();
+  }, [toast]);
+
 
   const handleAddNewMaterial = () => {
     if (!isAdmin) return;
@@ -43,61 +65,30 @@ export default function PromotionalMaterialsPage() {
     setIsMaterialDialogOpen(true);
   };
   
-  const handleSaveMaterial = (data: PromotionalMaterialFormValues, materialId?: string) => {
+  const handleSaveMaterial = async (data: PromotionalMaterialFormValues, materialId?: string) => {
     if (!isAdmin) return;
+    setIsLoading(true);
     
-    let successMessage = "";
-    let newLatestPurchase: LatestPurchaseInfo | undefined = undefined;
-
-    if (data.latestPurchaseQuantity && data.latestPurchaseTotalCost && data.latestPurchaseDate) {
-        const calculatedUnitCost = data.latestPurchaseTotalCost / data.latestPurchaseQuantity;
-        newLatestPurchase = {
-            quantityPurchased: data.latestPurchaseQuantity,
-            totalPurchaseCost: data.latestPurchaseTotalCost,
-            purchaseDate: format(data.latestPurchaseDate, "yyyy-MM-dd"),
-            calculatedUnitCost: parseFloat(calculatedUnitCost.toFixed(4)), 
-            notes: data.latestPurchaseNotes
-        };
-    }
-
-
-    if (materialId) { 
-      const updatedMaterials = materials.map(mat =>
-        mat.id === materialId ? { 
-            ...mat, 
-            name: data.name,
-            description: data.description,
-            type: data.type,
-            latestPurchase: newLatestPurchase || mat.latestPurchase 
-        } : mat
-      );
-      setMaterials(updatedMaterials);
-      const mockIndex = mockPromotionalMaterials.findIndex(mat => mat.id === materialId);
-      if (mockIndex !== -1) {
-        mockPromotionalMaterials[mockIndex] = { 
-            ...mockPromotionalMaterials[mockIndex], 
-            name: data.name,
-            description: data.description,
-            type: data.type,
-            latestPurchase: newLatestPurchase || mockPromotionalMaterials[mockIndex].latestPurchase
-        };
+    try {
+      let successMessage = "";
+      if (materialId) { 
+        await updatePromotionalMaterialFS(materialId, data);
+        successMessage = `El material "${data.name}" ha sido actualizado.`;
+      } else { 
+        await addPromotionalMaterialFS(data);
+        successMessage = `El material "${data.name}" ha sido añadido.`;
       }
-      successMessage = `El material "${data.name}" ha sido actualizado.`;
-    } else { 
-      const newMaterial: PromotionalMaterial = {
-        id: `mat_${Date.now()}`,
-        name: data.name,
-        description: data.description,
-        type: data.type,
-        latestPurchase: newLatestPurchase
-      };
-      setMaterials(prev => [newMaterial, ...prev]);
-      mockPromotionalMaterials.unshift(newMaterial); 
-      successMessage = `El material "${data.name}" ha sido añadido.`;
+      const updatedMaterials = await getPromotionalMaterialsFS();
+      setMaterials(updatedMaterials);
+      toast({ title: "¡Operación Exitosa!", description: successMessage });
+    } catch (error) {
+        console.error("Error saving promotional material:", error);
+        toast({ title: "Error al Guardar", description: "No se pudo guardar el material en Firestore.", variant: "destructive"});
+    } finally {
+        setIsLoading(false);
+        setIsMaterialDialogOpen(false);
+        setEditingMaterial(null);
     }
-    toast({ title: "¡Operación Exitosa!", description: successMessage });
-    setIsMaterialDialogOpen(false);
-    setEditingMaterial(null);
   };
 
   const handleDeleteMaterial = (material: PromotionalMaterial) => {
@@ -105,18 +96,20 @@ export default function PromotionalMaterialsPage() {
     setMaterialToDelete(material);
   };
 
-  const confirmDeleteMaterial = () => {
+  const confirmDeleteMaterial = async () => {
     if (!isAdmin || !materialToDelete) return;
-    
-    const updatedMaterials = materials.filter(mat => mat.id !== materialToDelete.id);
-    setMaterials(updatedMaterials);
-
-    const mockIndex = mockPromotionalMaterials.findIndex(mat => mat.id === materialToDelete.id);
-    if (mockIndex !== -1) {
-      mockPromotionalMaterials.splice(mockIndex, 1);
+    setIsLoading(true);
+    try {
+      await deletePromotionalMaterialFS(materialToDelete.id);
+      setMaterials(prev => prev.filter(mat => mat.id !== materialToDelete.id));
+      toast({ title: "¡Material Eliminado!", description: `El material "${materialToDelete.name}" ha sido eliminado.`, variant: "destructive" });
+    } catch (error) {
+        console.error("Error deleting promotional material:", error);
+        toast({ title: "Error al Eliminar", description: "No se pudo eliminar el material de Firestore.", variant: "destructive"});
+    } finally {
+        setIsLoading(false);
+        setMaterialToDelete(null);
     }
-    toast({ title: "¡Material Eliminado!", description: `El material "${materialToDelete.name}" ha sido eliminado.`, variant: "destructive" });
-    setMaterialToDelete(null);
   };
 
   const uniqueMaterialTypesForFilter = ["Todos", ...promotionalMaterialTypeList] as (PromotionalMaterialType | "Todos")[];
@@ -148,7 +141,7 @@ export default function PromotionalMaterialsPage() {
             <PackagePlus className="h-8 w-8 text-primary" />
             <h1 className="text-3xl font-headline font-semibold">Gestión de Materiales Promocionales</h1>
         </div>
-        <Button onClick={handleAddNewMaterial}>
+        <Button onClick={handleAddNewMaterial} disabled={isLoading}>
           <PlusCircle className="mr-2 h-4 w-4" /> Añadir Nuevo Material
         </Button>
       </header>
@@ -182,6 +175,12 @@ export default function PromotionalMaterialsPage() {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+          {isLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+              <p className="ml-4 text-muted-foreground">Cargando materiales...</p>
+            </div>
+          ) : (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -199,14 +198,14 @@ export default function PromotionalMaterialsPage() {
                     <TableCell className="font-medium">{material.name}</TableCell>
                     <TableCell>{material.type}</TableCell>
                     <TableCell className="text-right">
-                       {material.latestPurchase ? (
+                       {material.latestPurchase && material.latestPurchase.calculatedUnitCost !== undefined ? (
                            <FormattedNumericValue value={material.latestPurchase.calculatedUnitCost} locale="es-ES" options={{ style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4 }} />
                        ) : (
                            <span className="text-muted-foreground">N/D</span>
                        )}
                     </TableCell>
                     <TableCell className="text-center text-xs">
-                        {material.latestPurchase ? (
+                        {material.latestPurchase?.purchaseDate ? (
                             <div className="flex items-center justify-center">
                                 <CalendarDays size={14} className="mr-1 text-muted-foreground" />
                                 {format(parseISO(material.latestPurchase.purchaseDate), "dd/MM/yy", { locale: es })}
@@ -268,8 +267,9 @@ export default function PromotionalMaterialsPage() {
               </TableBody>
             </Table>
           </div>
+          )}
         </CardContent>
-        {filteredMaterials.length > 0 && (
+        {!isLoading && filteredMaterials.length > 0 && (
             <CardFooter>
                 <p className="text-xs text-muted-foreground">Total de materiales mostrados: {filteredMaterials.length} de {materials.length}</p>
             </CardFooter>

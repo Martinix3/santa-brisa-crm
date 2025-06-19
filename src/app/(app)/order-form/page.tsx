@@ -25,16 +25,18 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Check, Loader2, Info, Edit3, Send, FileText, Award, Package, PlusCircle, Trash2, Euro } from "lucide-react";
+import { Calendar as CalendarIcon, Check, Loader2, Info, Edit3, Send, FileText, Award, Package, PlusCircle, Trash2 } from "lucide-react"; // Removed Euro
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { mockTeamMembers, clientTypeList, nextActionTypeList, failureReasonList, accountTypeList, mockPromotionalMaterials } from "@/lib/data"; // mockOrders removed
-import type { Order, ClientType, NextActionType, FailureReasonType, Account, AccountType, AccountStatus, TeamMember, AssignedPromotionalMaterial } from "@/types";
+import { clientTypeList, nextActionTypeList, failureReasonList, accountTypeList } from "@/lib/data"; // mockPromotionalMaterials removed
+import type { Order, ClientType, NextActionType, FailureReasonType, Account, AccountType, AccountStatus, TeamMember, PromotionalMaterial } from "@/types"; // Added PromotionalMaterial
 import { useAuth } from "@/contexts/auth-context"; 
 import { useSearchParams, useRouter } from "next/navigation";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-import { getAccountByIdFS, addAccountFS, getAccountsFS } from "@/services/account-service"; // For new account creation
-import { getOrderByIdFS, addOrderFS, updateOrderFS } from "@/services/order-service"; // For orders
+import { getAccountByIdFS, addAccountFS, getAccountsFS } from "@/services/account-service"; 
+import { getOrderByIdFS, addOrderFS, updateOrderFS } from "@/services/order-service"; 
+import { getTeamMembersFS } from "@/services/team-member-service"; // For clavadistas
+import { getPromotionalMaterialsFS } from "@/services/promotional-material-service"; // For materials
 
 
 const SINGLE_PRODUCT_NAME = "Santa Brisa 750ml";
@@ -75,7 +77,7 @@ const orderFormSchemaBase = z.object({
   
   notes: z.string().optional(), 
   assignedMaterials: z.array(assignedMaterialSchema).optional().default([]),
-  accountId: z.string().optional(), // To store the ID of the linked account
+  accountId: z.string().optional(), 
 });
 
 const orderFormSchema = orderFormSchemaBase.superRefine((data, ctx) => {
@@ -131,13 +133,36 @@ export default function OrderFormPage() {
   const [editingVisitId, setEditingVisitId] = React.useState<string | null>(null);
   
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [isLoadingForm, setIsLoadingForm] = React.useState(false);
+  const [isLoadingForm, setIsLoadingForm] = React.useState(true); // Start true for initial data load
   const [subtotal, setSubtotal] = React.useState<number | undefined>(undefined);
   const [ivaAmount, setIvaAmount] = React.useState<number | undefined>(undefined);
   const [pageTitle, setPageTitle] = React.useState("Registrar Visita / Pedido de Cliente");
   const [cardDescription, setCardDescription] = React.useState("Complete los detalles para registrar o programar una interacción.");
 
-  const clavadistas = React.useMemo(() => mockTeamMembers.filter(m => m.role === 'Clavadista'), []);
+  const [clavadistas, setClavadistas] = React.useState<TeamMember[]>([]);
+  const [availableMaterials, setAvailableMaterials] = React.useState<PromotionalMaterial[]>([]);
+  const [isLoadingDropdownData, setIsLoadingDropdownData] = React.useState(true);
+
+
+  React.useEffect(() => {
+    async function loadDropdownData() {
+      setIsLoadingDropdownData(true);
+      try {
+        const [fetchedClavadistas, fetchedMaterials] = await Promise.all([
+          getTeamMembersFS(['Clavadista']),
+          getPromotionalMaterialsFS()
+        ]);
+        setClavadistas(fetchedClavadistas);
+        setAvailableMaterials(fetchedMaterials.filter(m => m.latestPurchase && m.latestPurchase.calculatedUnitCost > 0));
+      } catch (error) {
+        console.error("Error loading dropdown data for order form:", error);
+        toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar clavadistas o materiales.", variant: "destructive"});
+      } finally {
+        setIsLoadingDropdownData(false);
+      }
+    }
+    loadDropdownData();
+  }, [toast]);
 
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(orderFormSchema),
@@ -179,84 +204,88 @@ export default function OrderFormPage() {
 
   const totalEstimatedMaterialCostForOrder = React.useMemo(() => {
     return watchedMaterials.reduce((total, current) => {
-      const materialDetails = mockPromotionalMaterials.find(m => m.id === current.materialId);
+      const materialDetails = availableMaterials.find(m => m.id === current.materialId);
       const unitCost = materialDetails?.latestPurchase?.calculatedUnitCost || 0;
       return total + (unitCost * current.quantity);
     }, 0);
-  }, [watchedMaterials]);
+  }, [watchedMaterials, availableMaterials]);
 
 
   React.useEffect(() => {
     const visitIdToUpdate = searchParams.get('updateVisitId');
-    if (visitIdToUpdate) {
-      setIsLoadingForm(true);
-      getOrderByIdFS(visitIdToUpdate).then(existingVisit => {
-        if (existingVisit && teamMember && (existingVisit.salesRep === teamMember.name || userRole === 'Admin') && 
-            (existingVisit.status === 'Programada' || existingVisit.status === 'Seguimiento' || existingVisit.status === 'Fallido')) {
-          setEditingVisitId(visitIdToUpdate);
-          
-          let visitDateParsed = parseISO(existingVisit.visitDate);
-          if (!isValid(visitDateParsed)) visitDateParsed = new Date(); 
-          
-          const title = `Registrar Resultado: ${existingVisit.clientName} (${format(visitDateParsed, "dd/MM/yy", {locale: es})})`;
-          setPageTitle(title);
-          setCardDescription("Actualice el resultado de la visita o tarea de seguimiento programada.");
+    async function initializeForm() {
+        setIsLoadingForm(true);
+        if (visitIdToUpdate) {
+          try {
+            const existingVisit = await getOrderByIdFS(visitIdToUpdate);
+            if (existingVisit && teamMember && (existingVisit.salesRep === teamMember.name || userRole === 'Admin') && 
+                (existingVisit.status === 'Programada' || existingVisit.status === 'Seguimiento' || existingVisit.status === 'Fallido')) {
+              setEditingVisitId(visitIdToUpdate);
+              
+              let visitDateParsed = parseISO(existingVisit.visitDate);
+              if (!isValid(visitDateParsed)) visitDateParsed = new Date(); 
+              
+              const title = `Registrar Resultado: ${existingVisit.clientName} (${format(visitDateParsed, "dd/MM/yy", {locale: es})})`;
+              setPageTitle(title);
+              setCardDescription("Actualice el resultado de la visita o tarea de seguimiento programada.");
 
-          form.reset({
-            clientName: existingVisit.clientName,
-            visitDate: visitDateParsed,
-            clientStatus: existingVisit.clientStatus || undefined, 
-            outcome: undefined, 
-            clavadistaId: existingVisit.clavadistaId || NO_CLAVADISTA_VALUE,
-            notes: existingVisit.notes || "", 
-            clientType: existingVisit.clientType,
-            numberOfUnits: existingVisit.numberOfUnits,
-            unitPrice: existingVisit.unitPrice,
-            orderValue: existingVisit.value,
-            nombreFiscal: existingVisit.nombreFiscal || "",
-            cif: existingVisit.cif || "",
-            direccionFiscal: existingVisit.direccionFiscal || "",
-            direccionEntrega: existingVisit.direccionEntrega || "",
-            contactoNombre: existingVisit.contactoNombre || "",
-            contactoCorreo: existingVisit.contactoCorreo || "",
-            contactoTelefono: existingVisit.contactoTelefono || "",
-            observacionesAlta: existingVisit.observacionesAlta || "",
-            nextActionType: existingVisit.nextActionType,
-            nextActionCustom: existingVisit.nextActionCustom || "",
-            nextActionDate: existingVisit.nextActionDate ? parseISO(existingVisit.nextActionDate) : undefined,
-            failureReasonType: existingVisit.failureReasonType,
-            failureReasonCustom: existingVisit.failureReasonCustom || "",
-            assignedMaterials: existingVisit.assignedMaterials || [],
-            accountId: existingVisit.accountId,
-          });
-        } else if (existingVisit) {
-           toast({ title: "Acceso Denegado", description: "No tienes permiso para actualizar esta visita o ya ha sido procesada de otra forma.", variant: "destructive"});
-           router.push("/dashboard"); 
+              form.reset({
+                clientName: existingVisit.clientName,
+                visitDate: visitDateParsed,
+                clientStatus: existingVisit.clientStatus || undefined, 
+                outcome: undefined, 
+                clavadistaId: existingVisit.clavadistaId || NO_CLAVADISTA_VALUE,
+                notes: existingVisit.notes || "", 
+                clientType: existingVisit.clientType,
+                numberOfUnits: existingVisit.numberOfUnits,
+                unitPrice: existingVisit.unitPrice,
+                orderValue: existingVisit.value,
+                nombreFiscal: existingVisit.nombreFiscal || "",
+                cif: existingVisit.cif || "",
+                direccionFiscal: existingVisit.direccionFiscal || "",
+                direccionEntrega: existingVisit.direccionEntrega || "",
+                contactoNombre: existingVisit.contactoNombre || "",
+                contactoCorreo: existingVisit.contactoCorreo || "",
+                contactoTelefono: existingVisit.contactoTelefono || "",
+                observacionesAlta: existingVisit.observacionesAlta || "",
+                nextActionType: existingVisit.nextActionType,
+                nextActionCustom: existingVisit.nextActionCustom || "",
+                nextActionDate: existingVisit.nextActionDate && isValid(parseISO(existingVisit.nextActionDate)) ? parseISO(existingVisit.nextActionDate) : undefined,
+                failureReasonType: existingVisit.failureReasonType,
+                failureReasonCustom: existingVisit.failureReasonCustom || "",
+                assignedMaterials: existingVisit.assignedMaterials || [],
+                accountId: existingVisit.accountId,
+              });
+            } else if (existingVisit) {
+               toast({ title: "Acceso Denegado", description: "No tienes permiso para actualizar esta visita o ya ha sido procesada de otra forma.", variant: "destructive"});
+               router.push("/dashboard"); 
+            } else {
+              toast({ title: "Error", description: "Tarea no encontrada o ya procesada.", variant: "destructive"});
+              router.push("/my-agenda");
+            }
+          } catch (error) {
+            console.error("Error fetching visit to update:", error);
+            toast({ title: "Error al Cargar Tarea", description: "No se pudo cargar la tarea para actualizar.", variant: "destructive"});
+            router.push("/my-agenda");
+          }
         } else {
-          toast({ title: "Error", description: "Tarea no encontrada o ya procesada.", variant: "destructive"});
-          router.push("/my-agenda");
+            setEditingVisitId(null);
+            setPageTitle("Registrar Visita / Pedido de Cliente");
+            setCardDescription("Complete los detalles para registrar o programar una nueva interacción con un cliente.");
+            form.reset({ 
+                clientName: "", visitDate: new Date(), clientStatus: undefined, outcome: undefined, clavadistaId: NO_CLAVADISTA_VALUE, notes: "",
+                nombreFiscal: "", cif: "", direccionFiscal: "", direccionEntrega: "", contactoNombre: "", contactoCorreo: "", contactoTelefono: "", observacionesAlta: "",
+                clientType: undefined, numberOfUnits: undefined, unitPrice: undefined, orderValue: undefined,
+                nextActionType: undefined, nextActionCustom: "", nextActionDate: undefined,
+                failureReasonType: undefined, failureReasonCustom: "", assignedMaterials: [], accountId: undefined,
+            });
         }
-      }).catch(error => {
-        console.error("Error fetching visit to update:", error);
-        toast({ title: "Error al Cargar Tarea", description: "No se pudo cargar la tarea para actualizar.", variant: "destructive"});
-        router.push("/my-agenda");
-      }).finally(() => {
-        setIsLoadingForm(false);
-      });
-    } else {
-        setEditingVisitId(null);
-        setPageTitle("Registrar Visita / Pedido de Cliente");
-        setCardDescription("Complete los detalles para registrar o programar una nueva interacción con un cliente.");
-        form.reset({ 
-            clientName: "", visitDate: new Date(), clientStatus: undefined, outcome: undefined, clavadistaId: NO_CLAVADISTA_VALUE, notes: "",
-            nombreFiscal: "", cif: "", direccionFiscal: "", direccionEntrega: "", contactoNombre: "", contactoCorreo: "", contactoTelefono: "", observacionesAlta: "",
-            clientType: undefined, numberOfUnits: undefined, unitPrice: undefined, orderValue: undefined,
-            nextActionType: undefined, nextActionCustom: "", nextActionDate: undefined,
-            failureReasonType: undefined, failureReasonCustom: "", assignedMaterials: [], accountId: undefined,
-        });
         setIsLoadingForm(false);
     }
-  }, [searchParams, form, teamMember, userRole, router, toast]);
+    if (!isLoadingDropdownData) { // Only initialize form once dropdown data (clavadistas, materials) is loaded
+      initializeForm();
+    }
+  }, [searchParams, form, teamMember, userRole, router, toast, isLoadingDropdownData]);
 
 
   const outcomeWatched = form.watch("outcome");
@@ -294,15 +323,15 @@ export default function OrderFormPage() {
     }
 
     const salesRepName = teamMember.name;
-    let currentAccountId = values.accountId; // Use existing account ID if updating
+    let currentAccountId = values.accountId; 
     let accountCreationMessage = "";
 
     const finalClavadistaId = values.clavadistaId === NO_CLAVADISTA_VALUE ? undefined : values.clavadistaId;
 
     try {
-      if (values.clientStatus === "new" && !editingVisitId) { // Only create new account if not editing an existing visit linked to an account
+      if (values.clientStatus === "new" && !editingVisitId) { 
           let accountExists = false;
-          const allCurrentAccounts = await getAccountsFS(); // Check against current Firestore accounts
+          const allCurrentAccounts = await getAccountsFS(); 
 
           if (values.cif) {
               const existingAccountByCif = allCurrentAccounts.find(acc => acc.cif && acc.cif.toLowerCase() === values.cif!.toLowerCase());
@@ -390,7 +419,7 @@ export default function OrderFormPage() {
           toast({ title: "¡Visita Fallida Registrada!", description: <div className="flex items-start"><Info className="h-5 w-5 text-orange-500 mr-2 mt-1" /><p>Interacción fallida con {values.clientName} registrada.{accountCreationMessage}</p></div> });
       } else if (values.outcome === "Programar Visita") {
           orderData.status = 'Programada';
-          orderData.assignedMaterials = []; // No materials for programmed visits
+          orderData.assignedMaterials = []; 
           toast({ title: "¡Visita Programada!", description: <div className="flex items-start"><CalendarIcon className="h-5 w-5 text-purple-500 mr-2 mt-1" /><p>Visita para {values.clientName} programada para el {format(values.visitDate, "dd/MM/yyyy", { locale: es })}.{accountCreationMessage}</p></div> });
       } else {
           toast({ title: "Error de Envío", description: "Por favor, complete todos los campos obligatorios para el resultado seleccionado.", variant: "destructive" });
@@ -399,7 +428,7 @@ export default function OrderFormPage() {
       }
 
       if (editingVisitId) {
-        await updateOrderFS(editingVisitId, orderData as Order); // Cast as Order, assuming all fields are there
+        await updateOrderFS(editingVisitId, orderData as Order); 
       } else {
         await addOrderFS(orderData as Order);
       }
@@ -442,7 +471,7 @@ export default function OrderFormPage() {
     ? outcomeOptionsBase.filter(opt => opt.value !== "Programar Visita") 
     : outcomeOptionsBase;
 
-  if (isLoadingForm) {
+  if (isLoadingForm || isLoadingDropdownData) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -537,10 +566,10 @@ export default function OrderFormPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="flex items-center"><Award className="mr-2 h-4 w-4 text-primary" />Clavadista (Brand Ambassador)</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || NO_CLAVADISTA_VALUE}>
+                    <Select onValueChange={field.onChange} value={field.value || NO_CLAVADISTA_VALUE} disabled={isLoadingDropdownData}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar clavadista (opcional)" />
+                          <SelectValue placeholder={isLoadingDropdownData ? "Cargando..." : "Seleccionar clavadista (opcional)"} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -573,7 +602,7 @@ export default function OrderFormPage() {
                 </>
               )}
               
-              {showAccountCreationFields && !editingVisitId && ( //Only show if new client AND not editing existing order
+              {showAccountCreationFields && !editingVisitId && ( 
                 <>
                   <Separator className="my-6" />
                   <div className="space-y-1">
@@ -680,8 +709,9 @@ export default function OrderFormPage() {
                   <div className="space-y-3">
                     <FormLabel className="flex items-center text-lg font-medium"><Package className="mr-2 h-5 w-5 text-primary"/> Materiales Promocionales Asignados</FormLabel>
                     <FormDescription>Añada los materiales promocionales utilizados o entregados en esta interacción.</FormDescription>
-                    {materialFields.map((item, index) => {
-                      const selectedMaterial = mockPromotionalMaterials.find(m => m.id === watchedMaterials[index]?.materialId);
+                    {isLoadingDropdownData && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {!isLoadingDropdownData && materialFields.map((item, index) => {
+                      const selectedMaterial = availableMaterials.find(m => m.id === watchedMaterials[index]?.materialId);
                       const unitCost = selectedMaterial?.latestPurchase?.calculatedUnitCost || 0;
                       return (
                         <div key={item.id} className="flex items-end gap-2 p-3 border rounded-md bg-secondary/30">
@@ -691,10 +721,10 @@ export default function OrderFormPage() {
                             render={({ field }) => (
                               <FormItem className="flex-grow">
                                 <FormLabel className="text-xs">Material</FormLabel>
-                                <Select onValueChange={field.onChange} value={field.value}>
-                                  <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar material" /></SelectTrigger></FormControl>
+                                <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingDropdownData}>
+                                  <FormControl><SelectTrigger><SelectValue placeholder={isLoadingDropdownData ? "Cargando..." : "Seleccionar material"} /></SelectTrigger></FormControl>
                                   <SelectContent>
-                                    {mockPromotionalMaterials.map(mat => (
+                                    {availableMaterials.map(mat => (
                                       <SelectItem key={mat.id} value={mat.id}>{mat.name} ({mat.type}) - <FormattedNumericValue value={mat.latestPurchase?.calculatedUnitCost || 0} options={{style:'currency', currency:'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4}}/></SelectItem>
                                     ))}
                                   </SelectContent>
@@ -734,6 +764,7 @@ export default function OrderFormPage() {
                       size="sm"
                       onClick={() => appendMaterial({ materialId: "", quantity: 1 })}
                       className="mt-2"
+                      disabled={isLoadingDropdownData}
                     >
                       <PlusCircle className="mr-2 h-4 w-4" /> Añadir Material
                     </Button>
@@ -749,7 +780,7 @@ export default function OrderFormPage() {
               
               <FormField control={form.control} name="notes" render={({ field }) => (<FormItem><FormLabel>{outcomeWatched === "Programar Visita" ? "Objetivo de la Visita / Comentarios de Programación (Opcional)" : "Notas Adicionales Generales"}</FormLabel><FormControl><Textarea placeholder={outcomeWatched === "Programar Visita" ? "Detalles sobre el propósito de la visita programada..." : "Cualquier otra información relevante sobre la visita o pedido..."} {...field} /></FormControl><FormMessage /></FormItem>)}/>
               <CardFooter className="p-0 pt-4">
-                <Button type="submit" className="w-full" disabled={isSubmitting || !teamMember}>
+                <Button type="submit" className="w-full" disabled={isSubmitting || !teamMember || isLoadingDropdownData}>
                   {isSubmitting ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Enviando...</>) : (editingVisitId ? "Guardar Resultado de Interacción" : "Enviar Registro")}
                 </Button>
               </CardFooter>

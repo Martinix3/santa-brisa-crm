@@ -35,14 +35,17 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { Order, OrderStatus, UserRole, TeamMember, NextActionType, FailureReasonType, ClientType, AssignedPromotionalMaterial } from "@/types";
-import { orderStatusesList, mockTeamMembers, nextActionTypeList, failureReasonList, clientTypeList, mockPromotionalMaterials } from "@/lib/data";
-import { Loader2, CalendarIcon, Printer, Award, Package, PlusCircle, Trash2, Euro } from "lucide-react";
+import type { Order, OrderStatus, UserRole, TeamMember, NextActionType, FailureReasonType, ClientType, PromotionalMaterial } from "@/types"; // Added PromotionalMaterial
+import { orderStatusesList, nextActionTypeList, failureReasonList, clientTypeList } from "@/lib/data"; // mockTeamMembers, mockPromotionalMaterials removed
+import { Loader2, CalendarIcon, Printer, Award, Package, PlusCircle, Trash2 } from "lucide-react"; // Removed Euro
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
+import { getTeamMembersFS } from "@/services/team-member-service";
+import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
+import { useToast } from "@/hooks/use-toast";
 
 
 const NO_CLAVADISTA_VALUE = "##NONE##";
@@ -128,8 +131,38 @@ interface EditOrderDialogProps {
 
 export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, currentUserRole }: EditOrderDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
-  const clavadistas = React.useMemo(() => mockTeamMembers.filter(m => m.role === 'Clavadista'), []);
-  
+  const [clavadistas, setClavadistas] = React.useState<TeamMember[]>([]);
+  const [salesReps, setSalesReps] = React.useState<TeamMember[]>([]);
+  const [availableMaterials, setAvailableMaterials] = React.useState<PromotionalMaterial[]>([]);
+  const [isLoadingDropdownData, setIsLoadingDropdownData] = React.useState(true);
+  const { toast } = useToast();
+
+
+  React.useEffect(() => {
+    async function loadDataForDialog() {
+      if (isOpen) {
+        setIsLoadingDropdownData(true);
+        try {
+          const [fetchedClavadistas, fetchedSalesReps, fetchedMaterials] = await Promise.all([
+            getTeamMembersFS(['Clavadista']),
+            getTeamMembersFS(['SalesRep', 'Admin']),
+            getPromotionalMaterialsFS()
+          ]);
+          setClavadistas(fetchedClavadistas);
+          setSalesReps(fetchedSalesReps);
+          setAvailableMaterials(fetchedMaterials.filter(m => m.latestPurchase && m.latestPurchase.calculatedUnitCost > 0));
+        } catch (error) {
+          console.error("Error loading data for edit order dialog:", error);
+          toast({ title: "Error Datos Diálogo", description: "No se pudieron cargar datos para el diálogo.", variant: "destructive"});
+        } finally {
+          setIsLoadingDropdownData(false);
+        }
+      }
+    }
+    loadDataForDialog();
+  }, [isOpen, toast]);
+
+
   const form = useForm<EditOrderFormValues>({
     resolver: zodResolver(editOrderFormSchema),
     defaultValues: {
@@ -151,11 +184,11 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
 
   const totalEstimatedMaterialCostForDialog = React.useMemo(() => {
     return watchedMaterials.reduce((total, current) => {
-      const materialDetails = mockPromotionalMaterials.find(m => m.id === current.materialId);
+      const materialDetails = availableMaterials.find(m => m.id === current.materialId);
       const unitCost = materialDetails?.latestPurchase?.calculatedUnitCost || 0;
       return total + (unitCost * current.quantity);
     }, 0);
-  }, [watchedMaterials]);
+  }, [watchedMaterials, availableMaterials]);
 
 
   const currentStatus = form.watch("status");
@@ -164,7 +197,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
 
 
   React.useEffect(() => {
-    if (order && isOpen) {
+    if (order && isOpen && !isLoadingDropdownData) { // Ensure dropdown data is loaded before resetting form
       form.reset({
         clientName: order.clientName,
         products: order.products?.join(",\n") || "",
@@ -192,7 +225,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         failureReasonCustom: order.failureReasonCustom || "",
       });
     }
-  }, [order, isOpen, form]);
+  }, [order, isOpen, form, isLoadingDropdownData]);
 
   const onSubmit = async (data: EditOrderFormValues) => {
     if (!order) return;
@@ -201,14 +234,13 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     const saveData: EditOrderFormValues = {
         ...data,
         clavadistaId: data.clavadistaId === NO_CLAVADISTA_VALUE ? undefined : data.clavadistaId,
-        nextActionDate: data.nextActionDate ? data.nextActionDate : undefined, // Already a Date object from form
+        nextActionDate: data.nextActionDate ? data.nextActionDate : undefined, 
         assignedMaterials: data.assignedMaterials || [],
     };
 
     await new Promise(resolve => setTimeout(resolve, 700));
     onSave(saveData, order.id);
     setIsSaving(false);
-    // onOpenChange(false); // Let parent handle dialog close
   };
 
   const handlePrint = () => {
@@ -225,14 +257,14 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const canEditStatusAndFollowUp = isAdmin || isDistributor; 
   const isReadOnly = isSalesRep && !isAdmin; 
 
-  const formFieldsGenericDisabled = isReadOnly || (!canEditFullOrderDetails && !canEditStatusAndFollowUp);
-  const productRelatedFieldsDisabled = isReadOnly || !canEditFullOrderDetails || currentStatus === 'Seguimiento' || currentStatus === 'Fallido' || currentStatus === 'Programada';
-  const billingFieldsDisabled = isReadOnly || !canEditFullOrderDetails || currentStatus === 'Seguimiento' || currentStatus === 'Fallido' || currentStatus === 'Programada';
-  const followUpFieldsDisabled = isReadOnly || !canEditStatusAndFollowUp;
-  const statusFieldDisabled = isReadOnly || (!isAdmin && !isDistributor);
-  const salesRepFieldDisabled = isReadOnly || !isAdmin;
-  const clavadistaFieldDisabled = isReadOnly || !canEditFullOrderDetails;
-  const materialsSectionDisabled = isReadOnly || !canEditFullOrderDetails || currentStatus === 'Programada';
+  const formFieldsGenericDisabled = isReadOnly || (!canEditFullOrderDetails && !canEditStatusAndFollowUp) || isLoadingDropdownData;
+  const productRelatedFieldsDisabled = isReadOnly || !canEditFullOrderDetails || currentStatus === 'Seguimiento' || currentStatus === 'Fallido' || currentStatus === 'Programada' || isLoadingDropdownData;
+  const billingFieldsDisabled = isReadOnly || !canEditFullOrderDetails || currentStatus === 'Seguimiento' || currentStatus === 'Fallido' || currentStatus === 'Programada' || isLoadingDropdownData;
+  const followUpFieldsDisabled = isReadOnly || !canEditStatusAndFollowUp || isLoadingDropdownData;
+  const statusFieldDisabled = isReadOnly || (!isAdmin && !isDistributor) || isLoadingDropdownData;
+  const salesRepFieldDisabled = isReadOnly || !isAdmin || isLoadingDropdownData;
+  const clavadistaFieldDisabled = isReadOnly || !canEditFullOrderDetails || isLoadingDropdownData;
+  const materialsSectionDisabled = isReadOnly || !canEditFullOrderDetails || currentStatus === 'Programada' || isLoadingDropdownData;
 
 
   return (
@@ -248,12 +280,17 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
               : "Modifique los detalles y el estado. Haga clic en guardar cuando haya terminado."}
           </DialogDescription>
         </DialogHeader>
+        {isLoadingDropdownData ? (
+            <div className="flex justify-center items-center h-[300px]">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        ) : (
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
             <h3 className="text-md font-medium text-muted-foreground pt-2">Detalles Generales</h3>
             <Separator />
             <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="Nombre del cliente" {...field} disabled={formFieldsGenericDisabled || !canEditFullOrderDetails} /></FormControl><FormMessage /></FormItem>)} />
-            <FormField control={form.control} name="salesRep" render={({ field }) => (<FormItem><FormLabel>Representante de Ventas</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={salesRepFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un representante" /></SelectTrigger></FormControl><SelectContent>{mockTeamMembers.filter(member => member.role === 'SalesRep' || member.role === 'Admin').map((member: TeamMember) => (<SelectItem key={member.id} value={member.name}>{member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+            <FormField control={form.control} name="salesRep" render={({ field }) => (<FormItem><FormLabel>Representante de Ventas</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={salesRepFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un representante" /></SelectTrigger></FormControl><SelectContent>{salesReps.map((member: TeamMember) => (<SelectItem key={member.id} value={member.name}>{member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
             <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value} disabled={statusFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un estado" /></SelectTrigger></FormControl><SelectContent>{orderStatusesList.map((statusVal) => (<SelectItem key={statusVal} value={statusVal}>{statusVal}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
             
             <FormField
@@ -342,9 +379,10 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                   <h3 className="text-md font-medium text-muted-foreground pt-4">Materiales Promocionales Asignados</h3>
                   <Separator />
                   <div className="space-y-3">
-                    {materialFields.map((item, index) => {
-                      const selectedMaterial = mockPromotionalMaterials.find(m => m.id === watchedMaterials[index]?.materialId);
-                      const unitCost = selectedMaterial?.latestPurchase?.calculatedUnitCost || 0;
+                    {isLoadingDropdownData && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {!isLoadingDropdownData && materialFields.map((item, index) => {
+                      const selectedMaterialInfo = availableMaterials.find(m => m.id === watchedMaterials[index]?.materialId);
+                      const unitCost = selectedMaterialInfo?.latestPurchase?.calculatedUnitCost || 0;
                       return (
                         <div key={item.id} className="flex items-end gap-2 p-3 border rounded-md bg-secondary/30">
                           <FormField
@@ -354,9 +392,9 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                               <FormItem className="flex-grow">
                                 <FormLabel className="text-xs">Material</FormLabel>
                                 <Select onValueChange={field.onChange} value={field.value} disabled={materialsSectionDisabled}>
-                                  <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar material" /></SelectTrigger></FormControl>
+                                  <FormControl><SelectTrigger><SelectValue placeholder={isLoadingDropdownData ? "Cargando..." : "Seleccionar material"} /></SelectTrigger></FormControl>
                                   <SelectContent>
-                                    {mockPromotionalMaterials.map(mat => (
+                                    {availableMaterials.map(mat => (
                                       <SelectItem key={mat.id} value={mat.id}>{mat.name} ({mat.type}) - <FormattedNumericValue value={mat.latestPurchase?.calculatedUnitCost || 0} options={{style:'currency', currency:'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4 }}/></SelectItem>
                                     ))}
                                   </SelectContent>
@@ -399,6 +437,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                         size="sm"
                         onClick={() => appendMaterial({ materialId: "", quantity: 1 })}
                         className="mt-2"
+                        disabled={isLoadingDropdownData}
                       >
                         <PlusCircle className="mr-2 h-4 w-4" /> Añadir Material
                       </Button>
@@ -423,13 +462,14 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
               </Button>
               <DialogClose asChild><Button type="button" variant="outline" disabled={isSaving}>Cancelar</Button></DialogClose>
               {!isReadOnly && (
-                <Button type="submit" disabled={isSaving || (!form.formState.isDirty && (currentUserRole === 'Admin' || currentUserRole === 'Distributor'))}>
+                <Button type="submit" disabled={isSaving || isLoadingDropdownData || (!form.formState.isDirty && (currentUserRole === 'Admin' || currentUserRole === 'Distributor'))}>
                   {isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>) : ("Guardar Cambios")}
                 </Button>
               )}
             </DialogFooter>
           </form>
         </Form>
+        )}
       </DialogContent>
     </Dialog>
   );

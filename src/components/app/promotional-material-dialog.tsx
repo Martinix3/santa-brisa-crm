@@ -35,12 +35,12 @@ import {
 } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import type { PromotionalMaterial, PromotionalMaterialType, LatestPurchaseInfo } from "@/types";
+import type { PromotionalMaterial, PromotionalMaterialType } from "@/types"; // Removed LatestPurchaseInfo as it's part of form values
 import { promotionalMaterialTypeList } from "@/lib/data";
-import { Loader2, Calendar as CalendarIcon, Euro } from "lucide-react";
+import { Loader2, Calendar as CalendarIcon } from "lucide-react"; // Removed Euro icon as FormattedNumericValue handles it
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { format, parseISO, isValid } from "date-fns";
+import { format, parseISO, isValid, subDays, isEqual } from "date-fns";
 import { es } from 'date-fns/locale';
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 
@@ -51,11 +51,22 @@ const materialFormSchema = z.object({
   type: z.enum(promotionalMaterialTypeList as [PromotionalMaterialType, ...PromotionalMaterialType[]], {
     required_error: "El tipo de material es obligatorio.",
   }),
-  // Fields for the latest purchase
   latestPurchaseQuantity: z.coerce.number().min(1, "La cantidad comprada debe ser al menos 1.").optional(),
-  latestPurchaseTotalCost: z.coerce.number().min(0, "El coste total debe ser no negativo.").optional(),
+  latestPurchaseTotalCost: z.coerce.number().min(0.01, "El coste total debe ser positivo.").optional(),
   latestPurchaseDate: z.date().optional(),
   latestPurchaseNotes: z.string().optional(),
+}).superRefine((data, ctx) => {
+    if (data.latestPurchaseQuantity || data.latestPurchaseTotalCost || data.latestPurchaseDate) {
+        if (data.latestPurchaseQuantity === undefined || data.latestPurchaseQuantity <= 0) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Cantidad es obligatoria si se registran datos de compra.", path: ["latestPurchaseQuantity"]});
+        }
+        if (data.latestPurchaseTotalCost === undefined || data.latestPurchaseTotalCost <= 0) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Coste total es obligatorio si se registran datos de compra.", path: ["latestPurchaseTotalCost"]});
+        }
+        if (data.latestPurchaseDate === undefined) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Fecha de compra es obligatoria si se registran datos de compra.", path: ["latestPurchaseDate"]});
+        }
+    }
 });
 
 export type PromotionalMaterialFormValues = z.infer<typeof materialFormSchema>;
@@ -105,7 +116,7 @@ export default function PromotionalMaterialDialog({ material, isOpen, onOpenChan
           type: material.type,
           latestPurchaseQuantity: material.latestPurchase?.quantityPurchased,
           latestPurchaseTotalCost: material.latestPurchase?.totalPurchaseCost,
-          latestPurchaseDate: material.latestPurchase?.purchaseDate ? parseISO(material.latestPurchase.purchaseDate) : undefined,
+          latestPurchaseDate: material.latestPurchase?.purchaseDate && isValid(parseISO(material.latestPurchase.purchaseDate)) ? parseISO(material.latestPurchase.purchaseDate) : undefined,
           latestPurchaseNotes: material.latestPurchase?.notes || "",
         });
         if (material.latestPurchase) {
@@ -120,7 +131,7 @@ export default function PromotionalMaterialDialog({ material, isOpen, onOpenChan
           type: undefined,
           latestPurchaseQuantity: undefined,
           latestPurchaseTotalCost: undefined,
-          latestPurchaseDate: new Date(), // Default to today for new purchase
+          latestPurchaseDate: new Date(), 
           latestPurchaseNotes: "",
         });
         setCalculatedUnitCost(null);
@@ -132,11 +143,8 @@ export default function PromotionalMaterialDialog({ material, isOpen, onOpenChan
     if (isReadOnly) return;
     setIsSaving(true);
     
-    // Prepare data for saving, especially the latestPurchase object
-    const saveData = { ...data }; 
-    
     await new Promise(resolve => setTimeout(resolve, 500)); 
-    onSave(saveData, material?.id);
+    onSave(data, material?.id);
     setIsSaving(false);
   };
 
@@ -255,7 +263,11 @@ export default function PromotionalMaterialDialog({ material, isOpen, onOpenChan
                         </FormControl>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={isReadOnly} initialFocus locale={es}/>
+                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} 
+                          disabled={isReadOnly || ((date: Date) => date > new Date() || date < new Date("2000-01-01"))} 
+                          initialFocus 
+                          locale={es}
+                        />
                       </PopoverContent>
                     </Popover>
                   <FormMessage />
@@ -295,7 +307,7 @@ export default function PromotionalMaterialDialog({ material, isOpen, onOpenChan
                 </Button>
               </DialogClose>
               {!isReadOnly && (
-                <Button type="submit" disabled={isSaving || (!form.formState.isDirty && !!material && !form.formState.dirtyFields.latestPurchaseQuantity && !form.formState.dirtyFields.latestPurchaseTotalCost)}>
+                <Button type="submit" disabled={isSaving || (!form.formState.isDirty && !!material )}>
                   {isSaving ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />

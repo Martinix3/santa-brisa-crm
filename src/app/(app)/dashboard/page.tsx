@@ -15,12 +15,13 @@ import {
   objetivoTotalCuentasEquipoAnual,
   mockStrategicObjectives
 } from "@/lib/launch-dashboard-data";
-import { mockTeamMembers } from "@/lib/data"; 
+// mockTeamMembers removed from direct import for data
 import { CheckCircle2, Circle, Loader2 } from "lucide-react";
 import { parseISO, getYear, getMonth, isSameYear, isSameMonth, isValid } from 'date-fns';
 import { useAuth } from "@/contexts/auth-context"; 
 import { getOrdersFS } from "@/services/order-service";
 import { getAccountsFS } from "@/services/account-service";
+import { getTeamMembersFS } from "@/services/team-member-service"; // Import service for team members
 
 const distributionChartConfig = {
   value: { label: "Botellas" },
@@ -39,6 +40,7 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [orders, setOrders] = React.useState<Order[]>([]);
   const [accounts, setAccounts] = React.useState<Account[]>([]);
+  const [allTeamMembers, setAllTeamMembers] = React.useState<TeamMember[]>([]); // State for all team members
   const [calculatedKpiData, setCalculatedKpiData] = React.useState<Kpi[]>(initialKpiDataLaunch);
 
 
@@ -46,15 +48,18 @@ export default function DashboardPage() {
     async function loadDashboardData() {
       setIsLoading(true);
       try {
-        const [fetchedOrders, fetchedAccounts] = await Promise.all([
+        const [fetchedOrders, fetchedAccounts, fetchedTeamMembers] = await Promise.all([
           getOrdersFS(),
           getAccountsFS(),
+          getTeamMembersFS(['SalesRep']), // Fetch only SalesRep for relevant calculations here
         ]);
         setOrders(fetchedOrders);
         setAccounts(fetchedAccounts);
+        setAllTeamMembers(fetchedTeamMembers); // Set fetched team members
 
         const validOrderStatusesForSales = ['Confirmado', 'Procesando', 'Enviado', 'Entregado'];
-        const salesTeamMemberIds = mockTeamMembers // Assuming mockTeamMembers is still the source for SalesRep definitions
+        
+        const salesTeamMemberIds = fetchedTeamMembers // Use fetchedTeamMembers
             .filter(m => m.role === 'SalesRep')
             .map(m => m.id);
         
@@ -69,7 +74,7 @@ export default function DashboardPage() {
           if (validOrderStatusesForSales.includes(order.status)) {
             if (order.numberOfUnits) {
               totalBottlesSoldOverall += order.numberOfUnits;
-              const orderSalesRepDetails = mockTeamMembers.find(m => m.name === order.salesRep);
+              const orderSalesRepDetails = fetchedTeamMembers.find(m => m.name === order.salesRep); // Use fetchedTeamMembers
               if (orderSalesRepDetails && orderSalesRepDetails.role === 'SalesRep') {
                 teamBottlesSoldOverall += order.numberOfUnits;
               }
@@ -83,6 +88,7 @@ export default function DashboardPage() {
 
         const currentDate = new Date();
         fetchedAccounts.forEach(account => {
+          // Ensure salesRepId is checked against the salesTeamMemberIds which are actual Firestore IDs
           if (account.salesRepId && salesTeamMemberIds.includes(account.salesRepId)) {
             const accountCreationDate = parseISO(account.createdAt);
              if (isValid(accountCreationDate)) {
@@ -116,13 +122,12 @@ export default function DashboardPage() {
 
       } catch (error) {
         console.error("Error loading dashboard data:", error);
-        // Potentially set an error state to show in UI
       } finally {
         setIsLoading(false);
       }
     }
     loadDashboardData();
-  }, []); // Re-run if teamMember changes, for SalesRep specific views
+  }, []);
 
   const currentMonthNewAccountsByRep = React.useMemo(() => {
     if (!teamMember || userRole !== 'SalesRep' || accounts.length === 0) return 0; 
@@ -147,7 +152,8 @@ export default function DashboardPage() {
     ).length;
   }, [teamMember, userRole, orders]);
 
-  const salesRepsForTeamProgress = React.useMemo(() => mockTeamMembers.filter(m => m.role === 'SalesRep'), []);
+  // Use allTeamMembers (loaded from Firestore) for salesRepsForTeamProgress
+  const salesRepsForTeamProgress = React.useMemo(() => allTeamMembers.filter(m => m.role === 'SalesRep'), [allTeamMembers]);
   
   const teamMonthlyTargetAccounts = React.useMemo(() => {
     if (userRole !== 'Admin') return 0;
@@ -155,7 +161,7 @@ export default function DashboardPage() {
   }, [userRole, salesRepsForTeamProgress]);
 
   const teamMonthlyAchievedAccounts = React.useMemo(() => {
-    if (userRole !== 'Admin' || accounts.length === 0) return 0;
+    if (userRole !== 'Admin' || accounts.length === 0 || salesRepsForTeamProgress.length === 0) return 0;
     const currentDate = new Date();
     const salesRepIds = salesRepsForTeamProgress.map(rep => rep.id);
     return accounts.filter(acc => 
@@ -172,7 +178,7 @@ export default function DashboardPage() {
   }, [userRole, salesRepsForTeamProgress]);
 
   const teamMonthlyAchievedVisits = React.useMemo(() => {
-    if (userRole !== 'Admin' || orders.length === 0) return 0;
+    if (userRole !== 'Admin' || orders.length === 0 || salesRepsForTeamProgress.length === 0) return 0;
     const currentDate = new Date();
     const salesRepNames = salesRepsForTeamProgress.map(rep => rep.name);
     return orders.filter(order =>
@@ -195,7 +201,7 @@ export default function DashboardPage() {
 
   const ventasDistribucionData = [
     { name: "Ventas Equipo", value: ventasEquipoActuales, fill: "hsl(var(--brand-turquoise-hsl))" },
-    { name: "Resto Canales", value: restoCanalesVentas, fill: "hsl(var(--primary))" },
+    { name: "Resto Canales", value: Math.max(0, restoCanalesVentas), fill: "hsl(var(--primary))" }, // Ensure non-negative
   ];
 
   const faltanteVentasEquipo = Math.max(0, objetivoTotalVentasEquipo - ventasEquipoActuales);
@@ -527,3 +533,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    

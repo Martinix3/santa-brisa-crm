@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { TeamMember, Order } from "@/types";
-// mockTeamMembers removed
 import { Package, Briefcase, Footprints, Users, Eye, Loader2 } from 'lucide-react';
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 import { Progress } from "@/components/ui/progress";
@@ -15,7 +14,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { getOrdersFS } from '@/services/order-service';
 import { getAccountsFS } from '@/services/account-service';
-import { getTeamMembersFS } from '@/services/team-member-service'; // Import service
+import { getTeamMembersFS } from '@/services/team-member-service';
 import { parseISO, isSameMonth, isSameYear, isValid } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 
@@ -56,40 +55,41 @@ const renderProgress = (current: number, target: number, unit: string, targetAch
 export default function TeamTrackingPage() {
   const { toast } = useToast();
   const [teamStats, setTeamStats] = useState<TeamMember[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  
-  // Use a state for salesTeamMembersBase and populate it from Firestore
   const [salesTeamMembersBase, setSalesTeamMembersBase] = useState<TeamMember[]>([]);
+  const [isLoadingBaseMembers, setIsLoadingBaseMembers] = useState(true);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
 
   useEffect(() => {
     async function loadBaseTeamMembers() {
-      setIsLoading(true);
+      setIsLoadingBaseMembers(true);
       try {
-        const members = await getTeamMembersFS(['SalesRep']); // Fetch only SalesRep
+        const members = await getTeamMembersFS(['SalesRep']);
         setSalesTeamMembersBase(members);
       } catch (error) {
         console.error("Error loading sales team members:", error);
         toast({ title: "Error al Cargar Equipo", description: "No se pudo cargar la lista de comerciales.", variant: "destructive" });
+      } finally {
+        setIsLoadingBaseMembers(false);
       }
-      // setIsLoading(false) will be handled in the main data loading useEffect
     }
     loadBaseTeamMembers();
   }, [toast]);
 
 
   useEffect(() => {
-    // Only proceed if salesTeamMembersBase has been loaded
-    if (salesTeamMembersBase.length === 0 && !isLoading) { // If still loading base, wait. If not loading and empty, then no sales reps.
-        setIsLoading(false); // Ensure loading is off if no sales reps
-        return;
-    }
-    if (salesTeamMembersBase.length === 0 && isLoading && salesTeamMembersBase.length === 0) { // still waiting for base team members
-        return;
+    if (isLoadingBaseMembers) {
+      // Esperar a que los miembros base se carguen
+      return;
     }
 
+    if (salesTeamMembersBase.length === 0) {
+      setTeamStats([]); // No hay miembros base para calcular estadísticas
+      setIsLoadingStats(false); // No hay nada que cargar
+      return;
+    }
 
     async function loadTeamData() {
-      setIsLoading(true); // Start loading for stats calculation
+      setIsLoadingStats(true);
       try {
         const [fetchedOrders, fetchedAccounts] = await Promise.all([
             getOrdersFS(),
@@ -141,22 +141,18 @@ export default function TeamTrackingPage() {
         console.error("Error loading team tracking data:", error);
         toast({ title: "Error al Cargar Estadísticas", description: "No se pudieron cargar las estadísticas del equipo.", variant: "destructive" });
       } finally {
-        setIsLoading(false);
+        setIsLoadingStats(false);
       }
     }
-
-    if (salesTeamMembersBase.length > 0) { // Only load stats if there are sales reps
-        loadTeamData();
-    } else if (!isLoading) { // If not loading and no sales reps, ensure loading is false
-        setIsLoading(false);
-    }
-
-  }, [salesTeamMembersBase, toast, isLoading]); // Add isLoading to dependencies of the second useEffect
+    loadTeamData();
+  }, [salesTeamMembersBase, isLoadingBaseMembers, toast]);
 
   const teamTotalBottlesValue = useMemo(() => teamStats.reduce((sum, m) => sum + (m.bottlesSold || 0), 0), [teamStats]);
   const teamTotalOrdersValue = useMemo(() => teamStats.reduce((sum, m) => sum + (m.orders || 0), 0), [teamStats]);
   const teamTotalVisitsValue = useMemo(() => teamStats.reduce((sum, m) => sum + (m.visits || 0), 0), [teamStats]);
   
+  const isLoading = isLoadingBaseMembers || isLoadingStats;
+
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
@@ -190,7 +186,7 @@ export default function TeamTrackingPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {teamStats.map((member: TeamMember & { monthlyAccountsAchieved?: number, monthlyVisitsAchieved?: number }) => {
+              {teamStats.length > 0 ? teamStats.map((member: TeamMember & { monthlyAccountsAchieved?: number, monthlyVisitsAchieved?: number }) => {
                 const bottlesSold = member.bottlesSold || 0;
                 const accountsAchievedThisMonth = member.monthlyAccountsAchieved || 0; 
                 const visitsMadeThisMonth = member.monthlyVisitsAchieved || 0; 
@@ -231,8 +227,7 @@ export default function TeamTrackingPage() {
                     </TableCell>
                   </TableRow>
                 );
-              })}
-               {teamStats.length === 0 && !isLoading && (
+              }) : (
                   <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center">
                       No hay representantes de ventas configurados o no se encontraron datos.
@@ -285,3 +280,5 @@ export default function TeamTrackingPage() {
     </div>
   );
 }
+
+    

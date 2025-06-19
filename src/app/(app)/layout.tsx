@@ -40,7 +40,7 @@ import { Badge } from '@/components/ui/badge';
 import { parseISO, startOfDay, endOfDay, isWithinInterval, format, getMonth, getYear, isSameMonth, isSameYear, addDays, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getOrdersFS } from '@/services/order-service';
-import { getEventsFS } from '@/services/event-service'; // Import event service
+import { getEventsFS } from '@/services/event-service'; 
 import { getAccountsFS } from '@/services/account-service';
 import { getTeamMembersFS } from '@/services/team-member-service';
 import { useToast } from '@/hooks/use-toast';
@@ -57,7 +57,7 @@ interface NavGroup {
   id: string;
   label: string;
   items: NavItem[];
-  groupRoles?: UserRole[];
+  groupRoles?: UserRole[]; // Roles que pueden ver el grupo en general
 }
 
 const navigationStructure: NavGroup[] = [
@@ -80,7 +80,7 @@ const navigationStructure: NavGroup[] = [
     label: 'Marketing',
     groupRoles: ['Admin', 'SalesRep', 'Distributor'],
     items: [
-      { href: '/events', label: 'Eventos', icon: PartyPopper, roles: ['Admin', 'SalesRep', 'Distributor'] }, // Distributor can view events
+      { href: '/events', label: 'Eventos', icon: PartyPopper, roles: ['Admin', 'SalesRep', 'Distributor'] },
       { href: '/clavadistas', label: 'Clavadistas', icon: Award, roles: ['Admin', 'SalesRep'] },
       { href: '/marketing-resources', label: 'Recursos de Marketing', icon: Library, roles: ['Admin', 'SalesRep', 'Distributor'] },
       { href: '/marketing/ai-assistant', label: 'Asistente IA', icon: Sparkles, roles: ['Admin', 'SalesRep'] },
@@ -89,9 +89,9 @@ const navigationStructure: NavGroup[] = [
   {
     id: 'configuracion',
     label: 'Configuración',
-    groupRoles: ['Admin'],
+    groupRoles: ['Admin'], // Solo Admin puede ver la categoría "Configuración"
     items: [
-      { href: '/admin/settings', label: 'Configuración', icon: Settings, roles: ['Admin'] },
+      { href: '/admin/settings', label: 'Configuración', icon: Settings, roles: ['Admin'] }, // El item dentro también es solo para Admin
     ],
   },
 ];
@@ -311,7 +311,7 @@ function MonthlyProgressIndicator({ type, teamMember, userRole, allTeamMembers, 
                 </Button>
             </TooltipTrigger>
             <TooltipContent>
-                <p>Equipo sin objetivos de {unitLabel} definidos o sin actividad este mes.</p>
+                <p>Equipo sin objetivos de ${unitLabel} definidos o sin actividad este mes.</p>
             </TooltipContent>
         </Tooltip>
     );
@@ -347,7 +347,7 @@ function MonthlyProgressIndicator({ type, teamMember, userRole, allTeamMembers, 
         </Button>
       </TooltipTrigger>
       <TooltipContent>
-        <p>{tooltipTitle} - Faltan {remaining.toLocaleString('es-ES')} {unitLabel} para objetivo de {target.toLocaleString('es-ES')}. ({achieved.toLocaleString('es-ES')}/{target.toLocaleString('es-ES')})</p>
+        <p>{tooltipTitle} - Faltan {remaining.toLocaleString('es-ES')} ${unitLabel} para objetivo de {target.toLocaleString('es-ES')}. ({achieved.toLocaleString('es-ES')}/{target.toLocaleString('es-ES')})</p>
       </TooltipContent>
     </Tooltip>
   );
@@ -490,26 +490,28 @@ interface AppNavigationProps {
 function AppNavigation({ navStructure, userRole }: AppNavigationProps) {
   const pathname = usePathname();
 
-  if (!userRole) return null;
+  if (!userRole) {
+    return null; 
+  }
 
   return (
     <>
       {navStructure.map((group) => {
+        const userCanSeeGroupCategory = group.groupRoles ? group.groupRoles.includes(userRole) : true;
+        
+        if (!userCanSeeGroupCategory) {
+          return null; 
+        }
+
         const visibleItemsInGroup = group.items.filter(item => item.roles.includes(userRole));
 
-        const canShowGroup =
-          (group.groupRoles ? group.groupRoles.includes(userRole) : true) &&
-          visibleItemsInGroup.length > 0;
-
-        if (!canShowGroup) {
+        if (visibleItemsInGroup.length === 0) {
           return null;
         }
 
         return (
           <SidebarGroup key={group.id}>
-            {group.items.length > 1 || group.id !== 'configuracion' ? (
-              <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-            ) : null}
+            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {visibleItemsInGroup.map((item) => {

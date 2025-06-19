@@ -1,7 +1,7 @@
 
 import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType, Account, AccountType, AccountStatus, NextActionType, FailureReasonType, CrmEvent, CrmEventType, CrmEventStatus, PromotionalMaterial, PromotionalMaterialType, AssignedPromotionalMaterial } from '@/types';
 import { Package, Users, ShoppingBag, BarChart3 } from 'lucide-react';
-import { format, addDays, subDays, isEqual } from 'date-fns';
+import { format, addDays, subDays, isEqual, parseISO } from 'date-fns'; // Added parseISO
 
 export const mockKpis: Kpi[] = [
   { id: 'kpi1', title: 'Botellas Vendidas (Mes)', currentValue: 0, icon: Package, targetValue:10000, unit:"botellas" },
@@ -80,18 +80,18 @@ const today = new Date();
 
 export const mockOrders: Order[] = [
   {
-    id: 'ORD001', clientName: 'Bar El Estudiante', visitDate: format(subDays(today, 15), 'yyyy-MM-dd'),
+    id: 'ORD001', clientName: 'Restaurante Sol Naciente', visitDate: format(subDays(today, 15), 'yyyy-MM-dd'),
     products: ['Santa Brisa 750ml'], value: 350.75, status: 'Entregado', salesRep: 'Nico (Rep)', lastUpdated: format(subDays(today, 10), 'yyyy-MM-dd'),
     clientType: 'HORECA', numberOfUnits: 20, unitPrice: 14.50, clavadistaId: 'clv01',
-    nombreFiscal: 'Bar El Estudiante SL', cif: 'B11111111', direccionFiscal: 'Calle Universidad 1, Madrid', direccionEntrega: 'Calle Universidad 1, Madrid',
-    contactoNombre: 'Juan Dueño', contactoCorreo: 'juan@estudiante.es', contactoTelefono: '600111222',
-    assignedMaterials: [{ materialId: 'mat_002', quantity: 2 }] // 2 Bandejas
+    nombreFiscal: 'Restaurante Sol Naciente SL', cif: 'B12345678', direccionFiscal: 'Calle Falsa 123, Madrid', direccionEntrega: 'Calle Falsa 123, Madrid',
+    contactoNombre: 'Ana Pérez', contactoCorreo: 'ana.perez@solnaciente.es', contactoTelefono: '600111222',
+    assignedMaterials: [{ materialId: 'mat_002', quantity: 2 }]
   },
   {
     id: 'ORD002', clientName: 'Supermercado La Compra Feliz', visitDate: format(subDays(today, 5), 'yyyy-MM-dd'),
     products: ['Santa Brisa 750ml'], value: 1200.50, status: 'Confirmado', salesRep: 'Alfonso (Rep)', lastUpdated: format(subDays(today, 2), 'yyyy-MM-dd'),
     clientType: 'Retail', numberOfUnits: 80, unitPrice: 12.50, clavadistaId: 'clv01',
-    nombreFiscal: 'La Compra Feliz SA', cif: 'A22222222', direccionFiscal: 'Avenida Comercial 5, Valencia', direccionEntrega: 'Avenida Comercial 5, Valencia',
+    nombreFiscal: 'La Compra Feliz SA', cif: 'A87654321', direccionFiscal: 'Avenida Comercial 5, Valencia', direccionEntrega: 'Avenida Comercial 5, Valencia',
     contactoNombre: 'Luisa Gerente', contactoCorreo: 'luisa@comprafeliz.com', contactoTelefono: '600222333',
     assignedMaterials: []
   },
@@ -100,7 +100,7 @@ export const mockOrders: Order[] = [
     status: 'Seguimiento', salesRep: 'Nico (Rep)', lastUpdated: format(subDays(today, 8), 'yyyy-MM-dd'), clavadistaId: 'clv02',
     nextActionType: 'Llamar al responsable de compras', nextActionDate: format(addDays(today, 2), 'yyyy-MM-dd'),
     notes: 'El responsable estaba de vacaciones, volver a contactar esta semana.',
-    assignedMaterials: [{ materialId: 'mat_007', quantity: 1 }] // 1 Pack Flyers
+    assignedMaterials: [{ materialId: 'mat_007', quantity: 1 }] 
   },
   {
     id: 'VISFLW002', clientName: 'Hotel Vista Hermosa', visitDate: format(subDays(today, 3), 'yyyy-MM-dd'),
@@ -137,8 +137,8 @@ export const mockOrders: Order[] = [
     id: 'ORD004', clientName: 'Bar El Estudiante', visitDate: format(subDays(today, 2), 'yyyy-MM-dd'), 
     products: ['Santa Brisa 750ml'], value: 175.50, status: 'Confirmado', salesRep: 'Nico (Rep)', lastUpdated: format(subDays(today, 1), 'yyyy-MM-dd'),
     clientType: 'HORECA', numberOfUnits: 10, unitPrice: 14.50, clavadistaId: undefined,
-    nombreFiscal: 'Bar El Estudiante SL', cif: 'B11111111', direccionFiscal: 'Calle Universidad 1, Madrid', direccionEntrega: 'Calle Universidad 1, Madrid',
-    contactoNombre: 'Juan Dueño', contactoCorreo: 'juan@estudiante.es', contactoTelefono: '600111222',
+    nombreFiscal: 'Bar El Estudiante SL', cif: 'B12345678', direccionFiscal: 'Calle Falsa 123, Madrid', direccionEntrega: 'Calle Falsa 123, Madrid',
+    contactoNombre: 'Ana Pérez', contactoCorreo: 'ana.perez@solnaciente.es', contactoTelefono: '600111222',
     assignedMaterials: []
   },
   {
@@ -152,7 +152,7 @@ export const mockOrders: Order[] = [
   {
     id: 'ORD005', clientName: 'Restaurante La Tertulia', visitDate: format(subDays(today, 1), 'yyyy-MM-dd'),
     products: ['Santa Brisa 750ml'], value: 290.00, status: 'Procesando', salesRep: 'Nico (Rep)', lastUpdated: format(subDays(today, 1), 'yyyy-MM-dd'),
-    clientType: 'HORECA', numberOfUnits: 15, unitPrice: 16.00, // Adjusted price
+    clientType: 'HORECA', numberOfUnits: 15, unitPrice: 16.00,
     nombreFiscal: 'La Tertulia Gastronómica SLU', cif: 'B44444444', direccionFiscal: 'Calle Poeta 12, Sevilla', direccionEntrega: 'Calle Poeta 12, Sevilla',
     contactoNombre: 'Elena Chef', contactoCorreo: 'elena.chef@latertulia.es', contactoTelefono: '600444555', clavadistaId: 'clv02',
     assignedMaterials: [{ materialId: 'mat_004', quantity: 1 }]
@@ -173,7 +173,7 @@ export const mockOrders: Order[] = [
     assignedMaterials: []
   },
    {
-    id: 'ORD007', clientName: 'Supermercado La Compra Feliz', visitDate: format(addDays(today, -1), 'yyyy-MM-dd'), // Recent order
+    id: 'ORD007', clientName: 'Supermercado La Compra Feliz', visitDate: format(addDays(today, -1), 'yyyy-MM-dd'), 
     products: ['Santa Brisa 750ml'], value: 1500.00, status: 'Enviado', salesRep: 'Alfonso (Rep)', lastUpdated: format(addDays(today, -1), 'yyyy-MM-dd'),
     clientType: 'Retail', numberOfUnits: 100, unitPrice: 12.50, clavadistaId: 'clv01',
     nombreFiscal: 'La Compra Feliz SA', cif: 'A22222222', direccionFiscal: 'Avenida Comercial 5, Valencia',
@@ -184,16 +184,15 @@ export const mockOrders: Order[] = [
     id: 'VISFLD003', clientName: 'Gastrobar Innova', visitDate: format(addDays(today, -10), 'yyyy-MM-dd'),
     status: 'Fallido', salesRep: 'Nico (Rep)', lastUpdated: format(addDays(today, -10), 'yyyy-MM-dd'), clavadistaId: 'clv01',
     nextActionType: 'Opción personalizada', nextActionCustom: 'Revisar contacto en 6 meses, cambio de gerencia',
-    nextActionDate: format(addDays(today, 170), 'yyyy-MM-dd'), // Approx 6 months
+    nextActionDate: format(addDays(today, 170), 'yyyy-MM-dd'), 
     failureReasonType: 'Otro (especificar)', failureReasonCustom: 'Cambio reciente de propietario, no toman decisiones ahora.',
     notes: 'Nuevo dueño revisará proveedores más adelante.',
     assignedMaterials: []
   }
 ];
 
-// Initialize some performance data for SalesReps based on mockOrders
 mockTeamMembers.forEach(member => {
-    if (member.role === 'SalesRep' || member.role === 'Admin') { // Include admin for orders they might self-assign
+    if (member.role === 'SalesRep' || member.role === 'Admin') { 
         member.bottlesSold = 0;
         member.orders = 0;
         member.visits = 0; 
@@ -205,7 +204,6 @@ mockTeamMembers.forEach(member => {
                 member.bottlesSold = (member.bottlesSold || 0) + record.numberOfUnits;
                 member.orders = (member.orders || 0) + 1;
             }
-             // Count visit for any type of record (successful, follow-up, failed, programmed) linked to this sales rep
             if (record.status !== 'Programada' || (record.status === 'Programada' && record.salesRep === member.name)) {
                  member.visits = (member.visits || 0) + 1;
             }
@@ -247,10 +245,11 @@ export const mockMarketingResources: MarketingResourceCategory[] = [
 
 export const userRolesList: UserRole[] = ['Admin', 'SalesRep', 'Distributor', 'Clavadista'];
 
-// CRM Account Data
 export const accountTypeList: AccountType[] = ['HORECA', 'Distribuidor', 'Retail Minorista', 'Gran Superficie', 'Evento Especial', 'Otro'];
 export const accountStatusList: AccountStatus[] = ['Activo', 'Inactivo', 'Potencial', 'Bloqueado'];
 
+// mockAccounts will now be used primarily for initial Firestore seeding or as a fallback.
+// The application will fetch accounts from Firestore.
 export const mockAccounts: Account[] = [
   {
     id: 'acc_001',
@@ -302,47 +301,92 @@ export const mockAccounts: Account[] = [
     createdAt: '2024-03-01',
     updatedAt: '2024-05-15',
   },
+   // Cuentas adicionales inferidas de mockOrders
+  {
+    id: 'acc_ord_ORD002',
+    name: 'Supermercado La Compra Feliz',
+    legalName: 'La Compra Feliz SA',
+    cif: 'A22222222',
+    type: 'Retail',
+    status: 'Activo',
+    addressBilling: 'Avenida Comercial 5, Valencia',
+    addressShipping: 'Avenida Comercial 5, Valencia',
+    mainContactName: 'Luisa Gerente',
+    mainContactEmail: 'luisa@comprafeliz.com',
+    mainContactPhone: '600222333',
+    notes: 'Cliente desde ' + format(subDays(today, 5), 'yyyy-MM-dd'),
+    salesRepId: 'tm2',
+    createdAt: format(subDays(today, 5), 'yyyy-MM-dd'),
+    updatedAt: format(subDays(today, 2), 'yyyy-MM-dd'),
+  },
+  {
+    id: 'acc_ord_ORD003',
+    name: 'Distribuciones Rápidas SL',
+    legalName: 'Distribuciones Rápidas SL',
+    cif: 'B33333333',
+    type: 'Distribuidor',
+    status: 'Activo',
+    addressBilling: 'Polígono Industrial El Viento, Parcela 10, Zaragoza',
+    addressShipping: 'Polígono Industrial El Viento, Parcela 10, Zaragoza',
+    mainContactName: 'Carlos Almacén',
+    mainContactEmail: 'calmacen@rapidas.es',
+    mainContactPhone: '600333444',
+    notes: 'Cliente desde ' + format(subDays(today, 25), 'yyyy-MM-dd'),
+    salesRepId: 'admin01',
+    createdAt: format(subDays(today, 25), 'yyyy-MM-dd'),
+    updatedAt: format(subDays(today, 20), 'yyyy-MM-dd'),
+  },
+  {
+    id: 'acc_ord_ORD005',
+    name: 'Restaurante La Tertulia',
+    legalName: 'La Tertulia Gastronómica SLU',
+    cif: 'B44444444',
+    type: 'HORECA',
+    status: 'Activo',
+    addressBilling: 'Calle Poeta 12, Sevilla',
+    addressShipping: 'Calle Poeta 12, Sevilla',
+    mainContactName: 'Elena Chef',
+    mainContactEmail: 'elena.chef@latertulia.es',
+    mainContactPhone: '600444555',
+    notes: 'Cliente desde ' + format(subDays(today, 1), 'yyyy-MM-dd'),
+    salesRepId: 'tm1',
+    createdAt: format(subDays(today, 1), 'yyyy-MM-dd'),
+    updatedAt: format(subDays(today, 1), 'yyyy-MM-dd'),
+  },
+  {
+    id: 'acc_ord_ORD006',
+    name: 'Hotel Vista Hermosa',
+    legalName: 'Hotel Vista Hermosa SA',
+    cif: 'A55555555',
+    type: 'HORECA',
+    status: 'Activo',
+    addressBilling: 'Carretera de la Costa km 25, Marbella',
+    addressShipping: 'Carretera de la Costa km 25, Marbella',
+    mainContactName: 'Roberto Director',
+    mainContactEmail: 'director@vistahotel.com',
+    mainContactPhone: '600555666',
+    notes: 'Cliente desde ' + format(subDays(today, 9), 'yyyy-MM-dd'),
+    salesRepId: 'tm3',
+    createdAt: format(subDays(today, 9), 'yyyy-MM-dd'),
+    updatedAt: format(subDays(today, 3), 'yyyy-MM-dd'),
+  }
 ];
 
-// Ensure all clients from mockOrders that should be accounts are in mockAccounts
-mockOrders.forEach(order => {
-    if (order.cif && order.nombreFiscal && !mockAccounts.find(acc => acc.cif && acc.cif.toLowerCase() === order.cif!.toLowerCase())) {
-        const salesRepForAccount = mockTeamMembers.find(tm => tm.name === order.salesRep);
-        mockAccounts.push({
-            id: `acc_ord_${order.id.replace(/\W/g, '')}`, // Sanitize ID
-            name: order.clientName,
-            legalName: order.nombreFiscal,
-            cif: order.cif,
-            type: (clientTypeList.includes(order.clientType as AccountType) ? order.clientType : 'Otro') as AccountType,
-            status: (['Confirmado', 'Procesando', 'Enviado', 'Entregado'].includes(order.status)) ? 'Activo' : 'Potencial',
-            addressBilling: order.direccionFiscal,
-            addressShipping: order.direccionEntrega,
-            mainContactName: order.contactoNombre,
-            mainContactEmail: order.contactoCorreo,
-            mainContactPhone: order.contactoTelefono,
-            notes: order.observacionesAlta || order.notes,
-            salesRepId: salesRepForAccount?.id,
-            createdAt: order.visitDate,
-            updatedAt: order.lastUpdated,
-        });
-    }
-});
 
-// Promotional Materials Data
 export const promotionalMaterialTypeList: PromotionalMaterialType[] = ['Merchandising Físico', 'Material PLV', 'Servicio de Personal', 'Digital/Software'];
 
 export const mockPromotionalMaterials: PromotionalMaterial[] = [
   { 
     id: 'mat_001', name: 'Cubitera Metálica Santa Brisa', type: 'Merchandising Físico', description: 'Cubitera elegante con logo grabado.',
-    latestPurchase: { quantityPurchased: 100, totalPurchaseCost: 1250, purchaseDate: '2024-01-15', calculatedUnitCost: 12.50 }
+    latestPurchase: { quantityPurchased: 100, totalPurchaseCost: 1250, purchaseDate: '2024-01-15', calculatedUnitCost: 12.50, notes: 'Compra inicial.' }
   },
   { 
     id: 'mat_002', name: 'Bandeja de Camarero Santa Brisa', type: 'Merchandising Físico', description: 'Bandeja antideslizante con marca.',
-    latestPurchase: { quantityPurchased: 200, totalPurchaseCost: 1600, purchaseDate: '2024-02-01', calculatedUnitCost: 8.00 }
+    latestPurchase: { quantityPurchased: 200, totalPurchaseCost: 1600, purchaseDate: '2024-02-01', calculatedUnitCost: 8.00, notes: 'Pedido grande para stock.' }
   },
   { 
     id: 'mat_003', name: 'Set 6 Copas Grabadas Santa Brisa', type: 'Merchandising Físico', description: 'Copas de cristal de alta calidad.',
-    latestPurchase: { quantityPurchased: 50, totalPurchaseCost: 1250, purchaseDate: '2024-03-10', calculatedUnitCost: 25.00 }
+    latestPurchase: { quantityPurchased: 50, totalPurchaseCost: 1250, purchaseDate: '2024-03-10', calculatedUnitCost: 25.00, notes: 'Edición limitada.' }
   },
   { 
     id: 'mat_004', name: 'Expositor de Mesa (PLV)', type: 'Material PLV', description: 'Pequeño expositor para mostrador o mesa.',
@@ -354,15 +398,14 @@ export const mockPromotionalMaterials: PromotionalMaterial[] = [
   },
   { 
     id: 'mat_006', name: 'Servicio de Camarero/Coctelero (por hora)', type: 'Servicio de Personal', description: 'Personal cualificado para eventos.',
-    latestPurchase: { quantityPurchased: 1, totalPurchaseCost: 20, purchaseDate: '2024-01-01', calculatedUnitCost: 20.00 } // Cost per hour
+    latestPurchase: { quantityPurchased: 1, totalPurchaseCost: 20, purchaseDate: '2024-01-01', calculatedUnitCost: 20.00, notes: 'Tarifa estándar hora.' }
   },
   { 
     id: 'mat_007', name: 'Flyers Promocionales (pack 100u)', type: 'Material PLV', description: 'Folletos A6 a color.',
-    latestPurchase: { quantityPurchased: 10, totalPurchaseCost: 100, purchaseDate: '2024-05-01', calculatedUnitCost: 10.00 } // Cost per pack of 100
+    latestPurchase: { quantityPurchased: 10, totalPurchaseCost: 100, purchaseDate: '2024-05-01', calculatedUnitCost: 10.00, notes: 'Impresión digital, 10 packs.' }
   },
 ];
 
-// CRM Event Management Data
 export const crmEventTypeList: CrmEventType[] = ['Activación en Tienda', 'Feria Comercial', 'Evento Corporativo', 'Degustación', 'Patrocinio', 'Activación', 'Otro'];
 export const crmEventStatusList: CrmEventStatus[] = ['Planificado', 'Confirmado', 'En Curso', 'Completado', 'Cancelado', 'Pospuesto'];
 
@@ -375,10 +418,10 @@ export const mockCrmEvents: CrmEvent[] = [
     startDate: format(addDays(new Date(), 10), 'yyyy-MM-dd'),
     endDate: format(addDays(new Date(), 10), 'yyyy-MM-dd'),
     location: 'Tienda Gourmet Central, Calle Mayor 1',
-    assignedTeamMemberIds: ['tm1', 'tm3'], // Nico, Federica
+    assignedTeamMemberIds: ['tm1', 'tm3'], 
     assignedMaterials: [
-        { materialId: 'mat_003', quantity: 2 }, // 2 Sets de Copas
-        { materialId: 'mat_007', quantity: 1 }  // 1 Pack de Flyers
+        { materialId: 'mat_003', quantity: 2 }, 
+        { materialId: 'mat_007', quantity: 1 }  
     ],
     createdAt: format(subDays(new Date(), 5), 'yyyy-MM-dd'),
     updatedAt: format(subDays(new Date(), 1), 'yyyy-MM-dd'),
@@ -392,11 +435,11 @@ export const mockCrmEvents: CrmEvent[] = [
     startDate: format(addDays(new Date(), 30), 'yyyy-MM-dd'),
     endDate: format(addDays(new Date(), 33), 'yyyy-MM-dd'),
     location: 'Fira de Barcelona, Gran Vía',
-    assignedTeamMemberIds: ['tm2', 'adminMJ'], // Alfonso, Martín (Admin)
+    assignedTeamMemberIds: ['tm2', 'adminMJ'], 
     assignedMaterials: [
-        { materialId: 'mat_005', quantity: 1 }, // Roll-up
-        { materialId: 'mat_001', quantity: 10 }, // Cubiteras
-        { materialId: 'mat_006', quantity: 16 } // 16 horas de camarero (2 días x 8h)
+        { materialId: 'mat_005', quantity: 1 }, 
+        { materialId: 'mat_001', quantity: 10 }, 
+        { materialId: 'mat_006', quantity: 16 } 
     ],
     notes: 'Stand H2. Reuniones clave ya agendadas.',
     createdAt: format(subDays(new Date(), 20), 'yyyy-MM-dd'),
@@ -410,7 +453,7 @@ export const mockCrmEvents: CrmEvent[] = [
     startDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
     endDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
     location: 'Restaurante Fusión, Calle Innova 5',
-    assignedTeamMemberIds: ['tm1'], // Nico
+    assignedTeamMemberIds: ['tm1'], 
     assignedMaterials: [
         { materialId: 'mat_003', quantity: 3 } 
     ],
@@ -427,7 +470,7 @@ export const mockCrmEvents: CrmEvent[] = [
     startDate: format(addDays(new Date(), 45), 'yyyy-MM-dd'),
     endDate: format(addDays(new Date(), 46), 'yyyy-MM-dd'),
     location: 'Supermercado Principal, Av. Comercial',
-    assignedTeamMemberIds: ['tm2'], // Alfonso
+    assignedTeamMemberIds: ['tm2'], 
     assignedMaterials: [
         { materialId: 'mat_004', quantity: 2 },
         { materialId: 'mat_007', quantity: 5 }

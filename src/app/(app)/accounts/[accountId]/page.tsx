@@ -6,10 +6,10 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { mockAccounts, mockOrders, mockTeamMembers } from "@/lib/data";
+import { mockOrders, mockTeamMembers } from "@/lib/data"; // mockAccounts no se usa aquí directamente
 import type { Account, Order, UserRole } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { Building2, Edit, ArrowLeft, AlertTriangle, UserCircle, Mail, Phone, FileText, ShoppingCart, CalendarDays, ListChecks, Info, Euro, Printer } from "lucide-react";
+import { Building2, Edit, ArrowLeft, AlertTriangle, UserCircle, Mail, Phone, FileText, ShoppingCart, CalendarDays, ListChecks, Info, Euro, Printer, Loader2 } from "lucide-react";
 import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
@@ -18,6 +18,7 @@ import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
+import { getAccountByIdFS, updateAccountFS, getAccountsFS } from "@/services/account-service"; // Importar getAccountsFS para la validación en el diálogo
 
 export default function AccountDetailPage() {
   const params = useParams();
@@ -27,6 +28,8 @@ export default function AccountDetailPage() {
   const { toast } = useToast();
 
   const [account, setAccount] = React.useState<Account | null>(null);
+  const [allAccountsForValidation, setAllAccountsForValidation] = React.useState<Account[]>([]); // Para el diálogo
+  const [isLoading, setIsLoading] = React.useState(true);
   const [relatedInteractions, setRelatedInteractions] = React.useState<Order[]>([]);
   const [isAccountDialogOpen, setIsAccountDialogOpen] = React.useState(false);
   
@@ -34,24 +37,45 @@ export default function AccountDetailPage() {
   const isAdmin = userRole === 'Admin';
 
   React.useEffect(() => {
-    const foundAccount = mockAccounts.find(acc => acc.id === accountId);
-    if (foundAccount) {
-      setAccount(foundAccount);
-      const interactions = mockOrders.filter(order => 
-        (order.cif && order.cif.toLowerCase() === foundAccount.cif.toLowerCase()) ||
-        (!order.cif && order.clientName.toLowerCase() === foundAccount.name.toLowerCase())
-      ).sort((a,b) => parseISO(b.visitDate).getTime() - parseISO(a.visitDate).getTime()); // Sort by visit date desc
-      setRelatedInteractions(interactions);
-    } else {
-      setAccount(null); // Account not found
+    async function loadAccountData() {
+      if (!accountId) {
+        setIsLoading(false);
+        setAccount(null);
+        return;
+      }
+      setIsLoading(true);
+      try {
+        const foundAccount = await getAccountByIdFS(accountId);
+        setAccount(foundAccount);
+        if (foundAccount) {
+          const interactions = mockOrders.filter(order => 
+            (order.cif && order.cif.toLowerCase() === foundAccount.cif.toLowerCase()) ||
+            (!order.cif && order.clientName.toLowerCase() === foundAccount.name.toLowerCase())
+          ).sort((a,b) => parseISO(b.visitDate).getTime() - parseISO(a.visitDate).getTime());
+          setRelatedInteractions(interactions);
+
+          // Cargar todas las cuentas para la validación de CIF en el diálogo de edición
+          if (isAdmin) {
+            const allFsAccounts = await getAccountsFS();
+            setAllAccountsForValidation(allFsAccounts);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching account details:", error);
+        toast({ title: "Error al Cargar Cuenta", description: "No se pudo cargar la información de la cuenta.", variant: "destructive" });
+        setAccount(null);
+      } finally {
+        setIsLoading(false);
+      }
     }
-  }, [accountId]);
+    loadAccountData();
+  }, [accountId, toast, isAdmin]);
 
   React.useEffect(() => {
-    if (isAdmin && searchParams.get('edit') === 'true' && account) {
+    if (isAdmin && searchParams.get('edit') === 'true' && account && !isLoading) {
       setIsAccountDialogOpen(true);
     }
-  }, [searchParams, account, isAdmin]);
+  }, [searchParams, account, isAdmin, isLoading]);
 
 
   const handleEditAccount = () => {
@@ -59,30 +83,38 @@ export default function AccountDetailPage() {
     setIsAccountDialogOpen(true);
   };
 
-  const handleSaveAccountDetails = (data: AccountFormValues) => {
+  const handleSaveAccountDetails = async (data: AccountFormValues) => {
     if (!isAdmin || !account) return;
-    
-    const updatedAccountData: Account = { 
-        ...account, 
-        ...data, 
-        updatedAt: format(new Date(), "yyyy-MM-dd") 
-    };
-    
-    setAccount(updatedAccountData); // Update local state for immediate reflection
-    
-    const mockIndex = mockAccounts.findIndex(acc => acc.id === account.id);
-    if (mockIndex !== -1) {
-      mockAccounts[mockIndex] = updatedAccountData;
+    setIsLoading(true); // Usar isLoading o un isSaving específico
+    try {
+      await updateAccountFS(account.id, data);
+      // Recargar la cuenta para reflejar los cambios desde Firestore (especialmente updatedAt)
+      const updatedAccount = await getAccountByIdFS(account.id);
+      setAccount(updatedAccount);
+      
+      toast({ title: "¡Cuenta Actualizada!", description: `La cuenta "${data.name}" ha sido actualizada.` });
+      setIsAccountDialogOpen(false);
+      router.replace(`/accounts/${accountId}`, undefined); 
+    } catch (error) {
+      console.error("Error updating account:", error);
+      toast({ title: "Error al Actualizar", description: "No se pudo actualizar la cuenta.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
     }
-    
-    toast({ title: "¡Cuenta Actualizada!", description: `La cuenta "${data.name}" ha sido actualizada.` });
-    setIsAccountDialogOpen(false);
-    router.replace(`/accounts/${accountId}`, undefined); // Remove query param
   };
 
   const handlePrint = () => {
     window.print();
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-8">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Cargando detalles de la cuenta...</p>
+      </div>
+    );
+  }
 
   if (!account) {
     return (
@@ -98,8 +130,8 @@ export default function AccountDetailPage() {
   }
 
   const salesRepAssigned = account.salesRepId ? mockTeamMembers.find(tm => tm.id === account.salesRepId) : null;
-  const creationDate = isValid(parseISO(account.createdAt)) ? format(parseISO(account.createdAt), "dd/MM/yyyy", { locale: es }) : 'N/D';
-  const updateDate = isValid(parseISO(account.updatedAt)) ? format(parseISO(account.updatedAt), "dd/MM/yyyy HH:mm", { locale: es }) : 'N/D';
+  const creationDate = account.createdAt && isValid(parseISO(account.createdAt)) ? format(parseISO(account.createdAt), "dd/MM/yyyy", { locale: es }) : 'N/D';
+  const updateDate = account.updatedAt && isValid(parseISO(account.updatedAt)) ? format(parseISO(account.updatedAt), "dd/MM/yyyy HH:mm", { locale: es }) : 'N/D';
 
   return (
     <div className="space-y-6" id="printable-account-details">
@@ -116,7 +148,7 @@ export default function AccountDetailPage() {
         </div>
         <div className="flex space-x-2">
           {isAdmin && (
-            <Button onClick={handleEditAccount}>
+            <Button onClick={handleEditAccount} disabled={isLoading}>
               <Edit className="mr-2 h-4 w-4" /> Editar Cuenta
             </Button>
           )}
@@ -127,7 +159,6 @@ export default function AccountDetailPage() {
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Columna Izquierda */}
         <div className="md:col-span-1 space-y-6">
           <Card className="shadow-subtle">
             <CardHeader>
@@ -152,9 +183,9 @@ export default function AccountDetailPage() {
               <CardTitle className="text-lg">Contacto Principal</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
-                {account.mainContactName ? (
+                {account.mainContactName || account.mainContactEmail || account.mainContactPhone ? (
                     <>
-                        <div className="flex items-center space-x-2"><UserCircle size={16} className="text-muted-foreground"/> <span>{account.mainContactName}</span></div>
+                        {account.mainContactName && <div className="flex items-center space-x-2"><UserCircle size={16} className="text-muted-foreground"/> <span>{account.mainContactName}</span></div>}
                         {account.mainContactEmail && <div className="flex items-center space-x-2"><Mail size={16} className="text-muted-foreground"/> <a href={`mailto:${account.mainContactEmail}`} className="text-primary hover:underline">{account.mainContactEmail}</a></div>}
                         {account.mainContactPhone && <div className="flex items-center space-x-2"><Phone size={16} className="text-muted-foreground"/> <span>{account.mainContactPhone}</span></div>}
                     </>
@@ -163,7 +194,6 @@ export default function AccountDetailPage() {
           </Card>
         </div>
 
-        {/* Columna Derecha */}
         <div className="md:col-span-2 space-y-6">
             <Card className="shadow-subtle">
                 <CardHeader>
@@ -194,8 +224,8 @@ export default function AccountDetailPage() {
 
       <Card className="shadow-subtle print-section">
         <CardHeader>
-          <CardTitle>Historial de Interacciones y Pedidos</CardTitle>
-          <CardDescription>Registro de todas las visitas, seguimientos y pedidos asociados a esta cuenta.</CardDescription>
+          <CardTitle>Historial de Interacciones y Pedidos (Datos de Ejemplo)</CardTitle>
+          <CardDescription>Registro de todas las visitas, seguimientos y pedidos asociados a esta cuenta. (Actualmente usando datos de ejemplo para esta sección)</CardDescription>
         </CardHeader>
         <CardContent>
           {relatedInteractions.length > 0 ? (
@@ -220,7 +250,7 @@ export default function AccountDetailPage() {
                     return (
                       <TableRow key={interaction.id}>
                         <TableCell className="font-medium">{interaction.id}</TableCell>
-                        <TableCell>{format(parseISO(interaction.visitDate), "dd/MM/yy", { locale: es })}</TableCell>
+                        <TableCell>{interaction.visitDate && isValid(parseISO(interaction.visitDate)) ? format(parseISO(interaction.visitDate), "dd/MM/yy", { locale: es }) : 'N/D'}</TableCell>
                         <TableCell>{interactionType}</TableCell>
                         <TableCell className="text-right">
                           {interaction.status !== 'Programada' && interaction.status !== 'Seguimiento' && interaction.status !== 'Fallido' && interaction.value !== undefined ? (
@@ -240,7 +270,7 @@ export default function AccountDetailPage() {
                                 </Button>
                            ) : (
                                 <Button variant="outline" size="sm" asChild>
-                                    <Link href={`/orders-dashboard`}> {/* Could link to order detail if available */}
+                                    <Link href={`/orders-dashboard`}>
                                         <ShoppingCart className="mr-1 h-3 w-3" /> Ver Pedido
                                     </Link>
                                 </Button>
@@ -253,21 +283,21 @@ export default function AccountDetailPage() {
               </Table>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground text-center py-8">Actualmente no hay interacciones ni pedidos registrados para esta cuenta.</p>
+            <p className="text-sm text-muted-foreground text-center py-8">Actualmente no hay interacciones ni pedidos (de ejemplo) registrados para esta cuenta.</p>
           )}
         </CardContent>
       </Card>
 
       {isAdmin && account && (
         <AccountDialog
-          account={account} // Pass the current account to prefill the dialog
+          account={account} 
           isOpen={isAccountDialogOpen}
           onOpenChange={(open) => {
             setIsAccountDialogOpen(open);
-            if (!open) router.replace(`/accounts/${accountId}`, undefined); // Clean URL on close
+            if (!open) router.replace(`/accounts/${accountId}`, undefined);
           }}
           onSave={handleSaveAccountDetails}
-          allAccounts={mockAccounts} // Pass all accounts for CIF uniqueness validation
+          allAccounts={allAccountsForValidation} // Pasar todas las cuentas para validación de CIF
         />
       )}
     </div>

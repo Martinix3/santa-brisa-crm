@@ -36,10 +36,12 @@ import type { Account, AccountType, AccountStatus } from "@/types";
 import { accountTypeList, accountStatusList, mockTeamMembers } from "@/lib/data";
 import { Loader2 } from "lucide-react";
 import { Separator } from "../ui/separator";
+// Importar isCifUnique si se decide usar validación directa contra Firestore en el futuro
+// import { isCifUnique } from "@/services/account-service"; 
 
-const NO_SALES_REP_VALUE = "##NONE##"; // Special value for "Sin asignar"
+const NO_SALES_REP_VALUE = "##NONE##";
 
-const accountFormSchema = z.object({
+const accountFormSchemaBase = z.object({
   name: z.string().min(2, "El nombre comercial debe tener al menos 2 caracteres."),
   legalName: z.string().optional(),
   cif: z.string().min(5, "El CIF/NIF debe tener al menos 5 caracteres."),
@@ -51,37 +53,43 @@ const accountFormSchema = z.object({
   mainContactEmail: z.string().email("Formato de correo inválido.").optional().or(z.literal("")),
   mainContactPhone: z.string().optional(),
   notes: z.string().optional(),
-  salesRepId: z.string().optional(), // This will hold either a real ID or NO_SALES_REP_VALUE in the form
+  salesRepId: z.string().optional(),
 });
 
-export type AccountFormValues = z.infer<typeof accountFormSchema>;
+export type AccountFormValues = z.infer<typeof accountFormSchemaBase>;
 
 interface AccountDialogProps {
-  account: Account | null;
+  account: Account | null; // La cuenta que se está editando, o null si es nueva
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (data: AccountFormValues) => void; // The onSave expects salesRepId as string | undefined
-  allAccounts: Account[]; // For CIF uniqueness check
+  onSave: (data: AccountFormValues) => void; 
+  allAccounts: Account[]; // Para validación de CIF único (lista cargada desde Firestore por la página padre)
   isReadOnly?: boolean;
 }
 
 export default function AccountDialog({ account, isOpen, onOpenChange, onSave, allAccounts, isReadOnly = false }: AccountDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   
-  const form = useForm<AccountFormValues>({
-    resolver: zodResolver(accountFormSchema.refine(
+  // Creamos el schema dinámicamente para usar allAccounts y account?.id en la validación del CIF
+  const accountFormSchema = React.useMemo(() => {
+    return accountFormSchemaBase.refine(
       (data) => {
-        if (!data.cif) return true;
+        if (!data.cif) return true; // Si no hay CIF, no hay nada que validar aquí.
         const existingAccountWithCif = allAccounts.find(
-          (acc) => acc.cif.toLowerCase() === data.cif.toLowerCase() && acc.id !== account?.id
+          (acc) => acc.cif && acc.cif.toLowerCase() === data.cif!.toLowerCase() && acc.id !== account?.id
         );
         return !existingAccountWithCif;
       },
       {
-        message: "Ya existe una cuenta con este CIF/NIF.",
+        message: "Ya existe otra cuenta con este CIF/NIF.",
         path: ["cif"],
       }
-    )),
+    );
+  }, [allAccounts, account?.id]);
+
+
+  const form = useForm<AccountFormValues>({
+    resolver: zodResolver(accountFormSchema),
     defaultValues: {
       name: "",
       legalName: "",
@@ -94,7 +102,7 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
       mainContactEmail: "",
       mainContactPhone: "",
       notes: "",
-      salesRepId: NO_SALES_REP_VALUE, // Default to "Sin asignar"
+      salesRepId: NO_SALES_REP_VALUE,
     },
   });
 
@@ -140,12 +148,13 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
     
     const dataToSave = { ...data };
     if (dataToSave.salesRepId === NO_SALES_REP_VALUE) {
-      dataToSave.salesRepId = undefined; // Convert back for saving
+      dataToSave.salesRepId = undefined; 
     }
 
     await new Promise(resolve => setTimeout(resolve, 500)); 
-    onSave(dataToSave); // Pass the processed data
+    onSave(dataToSave); 
     setIsSaving(false);
+    // La lógica de cerrar el diálogo está ahora en onOpenChange en las páginas padre.
   };
   
   const salesRepList = mockTeamMembers.filter(member => member.role === 'SalesRep' || member.role === 'Admin');
@@ -373,7 +382,7 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
                 </Button>
               </DialogClose>
               {!isReadOnly && (
-                <Button type="submit" disabled={isSaving}>
+                <Button type="submit" disabled={isSaving || (!form.formState.isDirty && !!account )}>
                   {isSaving ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -391,4 +400,3 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
     </Dialog>
   );
 }
-

@@ -75,6 +75,11 @@ Evita tecnicismos innecesarios. No uses lenguaje corporativo frío.
 - Programa de “Clavadistas”: Brand Ambassadors que ayudan en la introducción, impulsan ventas y activan la marca en el punto de venta.
 - Enfoque de partnership: "Somos partner, no proveedor. Entramos a quedarnos."
 
+### FAQs Rápidas y Detalles de Preparación:
+- **¿Quién hace el tequila?** Nuestro tequila blanco 100% agave se elabora en una pequeña destilería familiar en Jalisco. Nada de procesos industriales. Solo carácter y autenticidad.
+- **¿Qué cantidad se sirve por copa?** 100 ml por copa, como marca la tradición de una Margarita bien servida. Por eso nuestra botella de 750 ml da 7 copas perfectas. No hay truco, ni relleno, ni medias medidas.
+- **¿Cómo se escarcha?** A lo grande: con nuestros amigos de Tajín México, usamos su mezcla clásica de sal, chile y lima para escarchar como debe ser —sabor real, sin imitaciones. También puedes usar nuestra mezcla exclusiva de sal Santa Brisa con chile ancho y flor de jamaica.
+
 🌊 UNIQUE SELLING POINTS (USP) – SANTA BRISA
 
 #### PRODUCTO
@@ -147,6 +152,5 @@ const marketingAssistantFlow = ai.defineFlow(
     return output;
   }
 );
-
-
     
+

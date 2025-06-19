@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox"; 
-import type { Order, OrderStatus, UserRole } from "@/types";
+import type { Order, OrderStatus, UserRole, TeamMember } from "@/types";
 import { orderStatusesList } from "@/lib/data"; 
 import { MoreHorizontal, Eye, Edit, Trash2, Filter, CalendarDays, ChevronDown, Download, ShoppingCart, Loader2 } from "lucide-react";
 import { DateRange } from "react-day-picker";
@@ -24,7 +24,10 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import StatusBadge from "@/components/app/status-badge";
 import { getOrdersFS, updateOrderFS, deleteOrderFS, initializeMockOrdersInFirestore } from "@/services/order-service";
-// import { mockOrders as initialMockOrdersForSeeding } from "@/lib/data"; // Descomentar para sembrar datos
+import { getAccountByIdFS, updateAccountFS as updateAccountInFirestore } from "@/services/account-service";
+import { getTeamMembersFS } from "@/services/team-member-service";
+
+// import { mockOrders as initialMockOrdersForSeeding } from "@/lib/data"; 
 
 
 const relevantOrderStatusesForDashboard: OrderStatus[] = ['Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Cancelado'];
@@ -36,6 +39,7 @@ export default function OrdersDashboardPage() {
   
   const [allOrders, setAllOrders] = React.useState<Order[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [allTeamMembers, setAllTeamMembers] = React.useState<TeamMember[]>([]);
 
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<OrderStatus | "Todos">("Todos");
@@ -48,25 +52,30 @@ export default function OrdersDashboardPage() {
   const [orderToDelete, setOrderToDelete] = React.useState<Order | null>(null);
 
   React.useEffect(() => {
-    async function loadOrders() {
+    async function loadInitialData() {
       setIsLoading(true);
       try {
-        // Descomentar la siguiente línea para inicializar con mocks si la BBDD está vacía LA PRIMERA VEZ
         // await initializeMockOrdersInFirestore(initialMockOrdersForSeeding);
         
         const firestoreOrders = await getOrdersFS();
         setAllOrders(firestoreOrders.filter(order => 
             order.status !== 'Programada' && order.status !== 'Seguimiento' && order.status !== 'Fallido'
         ));
+
+        if (currentUserRole === 'Admin') {
+          const members = await getTeamMembersFS(['SalesRep', 'Admin']);
+          setAllTeamMembers(members);
+        }
+
       } catch (error) {
-        console.error("Error fetching orders:", error);
-        toast({ title: "Error al Cargar Pedidos", description: "No se pudieron cargar los pedidos desde Firestore.", variant: "destructive" });
+        console.error("Error fetching orders or team members:", error);
+        toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar los pedidos o miembros del equipo.", variant: "destructive" });
       } finally {
         setIsLoading(false);
       }
     }
-    loadOrders();
-  }, [toast, refreshDataSignature]); // Added refreshDataSignature dependency
+    loadInitialData();
+  }, [toast, refreshDataSignature, currentUserRole]);
 
 
   const uniqueStatusesForFilter = ["Todos", ...relevantOrderStatusesForDashboard] as (OrderStatus | "Todos")[];
@@ -111,7 +120,6 @@ export default function OrdersDashboardPage() {
         return;
       }
 
-      // Asegurarse de que el accountId se preserve si existe en el pedido original
       const fullUpdatedOrderData: Partial<Order> = {
         clientName: updatedData.clientName,
         products: updatedData.products ? updatedData.products.split(/[,;\n]+/).map(p => p.trim()).filter(p => p.length > 0) : orderToUpdate.products,
@@ -133,7 +141,7 @@ export default function OrdersDashboardPage() {
         contactoTelefono: updatedData.contactoTelefono || orderToUpdate.contactoTelefono,
         observacionesAlta: updatedData.observacionesAlta || orderToUpdate.observacionesAlta,
         notes: updatedData.notes || orderToUpdate.notes,
-        accountId: orderToUpdate.accountId, // Preservar el accountId original
+        accountId: orderToUpdate.accountId, 
       };
       
       await updateOrderFS(orderId, fullUpdatedOrderData as Order); 
@@ -141,7 +149,29 @@ export default function OrdersDashboardPage() {
       setAllOrders(prevOrders => prevOrders.map(o => o.id === orderId ? { ...orderToUpdate, ...fullUpdatedOrderData } : o));
       
       toast({ title: "¡Pedido Actualizado!", description: `Pedido ${orderId} actualizado exitosamente.`, variant: "default"});
+      
+      // Actualizar salesRepId de la cuenta si es Admin y el salesRep del pedido cambió a un SalesRep
+      if (currentUserRole === 'Admin' && orderToUpdate.accountId && fullUpdatedOrderData.salesRep && fullUpdatedOrderData.salesRep !== orderToUpdate.salesRep) {
+        const newSalesRepName = fullUpdatedOrderData.salesRep;
+        const newSalesRepMember = allTeamMembers.find(m => m.name === newSalesRepName);
+
+        if (newSalesRepMember && newSalesRepMember.role === 'SalesRep') {
+          const accountToUpdate = await getAccountByIdFS(orderToUpdate.accountId);
+          if (accountToUpdate && accountToUpdate.salesRepId !== newSalesRepMember.id) {
+            try {
+              await updateAccountInFirestore(orderToUpdate.accountId, { salesRepId: newSalesRepMember.id });
+              toast({ title: "Cuenta Actualizada", description: `Comercial de la cuenta ${accountToUpdate.name} actualizado a ${newSalesRepMember.name}.`, variant: "default" });
+            } catch (accountUpdateError) {
+              console.error("Error updating account's salesRepId:", accountUpdateError);
+              toast({ title: "Error al Actualizar Cuenta", description: "No se pudo actualizar el comercial de la cuenta asociada.", variant: "destructive" });
+            }
+          }
+        } else if (newSalesRepMember && newSalesRepMember.role !== 'SalesRep') {
+           console.log(`El nuevo comercial ${newSalesRepMember.name} no es SalesRep. No se actualiza el comercial de la cuenta ${orderToUpdate.accountId}.`);
+        }
+      }
       refreshDataSignature();
+
     } catch (error) {
       console.error("Error updating order:", error);
       toast({ title: "Error al Actualizar", description: "No se pudo actualizar el pedido en Firestore.", variant: "destructive" });
@@ -383,7 +413,7 @@ export default function OrdersDashboardPage() {
             {canDownloadCsv && (
               <Button 
                 onClick={handleDownloadCsv} 
-                disabled={selectedOrderIds.length === 0}
+                disabled={selectedOrderIds.length === 0 || isLoading}
                 className="w-full sm:w-auto"
               >
                 <Download className="mr-2 h-4 w-4" />

@@ -28,7 +28,7 @@ const fromFirestore = (docSnap: any): Account => {
     name: data.name || '',
     legalName: data.legalName || '',
     cif: data.cif || '',
-    type: data.type, // Asumimos que type y status siempre están presentes
+    type: data.type, 
     status: data.status,
     addressBilling: data.addressBilling || '',
     addressShipping: data.addressShipping || '',
@@ -36,14 +36,14 @@ const fromFirestore = (docSnap: any): Account => {
     mainContactEmail: data.mainContactEmail || '',
     mainContactPhone: data.mainContactPhone || '',
     notes: data.notes || '',
-    salesRepId: data.salesRepId || undefined, // undefined si es null/undefined en Firestore
+    salesRepId: data.salesRepId || undefined, 
     createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : (typeof data.createdAt === 'string' ? data.createdAt : format(new Date(), "yyyy-MM-dd")),
     updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : (typeof data.updatedAt === 'string' ? data.updatedAt : format(new Date(), "yyyy-MM-dd")),
   };
 };
 
 // Helper para convertir datos de AccountFormValues a lo que se guarda en Firestore
-const toFirestore = (data: AccountFormValues, isNew: boolean): any => {
+const toFirestore = (data: Partial<AccountFormValues>, isNew: boolean): any => {
   const firestoreData: { [key: string]: any } = {};
 
   // Copia solo los campos definidos en AccountFormValues para evitar campos extra
@@ -51,26 +51,21 @@ const toFirestore = (data: AccountFormValues, isNew: boolean): any => {
     if (data[key] !== undefined && data[key] !== "") {
       firestoreData[key] = data[key];
     } else if (key === 'salesRepId' && data[key] === undefined) {
-      firestoreData[key] = null; // Almacena null si salesRepId es undefined
+      firestoreData[key] = null; 
+    } else if (data[key] === "" && (key === 'legalName' || key === 'addressBilling' || key === 'addressShipping' || key === 'mainContactName' || key === 'mainContactEmail' || key === 'mainContactPhone' || key === 'notes')) {
+        firestoreData[key] = null; // Convertir strings vacíos opcionales a null
     }
-    // Para otros campos opcionales que son string vacíos, podríamos querer no enviarlos
-    // o convertirlos a null si la base de datos lo prefiere.
-    // Por ahora, si son string vacíos y no salesRepId, no se añaden (por el if de arriba).
   });
 
 
   if (isNew) {
     firestoreData.createdAt = Timestamp.fromDate(new Date());
+    if (!firestoreData.name) firestoreData.name = "Nombre no especificado";
+    if (!firestoreData.cif) firestoreData.cif = `AUTOGEN_${Date.now()}`;
+    if (!firestoreData.type) firestoreData.type = "Otro";
+    if (!firestoreData.status) firestoreData.status = "Potencial";
   }
   firestoreData.updatedAt = Timestamp.fromDate(new Date());
-
-
-  // Asegurarse de que los campos obligatorios tengan un valor (aunque sea por defecto si no están)
-  if (!firestoreData.name) firestoreData.name = "Nombre no especificado";
-  if (!firestoreData.cif) firestoreData.cif = `AUTOGEN_${Date.now()}`; // O manejar error si CIF es estrictamente necesario
-  if (!firestoreData.type) firestoreData.type = "Otro"; // O manejar error
-  if (!firestoreData.status) firestoreData.status = "Potencial";
-
 
   return firestoreData;
 };
@@ -105,9 +100,9 @@ export const addAccountFS = async (data: AccountFormValues): Promise<string> => 
   return docRef.id;
 };
 
-export const updateAccountFS = async (id: string, data: AccountFormValues): Promise<void> => {
+export const updateAccountFS = async (id: string, data: Partial<AccountFormValues>): Promise<void> => {
   const accountDocRef = doc(db, ACCOUNTS_COLLECTION, id);
-  const firestoreData = toFirestore(data, false); // false porque no es una cuenta nueva
+  const firestoreData = toFirestore(data, false); 
   await updateDoc(accountDocRef, firestoreData);
 };
 
@@ -116,31 +111,30 @@ export const deleteAccountFS = async (id: string): Promise<void> => {
   await deleteDoc(accountDocRef);
 };
 
-// Utilidad para inicializar datos si la colección está vacía (opcional, solo para desarrollo)
 export const initializeMockAccountsInFirestore = async (mockAccounts: Account[]) => {
     const accountsCol = collection(db, ACCOUNTS_COLLECTION);
     const snapshot = await getDocs(query(accountsCol));
     if (snapshot.empty) {
         const batch = writeBatch(db);
         mockAccounts.forEach(account => {
-            const { id, ...accountData } = account; // Excluir ID del mock
+            const { id, ...accountData } = account; 
             const firestoreReadyData: any = {
                 ...accountData,
                 createdAt: account.createdAt ? Timestamp.fromDate(parseISO(account.createdAt)) : Timestamp.fromDate(new Date()),
                 updatedAt: account.updatedAt ? Timestamp.fromDate(parseISO(account.updatedAt)) : Timestamp.fromDate(new Date()),
-                salesRepId: account.salesRepId || null, // Asegurar null si no hay
+                salesRepId: account.salesRepId || null, 
             };
-            // Limpiar undefined o strings vacíos opcionales, excepto los que deben ser null
+            
             Object.keys(firestoreReadyData).forEach(key => {
               if (firestoreReadyData[key] === undefined || (typeof firestoreReadyData[key] === 'string' && firestoreReadyData[key].trim() === '')) {
                 if (key !== 'salesRepId' && key !== 'notes' && key !== 'legalName' && key !== 'addressBilling' && key !== 'addressShipping' && key !== 'mainContactName' && key !== 'mainContactEmail' && key !== 'mainContactPhone') {
                   delete firestoreReadyData[key];
-                } else if (firestoreReadyData[key] === undefined) {
-                    firestoreReadyData[key] = null; // Convertir undefined a null para campos que sí queremos nulos
+                } else if (firestoreReadyData[key] === undefined || firestoreReadyData[key] === '') {
+                    firestoreReadyData[key] = null; 
                 }
               }
             });
-            const docRef = doc(accountsCol); // Firestore generará el ID
+            const docRef = doc(accountsCol); 
             batch.set(docRef, firestoreReadyData);
         });
         await batch.commit();

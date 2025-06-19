@@ -25,15 +25,15 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { userRolesList } from "@/lib/data"; // mockTeamMembers is no longer used here
+import { userRolesList } from "@/lib/data"; 
 import type { TeamMember, UserRole, TeamMemberFormValues } from "@/types";
 import { Loader2, Check, Users, Edit, Trash2 } from "lucide-react";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { useAuth } from "@/contexts/auth-context";
-import EditUserDialog from "@/components/app/edit-user-dialog"; // Type EditUserFormValues comes from here
+import EditUserDialog from "@/components/app/edit-user-dialog"; 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { getTeamMembersFS, deleteTeamMemberFS, updateTeamMemberFS, initializeMockTeamMembersInFirestore } from "@/services/team-member-service";
-// import { mockTeamMembers as initialMockTeamMembersForSeeding } from "@/lib/data"; // If using seeding
+import { getTeamMembersFS, deleteTeamMemberFS, updateTeamMemberFS, initializeMockTeamMembersInFirestore, getTeamMemberByIdFS } from "@/services/team-member-service";
+
 
 const userFormSchema = z.object({
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres."),
@@ -65,11 +65,11 @@ const userFormSchema = z.object({
   }
 });
 
-type UserFormValuesInternal = z.infer<typeof userFormSchema>; // Internal form state with password
+type UserFormValuesInternal = z.infer<typeof userFormSchema>; 
 
 export default function UserManagementPage() {
   const { toast } = useToast();
-  const { user: currentUserAuth, createUserInAuthAndFirestore } = useAuth(); // Renamed user to currentUserAuth
+  const { user: currentUserAuth, createUserInAuthAndFirestore } = useAuth(); 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [users, setUsers] = React.useState<TeamMember[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = React.useState(true);
@@ -89,8 +89,7 @@ export default function UserManagementPage() {
     async function loadUsers() {
       setIsLoadingUsers(true);
       try {
-        // Descomentar para inicializar mocks en Firestore (SOLO UNA VEZ)
-        // await initializeMockTeamMembersInFirestore();
+        await initializeMockTeamMembersInFirestore();
         const firestoreUsers = await getTeamMembersFS();
         setUsers(firestoreUsers);
       } catch (error) {
@@ -114,7 +113,7 @@ export default function UserManagementPage() {
             variant: "destructive",
         });
         setIsSubmitting(false);
-        form.reset({ ...values }); // Keep form values
+        form.reset({ ...values }); 
         return;
     }
 
@@ -132,7 +131,7 @@ export default function UserManagementPage() {
     const { firebaseUser, teamMemberId } = await createUserInAuthAndFirestore(teamMemberDataToSave, defaultPassword);
 
     if (firebaseUser && teamMemberId) {
-      const newUserFromFS = await getTeamMemberByIdFS(teamMemberId); // Fetch the newly created user
+      const newUserFromFS = await getTeamMemberByIdFS(teamMemberId); 
       if (newUserFromFS) {
         setUsers(prev => [newUserFromFS, ...prev].sort((a,b) => a.name.localeCompare(b.name)));
       }
@@ -143,7 +142,6 @@ export default function UserManagementPage() {
       });
       form.reset({ name: "", email: "", role: undefined, monthlyTargetAccounts: undefined, monthlyTargetVisits: undefined, password: "secret123" });
     } else {
-      // Error toast is handled within createUserInAuthAndFirestore
     }
     setIsSubmitting(false);
   }
@@ -154,10 +152,10 @@ export default function UserManagementPage() {
   };
 
   const handleUpdateUser = async (updatedData: TeamMemberFormValues, userId: string) => {
-    setIsLoadingUsers(true); // Indicate loading state for the table
+    setIsLoadingUsers(true); 
     try {
       await updateTeamMemberFS(userId, updatedData);
-      const updatedUsers = await getTeamMembersFS(); // Reload all users to reflect changes
+      const updatedUsers = await getTeamMembersFS(); 
       setUsers(updatedUsers);
       toast({ title: "¡Usuario Actualizado!", description: `Los datos de ${updatedData.name} han sido actualizados.`, variant: "default" });
     } catch (error) {
@@ -183,7 +181,7 @@ export default function UserManagementPage() {
     }
     setIsLoadingUsers(true);
     try {
-      await deleteTeamMemberFS(userToDelete.id); // Delete from Firestore
+      await deleteTeamMemberFS(userToDelete.id); 
       setUsers(prevUsers => prevUsers.filter(u => u.id !== userToDelete.id));
       toast({
         title: "Usuario Eliminado de Firestore",

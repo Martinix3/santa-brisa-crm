@@ -19,7 +19,7 @@ import { es } from 'date-fns/locale';
 import StatusBadge from "@/components/app/status-badge";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { getEventsFS, addEventFS, updateEventFS, deleteEventFS, initializeMockEventsInFirestore } from "@/services/event-service";
-import { mockCrmEvents as initialMockEventsForSeeding } from "@/lib/data"; // For initial seeding only
+import { mockCrmEvents as initialMockEventsForSeeding } from "@/lib/data"; 
 
 export default function EventsPage() {
   const { toast } = useToast();
@@ -42,10 +42,10 @@ export default function EventsPage() {
     async function loadInitialData() {
         setIsLoading(true);
         try {
-            // await initializeMockEventsInFirestore(initialMockEventsForSeeding); // Uncomment for one-time seeding
+            await initializeMockEventsInFirestore(initialMockEventsForSeeding); 
             const [fetchedEvents, fetchedTeamMembers] = await Promise.all([
                 getEventsFS(),
-                getTeamMembersFS() // Fetch all team members
+                getTeamMembersFS() 
             ]);
             setEvents(fetchedEvents);
             setAllTeamMembers(fetchedTeamMembers);
@@ -82,7 +82,7 @@ export default function EventsPage() {
 
   const handleSaveEvent = async (data: EventFormValues, eventId?: string) => {
     if (!isAdmin && !eventId) return;
-    setIsLoading(true); // Indicate loading state for table refresh
+    setIsLoading(true); 
 
     try {
       let successMessage = "";
@@ -97,7 +97,7 @@ export default function EventsPage() {
         await addEventFS(data);
         successMessage = `El evento "${data.name}" ha sido añadido.`;
       }
-      // Refetch events to update the list
+      
       const updatedEvents = await getEventsFS();
       setEvents(updatedEvents);
       toast({ title: "¡Operación Exitosa!", description: successMessage });

@@ -8,7 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox"; 
 import type { Order, OrderStatus, UserRole } from "@/types";
-import { orderStatusesList } from "@/lib/data"; // mockOrders, mockTeamMembers removed
+import { orderStatusesList } from "@/lib/data"; 
 import { MoreHorizontal, Eye, Edit, Trash2, Filter, CalendarDays, ChevronDown, Check, Download, ShoppingCart, Loader2 } from "lucide-react"; 
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -23,7 +23,9 @@ import { useAuth } from "@/contexts/auth-context";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import StatusBadge from "@/components/app/status-badge";
-import { getOrdersFS, updateOrderFS, deleteOrderFS } from "@/services/order-service";
+import { getOrdersFS, updateOrderFS, deleteOrderFS, initializeMockOrdersInFirestore } from "@/services/order-service";
+import { mockOrders as initialMockOrdersForSeeding } from "@/lib/data";
+
 
 const relevantOrderStatusesForDashboard: OrderStatus[] = ['Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Cancelado'];
 
@@ -49,6 +51,7 @@ export default function OrdersDashboardPage() {
     async function loadOrders() {
       setIsLoading(true);
       try {
+        await initializeMockOrdersInFirestore(initialMockOrdersForSeeding);
         const firestoreOrders = await getOrdersFS();
         setAllOrders(firestoreOrders.filter(order => relevantOrderStatusesForDashboard.includes(order.status)));
       } catch (error) {
@@ -103,15 +106,14 @@ export default function OrdersDashboardPage() {
         return;
       }
 
-      // Merge existing order data with updated form values
       const fullUpdatedOrderData: Partial<Order> = {
-        ...orderToUpdate, // Start with existing data
+        ...orderToUpdate, 
         clientName: updatedData.clientName,
         products: updatedData.products ? updatedData.products.split(/[,;\n]+/).map(p => p.trim()).filter(p => p.length > 0) : orderToUpdate.products,
         value: updatedData.value !== undefined ? updatedData.value : orderToUpdate.value,
         status: updatedData.status,
         salesRep: updatedData.salesRep,
-        lastUpdated: format(new Date(), "yyyy-MM-dd"), // Firestore service might handle this with server timestamp
+        lastUpdated: format(new Date(), "yyyy-MM-dd"), 
         clientType: updatedData.clientType || orderToUpdate.clientType,
         numberOfUnits: updatedData.numberOfUnits !== undefined ? updatedData.numberOfUnits : orderToUpdate.numberOfUnits,
         unitPrice: updatedData.unitPrice !== undefined ? updatedData.unitPrice : orderToUpdate.unitPrice,
@@ -133,7 +135,7 @@ export default function OrdersDashboardPage() {
         assignedMaterials: updatedData.assignedMaterials,
       };
       
-      await updateOrderFS(orderId, fullUpdatedOrderData as Order); // Cast as Order, assuming all necessary fields are present
+      await updateOrderFS(orderId, fullUpdatedOrderData as Order); 
       
       setAllOrders(prevOrders => prevOrders.map(o => o.id === orderId ? { ...o, ...fullUpdatedOrderData } : o));
       
@@ -175,12 +177,11 @@ export default function OrdersDashboardPage() {
         toast({ title: "Permiso Denegado", description: "No tienes permiso para cambiar el estado del pedido.", variant: "destructive" });
         return;
     }
-    // Create EditOrderFormValues from the order, only changing the status
     const updatedFormValues: EditOrderFormValues = {
         clientName: order.clientName,
         products: order.products?.join(", "),
         value: order.value,
-        status: newStatus, // This is the only changed value
+        status: newStatus, 
         salesRep: order.salesRep,
         clavadistaId: order.clavadistaId,
         assignedMaterials: order.assignedMaterials,
@@ -202,7 +203,6 @@ export default function OrdersDashboardPage() {
         failureReasonType: order.failureReasonType,
         failureReasonCustom: order.failureReasonCustom,
     };
-    // Call the existing update handler
     await handleUpdateOrder(updatedFormValues, order.id);
   }
 

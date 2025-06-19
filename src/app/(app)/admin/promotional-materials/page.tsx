@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { promotionalMaterialTypeList } from "@/lib/data"; // mockPromotionalMaterials removed from here
+import { promotionalMaterialTypeList } from "@/lib/data"; 
 import type { PromotionalMaterial, PromotionalMaterialType, UserRole, LatestPurchaseInfo } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, Edit, Trash2, MoreHorizontal, PackagePlus, Filter, ChevronDown, AlertTriangle, CalendarDays, Loader2 } from "lucide-react";
@@ -18,7 +18,7 @@ import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getPromotionalMaterialsFS, addPromotionalMaterialFS, updatePromotionalMaterialFS, deletePromotionalMaterialFS, initializeMockPromotionalMaterialsInFirestore } from "@/services/promotional-material-service";
-import { mockPromotionalMaterials as initialMockMaterialsForSeeding } from "@/lib/data"; // For seeding only
+import { mockPromotionalMaterials as initialMockMaterialsForSeeding } from "@/lib/data"; 
 
 
 export default function PromotionalMaterialsPage() {
@@ -39,7 +39,7 @@ export default function PromotionalMaterialsPage() {
     async function loadMaterials() {
       setIsLoading(true);
       try {
-        // await initializeMockPromotionalMaterialsInFirestore(initialMockMaterialsForSeeding); // Uncomment for one-time seeding
+        await initializeMockPromotionalMaterialsInFirestore(initialMockMaterialsForSeeding); 
         const firestoreMaterials = await getPromotionalMaterialsFS();
         setMaterials(firestoreMaterials);
       } catch (error) {

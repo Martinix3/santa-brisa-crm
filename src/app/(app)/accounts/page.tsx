@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { accountStatusList } from "@/lib/data"; // mockAccounts no se usa directamente más, pero sí accountStatusList
+import { accountStatusList } from "@/lib/data"; 
 import type { Account, AccountStatus, UserRole } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, Edit, Trash2, MoreHorizontal, Building2, Filter, ChevronDown, Eye, Loader2 } from "lucide-react";
@@ -18,7 +18,7 @@ import { format } from "date-fns";
 import StatusBadge from "@/components/app/status-badge";
 import Link from "next/link";
 import { getAccountsFS, addAccountFS, deleteAccountFS, initializeMockAccountsInFirestore } from "@/services/account-service";
-import { mockAccounts as initialMockAccounts } from "@/lib/data"; // Para inicialización única
+import { mockAccounts as initialMockAccounts } from "@/lib/data"; 
 
 export default function AccountsPage() {
   const { toast } = useToast();
@@ -38,7 +38,7 @@ export default function AccountsPage() {
       setIsLoading(true);
       try {
         // Descomentar la siguiente línea para inicializar con mocks si la BBDD está vacía
-        // await initializeMockAccountsInFirestore(initialMockAccounts); 
+        await initializeMockAccountsInFirestore(initialMockAccounts); 
         const firestoreAccounts = await getAccountsFS();
         setAccounts(firestoreAccounts);
       } catch (error) {
@@ -58,11 +58,11 @@ export default function AccountsPage() {
 
   const handleSaveNewAccount = async (data: AccountFormValues) => {
     if (!isAdmin) return;
-    setIsLoading(true); // Podríamos usar un estado de "isSaving" más específico aquí
+    setIsLoading(true); 
     try {
       const newAccountId = await addAccountFS(data);
-      const newAccount = await getAccountsFS(); // Recargar todas o solo la nueva
-      setAccounts(newAccount); // Actualiza con la lista completa para reflejar el nuevo ID y Timestamps de Firestore
+      const newAccount = await getAccountsFS(); 
+      setAccounts(newAccount); 
       toast({ title: "¡Cuenta Añadida!", description: `La cuenta "${data.name}" ha sido añadida.` });
       setIsAccountDialogOpen(false);
     } catch (error) {
@@ -277,7 +277,7 @@ export default function AccountsPage() {
           isOpen={isAccountDialogOpen}
           onOpenChange={setIsAccountDialogOpen}
           onSave={handleSaveNewAccount}
-          allAccounts={accounts} // Pasar las cuentas cargadas de Firestore para la validación de CIF duplicado en el diálogo
+          allAccounts={accounts} 
         />
       )}
     </div>

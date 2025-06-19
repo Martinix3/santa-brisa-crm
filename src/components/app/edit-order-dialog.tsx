@@ -61,13 +61,13 @@ const editOrderFormSchema = z.object({
   products: z.string().optional(), 
   value: z.coerce.number().positive("El valor del pedido debe ser positivo.").optional(), 
   status: z.enum(orderStatusesList as [OrderStatus, ...OrderStatus[]]),
-  salesRep: z.string().min(1, "El representante de ventas es obligatorio."), // Mantenerlo obligatorio
+  salesRep: z.string().min(1, "El representante de ventas es obligatorio."),
   clavadistaId: z.string().optional(), 
   assignedMaterials: z.array(assignedMaterialSchemaForDialog).optional().default([]),
   
   clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
-  numberOfUnits: z.coerce.number().positive().optional(),
-  unitPrice: z.coerce.number().positive().optional(),
+  numberOfUnits: z.coerce.number().positive("El número de unidades debe ser positivo.").optional(),
+  unitPrice: z.coerce.number().positive("El precio unitario debe ser positivo.").optional(),
 
   nombreFiscal: z.string().optional(),
   cif: z.string().optional(),
@@ -99,11 +99,9 @@ const editOrderFormSchema = z.object({
         if (['Confirmado', 'Procesando', 'Enviado', 'Entregado'].includes(data.status)) {
             if (!data.nombreFiscal || data.nombreFiscal.trim() === "") ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Nombre fiscal es obligatorio.", path: ["nombreFiscal"] });
             if (!data.cif || data.cif.trim() === "") ctx.addIssue({ code: z.ZodIssueCode.custom, message: "CIF es obligatorio.", path: ["cif"] });
+             if (!data.direccionFiscal || data.direccionFiscal.trim() === "") ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Dirección fiscal es obligatoria.", path: ["direccionFiscal"] });
         }
     }
-    // Validaciones para nextActionType y failureReasonType son removidas de aquí,
-    // ya que estos campos son para visualización/información en este diálogo y no para validación de entrada.
-    // Su validación se realiza en el formulario de registro de visita/interacción.
 });
 
 
@@ -180,10 +178,6 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
 
 
   const currentStatus = form.watch("status");
-  // Los campos de seguimiento no se editan activamente aquí, así que no es necesario 'watch'los para lógica condicional de UI
-  // const nextActionType = form.watch("nextActionType");
-  // const failureReasonType = form.watch("failureReasonType");
-
 
   React.useEffect(() => {
     if (order && isOpen && !isLoadingDropdownData) { 
@@ -207,7 +201,6 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         contactoTelefono: order.contactoTelefono || "",
         observacionesAlta: order.observacionesAlta || "",
         notes: order.notes || "",
-        // Los campos de seguimiento se muestran pero no se editan directamente aquí
         nextActionType: order.nextActionType,
         nextActionCustom: order.nextActionCustom || "",
         nextActionDate: order.nextActionDate && isValid(parseISO(order.nextActionDate)) ? parseISO(order.nextActionDate) : undefined,
@@ -220,8 +213,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const onSubmit = async (data: EditOrderFormValues) => {
     if (!order) return;
     setIsSaving(true);
-
-    // Solo los campos editables por el rol actual deben enviarse
+    
     const dataToSave: EditOrderFormValues = {
       clientName: canEditFullOrderDetails ? data.clientName : order.clientName,
       products: canEditFullOrderDetails ? data.products : order.products?.join(",\n"),
@@ -242,7 +234,6 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
       contactoTelefono: canEditFullOrderDetails ? data.contactoTelefono : order.contactoTelefono,
       observacionesAlta: canEditFullOrderDetails ? data.observacionesAlta : order.observacionesAlta,
       notes: (isAdmin || isDistributor) ? data.notes : order.notes,
-      // Los campos de seguimiento no se editan aquí, se toman del pedido original
       nextActionType: order.nextActionType,
       nextActionCustom: order.nextActionCustom,
       nextActionDate: order.nextActionDate ? parseISO(order.nextActionDate) : undefined,
@@ -272,7 +263,8 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
 
   const formFieldsGenericDisabled = isReadOnlyForMostFields || isLoadingDropdownData;
   const productRelatedFieldsDisabled = !canEditFullOrderDetails || currentStatus === 'Seguimiento' || currentStatus === 'Fallido' || currentStatus === 'Programada' || isLoadingDropdownData;
-  const billingFieldsDisabled = !canEditFullOrderDetails || currentStatus === 'Seguimiento' || currentStatus === 'Fallido' || currentStatus === 'Programada' || isLoadingDropdownData;
+  // Admins should be able to edit billing fields even for confirmed/processed orders.
+  const billingFieldsDisabled = !isAdmin || currentStatus === 'Seguimiento' || currentStatus === 'Fallido' || currentStatus === 'Programada' || isLoadingDropdownData;
   const statusFieldDisabled = !canEditStatusAndNotes || isLoadingDropdownData;
   const notesFieldDisabled = !canEditStatusAndNotes || isLoadingDropdownData;
   const salesRepFieldDisabled = !isAdmin || isLoadingDropdownData;
@@ -282,15 +274,15 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md md:max-w-lg lg:max-w-xl max-h-[90vh] overflow-y-auto print-dialog-content">
+      <DialogContent className="sm:max-w-md md:max-w-lg lg:max-w-2xl xl:max-w-3xl max-h-[90vh] overflow-y-auto print-dialog-content">
         <DialogHeader className="print-hide">
           <DialogTitle>
-            {isReadOnlyForMostFields && !canEditStatusAndNotes ? "Detalles:" : "Editar:"} {order.id} ({order.status})
+            {isReadOnlyForMostFields && !canEditStatusAndNotes ? "Detalles Pedido:" : "Editar Pedido:"} {order.id} ({order.status})
           </DialogTitle>
           <DialogDescription>
             {isReadOnlyForMostFields && !canEditStatusAndNotes
-              ? "Viendo los detalles."
-              : "Modifique los detalles y/o el estado. Haga clic en guardar cuando haya terminado."}
+              ? "Viendo los detalles del pedido."
+              : "Modifique los detalles del pedido y/o el estado. Haga clic en guardar cuando haya terminado."}
           </DialogDescription>
         </DialogHeader>
         {isLoadingDropdownData ? (
@@ -300,86 +292,103 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         ) : (
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
-            <h3 className="text-md font-medium text-muted-foreground pt-2">Detalles Generales</h3>
-            <Separator />
-            <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="Nombre del cliente" {...field} disabled={!canEditFullOrderDetails || formFieldsGenericDisabled} /></FormControl><FormMessage /></FormItem>)} />
-            <FormField control={form.control} name="salesRep" render={({ field }) => (<FormItem><FormLabel>Representante de Ventas</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={salesRepFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un representante" /></SelectTrigger></FormControl><SelectContent>{salesReps.map((member: TeamMember) => (<SelectItem key={member.id} value={member.name}>{member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
-            <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={statusFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un estado" /></SelectTrigger></FormControl><SelectContent>{orderStatusesList.filter(s => s !== 'Programada' && s !== 'Fallido' && s !== 'Seguimiento').map((statusVal) => (<SelectItem key={statusVal} value={statusVal}>{statusVal}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
             
-            <FormField
-                control={form.control}
-                name="clavadistaId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center"><Award className="mr-2 h-4 w-4 text-primary" />Clavadista (Brand Ambassador)</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || NO_CLAVADISTA_VALUE} disabled={clavadistaFieldDisabled}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar clavadista" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value={NO_CLAVADISTA_VALUE}>Ninguno</SelectItem>
-                        {clavadistas.map((clava: TeamMember) => (
-                          <SelectItem key={clava.id} value={clava.id}>{clava.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-            {(currentStatus === 'Confirmado' || currentStatus === 'Procesando' || currentStatus === 'Enviado' || currentStatus === 'Entregado' || currentStatus === 'Pendiente') && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="Nombre del cliente" {...field} disabled={!canEditFullOrderDetails || formFieldsGenericDisabled} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="salesRep" render={({ field }) => (<FormItem><FormLabel>Representante de Ventas</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={salesRepFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un representante" /></SelectTrigger></FormControl><SelectContent>{salesReps.map((member: TeamMember) => (<SelectItem key={member.id} value={member.name}>{member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={statusFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un estado" /></SelectTrigger></FormControl><SelectContent>{orderStatusesList.filter(s => s !== 'Programada' && s !== 'Fallido' && s !== 'Seguimiento').map((statusVal) => (<SelectItem key={statusVal} value={statusVal}>{statusVal}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                <FormField
+                    control={form.control}
+                    name="clavadistaId"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel className="flex items-center"><Award className="mr-2 h-4 w-4 text-primary" />Clavadista (Brand Ambassador)</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || NO_CLAVADISTA_VALUE} disabled={clavadistaFieldDisabled}>
+                        <FormControl>
+                            <SelectTrigger>
+                            <SelectValue placeholder="Seleccionar clavadista" />
+                            </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                            <SelectItem value={NO_CLAVADISTA_VALUE}>Ninguno</SelectItem>
+                            {clavadistas.map((clava: TeamMember) => (
+                            <SelectItem key={clava.id} value={clava.id}>{clava.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                        </Select>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+            </div>
+            
+            <Separator className="my-6" />
+            <h3 className="text-md font-semibold text-muted-foreground pt-2">Información del Pedido y Productos</h3>
+            
+            {(currentStatus === 'Confirmado' || currentStatus === 'Procesando' || currentStatus === 'Enviado' || currentStatus === 'Entregado' || currentStatus === 'Pendiente') ? (
               <>
-                <h3 className="text-md font-medium text-muted-foreground pt-4">Detalles del Pedido</h3>
-                <Separator />
-                 <FormField control={form.control} name="clientType" render={({ field }) => (<FormItem><FormLabel>Tipo de Cliente</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={productRelatedFieldsDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione tipo cliente" /></SelectTrigger></FormControl><SelectContent>{clientTypeList.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="products" render={({ field }) => (<FormItem><FormLabel>Productos Pedidos</FormLabel><FormControl><Textarea placeholder="Listar productos y cantidades..." className="min-h-[80px]" {...field} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="value" render={({ field }) => (<FormItem><FormLabel>Valor del Pedido (€)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="p. ej., 250.75" {...field} onChange={event => field.onChange(event.target.value === '' ? undefined : parseFloat(event.target.value))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades</FormLabel><FormControl><Input type="number" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value,10))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
-
-                <h3 className="text-md font-medium text-muted-foreground pt-4">Información de Cliente y Facturación</h3>
-                <Separator />
-                <FormField control={form.control} name="nombreFiscal" render={({ field }) => (<FormItem><FormLabel>Nombre Fiscal</FormLabel><FormControl><Input placeholder="Nombre legal" {...field} disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF</FormLabel><FormControl><Input placeholder="CIF/NIF" {...field} disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="direccionFiscal" render={({ field }) => (<FormItem><FormLabel>Dirección Fiscal</FormLabel><FormControl><Textarea placeholder="Dirección fiscal completa" {...field} className="min-h-[60px]" disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="direccionEntrega" render={({ field }) => (<FormItem><FormLabel>Dirección de Entrega</FormLabel><FormControl><Textarea placeholder="Dirección de entrega completa" {...field} className="min-h-[60px]" disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
-                <h4 className="text-sm font-medium text-muted-foreground pt-2">Datos de Contacto</h4><Separator />
-                <FormField control={form.control} name="contactoNombre" render={({ field }) => (<FormItem><FormLabel>Nombre de Contacto</FormLabel><FormControl><Input placeholder="Persona de contacto" {...field} disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="contactoCorreo" render={({ field }) => (<FormItem><FormLabel>Correo de Contacto</FormLabel><FormControl><Input type="email" placeholder="email@ejemplo.com" {...field} disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="contactoTelefono" render={({ field }) => (<FormItem><FormLabel>Teléfono de Contacto</FormLabel><FormControl><Input type="tel" placeholder="Número de teléfono" {...field} disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="observacionesAlta" render={({ field }) => (<FormItem><FormLabel>Observaciones (Alta Cliente)</FormLabel><FormControl><Textarea placeholder="Observaciones específicas del alta" {...field} className="min-h-[60px]" disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="clientType" render={({ field }) => (<FormItem><FormLabel>Tipo de Cliente</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={productRelatedFieldsDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione tipo cliente" /></SelectTrigger></FormControl><SelectContent>{clientTypeList.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="products" render={({ field }) => (<FormItem><FormLabel>Productos Pedidos</FormLabel><FormControl><Textarea placeholder="Listar productos y cantidades..." className="min-h-[80px]" {...field} disabled={productRelatedFieldsDisabled} /></FormControl><FormDescription>Separe múltiples productos con comas, punto y coma o saltos de línea.</FormDescription><FormMessage /></FormItem>)}/>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Nº Unidades Totales</FormLabel><FormControl><Input type="number" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value,10))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario Medio (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="value" render={({ field }) => (<FormItem><FormLabel>Valor Total Pedido (€ IVA incl.)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="p. ej., 250.75" {...field} onChange={event => field.onChange(event.target.value === '' ? undefined : parseFloat(event.target.value))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
+                </div>
               </>
+            ) : (
+                 <p className="text-sm text-muted-foreground">Los detalles de productos y valor no aplican para el estado actual del pedido ({currentStatus}).</p>
             )}
 
-            {(currentStatus === 'Seguimiento' || currentStatus === 'Fallido' || currentStatus === 'Programada') && (
+            <Separator className="my-6" />
+            <h3 className="text-md font-semibold text-muted-foreground">Información de Cliente y Facturación</h3>
+             {(currentStatus === 'Confirmado' || currentStatus === 'Procesando' || currentStatus === 'Enviado' || currentStatus === 'Entregado' || currentStatus === 'Pendiente' || isAdmin) ? (
+             <>
+                <FormField control={form.control} name="nombreFiscal" render={({ field }) => (<FormItem><FormLabel>Nombre Fiscal</FormLabel><FormControl><Input placeholder="Nombre legal para facturación" {...field} disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF/NIF</FormLabel><FormControl><Input placeholder="Identificador fiscal" {...field} disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="direccionFiscal" render={({ field }) => (<FormItem><FormLabel>Dirección Fiscal</FormLabel><FormControl><Textarea placeholder="Dirección fiscal completa" {...field} className="min-h-[60px]" disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="direccionEntrega" render={({ field }) => (<FormItem><FormLabel>Dirección de Entrega</FormLabel><FormControl><Textarea placeholder="Dirección de entrega completa" {...field} className="min-h-[60px]" disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
+                
+                <h4 className="text-sm font-medium text-muted-foreground pt-2">Datos de Contacto para este Pedido</h4>
+                <FormField control={form.control} name="contactoNombre" render={({ field }) => (<FormItem><FormLabel>Nombre de Contacto</FormLabel><FormControl><Input placeholder="Persona de contacto para el pedido" {...field} disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="contactoCorreo" render={({ field }) => (<FormItem><FormLabel>Correo de Contacto</FormLabel><FormControl><Input type="email" placeholder="email@ejemplo.com" {...field} disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="contactoTelefono" render={({ field }) => (<FormItem><FormLabel>Teléfono de Contacto</FormLabel><FormControl><Input type="tel" placeholder="Número de teléfono" {...field} disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
+                </div>
+                <FormField control={form.control} name="observacionesAlta" render={({ field }) => (<FormItem><FormLabel>Observaciones (Originales del Alta Cliente)</FormLabel><FormControl><Textarea placeholder="Notas originales del alta" {...field} className="min-h-[60px]" disabled={true}/></FormControl><FormDescription>Este campo es informativo del alta original y no se edita aquí.</FormDescription><FormMessage /></FormItem>)}/>
+             </>
+             ) : (
+                <p className="text-sm text-muted-foreground">La información de facturación completa se muestra para pedidos confirmados o en proceso, o para administradores.</p>
+             )}
+
+
+            {(order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') && (
                 <>
-                  <h3 className="text-md font-medium text-muted-foreground pt-4">Información de Seguimiento/Programación</h3>
-                  <Separator />
-                  <FormField control={form.control} name="nextActionType" render={({ field }) => (<FormItem><FormLabel>Próxima Acción</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={true}><FormControl><SelectTrigger><SelectValue placeholder="N/A para este estado" /></SelectTrigger></FormControl><SelectContent>{nextActionTypeList.map(action => (<SelectItem key={action} value={action}>{action}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
-                  {order.nextActionType === "Opción personalizada" && (<FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Detalle Próxima Acción Personalizada</FormLabel><FormControl><Input placeholder="Especifique la acción" {...field} disabled={true} /></FormControl><FormMessage /></FormItem>)} />)}
+                  <Separator className="my-6" />
+                  <h3 className="text-md font-semibold text-muted-foreground">Información de Seguimiento/Programación Original</h3>
+                  <FormField control={form.control} name="nextActionType" render={({ field }) => (<FormItem><FormLabel>Próxima Acción (Original)</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={true}><FormControl><SelectTrigger><SelectValue placeholder="N/A" /></SelectTrigger></FormControl><SelectContent>{nextActionTypeList.map(action => (<SelectItem key={action} value={action}>{action}</SelectItem>))}</SelectContent></Select></FormItem>)}/>
+                  {order.nextActionType === "Opción personalizada" && (<FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Detalle Próx. Acción Personalizada (Original)</FormLabel><FormControl><Input {...field} disabled={true} /></FormControl></FormItem>)} />)}
                   <FormField
                     control={form.control}
                     name="nextActionDate"
                     render={({ field }) => (
                       <FormItem className="flex flex-col">
-                        <FormLabel>Fecha Tentativa Próxima Acción</FormLabel>
+                        <FormLabel>Fecha Próx. Acción (Original)</FormLabel>
                         <Popover><PopoverTrigger asChild><FormControl>
                               <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal",!field.value && "text-muted-foreground")} disabled={true}>
                                 {field.value ? format(field.value, "PPP", { locale: es }) : <span>N/A</span>}
                                 <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                               </Button></FormControl></PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus locale={es} /></PopoverContent>
-                        </Popover><FormMessage />
+                        </Popover>
                       </FormItem>
                     )}
                   />
                    {order.status === 'Fallido' && (
                      <>
-                      <FormField control={form.control} name="failureReasonType" render={({ field }) => (<FormItem><FormLabel>Motivo del Fallo</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={true}><FormControl><SelectTrigger><SelectValue placeholder="N/A para este estado" /></SelectTrigger></FormControl><SelectContent>{failureReasonList.map(reason => (<SelectItem key={reason} value={reason}>{reason}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
-                      {order.failureReasonType === "Otro (especificar)" && (<FormField control={form.control} name="failureReasonCustom" render={({ field }) => (<FormItem><FormLabel>Detalle Motivo del Fallo Personalizado</FormLabel><FormControl><Textarea placeholder="Especifique el motivo" {...field} disabled={true} /></FormControl><FormMessage /></FormItem>)} />)}
+                      <FormField control={form.control} name="failureReasonType" render={({ field }) => (<FormItem><FormLabel>Motivo Fallo (Original)</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={true}><FormControl><SelectTrigger><SelectValue placeholder="N/A" /></SelectTrigger></FormControl><SelectContent>{failureReasonList.map(reason => (<SelectItem key={reason} value={reason}>{reason}</SelectItem>))}</SelectContent></Select></FormItem>)}/>
+                      {order.failureReasonType === "Otro (especificar)" && (<FormField control={form.control} name="failureReasonCustom" render={({ field }) => (<FormItem><FormLabel>Detalle Motivo Fallo Personalizado (Original)</FormLabel><FormControl><Textarea {...field} disabled={true} /></FormControl></FormItem>)} />)}
                      </>
                    )}
                 </>
@@ -387,8 +396,8 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
 
             {currentStatus !== 'Programada' && (
                 <>
-                  <h3 className="text-md font-medium text-muted-foreground pt-4">Materiales Promocionales Asignados</h3>
-                  <Separator />
+                  <Separator className="my-6" />
+                  <h3 className="text-md font-semibold text-muted-foreground">Materiales Promocionales Asignados</h3>
                   <div className="space-y-3">
                     {isLoadingDropdownData && <Loader2 className="h-4 w-4 animate-spin" />}
                     {!isLoadingDropdownData && materialFields.map((item, index) => {
@@ -462,10 +471,9 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 </>
             )}
 
-
-            <h3 className="text-md font-medium text-muted-foreground pt-4">Notas Adicionales</h3>
-            <Separator />
-            <FormField control={form.control} name="notes" render={({ field }) => (<FormItem><FormLabel>Notas Generales</FormLabel><FormControl><Textarea placeholder="Notas generales sobre el pedido o visita" {...field} className="min-h-[60px]" disabled={notesFieldDisabled}/></FormControl><FormMessage /></FormItem>)}/>
+            <Separator className="my-6" />
+            <h3 className="text-md font-semibold text-muted-foreground">Notas Adicionales</h3>
+            <FormField control={form.control} name="notes" render={({ field }) => (<FormItem><FormLabel>Notas Generales del Pedido/Visita</FormLabel><FormControl><Textarea placeholder="Notas sobre el pedido o visita..." {...field} className="min-h-[60px]" disabled={notesFieldDisabled}/></FormControl><FormMessage /></FormItem>)}/>
 
             <DialogFooter className="pt-6 print-hide">
               <Button type="button" variant="outline" onClick={handlePrint} className="mr-auto">
@@ -473,7 +481,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
               </Button>
               <DialogClose asChild><Button type="button" variant="outline" disabled={isSaving}>Cancelar</Button></DialogClose>
               {!(isReadOnlyForMostFields && !canEditStatusAndNotes) && (
-                <Button type="submit" disabled={isSaving || isLoadingDropdownData || (!form.formState.isDirty && (isAdmin || isDistributor)) }>
+                <Button type="submit" disabled={isSaving || isLoadingDropdownData || (!form.formState.isDirty && !(isAdmin || isDistributor)) }>
                   {isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>) : ("Guardar Cambios")}
                 </Button>
               )}
@@ -485,4 +493,3 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     </Dialog>
   );
 }
-

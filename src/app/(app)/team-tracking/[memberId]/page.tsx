@@ -64,7 +64,7 @@ export default function TeamMemberProfilePage() {
         <h1 className="text-2xl font-semibold mb-2">Comercial no Encontrado</h1>
         <p className="text-muted-foreground mb-6">El comercial que estás buscando no existe o ha sido eliminado.</p>
         <Button onClick={() => router.push('/team-tracking')}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Volver a Seguimiento de Equipo
+          <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Equipo de Ventas
         </Button>
       </div>
     );
@@ -232,3 +232,5 @@ export default function TeamMemberProfilePage() {
     </div>
   );
 }
+
+    

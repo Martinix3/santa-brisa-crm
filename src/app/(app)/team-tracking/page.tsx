@@ -58,12 +58,12 @@ export default function TeamTrackingPage() {
     <div className="space-y-6">
       <header className="flex items-center space-x-2">
         <Users className="h-8 w-8 text-primary" />
-        <h1 className="text-3xl font-headline font-semibold">Rendimiento del Equipo Comercial</h1>
+        <h1 className="text-3xl font-headline font-semibold">Rendimiento del Equipo de Ventas</h1>
       </header>
       
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
-          <CardTitle>Rendimiento Individual y Objetivos</CardTitle>
+          <CardTitle>Rendimiento Individual y Objetivos del Equipo de Ventas</CardTitle>
           <CardDescription>Visualiza el rendimiento general e individual de los representantes de ventas, incluyendo progreso hacia objetivos y métricas clave.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -173,3 +173,5 @@ export default function TeamTrackingPage() {
     </div>
   );
 }
+
+    

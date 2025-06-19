@@ -89,7 +89,7 @@ export const mockOrders: Order[] = [
   {
     id: 'ORD002', clientName: 'Supermercado La Compra Feliz', visitDate: format(subDays(today, 5), 'yyyy-MM-dd'),
     products: ['Santa Brisa 750ml'], value: 1200.50, status: 'Confirmado', salesRep: 'Alfonso (Rep)', lastUpdated: format(subDays(today, 2), 'yyyy-MM-dd'),
-    clientType: 'Retail', numberOfUnits: 80, unitPrice: 12.50, clavadistaId: undefined,
+    clientType: 'Retail', numberOfUnits: 80, unitPrice: 12.50, clavadistaId: 'clv01',
     nombreFiscal: 'La Compra Feliz SA', cif: 'A22222222', direccionFiscal: 'Avenida Comercial 5, Valencia', direccionEntrega: 'Avenida Comercial 5, Valencia',
     contactoNombre: 'Luisa Gerente', contactoCorreo: 'luisa@comprafeliz.com', contactoTelefono: '600222333'
   },
@@ -156,14 +156,14 @@ export const mockOrders: Order[] = [
   {
     id: 'ORD006', clientName: 'Hotel Vista Hermosa', visitDate: format(subDays(today, 9), 'yyyy-MM-dd'),
     products: ['Santa Brisa 750ml'], value: 600.00, status: 'Entregado', salesRep: 'Federica (Rep)', lastUpdated: format(subDays(today, 3), 'yyyy-MM-dd'),
-    clientType: 'HORECA', numberOfUnits: 40, unitPrice: 12.50, clavadistaId: undefined,
+    clientType: 'HORECA', numberOfUnits: 40, unitPrice: 12.50, clavadistaId: 'clv02',
     nombreFiscal: 'Hotel Vista Hermosa SA', cif: 'A55555555', direccionFiscal: 'Carretera de la Costa km 25, Marbella',
     contactoNombre: 'Roberto Director', contactoCorreo: 'director@vistahotel.com', contactoTelefono: '600555666'
   },
    {
     id: 'ORD007', clientName: 'Supermercado La Compra Feliz', visitDate: format(addDays(today, -1), 'yyyy-MM-dd'), // Recent order
     products: ['Santa Brisa 750ml'], value: 1500.00, status: 'Enviado', salesRep: 'Alfonso (Rep)', lastUpdated: format(addDays(today, -1), 'yyyy-MM-dd'),
-    clientType: 'Retail', numberOfUnits: 100, unitPrice: 12.50, clavadistaId: undefined,
+    clientType: 'Retail', numberOfUnits: 100, unitPrice: 12.50, clavadistaId: 'clv01',
     nombreFiscal: 'La Compra Feliz SA', cif: 'A22222222', direccionFiscal: 'Avenida Comercial 5, Valencia',
     contactoNombre: 'Luisa Gerente', contactoCorreo: 'luisa@comprafeliz.com', contactoTelefono: '600222333'
   },
@@ -378,5 +378,7 @@ export const mockCrmEvents: CrmEvent[] = [
   },
 ];
 
+
+    
 
     

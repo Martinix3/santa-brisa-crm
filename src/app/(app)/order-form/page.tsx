@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, useFieldArray } from "react-hook-form";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,18 +25,24 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Check, Loader2, Info, Edit3, Send, FileText, Award } from "lucide-react";
+import { Calendar as CalendarIcon, Check, Loader2, Info, Edit3, Send, FileText, Award, Package, PlusCircle, Trash2, Euro } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { mockOrders, mockTeamMembers, clientTypeList, nextActionTypeList, failureReasonList, mockAccounts, orderStatusesList, accountTypeList } from "@/lib/data";
+import { mockOrders, mockTeamMembers, clientTypeList, nextActionTypeList, failureReasonList, mockAccounts, orderStatusesList, accountTypeList, mockPromotionalMaterials } from "@/lib/data";
 import { kpiDataLaunch } from "@/lib/launch-dashboard-data";
-import type { Order, ClientType, NextActionType, FailureReasonType, Account, AccountType, AccountStatus, TeamMember } from "@/types";
+import type { Order, ClientType, NextActionType, FailureReasonType, Account, AccountType, AccountStatus, TeamMember, AssignedPromotionalMaterial } from "@/types";
 import { useAuth } from "@/contexts/auth-context"; 
 import { useSearchParams, useRouter } from "next/navigation";
+import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 
 const SINGLE_PRODUCT_NAME = "Santa Brisa 750ml";
 const IVA_RATE = 21; // 21%
 const NO_CLAVADISTA_VALUE = "##NONE##";
+
+const assignedMaterialSchema = z.object({
+  materialId: z.string().min(1, "Debe seleccionar un material."),
+  quantity: z.coerce.number().min(1, "La cantidad debe ser al menos 1."),
+});
 
 const orderFormSchemaBase = z.object({
   clientName: z.string().min(2, "El nombre del cliente debe tener al menos 2 caracteres."),
@@ -66,6 +72,7 @@ const orderFormSchemaBase = z.object({
   failureReasonCustom: z.string().optional(),
   
   notes: z.string().optional(), 
+  assignedMaterials: z.array(assignedMaterialSchema).optional().default([]),
 });
 
 const orderFormSchema = orderFormSchemaBase.superRefine((data, ctx) => {
@@ -154,8 +161,24 @@ export default function OrderFormPage() {
       failureReasonType: undefined,
       failureReasonCustom: "",
       notes: "",
+      assignedMaterials: [],
     },
   });
+
+  const { fields: materialFields, append: appendMaterial, remove: removeMaterial } = useFieldArray({
+    control: form.control,
+    name: "assignedMaterials",
+  });
+
+  const watchedMaterials = form.watch("assignedMaterials");
+
+  const totalEstimatedMaterialCostForOrder = React.useMemo(() => {
+    return watchedMaterials.reduce((total, current) => {
+      const materialDetails = mockPromotionalMaterials.find(m => m.id === current.materialId);
+      return total + (materialDetails ? materialDetails.unitCost * current.quantity : 0);
+    }, 0);
+  }, [watchedMaterials]);
+
 
   React.useEffect(() => {
     const visitIdToUpdate = searchParams.get('updateVisitId');
@@ -195,6 +218,7 @@ export default function OrderFormPage() {
           nextActionDate: existingVisit.nextActionDate ? parseISO(existingVisit.nextActionDate) : undefined,
           failureReasonType: existingVisit.failureReasonType,
           failureReasonCustom: existingVisit.failureReasonCustom || "",
+          assignedMaterials: existingVisit.assignedMaterials || [],
         });
       } else if (existingVisit) {
          toast({ title: "Acceso Denegado", description: "No tienes permiso para actualizar esta visita o ya ha sido procesada de otra forma.", variant: "destructive"});
@@ -232,6 +256,7 @@ export default function OrderFormPage() {
             nextActionDate: undefined,
             failureReasonType: undefined,
             failureReasonCustom: "",
+            assignedMaterials: [],
         });
     }
   }, [searchParams, form, teamMember, userRole, router, toast]);
@@ -359,6 +384,7 @@ export default function OrderFormPage() {
             notes: values.notes, 
             clientStatus: values.clientStatus,
             clavadistaId: finalClavadistaId,
+            assignedMaterials: values.assignedMaterials,
             ...orderDetailsForMock, // Add account details from new/existing account
         };
 
@@ -408,7 +434,7 @@ export default function OrderFormPage() {
             const newProgrammedVisit: Order = {
                 id: `VISPROG_${Date.now()}`, clientName: values.clientName, visitDate: format(values.visitDate, "yyyy-MM-dd"),
                 status: 'Programada', salesRep: salesRepName, lastUpdated: currentDate, notes: values.notes, clientStatus: values.clientStatus,
-                clavadistaId: finalClavadistaId,
+                clavadistaId: finalClavadistaId, assignedMaterials: [], // Materials not assigned for programmed visits
                 ...orderDetailsForMock
             };
             mockOrders.unshift(newProgrammedVisit);
@@ -418,7 +444,7 @@ export default function OrderFormPage() {
           const newOrder: Order = {
             id: `ORD_${Date.now()}`, clientName: values.clientName, visitDate: format(values.visitDate, "yyyy-MM-dd"), clientType: values.clientType, products: [SINGLE_PRODUCT_NAME], 
             numberOfUnits: values.numberOfUnits, unitPrice: values.unitPrice, value: values.orderValue, status: 'Confirmado', salesRep: salesRepName, lastUpdated: currentDate, 
-            notes: values.notes, clientStatus: values.clientStatus, clavadistaId: finalClavadistaId,
+            notes: values.notes, clientStatus: values.clientStatus, clavadistaId: finalClavadistaId, assignedMaterials: values.assignedMaterials,
             ...orderDetailsForMock 
           };
           mockOrders.unshift(newOrder);
@@ -438,7 +464,7 @@ export default function OrderFormPage() {
             const newFollowUpEntry: Order = {
                 id: `VISFLW_${Date.now()}`, clientName: values.clientName, visitDate: format(values.visitDate, "yyyy-MM-dd"), status: 'Seguimiento', salesRep: salesRepName, lastUpdated: currentDate,
                 nextActionType: values.nextActionType, nextActionCustom: values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : undefined, nextActionDate: values.nextActionDate ? format(values.nextActionDate, "yyyy-MM-dd") : undefined,
-                notes: values.notes, clientStatus: values.clientStatus, clavadistaId: finalClavadistaId,
+                notes: values.notes, clientStatus: values.clientStatus, clavadistaId: finalClavadistaId, assignedMaterials: values.assignedMaterials,
                 ...orderDetailsForMock
             };
             mockOrders.unshift(newFollowUpEntry);
@@ -449,7 +475,7 @@ export default function OrderFormPage() {
                 id: `VISFLD_${Date.now()}`, clientName: values.clientName, visitDate: format(values.visitDate, "yyyy-MM-dd"), status: 'Fallido', salesRep: salesRepName, lastUpdated: currentDate,
                 nextActionType: values.nextActionType, nextActionCustom: values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : undefined, nextActionDate: values.nextActionDate ? format(values.nextActionDate, "yyyy-MM-dd") : undefined,
                 failureReasonType: values.failureReasonType, failureReasonCustom: values.failureReasonType === 'Otro (especificar)' ? values.failureReasonCustom : undefined,
-                notes: values.notes, clientStatus: values.clientStatus, clavadistaId: finalClavadistaId,
+                notes: values.notes, clientStatus: values.clientStatus, clavadistaId: finalClavadistaId, assignedMaterials: values.assignedMaterials,
                 ...orderDetailsForMock
             };
             mockOrders.unshift(newFailedEntry);
@@ -466,7 +492,7 @@ export default function OrderFormPage() {
         nombreFiscal: "", cif: "", direccionFiscal: "", direccionEntrega: "", contactoNombre: "", contactoCorreo: "", contactoTelefono: "", observacionesAlta: "",
         clientType: undefined, numberOfUnits: undefined, unitPrice: undefined, orderValue: undefined,
         nextActionType: undefined, nextActionCustom: "", nextActionDate: undefined,
-        failureReasonType: undefined, failureReasonCustom: "",
+        failureReasonType: undefined, failureReasonCustom: "", assignedMaterials: [],
     });
     setSubtotal(undefined);
     setIvaAmount(undefined);
@@ -573,7 +599,6 @@ export default function OrderFormPage() {
                 />
               )}
 
-              {/* Clavadista Select */}
               <FormField
                 control={form.control}
                 name="clavadistaId"
@@ -600,7 +625,6 @@ export default function OrderFormPage() {
               />
 
 
-              {/* Fields for Successful Outcome */}
               {outcomeWatched === "successful" && (
                 <>
                   <Separator className="my-6" />
@@ -617,7 +641,6 @@ export default function OrderFormPage() {
                 </>
               )}
               
-              {/* Account creation fields for new clients, shown always when clientStatus is "new" */}
               {showAccountCreationFields && (
                 <>
                   <Separator className="my-6" />
@@ -648,8 +671,6 @@ export default function OrderFormPage() {
                  </div>
                )}
 
-
-              {/* Fields for Follow-up or Failed Outcome */}
               {(outcomeWatched === "follow-up" || outcomeWatched === "failed") && (
                 <>
                   <Separator className="my-6" />
@@ -697,7 +718,6 @@ export default function OrderFormPage() {
                 </>
               )}
 
-              {/* Additional Fields for Failed Outcome */}
               {outcomeWatched === "failed" && (
                 <>
                   {outcomeWatched !== "follow-up" && <Separator className="my-4" />} 
@@ -722,6 +742,76 @@ export default function OrderFormPage() {
                 </>
               )}
               
+              {/* Materials Section - Shown if outcome is not "Programar Visita" */}
+              {outcomeWatched && outcomeWatched !== "Programar Visita" && (
+                <>
+                  <Separator className="my-6" />
+                  <div className="space-y-3">
+                    <FormLabel className="flex items-center text-lg font-medium"><Package className="mr-2 h-5 w-5 text-primary"/> Materiales Promocionales Asignados</FormLabel>
+                    <FormDescription>Añada los materiales promocionales utilizados o entregados en esta interacción.</FormDescription>
+                    {materialFields.map((item, index) => {
+                      const selectedMaterial = mockPromotionalMaterials.find(m => m.id === watchedMaterials[index]?.materialId);
+                      return (
+                        <div key={item.id} className="flex items-end gap-2 p-3 border rounded-md bg-secondary/30">
+                          <FormField
+                            control={form.control}
+                            name={`assignedMaterials.${index}.materialId`}
+                            render={({ field }) => (
+                              <FormItem className="flex-grow">
+                                <FormLabel className="text-xs">Material</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar material" /></SelectTrigger></FormControl>
+                                  <SelectContent>
+                                    {mockPromotionalMaterials.map(mat => (
+                                      <SelectItem key={mat.id} value={mat.id}>{mat.name} ({mat.type}) - <FormattedNumericValue value={mat.unitCost} options={{style:'currency', currency:'EUR'}}/></SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name={`assignedMaterials.${index}.quantity`}
+                            render={({ field }) => (
+                              <FormItem className="w-24">
+                                <FormLabel className="text-xs">Cantidad</FormLabel>
+                                <FormControl><Input type="number" {...field} /></FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <div className="text-sm text-muted-foreground w-28 text-right whitespace-nowrap">
+                            {selectedMaterial && watchedMaterials[index]?.quantity > 0 ? (
+                                <FormattedNumericValue value={selectedMaterial.unitCost * watchedMaterials[index].quantity} options={{style:'currency', currency:'EUR'}} />
+                            ) : <FormattedNumericValue value={0} options={{style:'currency', currency:'EUR'}} />}
+                          </div>
+                          <Button type="button" variant="ghost" size="icon" onClick={() => removeMaterial(index)} className="text-destructive hover:bg-destructive/10">
+                              <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      );
+                    })}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => appendMaterial({ materialId: "", quantity: 1 })}
+                      className="mt-2"
+                    >
+                      <PlusCircle className="mr-2 h-4 w-4" /> Añadir Material
+                    </Button>
+                    {watchedMaterials.length > 0 && (
+                      <div className="text-right font-medium text-primary pt-2">
+                          Coste Total Estimado Materiales: <FormattedNumericValue value={totalEstimatedMaterialCostForOrder} options={{style:'currency', currency:'EUR'}} />
+                      </div>
+                    )}
+                  </div>
+                  <Separator className="my-6" />
+                </>
+              )}
+              
               <FormField control={form.control} name="notes" render={({ field }) => (<FormItem><FormLabel>{outcomeWatched === "Programar Visita" ? "Objetivo de la Visita / Comentarios de Programación (Opcional)" : "Notas Adicionales Generales"}</FormLabel><FormControl><Textarea placeholder={outcomeWatched === "Programar Visita" ? "Detalles sobre el propósito de la visita programada..." : "Cualquier otra información relevante sobre la visita o pedido..."} {...field} /></FormControl><FormMessage /></FormItem>)}/>
               <CardFooter className="p-0 pt-4">
                 <Button type="submit" className="w-full" disabled={isSubmitting || !teamMember}>
@@ -735,3 +825,4 @@ export default function OrderFormPage() {
     </div>
   );
 }
+

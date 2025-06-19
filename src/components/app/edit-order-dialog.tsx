@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,15 +35,23 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { Order, OrderStatus, UserRole, TeamMember, NextActionType, FailureReasonType, ClientType } from "@/types";
-import { orderStatusesList, mockTeamMembers, nextActionTypeList, failureReasonList, clientTypeList } from "@/lib/data";
-import { Loader2, CalendarIcon, Printer, Award } from "lucide-react";
+import type { Order, OrderStatus, UserRole, TeamMember, NextActionType, FailureReasonType, ClientType, AssignedPromotionalMaterial } from "@/types";
+import { orderStatusesList, mockTeamMembers, nextActionTypeList, failureReasonList, clientTypeList, mockPromotionalMaterials } from "@/lib/data";
+import { Loader2, CalendarIcon, Printer, Award, Package, PlusCircle, Trash2, Euro } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { es } from 'date-fns/locale';
+import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
+
 
 const NO_CLAVADISTA_VALUE = "##NONE##";
+
+const assignedMaterialSchemaForDialog = z.object({
+  materialId: z.string().min(1, "Debe seleccionar un material."),
+  quantity: z.coerce.number().min(1, "La cantidad debe ser al menos 1."),
+});
+
 
 const editOrderFormSchema = z.object({
   clientName: z.string().min(2, "El nombre del cliente debe tener al menos 2 caracteres."),
@@ -52,6 +60,7 @@ const editOrderFormSchema = z.object({
   status: z.enum(orderStatusesList as [OrderStatus, ...OrderStatus[]]),
   salesRep: z.string().min(1, "El representante de ventas es obligatorio."),
   clavadistaId: z.string().optional(), // Can be "##NONE##" or an actual ID
+  assignedMaterials: z.array(assignedMaterialSchemaForDialog).optional().default([]),
   
   clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
   numberOfUnits: z.coerce.number().positive().optional(),
@@ -125,6 +134,7 @@ interface EditOrderDialogProps {
 export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, currentUserRole }: EditOrderDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   const clavadistas = React.useMemo(() => mockTeamMembers.filter(m => m.role === 'Clavadista'), []);
+  
   const form = useForm<EditOrderFormValues>({
     resolver: zodResolver(editOrderFormSchema),
     defaultValues: {
@@ -134,6 +144,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
       status: "Pendiente",
       salesRep: "",
       clavadistaId: NO_CLAVADISTA_VALUE,
+      assignedMaterials: [],
       clientType: undefined,
       numberOfUnits: undefined,
       unitPrice: undefined,
@@ -154,6 +165,21 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     },
   });
   
+  const { fields: materialFields, append: appendMaterial, remove: removeMaterial } = useFieldArray({
+    control: form.control,
+    name: "assignedMaterials",
+  });
+
+  const watchedMaterials = form.watch("assignedMaterials");
+
+  const totalEstimatedMaterialCostForDialog = React.useMemo(() => {
+    return watchedMaterials.reduce((total, current) => {
+      const materialDetails = mockPromotionalMaterials.find(m => m.id === current.materialId);
+      return total + (materialDetails ? materialDetails.unitCost * current.quantity : 0);
+    }, 0);
+  }, [watchedMaterials]);
+
+
   const currentStatus = form.watch("status");
   const nextActionType = form.watch("nextActionType");
   const failureReasonType = form.watch("failureReasonType");
@@ -168,6 +194,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         status: order.status,
         salesRep: order.salesRep,
         clavadistaId: order.clavadistaId || NO_CLAVADISTA_VALUE,
+        assignedMaterials: order.assignedMaterials || [],
         clientType: order.clientType,
         numberOfUnits: order.numberOfUnits,
         unitPrice: order.unitPrice,
@@ -197,6 +224,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         ...data,
         clavadistaId: data.clavadistaId === NO_CLAVADISTA_VALUE ? undefined : data.clavadistaId,
         nextActionDate: data.nextActionDate ? data.nextActionDate : undefined,
+        assignedMaterials: data.assignedMaterials || [],
     };
 
     await new Promise(resolve => setTimeout(resolve, 700));
@@ -226,6 +254,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const statusFieldDisabled = isReadOnly || (!isAdmin && !isDistributor);
   const salesRepFieldDisabled = isReadOnly || !isAdmin;
   const clavadistaFieldDisabled = isReadOnly || !canEditFullOrderDetails;
+  const materialsSectionDisabled = isReadOnly || !canEditFullOrderDetails || currentStatus === 'Programada';
 
 
   return (
@@ -330,6 +359,79 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                  </>
             )}
 
+            {/* Materials Section - Shown if status is not "Programada" */}
+            {currentStatus !== 'Programada' && (
+                <>
+                  <h3 className="text-md font-medium text-muted-foreground pt-4">Materiales Promocionales Asignados</h3>
+                  <Separator />
+                  <div className="space-y-3">
+                    {materialFields.map((item, index) => {
+                      const selectedMaterial = mockPromotionalMaterials.find(m => m.id === watchedMaterials[index]?.materialId);
+                      return (
+                        <div key={item.id} className="flex items-end gap-2 p-3 border rounded-md bg-secondary/30">
+                          <FormField
+                            control={form.control}
+                            name={`assignedMaterials.${index}.materialId`}
+                            render={({ field }) => (
+                              <FormItem className="flex-grow">
+                                <FormLabel className="text-xs">Material</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value} disabled={materialsSectionDisabled}>
+                                  <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar material" /></SelectTrigger></FormControl>
+                                  <SelectContent>
+                                    {mockPromotionalMaterials.map(mat => (
+                                      <SelectItem key={mat.id} value={mat.id}>{mat.name} ({mat.type}) - <FormattedNumericValue value={mat.unitCost} options={{style:'currency', currency:'EUR'}}/></SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name={`assignedMaterials.${index}.quantity`}
+                            render={({ field }) => (
+                              <FormItem className="w-24">
+                                <FormLabel className="text-xs">Cantidad</FormLabel>
+                                <FormControl><Input type="number" {...field} disabled={materialsSectionDisabled} /></FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <div className="text-sm text-muted-foreground w-28 text-right whitespace-nowrap">
+                             {selectedMaterial && watchedMaterials[index]?.quantity > 0 ? (
+                                <FormattedNumericValue value={selectedMaterial.unitCost * watchedMaterials[index].quantity} options={{style:'currency', currency:'EUR'}} />
+                             ) : <FormattedNumericValue value={0} options={{style:'currency', currency:'EUR'}} />}
+                          </div>
+                          {!materialsSectionDisabled && (
+                            <Button type="button" variant="ghost" size="icon" onClick={() => removeMaterial(index)} className="text-destructive hover:bg-destructive/10">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {!materialsSectionDisabled && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => appendMaterial({ materialId: "", quantity: 1 })}
+                        className="mt-2"
+                      >
+                        <PlusCircle className="mr-2 h-4 w-4" /> Añadir Material
+                      </Button>
+                    )}
+                    {watchedMaterials.length > 0 && (
+                      <div className="text-right font-medium text-primary pt-2">
+                          Coste Total Estimado Materiales: <FormattedNumericValue value={totalEstimatedMaterialCostForDialog} options={{style:'currency', currency:'EUR'}} />
+                      </div>
+                    )}
+                  </div>
+                </>
+            )}
+
+
             <h3 className="text-md font-medium text-muted-foreground pt-4">Notas Adicionales</h3>
             <Separator />
             <FormField control={form.control} name="notes" render={({ field }) => (<FormItem><FormLabel>Notas Generales</FormLabel><FormControl><Textarea placeholder="Notas generales sobre el pedido o visita" {...field} className="min-h-[60px]" disabled={isReadOnly || (!isAdmin && !isDistributor)}/></FormControl><FormMessage /></FormItem>)}/>
@@ -340,7 +442,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
               </Button>
               <DialogClose asChild><Button type="button" variant="outline" disabled={isSaving}>Cancelar</Button></DialogClose>
               {!isReadOnly && (
-                <Button type="submit" disabled={isSaving || !form.formState.isDirty}>
+                <Button type="submit" disabled={isSaving || (!form.formState.isDirty && (currentUserRole === 'Admin' || currentUserRole === 'Distributor'))}>
                   {isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>) : ("Guardar Cambios")}
                 </Button>
               )}
@@ -351,3 +453,4 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     </Dialog>
   );
 }
+

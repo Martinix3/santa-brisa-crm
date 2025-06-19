@@ -37,6 +37,23 @@ export type ClientType = 'Distribuidor' | 'HORECA' | 'Retail' | 'Cliente Final';
 export type NextActionType = 'Llamar al responsable de compras' | 'Mandar información' | 'Visitar de nuevo' | 'Enviar muestra' | 'Esperar decisión' | 'Opción personalizada';
 export type FailureReasonType = 'No interesado' | 'Ya trabaja con otro proveedor' | 'Sin presupuesto' | 'Producto no encaja' | 'Otro (especificar)';
 
+// Promotional Materials
+export type PromotionalMaterialType = 'Merchandising Físico' | 'Material PLV' | 'Servicio de Personal' | 'Digital/Software';
+
+export interface PromotionalMaterial {
+  id: string;
+  name: string;
+  description?: string;
+  type: PromotionalMaterialType;
+  unitCost: number; // Cost per unit or per hour for services
+}
+
+export interface AssignedPromotionalMaterial {
+  materialId: string; // Corresponds to PromotionalMaterial.id
+  quantity: number;
+  // Optional: estimatedCost can be calculated on the fly: material.unitCost * quantity
+}
+
 export interface Order {
   id: string;
   clientName: string;
@@ -47,6 +64,7 @@ export interface Order {
   salesRep: string;
   lastUpdated: string; // Should be YYYY-MM-DD
   clavadistaId?: string; // ID of the Clavadista involved
+  assignedMaterials?: AssignedPromotionalMaterial[]; // Materials for this order/visit
 
   clientType?: ClientType;
   numberOfUnits?: number; 
@@ -110,22 +128,6 @@ export interface Account {
   updatedAt: string; // YYYY-MM-DD
 }
 
-// Promotional Materials
-export type PromotionalMaterialType = 'Merchandising Físico' | 'Material PLV' | 'Servicio de Personal' | 'Digital/Software';
-
-export interface PromotionalMaterial {
-  id: string;
-  name: string;
-  description?: string;
-  type: PromotionalMaterialType;
-  unitCost: number; // Cost per unit or per hour for services
-}
-
-export interface AssignedPromotionalMaterial {
-  materialId: string; // Corresponds to PromotionalMaterial.id
-  quantity: number;
-  // Optional: estimatedCost can be calculated on the fly: material.unitCost * quantity
-}
 
 // CRM Event Management
 export type CrmEventType = 'Activación en Tienda' | 'Feria Comercial' | 'Evento Corporativo' | 'Degustación' | 'Patrocinio' | 'Activación' | 'Otro';
@@ -141,7 +143,7 @@ export interface CrmEvent {
   description?: string;
   location?: string;
   assignedTeamMemberIds: string[]; // Array of TeamMember.id
-  assignedMaterials?: AssignedPromotionalMaterial[]; // Replaced requiredMaterials
+  assignedMaterials?: AssignedPromotionalMaterial[]; 
   notes?: string;
   createdAt: string; // YYYY-MM-DD
   updatedAt: string; // YYYY-MM-DD

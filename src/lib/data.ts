@@ -84,88 +84,101 @@ export const mockOrders: Order[] = [
     products: ['Santa Brisa 750ml'], value: 350.75, status: 'Entregado', salesRep: 'Nico (Rep)', lastUpdated: format(subDays(today, 10), 'yyyy-MM-dd'),
     clientType: 'HORECA', numberOfUnits: 20, unitPrice: 14.50, clavadistaId: 'clv01',
     nombreFiscal: 'Bar El Estudiante SL', cif: 'B11111111', direccionFiscal: 'Calle Universidad 1, Madrid', direccionEntrega: 'Calle Universidad 1, Madrid',
-    contactoNombre: 'Juan Dueño', contactoCorreo: 'juan@estudiante.es', contactoTelefono: '600111222'
+    contactoNombre: 'Juan Dueño', contactoCorreo: 'juan@estudiante.es', contactoTelefono: '600111222',
+    assignedMaterials: [{ materialId: 'mat_002', quantity: 2 }] // 2 Bandejas
   },
   {
     id: 'ORD002', clientName: 'Supermercado La Compra Feliz', visitDate: format(subDays(today, 5), 'yyyy-MM-dd'),
     products: ['Santa Brisa 750ml'], value: 1200.50, status: 'Confirmado', salesRep: 'Alfonso (Rep)', lastUpdated: format(subDays(today, 2), 'yyyy-MM-dd'),
     clientType: 'Retail', numberOfUnits: 80, unitPrice: 12.50, clavadistaId: 'clv01',
     nombreFiscal: 'La Compra Feliz SA', cif: 'A22222222', direccionFiscal: 'Avenida Comercial 5, Valencia', direccionEntrega: 'Avenida Comercial 5, Valencia',
-    contactoNombre: 'Luisa Gerente', contactoCorreo: 'luisa@comprafeliz.com', contactoTelefono: '600222333'
+    contactoNombre: 'Luisa Gerente', contactoCorreo: 'luisa@comprafeliz.com', contactoTelefono: '600222333',
+    assignedMaterials: []
   },
   {
     id: 'VISFLW001', clientName: 'Restaurante La Tertulia', visitDate: format(subDays(today, 8), 'yyyy-MM-dd'),
     status: 'Seguimiento', salesRep: 'Nico (Rep)', lastUpdated: format(subDays(today, 8), 'yyyy-MM-dd'), clavadistaId: 'clv02',
     nextActionType: 'Llamar al responsable de compras', nextActionDate: format(addDays(today, 2), 'yyyy-MM-dd'),
-    notes: 'El responsable estaba de vacaciones, volver a contactar esta semana.'
+    notes: 'El responsable estaba de vacaciones, volver a contactar esta semana.',
+    assignedMaterials: [{ materialId: 'mat_007', quantity: 1 }] // 1 Pack Flyers
   },
   {
     id: 'VISFLW002', clientName: 'Hotel Vista Hermosa', visitDate: format(subDays(today, 3), 'yyyy-MM-dd'),
     status: 'Seguimiento', salesRep: 'Federica (Rep)', lastUpdated: format(subDays(today, 3), 'yyyy-MM-dd'), clavadistaId: undefined,
     nextActionType: 'Enviar muestra', nextActionDate: format(addDays(today, 5), 'yyyy-MM-dd'),
-    notes: 'Pidieron muestra del nuevo etiquetado.'
+    notes: 'Pidieron muestra del nuevo etiquetado.',
+    assignedMaterials: []
   },
   {
     id: 'VISFLD001', clientName: 'Tienda Gourmet El Rincón Sibarita', visitDate: format(subDays(today, 12), 'yyyy-MM-dd'),
     status: 'Fallido', salesRep: 'Alfonso (Rep)', lastUpdated: format(subDays(today, 12), 'yyyy-MM-dd'), clavadistaId: undefined,
     nextActionType: 'Visitar de nuevo', nextActionDate: format(addDays(today, 20), 'yyyy-MM-dd'),
     failureReasonType: 'Ya trabaja con otro proveedor',
-    notes: 'Tienen exclusividad con otra marca, pero abiertos a revisar en 1 mes.'
+    notes: 'Tienen exclusividad con otra marca, pero abiertos a revisar en 1 mes.',
+    assignedMaterials: []
   },
   {
     id: 'ORD003', clientName: 'Distribuciones Rápidas SL', visitDate: format(subDays(today, 25), 'yyyy-MM-dd'),
     products: ['Santa Brisa 750ml'], value: 2500.00, status: 'Entregado', salesRep: 'Admin User', lastUpdated: format(subDays(today, 20), 'yyyy-MM-dd'),
     clientType: 'Distribuidor', numberOfUnits: 200, unitPrice: 10.00, clavadistaId: undefined,
     nombreFiscal: 'Distribuciones Rápidas SL', cif: 'B33333333', direccionFiscal: 'Polígono Industrial El Viento, Parcela 10, Zaragoza',
-    contactoNombre: 'Carlos Almacén', contactoCorreo: 'calmacen@rapidas.es', contactoTelefono: '600333444'
+    contactoNombre: 'Carlos Almacén', contactoCorreo: 'calmacen@rapidas.es', contactoTelefono: '600333444',
+    assignedMaterials: [{ materialId: 'mat_001', quantity: 5 }]
   },
   {
     id: 'VISFLW003', clientName: 'Catering Los Eventos Felices', visitDate: format(subDays(today, 1), 'yyyy-MM-dd'),
     status: 'Seguimiento', salesRep: 'Nico (Rep)', lastUpdated: format(subDays(today, 1), 'yyyy-MM-dd'), clavadistaId: 'clv01',
     nextActionType: 'Opción personalizada', nextActionCustom: 'Preparar propuesta para boda de 200 pax',
     nextActionDate: format(addDays(today, 7), 'yyyy-MM-dd'),
-    notes: 'Necesitan presupuesto ajustado para un evento grande.'
+    notes: 'Necesitan presupuesto ajustado para un evento grande.',
+    assignedMaterials: []
   },
    {
     id: 'ORD004', clientName: 'Bar El Estudiante', visitDate: format(subDays(today, 2), 'yyyy-MM-dd'), 
     products: ['Santa Brisa 750ml'], value: 175.50, status: 'Confirmado', salesRep: 'Nico (Rep)', lastUpdated: format(subDays(today, 1), 'yyyy-MM-dd'),
     clientType: 'HORECA', numberOfUnits: 10, unitPrice: 14.50, clavadistaId: undefined,
     nombreFiscal: 'Bar El Estudiante SL', cif: 'B11111111', direccionFiscal: 'Calle Universidad 1, Madrid', direccionEntrega: 'Calle Universidad 1, Madrid',
-    contactoNombre: 'Juan Dueño', contactoCorreo: 'juan@estudiante.es', contactoTelefono: '600111222'
+    contactoNombre: 'Juan Dueño', contactoCorreo: 'juan@estudiante.es', contactoTelefono: '600111222',
+    assignedMaterials: []
   },
   {
     id: 'VISFLD002', clientName: 'Nuevo Bar Plaza', visitDate: format(subDays(today, 6), 'yyyy-MM-dd'),
     status: 'Fallido', salesRep: 'Federica (Rep)', lastUpdated: format(subDays(today, 6), 'yyyy-MM-dd'), clavadistaId: undefined,
     nextActionType: 'Mandar información', nextActionDate: format(addDays(today, 1), 'yyyy-MM-dd'),
     failureReasonType: 'No interesado',
-    notes: 'Acaban de abrir, de momento no quieren más proveedores.'
+    notes: 'Acaban de abrir, de momento no quieren más proveedores.',
+    assignedMaterials: []
   },
   {
     id: 'ORD005', clientName: 'Restaurante La Tertulia', visitDate: format(subDays(today, 1), 'yyyy-MM-dd'),
     products: ['Santa Brisa 750ml'], value: 290.00, status: 'Procesando', salesRep: 'Nico (Rep)', lastUpdated: format(subDays(today, 1), 'yyyy-MM-dd'),
     clientType: 'HORECA', numberOfUnits: 15, unitPrice: 16.00, // Adjusted price
     nombreFiscal: 'La Tertulia Gastronómica SLU', cif: 'B44444444', direccionFiscal: 'Calle Poeta 12, Sevilla', direccionEntrega: 'Calle Poeta 12, Sevilla',
-    contactoNombre: 'Elena Chef', contactoCorreo: 'elena.chef@latertulia.es', contactoTelefono: '600444555', clavadistaId: 'clv02'
+    contactoNombre: 'Elena Chef', contactoCorreo: 'elena.chef@latertulia.es', contactoTelefono: '600444555', clavadistaId: 'clv02',
+    assignedMaterials: [{ materialId: 'mat_004', quantity: 1 }]
   },
   {
     id: 'VISFLW004', clientName: 'Vinoteca El Buen Gusto', visitDate: format(subDays(today, 4), 'yyyy-MM-dd'),
     status: 'Seguimiento', salesRep: 'Alfonso (Rep)', lastUpdated: format(subDays(today, 4), 'yyyy-MM-dd'), clavadistaId: undefined,
     nextActionType: 'Visitar de nuevo', nextActionDate: format(addDays(today, 10), 'yyyy-MM-dd'),
-    notes: 'Interesados, pero quieren comparar con su proveedor actual. Nueva visita para cerrar.'
+    notes: 'Interesados, pero quieren comparar con su proveedor actual. Nueva visita para cerrar.',
+    assignedMaterials: []
   },
   {
     id: 'ORD006', clientName: 'Hotel Vista Hermosa', visitDate: format(subDays(today, 9), 'yyyy-MM-dd'),
     products: ['Santa Brisa 750ml'], value: 600.00, status: 'Entregado', salesRep: 'Federica (Rep)', lastUpdated: format(subDays(today, 3), 'yyyy-MM-dd'),
     clientType: 'HORECA', numberOfUnits: 40, unitPrice: 12.50, clavadistaId: 'clv02',
     nombreFiscal: 'Hotel Vista Hermosa SA', cif: 'A55555555', direccionFiscal: 'Carretera de la Costa km 25, Marbella',
-    contactoNombre: 'Roberto Director', contactoCorreo: 'director@vistahotel.com', contactoTelefono: '600555666'
+    contactoNombre: 'Roberto Director', contactoCorreo: 'director@vistahotel.com', contactoTelefono: '600555666',
+    assignedMaterials: []
   },
    {
     id: 'ORD007', clientName: 'Supermercado La Compra Feliz', visitDate: format(addDays(today, -1), 'yyyy-MM-dd'), // Recent order
     products: ['Santa Brisa 750ml'], value: 1500.00, status: 'Enviado', salesRep: 'Alfonso (Rep)', lastUpdated: format(addDays(today, -1), 'yyyy-MM-dd'),
     clientType: 'Retail', numberOfUnits: 100, unitPrice: 12.50, clavadistaId: 'clv01',
     nombreFiscal: 'La Compra Feliz SA', cif: 'A22222222', direccionFiscal: 'Avenida Comercial 5, Valencia',
-    contactoNombre: 'Luisa Gerente', contactoCorreo: 'luisa@comprafeliz.com', contactoTelefono: '600222333'
+    contactoNombre: 'Luisa Gerente', contactoCorreo: 'luisa@comprafeliz.com', contactoTelefono: '600222333',
+    assignedMaterials: []
   },
   {
     id: 'VISFLD003', clientName: 'Gastrobar Innova', visitDate: format(addDays(today, -10), 'yyyy-MM-dd'),
@@ -173,7 +186,8 @@ export const mockOrders: Order[] = [
     nextActionType: 'Opción personalizada', nextActionCustom: 'Revisar contacto en 6 meses, cambio de gerencia',
     nextActionDate: format(addDays(today, 170), 'yyyy-MM-dd'), // Approx 6 months
     failureReasonType: 'Otro (especificar)', failureReasonCustom: 'Cambio reciente de propietario, no toman decisiones ahora.',
-    notes: 'Nuevo dueño revisará proveedores más adelante.'
+    notes: 'Nuevo dueño revisará proveedores más adelante.',
+    assignedMaterials: []
   }
 ];
 

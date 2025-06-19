@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button';
 import Logo from '@/components/icons/Logo';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2, Building2, ClipboardList, CalendarCheck, PartyPopper, ListChecks, Footprints, Briefcase, Target, Award } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2, Building2, ClipboardList, CalendarCheck, PartyPopper, ListChecks, Footprints, Briefcase, Target, Award, Sparkles } from 'lucide-react'; // Added Sparkles
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
   DropdownMenu, 
@@ -52,7 +52,7 @@ interface NavGroup {
   id: string;
   label: string;
   items: NavItem[];
-  groupRoles?: UserRole[]; // Roles that can see this group label. If undefined, visible to all (items inside still filtered).
+  groupRoles?: UserRole[]; 
 }
 
 const navigationStructure: NavGroup[] = [
@@ -78,6 +78,7 @@ const navigationStructure: NavGroup[] = [
       { href: '/events', label: 'Eventos', icon: PartyPopper, roles: ['Admin', 'SalesRep'] },
       { href: '/clavadistas', label: 'Clavadistas', icon: Award, roles: ['Admin', 'SalesRep'] },
       { href: '/marketing-resources', label: 'Recursos de Marketing', icon: Library, roles: ['Admin', 'SalesRep', 'Distributor'] },
+      { href: '/marketing/ai-assistant', label: 'Asistente IA', icon: Sparkles, roles: ['Admin', 'SalesRep'] }, // Nueva página
     ],
   },
   {
@@ -431,11 +432,8 @@ function AppNavigation({ navStructure, userRole }: AppNavigationProps) {
   return (
     <>
       {navStructure.map((group) => {
-        // Filter items within the group first
         const visibleItemsInGroup = group.items.filter(item => item.roles.includes(userRole));
         
-        // If groupRoles is defined, check if user has any of them. If not, and no items are visible, skip group.
-        // If groupRoles is undefined, show group label if there are visible items.
         const canShowGroup = 
           (group.groupRoles ? group.groupRoles.includes(userRole) : true) && 
           visibleItemsInGroup.length > 0;
@@ -446,19 +444,19 @@ function AppNavigation({ navStructure, userRole }: AppNavigationProps) {
 
         return (
           <SidebarGroup key={group.id}>
-            {group.items.length > 1 || group.id !== 'configuracion' ? ( // Don't show label if only one item & not special like config
+            {group.items.length > 1 || group.id !== 'configuracion' ? ( 
               <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
             ) : null}
             <SidebarGroupContent>
               <SidebarMenu>
                 {visibleItemsInGroup.map((item) => {
                   let isActive = false;
-                  if (item.href === '/admin/settings') { // Special case for settings parent route
+                  if (item.href === '/admin/settings') { 
                     isActive = pathname.startsWith('/admin');
                   } else if (item.href === '/dashboard') {
-                    isActive = pathname === item.href; // Exact match for dashboard
+                    isActive = pathname === item.href; 
                   } else {
-                    isActive = pathname.startsWith(item.href) && item.href !== '/dashboard'; // Starts with for others, excluding dashboard
+                    isActive = pathname.startsWith(item.href) && item.href !== '/dashboard'; 
                   }
                   
                   return (

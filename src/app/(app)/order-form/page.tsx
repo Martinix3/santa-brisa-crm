@@ -25,23 +25,25 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Check, Loader2, Info, Edit3, Send, FileText, Award, Package, PlusCircle, Trash2 } from "lucide-react"; // Removed Euro
+import { Calendar as CalendarIcon, Check, Loader2, Info, Edit3, Send, FileText, Award, Package, PlusCircle, Trash2, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { clientTypeList, nextActionTypeList, failureReasonList, accountTypeList } from "@/lib/data"; // mockPromotionalMaterials removed
-import type { Order, ClientType, NextActionType, FailureReasonType, Account, AccountType, AccountStatus, TeamMember, PromotionalMaterial } from "@/types"; // Added PromotionalMaterial
-import { useAuth } from "@/contexts/auth-context"; 
+import { clientTypeList, nextActionTypeList, failureReasonList, accountTypeList } from "@/lib/data";
+import type { Order, ClientType, NextActionType, FailureReasonType, Account, AccountType, AccountStatus, TeamMember, PromotionalMaterial, UserRole } from "@/types";
+import { useAuth } from "@/contexts/auth-context";
 import { useSearchParams, useRouter } from "next/navigation";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-import { getAccountByIdFS, addAccountFS, getAccountsFS } from "@/services/account-service"; 
-import { getOrderByIdFS, addOrderFS, updateOrderFS } from "@/services/order-service"; 
-import { getTeamMembersFS } from "@/services/team-member-service"; // For clavadistas
-import { getPromotionalMaterialsFS } from "@/services/promotional-material-service"; // For materials
+import { getAccountByIdFS, addAccountFS, getAccountsFS } from "@/services/account-service";
+import { getOrderByIdFS, addOrderFS, updateOrderFS } from "@/services/order-service";
+import { getTeamMembersFS } from "@/services/team-member-service";
+import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
 
 
 const SINGLE_PRODUCT_NAME = "Santa Brisa 750ml";
 const IVA_RATE = 21; // 21%
 const NO_CLAVADISTA_VALUE = "##NONE##";
+const ADMIN_SELF_REGISTER_VALUE = "##ADMIN_SELF##";
+
 
 const assignedMaterialSchema = z.object({
   materialId: z.string().min(1, "Debe seleccionar un material."),
@@ -53,13 +55,14 @@ const orderFormSchemaBase = z.object({
   visitDate: z.date({ required_error: "La fecha de visita es obligatoria." }),
   clientStatus: z.enum(["new", "existing"], { required_error: "Debe indicar si es un cliente nuevo o existente." }).optional(),
   outcome: z.enum(["Programar Visita", "successful", "failed", "follow-up"], { required_error: "Por favor, seleccione un resultado." }),
-  clavadistaId: z.string().optional(), 
-  
+  clavadistaId: z.string().optional(),
+  selectedSalesRepId: z.string().optional(), // Nuevo campo para Admin
+
   clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
   numberOfUnits: z.coerce.number().positive("El número de unidades debe ser un número positivo.").optional(),
   unitPrice: z.coerce.number().positive("El precio unitario debe ser un número positivo.").optional(),
-  orderValue: z.coerce.number().positive("El valor del pedido debe ser positivo.").optional(), 
-  
+  orderValue: z.coerce.number().positive("El valor del pedido debe ser positivo.").optional(),
+
   nombreFiscal: z.string().optional(),
   cif: z.string().optional(),
   direccionFiscal: z.string().optional(),
@@ -74,10 +77,10 @@ const orderFormSchemaBase = z.object({
   nextActionDate: z.date().optional(),
   failureReasonType: z.enum(failureReasonList as [FailureReasonType, ...FailureReasonType[]]).optional(),
   failureReasonCustom: z.string().optional(),
-  
-  notes: z.string().optional(), 
+
+  notes: z.string().optional(),
   assignedMaterials: z.array(assignedMaterialSchema).optional().default([]),
-  accountId: z.string().optional(), 
+  accountId: z.string().optional(),
 });
 
 const orderFormSchema = orderFormSchemaBase.superRefine((data, ctx) => {
@@ -102,7 +105,7 @@ const orderFormSchema = orderFormSchemaBase.superRefine((data, ctx) => {
   if ((data.outcome === "failed" || data.outcome === "follow-up" || data.outcome === "Programar Visita") && !data.clientStatus) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Debe indicar si es cliente nuevo o existente.", path: ["clientStatus"] });
   }
-  
+
   if (data.outcome === "failed" || data.outcome === "follow-up") {
     if (!data.nextActionType) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La próxima acción es obligatoria.", path: ["nextActionType"] });
@@ -127,19 +130,20 @@ type OrderFormValues = z.infer<typeof orderFormSchema>;
 
 export default function OrderFormPage() {
   const { toast } = useToast();
-  const { teamMember, userRole } = useAuth(); 
+  const { teamMember, userRole } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [editingVisitId, setEditingVisitId] = React.useState<string | null>(null);
-  
+
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [isLoadingForm, setIsLoadingForm] = React.useState(true); // Start true for initial data load
+  const [isLoadingForm, setIsLoadingForm] = React.useState(true);
   const [subtotal, setSubtotal] = React.useState<number | undefined>(undefined);
   const [ivaAmount, setIvaAmount] = React.useState<number | undefined>(undefined);
   const [pageTitle, setPageTitle] = React.useState("Registrar Visita / Pedido de Cliente");
   const [cardDescription, setCardDescription] = React.useState("Complete los detalles para registrar o programar una interacción.");
 
   const [clavadistas, setClavadistas] = React.useState<TeamMember[]>([]);
+  const [salesRepsList, setSalesRepsList] = React.useState<TeamMember[]>([]);
   const [availableMaterials, setAvailableMaterials] = React.useState<PromotionalMaterial[]>([]);
   const [isLoadingDropdownData, setIsLoadingDropdownData] = React.useState(true);
 
@@ -148,34 +152,45 @@ export default function OrderFormPage() {
     async function loadDropdownData() {
       setIsLoadingDropdownData(true);
       try {
-        const [fetchedClavadistas, fetchedMaterials] = await Promise.all([
+        const fetchPromises: Promise<any>[] = [
           getTeamMembersFS(['Clavadista']),
           getPromotionalMaterialsFS()
-        ]);
+        ];
+        if (userRole === 'Admin') {
+          fetchPromises.push(getTeamMembersFS(['SalesRep']));
+        }
+
+        const [fetchedClavadistas, fetchedMaterials, fetchedSalesReps] = await Promise.all(fetchPromises);
+
         setClavadistas(fetchedClavadistas);
-        setAvailableMaterials(fetchedMaterials.filter(m => m.latestPurchase && m.latestPurchase.calculatedUnitCost > 0));
+        setAvailableMaterials(fetchedMaterials.filter((m: PromotionalMaterial) => m.latestPurchase && m.latestPurchase.calculatedUnitCost > 0));
+        if (userRole === 'Admin' && fetchedSalesReps) {
+          setSalesRepsList(fetchedSalesReps);
+        }
+
       } catch (error) {
         console.error("Error loading dropdown data for order form:", error);
-        toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar clavadistas o materiales.", variant: "destructive"});
+        toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar datos para los desplegables.", variant: "destructive"});
       } finally {
         setIsLoadingDropdownData(false);
       }
     }
     loadDropdownData();
-  }, [toast]);
+  }, [toast, userRole]);
 
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(orderFormSchema),
     defaultValues: {
       clientName: "",
-      visitDate: new Date(), 
+      visitDate: new Date(),
       clientStatus: undefined,
       outcome: undefined,
       clavadistaId: NO_CLAVADISTA_VALUE,
+      selectedSalesRepId: userRole === 'Admin' ? ADMIN_SELF_REGISTER_VALUE : undefined,
       clientType: undefined,
       numberOfUnits: undefined,
       unitPrice: undefined,
-      orderValue: undefined, 
+      orderValue: undefined,
       nombreFiscal: "",
       cif: "",
       direccionFiscal: "",
@@ -218,24 +233,36 @@ export default function OrderFormPage() {
         if (visitIdToUpdate) {
           try {
             const existingVisit = await getOrderByIdFS(visitIdToUpdate);
-            if (existingVisit && teamMember && (existingVisit.salesRep === teamMember.name || userRole === 'Admin') && 
+            if (existingVisit && teamMember && (existingVisit.salesRep === teamMember.name || userRole === 'Admin') &&
                 (existingVisit.status === 'Programada' || existingVisit.status === 'Seguimiento' || existingVisit.status === 'Fallido')) {
               setEditingVisitId(visitIdToUpdate);
-              
+
               let visitDateParsed = parseISO(existingVisit.visitDate);
-              if (!isValid(visitDateParsed)) visitDateParsed = new Date(); 
-              
+              if (!isValid(visitDateParsed)) visitDateParsed = new Date();
+
               const title = `Registrar Resultado: ${existingVisit.clientName} (${format(visitDateParsed, "dd/MM/yy", {locale: es})})`;
               setPageTitle(title);
               setCardDescription("Actualice el resultado de la visita o tarea de seguimiento programada.");
 
+              let preselectedSalesRepId = ADMIN_SELF_REGISTER_VALUE;
+              if (userRole === 'Admin' && existingVisit.salesRep) {
+                  const assignedRep = salesRepsList.find(sr => sr.name === existingVisit.salesRep);
+                  if (assignedRep) {
+                      preselectedSalesRepId = assignedRep.id;
+                  } else if (teamMember && existingVisit.salesRep === teamMember.name) { // Admin could have registered for themselves
+                      preselectedSalesRepId = ADMIN_SELF_REGISTER_VALUE;
+                  }
+              }
+
+
               form.reset({
                 clientName: existingVisit.clientName,
                 visitDate: visitDateParsed,
-                clientStatus: existingVisit.clientStatus || undefined, 
-                outcome: undefined, 
+                clientStatus: existingVisit.clientStatus || undefined,
+                outcome: undefined,
                 clavadistaId: existingVisit.clavadistaId || NO_CLAVADISTA_VALUE,
-                notes: existingVisit.notes || "", 
+                selectedSalesRepId: userRole === 'Admin' ? preselectedSalesRepId : undefined,
+                notes: existingVisit.notes || "",
                 clientType: existingVisit.clientType,
                 numberOfUnits: existingVisit.numberOfUnits,
                 unitPrice: existingVisit.unitPrice,
@@ -258,7 +285,7 @@ export default function OrderFormPage() {
               });
             } else if (existingVisit) {
                toast({ title: "Acceso Denegado", description: "No tienes permiso para actualizar esta visita o ya ha sido procesada de otra forma.", variant: "destructive"});
-               router.push("/dashboard"); 
+               router.push("/dashboard");
             } else {
               toast({ title: "Error", description: "Tarea no encontrada o ya procesada.", variant: "destructive"});
               router.push("/my-agenda");
@@ -272,8 +299,10 @@ export default function OrderFormPage() {
             setEditingVisitId(null);
             setPageTitle("Registrar Visita / Pedido de Cliente");
             setCardDescription("Complete los detalles para registrar o programar una nueva interacción con un cliente.");
-            form.reset({ 
-                clientName: "", visitDate: new Date(), clientStatus: undefined, outcome: undefined, clavadistaId: NO_CLAVADISTA_VALUE, notes: "",
+            form.reset({
+                clientName: "", visitDate: new Date(), clientStatus: undefined, outcome: undefined, clavadistaId: NO_CLAVADISTA_VALUE,
+                selectedSalesRepId: userRole === 'Admin' ? ADMIN_SELF_REGISTER_VALUE : undefined,
+                notes: "",
                 nombreFiscal: "", cif: "", direccionFiscal: "", direccionEntrega: "", contactoNombre: "", contactoCorreo: "", contactoTelefono: "", observacionesAlta: "",
                 clientType: undefined, numberOfUnits: undefined, unitPrice: undefined, orderValue: undefined,
                 nextActionType: undefined, nextActionCustom: "", nextActionDate: undefined,
@@ -282,10 +311,10 @@ export default function OrderFormPage() {
         }
         setIsLoadingForm(false);
     }
-    if (!isLoadingDropdownData) { // Only initialize form once dropdown data (clavadistas, materials) is loaded
+    if (!isLoadingDropdownData) {
       initializeForm();
     }
-  }, [searchParams, form, teamMember, userRole, router, toast, isLoadingDropdownData]);
+  }, [searchParams, form, teamMember, userRole, router, toast, isLoadingDropdownData, salesRepsList]);
 
 
   const outcomeWatched = form.watch("outcome");
@@ -294,14 +323,14 @@ export default function OrderFormPage() {
   const unitPriceWatched = form.watch("unitPrice");
   const nextActionTypeWatched = form.watch("nextActionType");
   const failureReasonTypeWatched = form.watch("failureReasonType");
-  const clientNameWatched = form.watch("clientName"); 
+  const clientNameWatched = form.watch("clientName");
 
   React.useEffect(() => {
     if (outcomeWatched === "successful" && typeof numberOfUnitsWatched === 'number' && typeof unitPriceWatched === 'number' && numberOfUnitsWatched > 0 && unitPriceWatched > 0) {
       const calculatedSubtotal = numberOfUnitsWatched * unitPriceWatched;
       const calculatedIvaAmount = calculatedSubtotal * (IVA_RATE / 100);
       const calculatedTotalValue = calculatedSubtotal + calculatedIvaAmount;
-      
+
       form.setValue("orderValue", parseFloat(calculatedTotalValue.toFixed(2)), { shouldValidate: true });
       setSubtotal(parseFloat(calculatedSubtotal.toFixed(2)));
       setIvaAmount(parseFloat(calculatedIvaAmount.toFixed(2)));
@@ -315,23 +344,37 @@ export default function OrderFormPage() {
 
   async function onSubmit(values: OrderFormValues) {
     setIsSubmitting(true);
-    
+
     if (!teamMember) {
         toast({ title: "Error", description: "No se pudo identificar al usuario. Por favor, recargue la página.", variant: "destructive" });
         setIsSubmitting(false);
         return;
     }
 
-    const salesRepName = teamMember.name;
-    let currentAccountId = values.accountId; 
+    let salesRepNameForOrder = teamMember.name;
+    let salesRepIdForAccount = teamMember.id;
+
+    if (userRole === 'Admin' && values.selectedSalesRepId && values.selectedSalesRepId !== ADMIN_SELF_REGISTER_VALUE) {
+        const selectedRep = salesRepsList.find(sr => sr.id === values.selectedSalesRepId);
+        if (selectedRep) {
+            salesRepNameForOrder = selectedRep.name;
+            salesRepIdForAccount = selectedRep.id;
+        } else {
+            // Should not happen if validation is correct, but as a fallback:
+            console.warn("Admin selected a SalesRep ID that was not found in the list. Defaulting to Admin.");
+        }
+    }
+
+
+    let currentAccountId = values.accountId;
     let accountCreationMessage = "";
 
     const finalClavadistaId = values.clavadistaId === NO_CLAVADISTA_VALUE ? undefined : values.clavadistaId;
 
     try {
-      if (values.clientStatus === "new" && !editingVisitId) { 
+      if (values.clientStatus === "new" && !editingVisitId) {
           let accountExists = false;
-          const allCurrentAccounts = await getAccountsFS(); 
+          const allCurrentAccounts = await getAccountsFS();
 
           if (values.cif) {
               const existingAccountByCif = allCurrentAccounts.find(acc => acc.cif && acc.cif.toLowerCase() === values.cif!.toLowerCase());
@@ -349,7 +392,7 @@ export default function OrderFormPage() {
               else if (values.outcome === "follow-up" || values.outcome === "Programar Visita") newAccountStatus = 'Potencial';
 
               const newAccountType: AccountType = (values.outcome === "successful" && values.clientType) ? values.clientType : (accountTypeList.includes(values.clientType as AccountType) ? values.clientType as AccountType : 'Otro');
-              
+
               const newAccountData: AccountFormValues = {
                   name: values.clientName,
                   legalName: values.nombreFiscal || values.clientName,
@@ -362,7 +405,7 @@ export default function OrderFormPage() {
                   mainContactEmail: values.contactoCorreo,
                   mainContactPhone: values.contactoTelefono,
                   notes: values.observacionesAlta,
-                  salesRepId: teamMember.id,
+                  salesRepId: salesRepIdForAccount, // Use determined salesRepId
               };
               currentAccountId = await addAccountFS(newAccountData);
               accountCreationMessage = ` Nueva cuenta "${newAccountData.name}" creada con estado: ${newAccountStatus}.`;
@@ -375,7 +418,7 @@ export default function OrderFormPage() {
           }
           accountCreationMessage = " (Cliente existente).";
       }
-      
+
       const orderData: Partial<Order> = {
         clientName: values.clientName,
         visitDate: format(values.visitDate, "yyyy-MM-dd"),
@@ -383,7 +426,7 @@ export default function OrderFormPage() {
         assignedMaterials: values.assignedMaterials || [],
         notes: values.notes,
         clientStatus: values.clientStatus,
-        salesRep: salesRepName,
+        salesRep: salesRepNameForOrder, // Use determined salesRepName
         accountId: currentAccountId,
         nombreFiscal: values.nombreFiscal,
         cif: values.cif,
@@ -419,7 +462,7 @@ export default function OrderFormPage() {
           toast({ title: "¡Visita Fallida Registrada!", description: <div className="flex items-start"><Info className="h-5 w-5 text-orange-500 mr-2 mt-1" /><p>Interacción fallida con {values.clientName} registrada.{accountCreationMessage}</p></div> });
       } else if (values.outcome === "Programar Visita") {
           orderData.status = 'Programada';
-          orderData.assignedMaterials = []; 
+          orderData.assignedMaterials = [];
           toast({ title: "¡Visita Programada!", description: <div className="flex items-start"><CalendarIcon className="h-5 w-5 text-purple-500 mr-2 mt-1" /><p>Visita para {values.clientName} programada para el {format(values.visitDate, "dd/MM/yyyy", { locale: es })}.{accountCreationMessage}</p></div> });
       } else {
           toast({ title: "Error de Envío", description: "Por favor, complete todos los campos obligatorios para el resultado seleccionado.", variant: "destructive" });
@@ -428,13 +471,15 @@ export default function OrderFormPage() {
       }
 
       if (editingVisitId) {
-        await updateOrderFS(editingVisitId, orderData as Order); 
+        await updateOrderFS(editingVisitId, orderData as Order);
       } else {
         await addOrderFS(orderData as Order);
       }
 
-      form.reset({ 
-          clientName: "", visitDate: new Date(), clientStatus: undefined, outcome: undefined, clavadistaId: NO_CLAVADISTA_VALUE, notes: "",
+      form.reset({
+          clientName: "", visitDate: new Date(), clientStatus: undefined, outcome: undefined, clavadistaId: NO_CLAVADISTA_VALUE,
+          selectedSalesRepId: userRole === 'Admin' ? ADMIN_SELF_REGISTER_VALUE : undefined,
+          notes: "",
           nombreFiscal: "", cif: "", direccionFiscal: "", direccionEntrega: "", contactoNombre: "", contactoCorreo: "", contactoTelefono: "", observacionesAlta: "",
           clientType: undefined, numberOfUnits: undefined, unitPrice: undefined, orderValue: undefined,
           nextActionType: undefined, nextActionCustom: "", nextActionDate: undefined,
@@ -443,9 +488,9 @@ export default function OrderFormPage() {
       setSubtotal(undefined);
       setIvaAmount(undefined);
       if (editingVisitId) {
-          router.push('/my-agenda'); 
+          router.push('/my-agenda');
       }
-      setEditingVisitId(null); 
+      setEditingVisitId(null);
       setPageTitle("Registrar Visita / Pedido de Cliente");
       setCardDescription("Complete los detalles para registrar o programar una nueva interacción con un cliente.");
 
@@ -459,16 +504,16 @@ export default function OrderFormPage() {
 
   const showAccountCreationFields = clientStatusWatched === "new";
   const showClientStatusRadio = outcomeWatched !== "Programar Visita" && (!editingVisitId || (editingVisitId && outcomeWatched && outcomeWatched !== "Programar Visita"));
-  
+
   const outcomeOptionsBase = [
     { value: "Programar Visita", label: "Programar Nueva Visita" },
     { value: "successful", label: "Pedido Exitoso" },
     { value: "failed", label: "Fallido / Sin Pedido" },
     { value: "follow-up", label: "Requiere Seguimiento" },
   ];
-  
-  const currentOutcomeOptions = editingVisitId 
-    ? outcomeOptionsBase.filter(opt => opt.value !== "Programar Visita") 
+
+  const currentOutcomeOptions = editingVisitId
+    ? outcomeOptionsBase.filter(opt => opt.value !== "Programar Visita")
     : outcomeOptionsBase;
 
   if (isLoadingForm || isLoadingDropdownData) {
@@ -495,6 +540,33 @@ export default function OrderFormPage() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              {userRole === 'Admin' && (
+                <FormField
+                  control={form.control}
+                  name="selectedSalesRepId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center"><Users className="mr-2 h-4 w-4 text-primary" />Atribuir a Representante de Ventas</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || ADMIN_SELF_REGISTER_VALUE} disabled={isLoadingDropdownData}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder={isLoadingDropdownData ? "Cargando..." : "Seleccionar representante"} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value={ADMIN_SELF_REGISTER_VALUE}>Registrar a mi nombre (Admin)</SelectItem>
+                          {salesRepsList.map((rep: TeamMember) => (
+                            <SelectItem key={rep.id} value={rep.id}>{rep.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>Seleccione el comercial que realizó esta visita/venta.</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
               <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="p. ej., Café Central" {...field} disabled={!!editingVisitId && clientStatusWatched === 'existing'} /></FormControl><FormMessage /></FormItem>)} />
               <FormField
                 control={form.control}
@@ -519,7 +591,7 @@ export default function OrderFormPage() {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="outcome"
@@ -601,8 +673,8 @@ export default function OrderFormPage() {
                   <FormField control={form.control} name="orderValue" render={({ field }) => (<FormItem><FormLabel>Valor Total del Pedido (€ con IVA)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Cálculo automático" {...field} readOnly disabled className="bg-muted/50" value={field.value === undefined ? '' : field.value.toFixed(2)}/></FormControl><FormMessage /></FormItem>)}/>
                 </>
               )}
-              
-              {showAccountCreationFields && !editingVisitId && ( 
+
+              {showAccountCreationFields && !editingVisitId && (
                 <>
                   <Separator className="my-6" />
                   <div className="space-y-1">
@@ -681,7 +753,7 @@ export default function OrderFormPage() {
 
               {outcomeWatched === "failed" && (
                 <>
-                  {outcomeWatched !== "follow-up" && <Separator className="my-4" />} 
+                  {outcomeWatched !== "follow-up" && <Separator className="my-4" />}
                   <div className="space-y-1"><h3 className="text-lg font-medium">Detalles del Fallo</h3></div>
                   <FormField
                     control={form.control}
@@ -702,7 +774,7 @@ export default function OrderFormPage() {
                   )}
                 </>
               )}
-              
+
               {outcomeWatched && outcomeWatched !== "Programar Visita" && (
                 <>
                   <Separator className="my-6" />
@@ -739,7 +811,7 @@ export default function OrderFormPage() {
                             render={({ field }) => (
                               <FormItem className="w-24">
                                 <FormLabel className="text-xs">Cantidad</FormLabel>
-                                <FormControl><Input type="number" {...field} 
+                                <FormControl><Input type="number" {...field}
                                   onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))}
                                   value={field.value ?? ""}
                                 /></FormControl>
@@ -777,7 +849,7 @@ export default function OrderFormPage() {
                   <Separator className="my-6" />
                 </>
               )}
-              
+
               <FormField control={form.control} name="notes" render={({ field }) => (<FormItem><FormLabel>{outcomeWatched === "Programar Visita" ? "Objetivo de la Visita / Comentarios de Programación (Opcional)" : "Notas Adicionales Generales"}</FormLabel><FormControl><Textarea placeholder={outcomeWatched === "Programar Visita" ? "Detalles sobre el propósito de la visita programada..." : "Cualquier otra información relevante sobre la visita o pedido..."} {...field} /></FormControl><FormMessage /></FormItem>)}/>
               <CardFooter className="p-0 pt-4">
                 <Button type="submit" className="w-full" disabled={isSubmitting || !teamMember || isLoadingDropdownData}>
@@ -791,3 +863,6 @@ export default function OrderFormPage() {
     </div>
   );
 }
+
+
+    

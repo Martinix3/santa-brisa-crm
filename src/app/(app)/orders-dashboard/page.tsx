@@ -66,7 +66,7 @@ export default function OrdersDashboardPage() {
       }
     }
     loadOrders();
-  }, [toast]);
+  }, [toast, refreshDataSignature]); // Added refreshDataSignature dependency
 
 
   const uniqueStatusesForFilter = ["Todos", ...relevantOrderStatusesForDashboard] as (OrderStatus | "Todos")[];
@@ -111,6 +111,7 @@ export default function OrdersDashboardPage() {
         return;
       }
 
+      // Asegurarse de que el accountId se preserve si existe en el pedido original
       const fullUpdatedOrderData: Partial<Order> = {
         clientName: updatedData.clientName,
         products: updatedData.products ? updatedData.products.split(/[,;\n]+/).map(p => p.trim()).filter(p => p.length > 0) : orderToUpdate.products,
@@ -132,6 +133,7 @@ export default function OrdersDashboardPage() {
         contactoTelefono: updatedData.contactoTelefono || orderToUpdate.contactoTelefono,
         observacionesAlta: updatedData.observacionesAlta || orderToUpdate.observacionesAlta,
         notes: updatedData.notes || orderToUpdate.notes,
+        accountId: orderToUpdate.accountId, // Preservar el accountId original
       };
       
       await updateOrderFS(orderId, fullUpdatedOrderData as Order); 

@@ -56,7 +56,7 @@ const orderFormSchemaBase = z.object({
   clientStatus: z.enum(["new", "existing"], { required_error: "Debe indicar si es un cliente nuevo o existente." }).optional(),
   outcome: z.enum(["Programar Visita", "successful", "failed", "follow-up"], { required_error: "Por favor, seleccione un resultado." }),
   clavadistaId: z.string().optional(),
-  selectedSalesRepId: z.string().optional(), // Nuevo campo para Admin
+  selectedSalesRepId: z.string().optional(), 
 
   clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
   numberOfUnits: z.coerce.number().positive("El número de unidades debe ser un número positivo.").optional(),
@@ -80,7 +80,7 @@ const orderFormSchemaBase = z.object({
 
   notes: z.string().optional(),
   assignedMaterials: z.array(assignedMaterialSchema).optional().default([]),
-  accountId: z.string().optional(),
+  accountId: z.string().optional(), // Mantener accountId para pasar entre cargas y para vincular
 });
 
 const orderFormSchema = orderFormSchemaBase.superRefine((data, ctx) => {
@@ -130,7 +130,7 @@ type OrderFormValues = z.infer<typeof orderFormSchema>;
 
 export default function OrderFormPage() {
   const { toast } = useToast();
-  const { teamMember, userRole } = useAuth();
+  const { teamMember, userRole, refreshDataSignature } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [editingVisitId, setEditingVisitId] = React.useState<string | null>(null);
@@ -249,7 +249,7 @@ export default function OrderFormPage() {
                   const assignedRep = salesRepsList.find(sr => sr.name === existingVisit.salesRep);
                   if (assignedRep) {
                       preselectedSalesRepId = assignedRep.id;
-                  } else if (teamMember && existingVisit.salesRep === teamMember.name) { // Admin could have registered for themselves
+                  } else if (teamMember && existingVisit.salesRep === teamMember.name) { 
                       preselectedSalesRepId = ADMIN_SELF_REGISTER_VALUE;
                   }
               }
@@ -259,7 +259,7 @@ export default function OrderFormPage() {
                 clientName: existingVisit.clientName,
                 visitDate: visitDateParsed,
                 clientStatus: existingVisit.clientStatus || undefined,
-                outcome: undefined,
+                outcome: undefined, 
                 clavadistaId: existingVisit.clavadistaId || NO_CLAVADISTA_VALUE,
                 selectedSalesRepId: userRole === 'Admin' ? preselectedSalesRepId : undefined,
                 notes: existingVisit.notes || "",
@@ -281,7 +281,7 @@ export default function OrderFormPage() {
                 failureReasonType: existingVisit.failureReasonType,
                 failureReasonCustom: existingVisit.failureReasonCustom || "",
                 assignedMaterials: existingVisit.assignedMaterials || [],
-                accountId: existingVisit.accountId,
+                accountId: existingVisit.accountId, // Cargar el accountId existente
               });
             } else if (existingVisit) {
                toast({ title: "Acceso Denegado", description: "No tienes permiso para actualizar esta visita o ya ha sido procesada de otra forma.", variant: "destructive"});
@@ -359,20 +359,17 @@ export default function OrderFormPage() {
         if (selectedRep) {
             salesRepNameForOrder = selectedRep.name;
             salesRepIdForAccount = selectedRep.id;
-        } else {
-            // Should not happen if validation is correct, but as a fallback:
-            console.warn("Admin selected a SalesRep ID that was not found in the list. Defaulting to Admin.");
         }
     }
 
 
-    let currentAccountId = values.accountId;
+    let currentAccountId = values.accountId; // Usar el accountId si ya está en el formulario (p.ej. al editar)
     let accountCreationMessage = "";
 
     const finalClavadistaId = values.clavadistaId === NO_CLAVADISTA_VALUE ? undefined : values.clavadistaId;
 
     try {
-      if (values.clientStatus === "new" && !editingVisitId) {
+      if (values.clientStatus === "new" && !currentAccountId) { // Solo crear cuenta si es nueva Y no tiene ya un accountId
           let accountExists = false;
           const allCurrentAccounts = await getAccountsFS();
 
@@ -405,7 +402,7 @@ export default function OrderFormPage() {
                   mainContactEmail: values.contactoCorreo,
                   mainContactPhone: values.contactoTelefono,
                   notes: values.observacionesAlta,
-                  salesRepId: salesRepIdForAccount, // Use determined salesRepId
+                  salesRepId: salesRepIdForAccount,
               };
               currentAccountId = await addAccountFS(newAccountData);
               accountCreationMessage = ` Nueva cuenta "${newAccountData.name}" creada con estado: ${newAccountStatus}.`;
@@ -416,8 +413,9 @@ export default function OrderFormPage() {
           if (existingAccountByName) {
               currentAccountId = existingAccountByName.id;
           }
-          accountCreationMessage = " (Cliente existente).";
+          accountCreationMessage = currentAccountId ? " (Pedido asociado a cliente existente)." : " (Cliente existente, pero no se pudo encontrar un ID de cuenta para asociar).";
       }
+
 
       const orderData: Partial<Order> = {
         clientName: values.clientName,
@@ -426,8 +424,8 @@ export default function OrderFormPage() {
         assignedMaterials: values.assignedMaterials || [],
         notes: values.notes,
         clientStatus: values.clientStatus,
-        salesRep: salesRepNameForOrder, // Use determined salesRepName
-        accountId: currentAccountId,
+        salesRep: salesRepNameForOrder,
+        accountId: currentAccountId, // Asegurarse de que accountId se guarde
         nombreFiscal: values.nombreFiscal,
         cif: values.cif,
         direccionFiscal: values.direccionFiscal,
@@ -462,7 +460,7 @@ export default function OrderFormPage() {
           toast({ title: "¡Visita Fallida Registrada!", description: <div className="flex items-start"><Info className="h-5 w-5 text-orange-500 mr-2 mt-1" /><p>Interacción fallida con {values.clientName} registrada.{accountCreationMessage}</p></div> });
       } else if (values.outcome === "Programar Visita") {
           orderData.status = 'Programada';
-          orderData.assignedMaterials = [];
+          orderData.assignedMaterials = []; // No se asignan materiales en una mera programación
           toast({ title: "¡Visita Programada!", description: <div className="flex items-start"><CalendarIcon className="h-5 w-5 text-purple-500 mr-2 mt-1" /><p>Visita para {values.clientName} programada para el {format(values.visitDate, "dd/MM/yyyy", { locale: es })}.{accountCreationMessage}</p></div> });
       } else {
           toast({ title: "Error de Envío", description: "Por favor, complete todos los campos obligatorios para el resultado seleccionado.", variant: "destructive" });
@@ -475,6 +473,8 @@ export default function OrderFormPage() {
       } else {
         await addOrderFS(orderData as Order);
       }
+      
+      refreshDataSignature(); // Notificar a otras partes de la app que los datos han cambiado
 
       form.reset({
           clientName: "", visitDate: new Date(), clientStatus: undefined, outcome: undefined, clavadistaId: NO_CLAVADISTA_VALUE,
@@ -488,7 +488,7 @@ export default function OrderFormPage() {
       setSubtotal(undefined);
       setIvaAmount(undefined);
       if (editingVisitId) {
-          router.push('/my-agenda');
+          router.push('/my-agenda'); 
       }
       setEditingVisitId(null);
       setPageTitle("Registrar Visita / Pedido de Cliente");

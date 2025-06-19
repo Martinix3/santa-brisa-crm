@@ -6,7 +6,6 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { mockOrders, mockTeamMembers } from "@/lib/data"; // mockAccounts no se usa aquí directamente
 import type { Account, Order, UserRole } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { Building2, Edit, ArrowLeft, AlertTriangle, UserCircle, Mail, Phone, FileText, ShoppingCart, CalendarDays, ListChecks, Info, Euro, Printer, Loader2 } from "lucide-react";
@@ -18,7 +17,10 @@ import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
-import { getAccountByIdFS, updateAccountFS, getAccountsFS } from "@/services/account-service"; // Importar getAccountsFS para la validación en el diálogo
+import { getAccountByIdFS, updateAccountFS, getAccountsFS } from "@/services/account-service";
+import { getOrdersFS } from "@/services/order-service"; // Importar servicio de pedidos
+import { mockTeamMembers } from "@/lib/data";
+
 
 export default function AccountDetailPage() {
   const params = useParams();
@@ -28,7 +30,7 @@ export default function AccountDetailPage() {
   const { toast } = useToast();
 
   const [account, setAccount] = React.useState<Account | null>(null);
-  const [allAccountsForValidation, setAllAccountsForValidation] = React.useState<Account[]>([]); // Para el diálogo
+  const [allAccountsForValidation, setAllAccountsForValidation] = React.useState<Account[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [relatedInteractions, setRelatedInteractions] = React.useState<Order[]>([]);
   const [isAccountDialogOpen, setIsAccountDialogOpen] = React.useState(false);
@@ -47,22 +49,37 @@ export default function AccountDetailPage() {
       try {
         const foundAccount = await getAccountByIdFS(accountId);
         setAccount(foundAccount);
+
         if (foundAccount) {
-          const interactions = mockOrders.filter(order => 
-            (order.cif && order.cif.toLowerCase() === foundAccount.cif.toLowerCase()) ||
-            (!order.cif && order.clientName.toLowerCase() === foundAccount.name.toLowerCase())
-          ).sort((a,b) => parseISO(b.visitDate).getTime() - parseISO(a.visitDate).getTime());
+          // Cargar todos los pedidos de Firestore
+          const allOrders = await getOrdersFS();
+          
+          const interactions = allOrders.filter(order => {
+            // Priorizar vinculación por accountId
+            if (order.accountId && order.accountId === foundAccount.id) {
+              return true;
+            }
+            // Fallback a CIF si no hay accountId o no coincide
+            if (!order.accountId && order.cif && order.cif.toLowerCase() === foundAccount.cif.toLowerCase()) {
+              return true;
+            }
+            // Fallback a nombre de cliente si no hay accountId ni CIF coincidente
+            if (!order.accountId && !order.cif && order.clientName.toLowerCase() === foundAccount.name.toLowerCase()) {
+              return true;
+            }
+            return false;
+          }).sort((a,b) => parseISO(b.visitDate).getTime() - parseISO(a.visitDate).getTime());
+          
           setRelatedInteractions(interactions);
 
-          // Cargar todas las cuentas para la validación de CIF en el diálogo de edición
           if (isAdmin) {
             const allFsAccounts = await getAccountsFS();
             setAllAccountsForValidation(allFsAccounts);
           }
         }
       } catch (error) {
-        console.error("Error fetching account details:", error);
-        toast({ title: "Error al Cargar Cuenta", description: "No se pudo cargar la información de la cuenta.", variant: "destructive" });
+        console.error("Error fetching account details or orders:", error);
+        toast({ title: "Error al Cargar Datos", description: "No se pudo cargar la información de la cuenta o su historial.", variant: "destructive" });
         setAccount(null);
       } finally {
         setIsLoading(false);
@@ -85,10 +102,9 @@ export default function AccountDetailPage() {
 
   const handleSaveAccountDetails = async (data: AccountFormValues) => {
     if (!isAdmin || !account) return;
-    setIsLoading(true); // Usar isLoading o un isSaving específico
+    setIsLoading(true);
     try {
       await updateAccountFS(account.id, data);
-      // Recargar la cuenta para reflejar los cambios desde Firestore (especialmente updatedAt)
       const updatedAccount = await getAccountByIdFS(account.id);
       setAccount(updatedAccount);
       
@@ -224,8 +240,8 @@ export default function AccountDetailPage() {
 
       <Card className="shadow-subtle print-section">
         <CardHeader>
-          <CardTitle>Historial de Interacciones y Pedidos (Datos de Ejemplo)</CardTitle>
-          <CardDescription>Registro de todas las visitas, seguimientos y pedidos asociados a esta cuenta. (Actualmente usando datos de ejemplo para esta sección)</CardDescription>
+          <CardTitle>Historial de Interacciones y Pedidos</CardTitle>
+          <CardDescription>Registro de todas las visitas, seguimientos y pedidos asociados a esta cuenta.</CardDescription>
         </CardHeader>
         <CardContent>
           {relatedInteractions.length > 0 ? (
@@ -270,7 +286,7 @@ export default function AccountDetailPage() {
                                 </Button>
                            ) : (
                                 <Button variant="outline" size="sm" asChild>
-                                    <Link href={`/orders-dashboard`}>
+                                    <Link href={`/orders-dashboard`}> {/* Considerar link directo al pedido si existe page específica */}
                                         <ShoppingCart className="mr-1 h-3 w-3" /> Ver Pedido
                                     </Link>
                                 </Button>
@@ -283,7 +299,7 @@ export default function AccountDetailPage() {
               </Table>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground text-center py-8">Actualmente no hay interacciones ni pedidos (de ejemplo) registrados para esta cuenta.</p>
+            <p className="text-sm text-muted-foreground text-center py-8">No hay interacciones ni pedidos registrados para esta cuenta.</p>
           )}
         </CardContent>
       </Card>
@@ -297,9 +313,11 @@ export default function AccountDetailPage() {
             if (!open) router.replace(`/accounts/${accountId}`, undefined);
           }}
           onSave={handleSaveAccountDetails}
-          allAccounts={allAccountsForValidation} // Pasar todas las cuentas para validación de CIF
+          allAccounts={allAccountsForValidation}
         />
       )}
     </div>
   );
 }
+
+    

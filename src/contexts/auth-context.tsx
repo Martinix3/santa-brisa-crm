@@ -2,7 +2,7 @@
 "use client";
 
 import type React from 'react';
-import { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
 import { 
   User as FirebaseUser, 
   onAuthStateChanged, 
@@ -23,6 +23,8 @@ interface AuthContextType {
   login: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
   createUserInAuthAndFirestore: (userData: TeamMemberFormValues, pass: string) => Promise<{firebaseUser: FirebaseUser | null, teamMemberId: string | null}>;
+  dataSignature: number;
+  refreshDataSignature: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,6 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [teamMember, setTeamMember] = useState<TeamMember | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const [dataSignature, setDataSignature] = useState(0);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -182,6 +185,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { firebaseUser: null, teamMemberId: null };
     }
   };
+
+  const refreshDataSignature = useCallback(() => {
+    setDataSignature(prev => prev + 1);
+    console.log("AuthContext: Data signature refreshed.");
+  }, []);
   
   const value = useMemo(() => ({
     user,
@@ -191,7 +199,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     login,
     logout,
     createUserInAuthAndFirestore,
-  }), [user, teamMember, userRole, loading]); 
+    dataSignature,
+    refreshDataSignature,
+  }), [user, teamMember, userRole, loading, dataSignature, refreshDataSignature]); 
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
@@ -203,4 +213,3 @@ export function useAuth() {
   }
   return context;
 }
-

@@ -37,7 +37,7 @@ const calculateProgressValue = (current: number, target: number): number => {
 
 
 export default function DashboardPage() {
-  const { userRole, teamMember } = useAuth(); 
+  const { userRole, teamMember, dataSignature } = useAuth(); 
   const [isLoading, setIsLoading] = React.useState(true);
   const [orders, setOrders] = React.useState<Order[]>([]);
   const [accounts, setAccounts] = React.useState<Account[]>([]);
@@ -127,7 +127,7 @@ export default function DashboardPage() {
       }
     }
     loadDashboardData();
-  }, []);
+  }, [dataSignature]); // Add dataSignature to dependencies
 
   const currentMonthNewAccountsByRep = React.useMemo(() => {
     if (!teamMember || userRole !== 'SalesRep' || accounts.length === 0) return 0; 
@@ -196,11 +196,11 @@ export default function DashboardPage() {
 
   const ventasTotalesActuales = kpiVentasTotales?.currentValue ?? 0;
   const ventasEquipoActuales = kpiVentasEquipo?.currentValue ?? 0;
-  const restoCanalesVentas = ventasTotalesActuales - ventasEquipoActuales;
+  const restoCanalesVentas = Math.max(0, ventasTotalesActuales - ventasEquipoActuales);
 
   const ventasDistribucionData = [
     { name: "Ventas Equipo", value: ventasEquipoActuales, fill: "hsl(var(--brand-turquoise-hsl))" },
-    { name: "Resto Canales", value: Math.max(0, restoCanalesVentas), fill: "hsl(var(--primary))" }, 
+    { name: "Resto Canales", value: restoCanalesVentas, fill: "hsl(var(--primary))" }, 
   ];
 
   const faltanteVentasEquipo = Math.max(0, objetivoTotalVentasEquipo - ventasEquipoActuales);
@@ -232,7 +232,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <h1 className="text-3xl font-headline font-semibold">Panel Principal: Lanzamiento de Producto</h1>
       
-      {(userRole === 'Admin' || userRole === 'SalesRep' || userRole === 'Distributor') && (
+      {(userRole === 'Admin' || userRole === 'SalesRep' || userRole === 'Distributor' || userRole === 'Clavadista') && (
         <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {calculatedKpiData.map((kpi: Kpi) => {
             const progress = kpi.targetValue > 0 ? Math.min((kpi.currentValue / kpi.targetValue) * 100, 100) : (kpi.currentValue > 0 ? 100 : 0);
@@ -377,7 +377,7 @@ export default function DashboardPage() {
         </section>
       )}
 
-      {(userRole === 'Admin' || userRole === 'SalesRep' || userRole === 'Distributor') && (
+      {(userRole === 'Admin' || userRole === 'SalesRep' || userRole === 'Distributor' || userRole === 'Clavadista') && (
         <section className="grid gap-6 md:grid-cols-3">
             <Card className="md:col-span-2 shadow-subtle hover:shadow-md transition-shadow duration-300">
             <CardHeader>

@@ -17,6 +17,7 @@ import { getAccountsFS } from '@/services/account-service';
 import { getTeamMembersFS } from '@/services/team-member-service';
 import { parseISO, isSameMonth, isSameYear, isValid } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from "@/contexts/auth-context"; // Import useAuth
 
 
 const renderProgress = (current: number, target: number, unit: string, targetAchievedText: string) => {
@@ -54,6 +55,7 @@ const renderProgress = (current: number, target: number, unit: string, targetAch
 
 export default function TeamTrackingPage() {
   const { toast } = useToast();
+  const { dataSignature } = useAuth(); // Get dataSignature from AuthContext
   const [teamStats, setTeamStats] = useState<TeamMember[]>([]);
   const [salesTeamMembersBase, setSalesTeamMembersBase] = useState<TeamMember[]>([]);
   const [isLoadingBaseMembers, setIsLoadingBaseMembers] = useState(true);
@@ -73,18 +75,17 @@ export default function TeamTrackingPage() {
       }
     }
     loadBaseTeamMembers();
-  }, [toast]);
+  }, [toast, dataSignature]); // Add dataSignature to dependencies
 
 
   useEffect(() => {
     if (isLoadingBaseMembers) {
-      // Esperar a que los miembros base se carguen
       return;
     }
 
     if (salesTeamMembersBase.length === 0) {
-      setTeamStats([]); // No hay miembros base para calcular estadísticas
-      setIsLoadingStats(false); // No hay nada que cargar
+      setTeamStats([]); 
+      setIsLoadingStats(false); 
       return;
     }
 
@@ -145,7 +146,7 @@ export default function TeamTrackingPage() {
       }
     }
     loadTeamData();
-  }, [salesTeamMembersBase, isLoadingBaseMembers, toast]);
+  }, [salesTeamMembersBase, isLoadingBaseMembers, toast, dataSignature]); // Add dataSignature here too
 
   const teamTotalBottlesValue = useMemo(() => teamStats.reduce((sum, m) => sum + (m.bottlesSold || 0), 0), [teamStats]);
   const teamTotalOrdersValue = useMemo(() => teamStats.reduce((sum, m) => sum + (m.orders || 0), 0), [teamStats]);
@@ -280,5 +281,3 @@ export default function TeamTrackingPage() {
     </div>
   );
 }
-
-    

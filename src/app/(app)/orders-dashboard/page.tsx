@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox"; 
 import type { Order, OrderStatus, UserRole } from "@/types";
 import { orderStatusesList } from "@/lib/data"; 
-import { MoreHorizontal, Eye, Edit, Trash2, Filter, CalendarDays, ChevronDown, Download, ShoppingCart, Loader2 } from "lucide-react"; // Removed Check
+import { MoreHorizontal, Eye, Edit, Trash2, Filter, CalendarDays, ChevronDown, Download, ShoppingCart, Loader2 } from "lucide-react";
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -24,7 +24,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import StatusBadge from "@/components/app/status-badge";
 import { getOrdersFS, updateOrderFS, deleteOrderFS, initializeMockOrdersInFirestore } from "@/services/order-service";
-import { mockOrders as initialMockOrdersForSeeding } from "@/lib/data";
+// import { mockOrders as initialMockOrdersForSeeding } from "@/lib/data"; // Descomentar para sembrar datos
 
 
 const relevantOrderStatusesForDashboard: OrderStatus[] = ['Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Cancelado'];
@@ -32,7 +32,7 @@ const relevantOrderStatusesForDashboard: OrderStatus[] = ['Pendiente', 'Confirma
 
 export default function OrdersDashboardPage() {
   const { toast } = useToast();
-  const { userRole: currentUserRole } = useAuth();
+  const { userRole: currentUserRole, refreshDataSignature } = useAuth();
   
   const [allOrders, setAllOrders] = React.useState<Order[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -51,7 +51,7 @@ export default function OrdersDashboardPage() {
     async function loadOrders() {
       setIsLoading(true);
       try {
-        // Comenta o elimina la siguiente línea DESPUÉS de la primera carga si ya no necesitas sembrar datos
+        // Descomentar la siguiente línea para inicializar con mocks si la BBDD está vacía LA PRIMERA VEZ
         // await initializeMockOrdersInFirestore(initialMockOrdersForSeeding);
         
         const firestoreOrders = await getOrdersFS();
@@ -112,7 +112,6 @@ export default function OrdersDashboardPage() {
       }
 
       const fullUpdatedOrderData: Partial<Order> = {
-        // ...orderToUpdate, // No esparcir todo, solo los campos que vienen del form
         clientName: updatedData.clientName,
         products: updatedData.products ? updatedData.products.split(/[,;\n]+/).map(p => p.trim()).filter(p => p.length > 0) : orderToUpdate.products,
         value: updatedData.value !== undefined ? updatedData.value : orderToUpdate.value,
@@ -133,12 +132,6 @@ export default function OrdersDashboardPage() {
         contactoTelefono: updatedData.contactoTelefono || orderToUpdate.contactoTelefono,
         observacionesAlta: updatedData.observacionesAlta || orderToUpdate.observacionesAlta,
         notes: updatedData.notes || orderToUpdate.notes,
-        // Campos de seguimiento no se actualizan desde este diálogo de edición principal
-        // nextActionType: orderToUpdate.nextActionType,
-        // nextActionCustom: orderToUpdate.nextActionCustom,
-        // nextActionDate: orderToUpdate.nextActionDate,
-        // failureReasonType: orderToUpdate.failureReasonType,
-        // failureReasonCustom: orderToUpdate.failureReasonCustom,
       };
       
       await updateOrderFS(orderId, fullUpdatedOrderData as Order); 
@@ -146,6 +139,7 @@ export default function OrdersDashboardPage() {
       setAllOrders(prevOrders => prevOrders.map(o => o.id === orderId ? { ...orderToUpdate, ...fullUpdatedOrderData } : o));
       
       toast({ title: "¡Pedido Actualizado!", description: `Pedido ${orderId} actualizado exitosamente.`, variant: "default"});
+      refreshDataSignature();
     } catch (error) {
       console.error("Error updating order:", error);
       toast({ title: "Error al Actualizar", description: "No se pudo actualizar el pedido en Firestore.", variant: "destructive" });
@@ -169,6 +163,7 @@ export default function OrdersDashboardPage() {
       setAllOrders(prev => prev.filter(o => o.id !== orderToDelete.id));
       setSelectedOrderIds(prev => prev.filter(id => id !== orderToDelete.id));
       toast({ title: "¡Pedido Eliminado!", description: `El pedido "${orderToDelete.id}" ha sido eliminado.`, variant: "destructive" });
+      refreshDataSignature();
     } catch (error) {
       console.error("Error deleting order:", error);
       toast({ title: "Error al Eliminar", description: "No se pudo eliminar el pedido de Firestore.", variant: "destructive" });
@@ -189,6 +184,7 @@ export default function OrdersDashboardPage() {
         await updateOrderFS(order.id, updatePayload);
         setAllOrders(prevOrders => prevOrders.map(o => o.id === order.id ? { ...o, ...updatePayload } : o));
         toast({ title: "Estado Actualizado", description: `El estado del pedido ${order.id} es ahora ${newStatus}.` });
+        refreshDataSignature();
     } catch (error) {
         console.error("Error updating order status:", error);
         toast({ title: "Error al Cambiar Estado", description: "No se pudo actualizar el estado del pedido.", variant: "destructive" });
@@ -556,4 +552,3 @@ export default function OrdersDashboardPage() {
     </div>
   );
 }
-

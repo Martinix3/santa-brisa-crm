@@ -57,18 +57,18 @@ interface NavGroup {
   id: string;
   label: string;
   items: NavItem[];
-  groupRoles?: UserRole[]; // Roles que pueden ver el grupo en general
+  groupRoles?: UserRole[]; 
 }
 
 const navigationStructure: NavGroup[] = [
   {
     id: 'ventas',
-    label: 'Ventas',
-    groupRoles: ['Admin', 'SalesRep', 'Distributor'],
+    label: 'Ventas y CRM',
+    groupRoles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'],
     items: [
-      { href: '/dashboard', label: 'Panel', icon: LayoutDashboard, roles: ['Admin', 'SalesRep', 'Distributor'] },
-      { href: '/my-agenda', label: 'Agenda', icon: CalendarCheck, roles: ['Admin', 'SalesRep'] },
-      { href: '/crm-follow-up', label: 'Tareas de Seguimiento', icon: ClipboardList, roles: ['Admin', 'SalesRep'] },
+      { href: '/dashboard', label: 'Panel', icon: LayoutDashboard, roles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'] },
+      { href: '/my-agenda', label: 'Agenda', icon: CalendarCheck, roles: ['Admin', 'SalesRep', 'Clavadista'] },
+      { href: '/crm-follow-up', label: 'Tareas de Seguimiento', icon: ClipboardList, roles: ['Admin', 'SalesRep', 'Clavadista'] },
       { href: '/order-form', label: 'Registrar Visita', icon: FileText, roles: ['Admin', 'SalesRep'] },
       { href: '/accounts', label: 'Cuentas', icon: Building2, roles: ['Admin', 'SalesRep', 'Distributor'] },
       { href: '/orders-dashboard', label: 'Panel de Pedidos', icon: ShoppingCart, roles: ['Admin', 'SalesRep', 'Distributor'] },
@@ -78,20 +78,20 @@ const navigationStructure: NavGroup[] = [
   {
     id: 'marketing',
     label: 'Marketing',
-    groupRoles: ['Admin', 'SalesRep', 'Distributor'],
+    groupRoles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'],
     items: [
-      { href: '/events', label: 'Eventos', icon: PartyPopper, roles: ['Admin', 'SalesRep', 'Distributor'] },
-      { href: '/clavadistas', label: 'Clavadistas', icon: Award, roles: ['Admin', 'SalesRep'] },
-      { href: '/marketing-resources', label: 'Recursos de Marketing', icon: Library, roles: ['Admin', 'SalesRep', 'Distributor'] },
-      { href: '/marketing/ai-assistant', label: 'Asistente IA', icon: Sparkles, roles: ['Admin', 'SalesRep'] },
+      { href: '/events', label: 'Eventos', icon: PartyPopper, roles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'] },
+      { href: '/clavadistas', label: 'Clavadistas', icon: Award, roles: ['Admin', 'SalesRep', 'Clavadista'] },
+      { href: '/marketing-resources', label: 'Recursos de Marketing', icon: Library, roles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'] },
+      { href: '/marketing/ai-assistant', label: 'Asistente IA', icon: Sparkles, roles: ['Admin', 'SalesRep', 'Clavadista'] },
     ],
   },
   {
     id: 'configuracion',
     label: 'Configuración',
-    groupRoles: ['Admin'], // Solo Admin puede ver la categoría "Configuración"
+    groupRoles: ['Admin'], 
     items: [
-      { href: '/admin/settings', label: 'Configuración', icon: Settings, roles: ['Admin'] }, // El item dentro también es solo para Admin
+      { href: '/admin/settings', label: 'Configuración', icon: Settings, roles: ['Admin'] }, 
     ],
   },
 ];
@@ -109,7 +109,7 @@ function DailyTasksMenu() {
   useEffect(() => {
     async function fetchTasks() {
       setIsLoadingTasks(true);
-      if ((!teamMember && userRole === 'SalesRep') || userRole === 'Distributor') {
+      if ((!teamMember && (userRole === 'SalesRep' || userRole === 'Clavadista')) || userRole === 'Distributor') {
         setTaskCount(0);
         setIsLoadingTasks(false);
         return;
@@ -134,6 +134,17 @@ function DailyTasksMenu() {
         } else if (userRole === 'SalesRep' && teamMember) {
           relevantOrders = allOrders.filter(order =>
             order.salesRep === teamMember.name &&
+            (order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') &&
+            (order.status === 'Programada' ? order.visitDate : order.nextActionDate) &&
+            isValid(parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!))
+          );
+          relevantEvents = allEvents.filter(event =>
+            event.assignedTeamMemberIds.includes(teamMember.id) && isValid(parseISO(event.startDate))
+          );
+        } else if (userRole === 'Clavadista' && teamMember) {
+          // Clavadistas ven eventos asignados y órdenes donde participaron
+          relevantOrders = allOrders.filter(order =>
+            order.clavadistaId === teamMember.id &&
             (order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') &&
             (order.status === 'Programada' ? order.visitDate : order.nextActionDate) &&
             isValid(parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!))
@@ -176,7 +187,7 @@ function DailyTasksMenu() {
       setIsLoadingTasks(false);
     }
 
-    if(userRole && (userRole === 'Admin' || (userRole === 'SalesRep' && teamMember))) {
+    if(userRole && (userRole === 'Admin' || ((userRole === 'SalesRep' || userRole === 'Clavadista') && teamMember))) {
         fetchTasks();
     } else if (userRole === 'Distributor') {
         setIsLoadingTasks(false);
@@ -185,7 +196,7 @@ function DailyTasksMenu() {
   }, [userRole, teamMember, today, nextSevenDaysEnd, toast]);
 
 
-  if (userRole === 'Distributor' || isLoadingTasks) return null; // Hide if loading or distributor
+  if (userRole === 'Distributor' || isLoadingTasks || !teamMember && (userRole === 'SalesRep' || userRole === 'Clavadista')) return null; 
 
   return (
     <DropdownMenu>
@@ -417,7 +428,7 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  if (!user) return null;
+  if (!user || !userRole) return null; // Added !userRole check
 
   const handleLogout = async () => {
     await logout();
@@ -497,7 +508,6 @@ function AppNavigation({ navStructure, userRole }: AppNavigationProps) {
   return (
     <>
       {navStructure.map((group) => {
-        // User can see the group category if no groupRoles are defined OR if their role is included
         const userCanSeeGroupCategory = !group.groupRoles || group.groupRoles.includes(userRole);
         
         if (!userCanSeeGroupCategory) {
@@ -507,7 +517,7 @@ function AppNavigation({ navStructure, userRole }: AppNavigationProps) {
         const visibleItemsInGroup = group.items.filter(item => item.roles.includes(userRole));
 
         if (visibleItemsInGroup.length === 0) {
-          return null; // Don't render the group if no items are visible for this user
+          return null; 
         }
 
         return (
@@ -517,7 +527,6 @@ function AppNavigation({ navStructure, userRole }: AppNavigationProps) {
               <SidebarMenu>
                 {visibleItemsInGroup.map((item) => {
                   let isActive = false;
-                  // Specific check for /admin/settings to make sure other /admin/* routes don't activate it
                   if (item.href === '/admin/settings') {
                     isActive = pathname === item.href || (pathname.startsWith('/admin/') && !pathname.startsWith('/admin/user-management') && !pathname.startsWith('/admin/objectives-management') && !pathname.startsWith('/admin/kpi-launch-targets') && !pathname.startsWith('/admin/promotional-materials'));
                   } else if (item.href === '/dashboard') {
@@ -526,19 +535,11 @@ function AppNavigation({ navStructure, userRole }: AppNavigationProps) {
                     isActive = pathname.startsWith(item.href) && item.href !== '/dashboard';
                   }
                   
-                  // More robust check for admin section sub-pages to keep "Configuración" active
                   if (pathname.startsWith('/admin/') && group.id === 'configuracion') {
-                     const currentTopLevelAdminPath = pathname.split('/')[2]; // e.g., 'settings', 'user-management'
-                     if (item.href === `/admin/${currentTopLevelAdminPath}` || (item.href === '/admin/settings' && !['user-management', 'objectives-management', 'kpi-launch-targets', 'promotional-materials'].includes(currentTopLevelAdminPath) )) {
-                        // isActive = true; // This logic was a bit complex, simplifying below
-                     }
-                     // Simplified: if current path starts with /admin/ and the group is configuracion, check if item.href matches start of path
                      if (item.href.startsWith('/admin/')) {
                         isActive = pathname.startsWith(item.href);
                      }
                      if (item.href === '/admin/settings' && pathname.startsWith('/admin/')) isActive = true;
-
-
                   }
 
 
@@ -621,6 +622,3 @@ function UserMenu({ userRole, userEmail }: UserMenuProps) {
 }
 
 export default MainAppLayout;
-
-
-    

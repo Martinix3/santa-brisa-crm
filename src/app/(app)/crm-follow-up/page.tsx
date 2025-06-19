@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input"; 
 import type { Order, NextActionType, TeamMember, UserRole, OrderStatus } from "@/types";
-import { nextActionTypeList } from "@/lib/data"; // mockTeamMembers removed
+import { nextActionTypeList } from "@/lib/data"; 
 import { Filter, CalendarDays, ClipboardList, ChevronDown, Edit2, AlertTriangle, MoreHorizontal, Send, Loader2 } from "lucide-react";
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -21,8 +21,8 @@ import StatusBadge from "@/components/app/status-badge";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { getOrdersFS, updateOrderFS } from "@/services/order-service";
-import { getTeamMembersFS } from "@/services/team-member-service"; // For salesRep filter
-// import { getAccountsFS } from "@/services/account-service"; // Needed for city filter if orders don't have addresses
+import { getTeamMembersFS } from "@/services/team-member-service"; 
+
 
 export default function CrmFollowUpPage() {
   const { userRole, teamMember } = useAuth();
@@ -31,10 +31,10 @@ export default function CrmFollowUpPage() {
   const [cityFilter, setCityFilter] = React.useState("");
   
   const [salesRepFilter, setSalesRepFilter] = React.useState<string>(() => {
-    if (userRole === 'SalesRep' && teamMember) {
-      return teamMember.name;
+    if ((userRole === 'SalesRep' || userRole === 'Clavadista') && teamMember) {
+      return teamMember.id; // Filter by teamMember ID for SalesRep and Clavadista
     }
-    return "Todos";
+    return "Todos"; // Admin sees all by default
   });
 
   const [actionTypeFilter, setActionTypeFilter] = React.useState<NextActionType | "Todos" | "Visita Programada">("Todos");
@@ -45,7 +45,7 @@ export default function CrmFollowUpPage() {
 
   const [followUps, setFollowUps] = React.useState<Order[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [salesRepsForFilterList, setSalesRepsForFilterList] = React.useState<string[]>(["Todos"]);
+  const [salesRepsForFilterList, setSalesRepsForFilterList] = React.useState<TeamMember[]>([]);
 
 
   React.useEffect(() => {
@@ -64,7 +64,7 @@ export default function CrmFollowUpPage() {
           )
         );
         if (userRole === 'Admin') {
-          setSalesRepsForFilterList(["Todos", ...fetchedSalesReps.map(rep => rep.name)]);
+          setSalesRepsForFilterList(fetchedSalesReps);
         }
 
       } catch (error) {
@@ -87,7 +87,11 @@ export default function CrmFollowUpPage() {
         if (userRole === 'SalesRep' && teamMember) {
           return followUp.salesRep === teamMember.name;
         }
-        return salesRepFilter === "Todos" || followUp.salesRep === salesRepFilter;
+        if (userRole === 'Clavadista' && teamMember) {
+          return followUp.clavadistaId === teamMember.id;
+        }
+        // Admin filter
+        return salesRepFilter === "Todos" || (salesRepsForFilterList.find(rep => rep.id === salesRepFilter)?.name === followUp.salesRep);
       })
       .filter(followUp => {
         if (actionTypeFilter === "Todos") return true;
@@ -115,7 +119,7 @@ export default function CrmFollowUpPage() {
         return (followUp.direccionEntrega && followUp.direccionEntrega.toLowerCase().includes(cityLower)) ||
                (followUp.direccionFiscal && followUp.direccionFiscal.toLowerCase().includes(cityLower));
       });
-  }, [followUps, userRole, teamMember, salesRepFilter, actionTypeFilter, dateRange, searchTerm, cityFilter]);
+  }, [followUps, userRole, teamMember, salesRepFilter, salesRepsForFilterList, actionTypeFilter, dateRange, searchTerm, cityFilter]);
 
   const handleSaveNewDate = async (followUpId: string) => {
     if (!selectedNewDate) return;
@@ -154,7 +158,7 @@ export default function CrmFollowUpPage() {
     }
   };
 
-  if (userRole !== 'Admin' && userRole !== 'SalesRep') {
+  if (!userRole || (userRole !== 'Admin' && userRole !== 'SalesRep' && userRole !== 'Clavadista')) {
      return (
       <Card>
         <CardHeader><CardTitle>Acceso Denegado</CardTitle></CardHeader>
@@ -168,6 +172,7 @@ export default function CrmFollowUpPage() {
     : "Revisa y gestiona tus visitas y seguimientos planificados. Puedes editar la fecha de próxima acción/visita y ver tareas vencidas.";
 
   const today = startOfDay(new Date());
+  const canFilterBySalesRep = userRole === 'Admin';
 
   return (
     <div className="space-y-6">
@@ -195,22 +200,29 @@ export default function CrmFollowUpPage() {
               onChange={(e) => setCityFilter(e.target.value)}
               className="max-w-xs"
             />
-            {userRole === 'Admin' && (
+            {canFilterBySalesRep && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="w-full sm:w-auto" disabled={isLoading || salesRepsForFilterList.length <=1}>
+                  <Button variant="outline" className="w-full sm:w-auto" disabled={isLoading || salesRepsForFilterList.length === 0}>
                     <Filter className="mr-2 h-4 w-4" />
-                    Comercial: {salesRepFilter} <ChevronDown className="ml-2 h-4 w-4" />
+                    Comercial: {salesRepsForFilterList.find(rep => rep.id === salesRepFilter)?.name || salesRepFilter} <ChevronDown className="ml-2 h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
+                   <DropdownMenuCheckboxItem
+                      key="Todos"
+                      checked={salesRepFilter === "Todos"}
+                      onCheckedChange={() => setSalesRepFilter("Todos")}
+                    >
+                      Todos
+                    </DropdownMenuCheckboxItem>
                   {salesRepsForFilterList.map(rep => (
                     <DropdownMenuCheckboxItem
-                      key={rep}
-                      checked={salesRepFilter === rep}
-                      onCheckedChange={() => setSalesRepFilter(rep)}
+                      key={rep.id}
+                      checked={salesRepFilter === rep.id}
+                      onCheckedChange={() => setSalesRepFilter(rep.id)}
                     >
-                      {rep}
+                      {rep.name}
                     </DropdownMenuCheckboxItem>
                   ))}
                 </DropdownMenuContent>
@@ -287,7 +299,7 @@ export default function CrmFollowUpPage() {
                     <TableHead className="w-[20%]">Cliente</TableHead>
                     <TableHead className="w-[15%]">Próxima Acción / Tipo Visita</TableHead>
                     <TableHead className="w-[15%]">Fecha Próx. Acción / Visita</TableHead>
-                    {userRole === 'Admin' && <TableHead className="w-[15%]">Comercial</TableHead>}
+                    {canFilterBySalesRep && <TableHead className="w-[15%]">Comercial</TableHead>}
                     <TableHead className="w-[10%] text-center">Estado Tarea</TableHead>
                     <TableHead className="w-[15%]">Notas / Obj. Visita Original</TableHead>
                     <TableHead className="text-right w-[10%]">Acciones</TableHead> 
@@ -296,7 +308,7 @@ export default function CrmFollowUpPage() {
                 <TableBody>
                   {filteredFollowUps.length > 0 ? filteredFollowUps.map((item: Order) => {
                     const canEditDate = userRole === 'Admin' || (userRole === 'SalesRep' && teamMember?.name === item.salesRep);
-                    const canRegisterResult = canEditDate; 
+                    const canRegisterResult = canEditDate || (userRole === 'Clavadista' && item.clavadistaId === teamMember?.id);
                     
                     const isProgrammedItem = item.status === 'Programada';
                     const relevantActionDateString = isProgrammedItem ? item.visitDate : item.nextActionDate;
@@ -355,7 +367,7 @@ export default function CrmFollowUpPage() {
                           </Popover>
                         )}
                       </TableCell>
-                      {userRole === 'Admin' && <TableCell>{item.salesRep}</TableCell>}
+                      {canFilterBySalesRep && <TableCell>{item.salesRep}</TableCell>}
                       <TableCell className="text-center">
                         <StatusBadge type="order" status={item.status} />
                       </TableCell>
@@ -371,14 +383,14 @@ export default function CrmFollowUpPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            {canRegisterResult && (
+                            {canRegisterResult && (userRole === 'Admin' || userRole === 'SalesRep') && (
                               <DropdownMenuItem asChild>
                                 <Link href={`/order-form?updateVisitId=${item.id}`}>
                                   <Send className="mr-2 h-4 w-4" /> Registrar Interacción / Resultado
                                 </Link>
                               </DropdownMenuItem>
                             )}
-                            {canRegisterResult && <DropdownMenuSeparator />}
+                             {canRegisterResult && (userRole === 'Admin' || userRole === 'SalesRep') && <DropdownMenuSeparator />}
                             <DropdownMenuItem asChild>
                               <Link href="/my-agenda">
                                   <CalendarDays className="mr-2 h-4 w-4" /> Ver en Agenda Completa
@@ -390,7 +402,7 @@ export default function CrmFollowUpPage() {
                     </TableRow>
                   )}) : (
                     <TableRow>
-                      <TableCell colSpan={userRole === 'Admin' ? 7 : 6} className="h-24 text-center">
+                      <TableCell colSpan={canFilterBySalesRep ? 7 : 6} className="h-24 text-center">
                         No se encontraron tareas de seguimiento o visitas que coincidan con los filtros seleccionados.
                       </TableCell>
                     </TableRow>

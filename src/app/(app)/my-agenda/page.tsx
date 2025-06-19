@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/auth-context";
-import type { Order, CrmEvent, CrmEventStatus, TeamMember } from "@/types";
+import type { Order, CrmEvent, CrmEventStatus, TeamMember, UserRole } from "@/types";
 import { parseISO, format, isEqual, startOfDay, isSameMonth, isWithinInterval, addDays, isValid } from "date-fns";
 import { es } from "date-fns/locale";
 import { CalendarCheck, User, Info, Filter, PartyPopper, Users as UsersIcon, Send, AlertTriangle, Loader2 } from "lucide-react";
@@ -17,7 +17,7 @@ import StatusBadge from "@/components/app/status-badge";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { getOrdersFS } from "@/services/order-service";
-import { getEventsFS } from "@/services/event-service"; // Import event service
+import { getEventsFS } from "@/services/event-service"; 
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { useToast } from "@/hooks/use-toast";
 
@@ -49,28 +49,25 @@ export default function AgendaPage() {
   const [actionTypeFilter, setActionTypeFilter] = React.useState<SimplifiedActionFilterType>("Todos");
   const [agendaItems, setAgendaItems] = React.useState<AgendaItem[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [salesRepsList, setSalesRepsList] = React.useState<string[]>(["Todos"]);
-  const [allTeamMembers, setAllTeamMembers] = React.useState<TeamMember[]>([]);
+  const [salesRepsList, setSalesRepsList] = React.useState<TeamMember[]>([]); // Changed from string[] to TeamMember[]
+  const [allTeamMembersForAdmin, setAllTeamMembersForAdmin] = React.useState<TeamMember[]>([]);
 
 
   React.useEffect(() => {
-    async function loadSalesReps() {
+    async function loadFilterData() {
         if (userRole === 'Admin') {
             try {
-                const reps = await getTeamMembersFS(['SalesRep', 'Admin', 'Clavadista']); // Include Clavadista for event filtering
-                setAllTeamMembers(reps);
-                setSalesRepsList(["Todos", ...reps.filter(r => r.role === 'SalesRep' || r.role === 'Admin').map(m => m.name)]);
+                const reps = await getTeamMembersFS(['SalesRep', 'Admin', 'Clavadista']); 
+                setAllTeamMembersForAdmin(reps); 
             } catch (error) {
-                console.error("Failed to load sales reps for agenda", error);
-                toast({ title: "Error", description: "No se pudieron cargar los comerciales.", variant: "destructive" });
+                console.error("Failed to load team members for admin filter", error);
+                toast({ title: "Error", description: "No se pudieron cargar los miembros del equipo para el filtro.", variant: "destructive" });
             }
         } else if (teamMember) {
-            setAllTeamMembers([teamMember]);
-            setSalesRepsList([teamMember.name]);
-            setSelectedSalesRep(teamMember.name);
+            setSelectedSalesRep(teamMember.id); // Use ID for selectedSalesRep now
         }
     }
-    loadSalesReps();
+    loadFilterData();
   }, [userRole, teamMember, toast]);
 
 
@@ -81,14 +78,21 @@ export default function AgendaPage() {
       let fetchedEventItems: AgendaCrmEventItem[] = [];
 
       try {
+        const [ordersFromFS, eventsFromFS] = await Promise.all([
+            (actionTypeFilter === "Todos" || actionTypeFilter === "Acciones de Seguimiento") ? getOrdersFS() : Promise.resolve([]),
+            (actionTypeFilter === "Todos" || actionTypeFilter === "Eventos") ? getEventsFS() : Promise.resolve([])
+        ]);
+
         if (actionTypeFilter === "Todos" || actionTypeFilter === "Acciones de Seguimiento") {
-          const ordersFromFS = await getOrdersFS();
-          fetchedOrderItems = ordersFromFS
+            fetchedOrderItems = ordersFromFS
             .filter(order =>
               ((order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') &&
               (order.status === 'Programada' ? order.visitDate : order.nextActionDate) &&
               isValid(parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!))) &&
-              (userRole === 'Admin' ? (selectedSalesRep === "Todos" || order.salesRep === selectedSalesRep) : order.salesRep === teamMember?.name)
+              (userRole === 'Admin' ? 
+                (selectedSalesRep === "Todos" || (allTeamMembersForAdmin.find(rep => rep.id === selectedSalesRep)?.name === order.salesRep) || (order.clavadistaId === selectedSalesRep))
+                : 
+                (teamMember?.name === order.salesRep || teamMember?.id === order.clavadistaId))
             )
             .map(order => ({
               ...order,
@@ -98,17 +102,13 @@ export default function AgendaPage() {
         }
 
         if (actionTypeFilter === "Todos" || actionTypeFilter === "Eventos") {
-          const eventsFromFS = await getEventsFS(); // Fetch events from Firestore
           fetchedEventItems = eventsFromFS
             .filter(event => {
               if (!isValid(parseISO(event.startDate))) return false;
               if (userRole === 'Admin') {
                 if (selectedSalesRep === "Todos") return true;
-                // Filter events where any of the selectedSalesRep (if Admin or Clavadista) is assigned
-                const repDetails = allTeamMembers.find(m => m.name === selectedSalesRep);
-                return repDetails ? event.assignedTeamMemberIds.includes(repDetails.id) : false;
+                return event.assignedTeamMemberIds.includes(selectedSalesRep);
               }
-              // For SalesRep, filter events where they are assigned
               return teamMember ? event.assignedTeamMemberIds.includes(teamMember.id) : false;
             })
             .map(event => ({
@@ -126,14 +126,14 @@ export default function AgendaPage() {
       }
     }
 
-    if ((userRole === 'Admin' && allTeamMembers.length > 0) || (userRole !== 'Admin' && teamMember)) {
+    if ((userRole === 'Admin' && allTeamMembersForAdmin.length > 0) || (userRole !== 'Admin' && teamMember)) {
         loadAgendaData();
-    } else if (userRole === 'Admin' && allTeamMembers.length === 0 && !isLoading && salesRepsList.length <=1) {
+    } else if (userRole === 'Admin' && allTeamMembersForAdmin.length === 0 && !isLoading) {
         setIsLoading(false);
     }
 
 
-  }, [userRole, teamMember, selectedSalesRep, actionTypeFilter, toast, allTeamMembers, isLoading, salesRepsList]);
+  }, [userRole, teamMember, selectedSalesRep, actionTypeFilter, toast, allTeamMembersForAdmin]);
 
 
   const itemsForSelectedDay = React.useMemo(() => {
@@ -179,7 +179,7 @@ export default function AgendaPage() {
     selected: 'bg-primary text-primary-foreground rounded-full',
   };
 
-  if (userRole !== 'Admin' && userRole !== 'SalesRep') {
+  if (!userRole || (userRole !== 'Admin' && userRole !== 'SalesRep' && userRole !== 'Clavadista')) {
      return (
       <Card>
         <CardHeader><CardTitle>Acceso Denegado</CardTitle></CardHeader>
@@ -189,6 +189,7 @@ export default function AgendaPage() {
   }
 
   const pageTitle = userRole === 'Admin' ? "Agenda del Equipo" : "Mi Agenda Personal";
+  const canFilterByUser = userRole === 'Admin';
 
   return (
     <div className="space-y-6">
@@ -206,17 +207,17 @@ export default function AgendaPage() {
             <CardDescription>Utiliza los filtros para personalizar la vista de tu agenda, mostrando acciones de seguimiento o eventos específicos.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col sm:flex-row gap-4 items-end">
-            {userRole === 'Admin' && (
+            {canFilterByUser && (
               <div className="w-full sm:w-auto flex-grow sm:flex-grow-0">
                 <Label htmlFor="salesRepFilterAgenda">Comercial / Clavadista</Label>
-                <Select value={selectedSalesRep} onValueChange={setSelectedSalesRep} disabled={(salesRepsList.length <=1 && salesRepsList[0] === "Todos") || allTeamMembers.length === 0}>
+                <Select value={selectedSalesRep} onValueChange={setSelectedSalesRep} disabled={allTeamMembersForAdmin.length === 0}>
                     <SelectTrigger id="salesRepFilterAgenda" className="w-full sm:w-[200px] mt-1">
                     <SelectValue placeholder="Filtrar por responsable" />
                     </SelectTrigger>
                     <SelectContent>
                     <SelectItem value="Todos">Todos</SelectItem>
-                    {allTeamMembers.filter(m => m.role === 'SalesRep' || m.role === 'Admin' || m.role === 'Clavadista').map(rep => (
-                        <SelectItem key={rep.id} value={rep.name}>{rep.name} ({rep.role})</SelectItem>
+                    {allTeamMembersForAdmin.map(rep => (
+                        <SelectItem key={rep.id} value={rep.id}>{rep.name} ({rep.role})</SelectItem>
                     ))}
                     </SelectContent>
                 </Select>
@@ -289,10 +290,14 @@ export default function AgendaPage() {
                       let teamMemberDisplay: string | null = null;
                       if (userRole === 'Admin' && selectedSalesRep === "Todos") {
                           if (orderItem) {
-                              const assignedRep = allTeamMembers.find(tm => tm.name === orderItem.salesRep);
+                              const assignedRep = allTeamMembersForAdmin.find(tm => tm.name === orderItem.salesRep);
                               teamMemberDisplay = assignedRep ? `${assignedRep.name} (Comercial)` : orderItem.salesRep;
+                              if (orderItem.clavadistaId) {
+                                const clava = allTeamMembersForAdmin.find(tm => tm.id === orderItem.clavadistaId);
+                                if (clava) teamMemberDisplay += `, ${clava.name} (Clavadista)`;
+                              }
                           } else if (eventItem) {
-                              const assignedMembers = allTeamMembers
+                              const assignedMembers = allTeamMembersForAdmin
                                   .filter(tm => eventItem.assignedTeamMemberIds.includes(tm.id))
                                   .map(tm => `${tm.name} (${tm.role})`);
                               if (assignedMembers.length > 0) {
@@ -336,7 +341,7 @@ export default function AgendaPage() {
                                   <span className="font-medium">{(orderItem.status === 'Programada' && orderItem.notes) ? "Objetivo/Comentarios:" : "Notas visita:"}</span> {orderItem.notes.length > 70 ? orderItem.notes.substring(0, 70) + "..." : orderItem.notes}
                                 </p>
                             )}
-                            {(orderItem.status === 'Programada' || orderItem.status === 'Seguimiento' || orderItem.status === 'Fallido') && (
+                            {(orderItem.status === 'Programada' || orderItem.status === 'Seguimiento' || orderItem.status === 'Fallido') && (userRole === 'Admin' || userRole === 'SalesRep') && (
                               <Button asChild size="sm" className="mt-3 w-full">
                                 <Link href={`/order-form?updateVisitId=${orderItem.id}`}>
                                   <Send className="mr-2 h-4 w-4" /> Registrar Resultado de Interacción

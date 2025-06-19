@@ -9,7 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { crmEventTypeList, crmEventStatusList } from "@/lib/data";
-import type { CrmEvent, CrmEventType, CrmEventStatus, TeamMember } from "@/types";
+import type { CrmEvent, CrmEventType, CrmEventStatus, TeamMember, UserRole } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, Edit, Trash2, MoreHorizontal, PartyPopper, Filter, ChevronDown, Eye, Loader2 } from "lucide-react";
 import EventDialog, { type EventFormValues } from "@/components/app/event-dialog";
@@ -23,7 +23,7 @@ import { mockCrmEvents as initialMockEventsForSeeding } from "@/lib/data";
 
 export default function EventsPage() {
   const { toast } = useToast();
-  const { userRole } = useAuth();
+  const { userRole, teamMember } = useAuth(); // Added teamMember
   const [events, setEvents] = React.useState<CrmEvent[]>([]);
   const [allTeamMembers, setAllTeamMembers] = React.useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -47,8 +47,14 @@ export default function EventsPage() {
                 getEventsFS(),
                 getTeamMembersFS() 
             ]);
-            setEvents(fetchedEvents);
+            
+            if (userRole === 'Clavadista' && teamMember) {
+                setEvents(fetchedEvents.filter(event => event.assignedTeamMemberIds.includes(teamMember.id)));
+            } else {
+                setEvents(fetchedEvents);
+            }
             setAllTeamMembers(fetchedTeamMembers);
+
         } catch (error) {
             console.error("Failed to load events or team members:", error);
             toast({ title: "Error", description: "No se pudieron cargar los eventos o miembros del equipo.", variant: "destructive" });
@@ -57,7 +63,7 @@ export default function EventsPage() {
         }
     }
     loadInitialData();
-  }, [toast]);
+  }, [toast, userRole, teamMember]);
 
 
   const handleAddNewEvent = () => {
@@ -81,7 +87,12 @@ export default function EventsPage() {
   };
 
   const handleSaveEvent = async (data: EventFormValues, eventId?: string) => {
-    if (!isAdmin && !eventId) return;
+    if (!isAdmin && !eventId) return; // Only admin can add
+    if (!isAdmin && eventId) { // Non-admin cannot edit
+        setIsLoading(false);
+        toast({title: "Acción no permitida", description: "No tienes permiso para editar eventos.", variant: "destructive"});
+        return;
+    }
     setIsLoading(true); 
 
     try {
@@ -90,16 +101,16 @@ export default function EventsPage() {
         await updateEventFS(eventId, data);
         successMessage = `El evento "${data.name}" ha sido actualizado.`;
       } else {
-        if (!isAdmin) {
-            setIsLoading(false);
-            return;
-        }
         await addEventFS(data);
         successMessage = `El evento "${data.name}" ha sido añadido.`;
       }
       
       const updatedEvents = await getEventsFS();
-      setEvents(updatedEvents);
+      if (userRole === 'Clavadista' && teamMember) {
+          setEvents(updatedEvents.filter(event => event.assignedTeamMemberIds.includes(teamMember.id)));
+      } else {
+          setEvents(updatedEvents);
+      }
       toast({ title: "¡Operación Exitosa!", description: successMessage });
       setIsEventDialogOpen(false);
       setEditingEvent(null);
@@ -122,7 +133,7 @@ export default function EventsPage() {
     setIsLoading(true);
     try {
       await deleteEventFS(eventToDelete.id);
-      setEvents(prev => prev.filter(evt => evt.id !== eventToDelete.id));
+      setEvents(prev => prev.filter(evt => evt.id !== eventToDelete.id)); // This works for Admin, Clavadista view is re-filtered
       toast({ title: "¡Evento Eliminado!", description: `El evento "${eventToDelete.name}" ha sido eliminado.`, variant: "destructive" });
     } catch (error) {
         console.error("Error deleting event:", error);
@@ -169,7 +180,12 @@ export default function EventsPage() {
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
           <CardTitle>Lista de Eventos</CardTitle>
-          <CardDescription>Organiza, visualiza y gestiona todos los eventos de marketing y comerciales. Los administradores pueden añadir, editar y eliminar eventos.</CardDescription>
+          <CardDescription>
+            {userRole === 'Clavadista' 
+                ? "Visualiza los eventos de marketing y comerciales en los que estás asignado."
+                : "Organiza, visualiza y gestiona todos los eventos de marketing y comerciales. Los administradores pueden añadir, editar y eliminar eventos."
+            }
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
@@ -289,7 +305,6 @@ export default function EventsPage() {
                                 </AlertDialog>
                               </>
                             )}
-                            {!isAdmin && !['Ver Detalles'].length && <DropdownMenuItem disabled>No hay acciones disponibles</DropdownMenuItem>}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -297,7 +312,7 @@ export default function EventsPage() {
                   )) : (
                     <TableRow>
                       <TableCell colSpan={6} className="h-24 text-center">
-                        No se encontraron eventos que coincidan con tu búsqueda o filtros. {isAdmin ? "Puedes añadir un nuevo evento." : ""}
+                        No se encontraron eventos que coincidan con tu búsqueda o filtros. {isAdmin ? "Puedes añadir un nuevo evento." : (userRole === 'Clavadista' ? "No tienes eventos asignados que coincidan." : "")}
                       </TableCell>
                     </TableRow>
                   )}
@@ -313,22 +328,20 @@ export default function EventsPage() {
         )}
       </Card>
 
-      {(isAdmin || isEventDialogOpen) && (
-        <EventDialog
-          event={editingEvent}
-          isOpen={isEventDialogOpen}
-          onOpenChange={(open) => {
-            setIsEventDialogOpen(open);
-            if (!open) {
-              setEditingEvent(null);
-              setIsReadOnlyDialog(false);
-            }
-          }}
-          onSave={handleSaveEvent}
-          isReadOnly={isReadOnlyDialog || (!isAdmin && !!editingEvent)}
-          allTeamMembers={allTeamMembers}
-        />
-      )}
+      <EventDialog
+        event={editingEvent}
+        isOpen={isEventDialogOpen}
+        onOpenChange={(open) => {
+          setIsEventDialogOpen(open);
+          if (!open) {
+            setEditingEvent(null);
+            setIsReadOnlyDialog(false);
+          }
+        }}
+        onSave={handleSaveEvent}
+        isReadOnly={isReadOnlyDialog || (!isAdmin && !!editingEvent)} // Clavadistas y SalesRep no pueden editar
+        allTeamMembers={allTeamMembers}
+      />
     </div>
   );
 }

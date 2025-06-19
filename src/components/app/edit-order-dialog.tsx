@@ -40,7 +40,7 @@ import { orderStatusesList, mockTeamMembers, nextActionTypeList, failureReasonLi
 import { Loader2, CalendarIcon, Printer, Award, Package, PlusCircle, Trash2, Euro } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 
@@ -55,11 +55,11 @@ const assignedMaterialSchemaForDialog = z.object({
 
 const editOrderFormSchema = z.object({
   clientName: z.string().min(2, "El nombre del cliente debe tener al menos 2 caracteres."),
-  products: z.string().optional(), // Optional for follow-up/failed
-  value: z.coerce.number().positive("El valor del pedido debe ser positivo.").optional(), // Optional for follow-up/failed
+  products: z.string().optional(), 
+  value: z.coerce.number().positive("El valor del pedido debe ser positivo.").optional(), 
   status: z.enum(orderStatusesList as [OrderStatus, ...OrderStatus[]]),
   salesRep: z.string().min(1, "El representante de ventas es obligatorio."),
-  clavadistaId: z.string().optional(), // Can be "##NONE##" or an actual ID
+  clavadistaId: z.string().optional(), 
   assignedMaterials: z.array(assignedMaterialSchemaForDialog).optional().default([]),
   
   clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
@@ -76,14 +76,12 @@ const editOrderFormSchema = z.object({
   observacionesAlta: z.string().optional(),
   notes: z.string().optional(),
 
-  // New fields for follow-up / failure
   nextActionType: z.enum(nextActionTypeList as [NextActionType, ...NextActionType[]]).optional(),
   nextActionCustom: z.string().optional(),
   nextActionDate: z.date().optional(),
   failureReasonType: z.enum(failureReasonList as [FailureReasonType, ...FailureReasonType[]]).optional(),
   failureReasonCustom: z.string().optional(),
 }).superRefine((data, ctx) => {
-    // Validations for successful-like statuses
     if (['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Pendiente'].includes(data.status)) {
         if (!data.products || data.products.trim() === "") {
              ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Los productos son obligatorios para este estado.", path: ["products"] });
@@ -94,14 +92,11 @@ const editOrderFormSchema = z.object({
          if (!data.clientType) {
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El tipo de cliente es obligatorio.", path: ["clientType"] });
         }
-        // Further checks for billing info if it's a confirmed/processed order
         if (['Confirmado', 'Procesando', 'Enviado', 'Entregado'].includes(data.status)) {
             if (!data.nombreFiscal || data.nombreFiscal.trim() === "") ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Nombre fiscal es obligatorio.", path: ["nombreFiscal"] });
             if (!data.cif || data.cif.trim() === "") ctx.addIssue({ code: z.ZodIssueCode.custom, message: "CIF es obligatorio.", path: ["cif"] });
-            // ... add other billing fields if they become mandatory for these statuses
         }
     }
-    // Validations for 'Seguimiento' or 'Fallido'
     if (data.status === 'Seguimiento' || data.status === 'Fallido') {
         if (!data.nextActionType) {
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La próxima acción es obligatoria.", path: ["nextActionType"] });
@@ -138,36 +133,18 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const form = useForm<EditOrderFormValues>({
     resolver: zodResolver(editOrderFormSchema),
     defaultValues: {
-      clientName: "",
-      products: "",
-      value: undefined,
-      status: "Pendiente",
-      salesRep: "",
-      clavadistaId: NO_CLAVADISTA_VALUE,
-      assignedMaterials: [],
-      clientType: undefined,
-      numberOfUnits: undefined,
-      unitPrice: undefined,
-      nombreFiscal: "",
-      cif: "",
-      direccionFiscal: "",
-      direccionEntrega: "",
-      contactoNombre: "",
-      contactoCorreo: "",
-      contactoTelefono: "",
-      observacionesAlta: "",
-      notes: "",
-      nextActionType: undefined,
-      nextActionCustom: "",
-      nextActionDate: undefined,
-      failureReasonType: undefined,
+      clientName: "", products: "", value: undefined, status: "Pendiente", salesRep: "",
+      clavadistaId: NO_CLAVADISTA_VALUE, assignedMaterials: [], clientType: undefined,
+      numberOfUnits: undefined, unitPrice: undefined, nombreFiscal: "", cif: "",
+      direccionFiscal: "", direccionEntrega: "", contactoNombre: "", contactoCorreo: "",
+      contactoTelefono: "", observacionesAlta: "", notes: "", nextActionType: undefined,
+      nextActionCustom: "", nextActionDate: undefined, failureReasonType: undefined,
       failureReasonCustom: "",
     },
   });
   
   const { fields: materialFields, append: appendMaterial, remove: removeMaterial } = useFieldArray({
-    control: form.control,
-    name: "assignedMaterials",
+    control: form.control, name: "assignedMaterials",
   });
 
   const watchedMaterials = form.watch("assignedMaterials");
@@ -210,7 +187,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         notes: order.notes || "",
         nextActionType: order.nextActionType,
         nextActionCustom: order.nextActionCustom || "",
-        nextActionDate: order.nextActionDate ? parseISO(order.nextActionDate) : undefined,
+        nextActionDate: order.nextActionDate && isValid(parseISO(order.nextActionDate)) ? parseISO(order.nextActionDate) : undefined,
         failureReasonType: order.failureReasonType,
         failureReasonCustom: order.failureReasonCustom || "",
       });
@@ -224,14 +201,14 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     const saveData: EditOrderFormValues = {
         ...data,
         clavadistaId: data.clavadistaId === NO_CLAVADISTA_VALUE ? undefined : data.clavadistaId,
-        nextActionDate: data.nextActionDate ? data.nextActionDate : undefined,
+        nextActionDate: data.nextActionDate ? data.nextActionDate : undefined, // Already a Date object from form
         assignedMaterials: data.assignedMaterials || [],
     };
 
     await new Promise(resolve => setTimeout(resolve, 700));
     onSave(saveData, order.id);
     setIsSaving(false);
-    onOpenChange(false);
+    // onOpenChange(false); // Let parent handle dialog close
   };
 
   const handlePrint = () => {
@@ -360,7 +337,6 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                  </>
             )}
 
-            {/* Materials Section - Shown if status is not "Programada" */}
             {currentStatus !== 'Programada' && (
                 <>
                   <h3 className="text-md font-medium text-muted-foreground pt-4">Materiales Promocionales Asignados</h3>

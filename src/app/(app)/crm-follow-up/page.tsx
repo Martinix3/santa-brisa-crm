@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input"; 
 import type { Order, NextActionType, TeamMember, UserRole, OrderStatus } from "@/types";
-import { mockOrders, nextActionTypeList, mockTeamMembers, mockAccounts } from "@/lib/data";
-import { Filter, CalendarDays, ClipboardList, ChevronDown, Edit2, AlertTriangle, MoreHorizontal, Send } from "lucide-react";
+import { nextActionTypeList, mockTeamMembers } from "@/lib/data"; // mockOrders, mockAccounts removed
+import { Filter, CalendarDays, ClipboardList, ChevronDown, Edit2, AlertTriangle, MoreHorizontal, Send, Loader2 } from "lucide-react";
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -20,6 +20,8 @@ import { useAuth } from "@/contexts/auth-context";
 import StatusBadge from "@/components/app/status-badge";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
+import { getOrdersFS, updateOrderFS } from "@/services/order-service";
+import { getAccountsFS } from "@/services/account-service"; // Needed for city filter if orders don't have addresses
 
 export default function CrmFollowUpPage() {
   const { userRole, teamMember } = useAuth();
@@ -40,15 +42,36 @@ export default function CrmFollowUpPage() {
   const [popoverOpenItemId, setPopoverOpenItemId] = React.useState<string | null>(null);
   const [selectedNewDate, setSelectedNewDate] = React.useState<Date | undefined>(undefined);
 
-  const [followUps, setFollowUps] = React.useState<Order[]>(() =>
-    mockOrders.filter(order =>
-      ((order.status === 'Seguimiento' || order.status === 'Fallido') && order.nextActionDate) ||
-      (order.status === 'Programada') 
-    )
-  );
+  const [followUps, setFollowUps] = React.useState<Order[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  // const [accounts, setAccounts] = React.useState<Account[]>([]); // If needed for address filtering
+
+  React.useEffect(() => {
+    async function loadFollowUps() {
+      setIsLoading(true);
+      try {
+        const fetchedOrders = await getOrdersFS();
+        // const fetchedAccounts = await getAccountsFS(); // If linking orders to accounts for addresses
+        // setAccounts(fetchedAccounts);
+        setFollowUps(
+          fetchedOrders.filter(order =>
+            ((order.status === 'Seguimiento' || order.status === 'Fallido') && order.nextActionDate) ||
+            (order.status === 'Programada') 
+          )
+        );
+      } catch (error) {
+        console.error("Error loading follow-ups:", error);
+        toast({ title: "Error al Cargar Tareas", description: "No se pudieron cargar las tareas.", variant: "destructive" });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadFollowUps();
+  }, [toast]);
+
 
   const salesRepsForFilter = React.useMemo(() => {
-    const reps = new Set(mockTeamMembers
+    const reps = new Set(mockTeamMembers // Assuming mockTeamMembers is still the source for SalesRep definitions
         .filter(m => m.role === 'SalesRep' || m.role === 'Admin')
         .map(m => m.name)
     );
@@ -64,7 +87,6 @@ export default function CrmFollowUpPage() {
         if (userRole === 'SalesRep' && teamMember) {
           return followUp.salesRep === teamMember.name;
         }
-        // For Admin, apply salesRepFilter. If "Todos", show all.
         return salesRepFilter === "Todos" || followUp.salesRep === salesRepFilter;
       })
       .filter(followUp => {
@@ -74,10 +96,10 @@ export default function CrmFollowUpPage() {
       })
       .filter(followUp => {
         if (!dateRange?.from) return true; 
-        const dateToCheck = followUp.status === 'Programada' ? followUp.visitDate : followUp.nextActionDate;
-        if (!dateToCheck) return true;
+        const dateToCheckString = followUp.status === 'Programada' ? followUp.visitDate : followUp.nextActionDate;
+        if (!dateToCheckString) return true; 
         
-        const relevantDateParsed = parseISO(dateToCheck);
+        const relevantDateParsed = parseISO(dateToCheckString);
         if (!isValid(relevantDateParsed)) return true;
 
         const fromDate = dateRange.from;
@@ -90,46 +112,51 @@ export default function CrmFollowUpPage() {
       .filter(followUp => {
         if (!cityFilter) return true;
         const cityLower = cityFilter.toLowerCase();
-        // Check address fields directly on the followUp (Order) object
+        // Assuming order objects now have address fields directly, or link to accounts
         return (followUp.direccionEntrega && followUp.direccionEntrega.toLowerCase().includes(cityLower)) ||
                (followUp.direccionFiscal && followUp.direccionFiscal.toLowerCase().includes(cityLower));
+        // Or if linking to accounts:
+        // const account = accounts.find(acc => acc.id === followUp.accountId);
+        // return (account?.addressShipping && account.addressShipping.toLowerCase().includes(cityLower)) ||
+        //        (account?.addressBilling && account.addressBilling.toLowerCase().includes(cityLower));
       });
-  }, [followUps, userRole, teamMember, salesRepFilter, actionTypeFilter, dateRange, searchTerm, cityFilter]);
+  }, [followUps, userRole, teamMember, salesRepFilter, actionTypeFilter, dateRange, searchTerm, cityFilter]); // accounts removed if not used
 
-  const handleSaveNewDate = (followUpId: string) => {
+  const handleSaveNewDate = async (followUpId: string) => {
     if (!selectedNewDate) return;
+    setIsLoading(true); // Or a specific saving state
 
     const itemToUpdate = followUps.find(f => f.id === followUpId);
     if (!itemToUpdate) {
         toast({ title: "Error", description: "No se encontró la tarea para actualizar.", variant: "destructive" });
+        setIsLoading(false);
         return;
     }
     
     const isProgrammedItem = itemToUpdate.status === 'Programada';
     const dateFieldToUpdateKey = isProgrammedItem ? 'visitDate' : 'nextActionDate';
+    const newDateString = format(selectedNewDate, "yyyy-MM-dd");
 
-    const updatedFollowUps = followUps.map(item => {
-      if (item.id === followUpId) {
-        return { ...item, [dateFieldToUpdateKey]: format(selectedNewDate, "yyyy-MM-dd") };
-      }
-      return item;
-    });
-    setFollowUps(updatedFollowUps);
+    try {
+      const updatePayload: Partial<Order> = { [dateFieldToUpdateKey]: newDateString, lastUpdated: format(new Date(), "yyyy-MM-dd") };
+      await updateOrderFS(followUpId, updatePayload);
 
-    const mockOrderIndex = mockOrders.findIndex(order => order.id === followUpId);
-    if (mockOrderIndex !== -1) {
-      (mockOrders[mockOrderIndex] as any)[dateFieldToUpdateKey] = format(selectedNewDate, "yyyy-MM-dd");
-      mockOrders[mockOrderIndex].lastUpdated = format(new Date(), "yyyy-MM-dd");
+      setFollowUps(prev => prev.map(item => 
+        item.id === followUpId ? { ...item, ...updatePayload } : item
+      ));
+      
+      toast({
+        title: "Fecha Actualizada",
+        description: `La fecha para "${itemToUpdate.clientName}" ha sido actualizada a ${format(selectedNewDate, "dd/MM/yyyy", { locale: es })}.`,
+      });
+    } catch (error) {
+      console.error("Error updating follow-up date:", error);
+      toast({ title: "Error al Actualizar", description: "No se pudo actualizar la fecha en Firestore.", variant: "destructive"});
+    } finally {
+      setIsLoading(false);
+      setPopoverOpenItemId(null);
+      setSelectedNewDate(undefined);
     }
-    
-    const followUpClientName = itemToUpdate?.clientName;
-    toast({
-      title: "Fecha Actualizada",
-      description: `La fecha para "${followUpClientName}" ha sido actualizada a ${format(selectedNewDate, "dd/MM/yyyy", { locale: es })}.`,
-    });
-
-    setPopoverOpenItemId(null);
-    setSelectedNewDate(undefined);
   };
 
   if (userRole !== 'Admin' && userRole !== 'SalesRep') {
@@ -252,125 +279,131 @@ export default function CrmFollowUpPage() {
               </PopoverContent>
             </Popover>
           </div>
+          {isLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+              <p className="ml-4 text-muted-foreground">Cargando tareas...</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[20%]">Cliente</TableHead>
+                    <TableHead className="w-[15%]">Próxima Acción / Tipo Visita</TableHead>
+                    <TableHead className="w-[15%]">Fecha Próx. Acción / Visita</TableHead>
+                    {userRole === 'Admin' && <TableHead className="w-[15%]">Comercial</TableHead>}
+                    <TableHead className="w-[10%] text-center">Estado Tarea</TableHead>
+                    <TableHead className="w-[15%]">Notas / Obj. Visita Original</TableHead>
+                    <TableHead className="text-right w-[10%]">Acciones</TableHead> 
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredFollowUps.length > 0 ? filteredFollowUps.map((item: Order) => {
+                    const canEditDate = userRole === 'Admin' || (userRole === 'SalesRep' && teamMember?.name === item.salesRep);
+                    const canRegisterResult = canEditDate; 
+                    
+                    const isProgrammedItem = item.status === 'Programada';
+                    const relevantActionDateString = isProgrammedItem ? item.visitDate : item.nextActionDate;
+                    const relevantActionDateParsed = relevantActionDateString && isValid(parseISO(relevantActionDateString)) ? parseISO(relevantActionDateString) : null;
+                    
+                    const isOverdue = relevantActionDateParsed && isBefore(relevantActionDateParsed, today) && (item.status === 'Seguimiento' || item.status === 'Programada');
 
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[20%]">Cliente</TableHead>
-                  <TableHead className="w-[15%]">Próxima Acción / Tipo Visita</TableHead>
-                  <TableHead className="w-[15%]">Fecha Próx. Acción / Visita</TableHead>
-                  {userRole === 'Admin' && <TableHead className="w-[15%]">Comercial</TableHead>}
-                  <TableHead className="w-[10%] text-center">Estado Tarea</TableHead>
-                  <TableHead className="w-[15%]">Notas / Obj. Visita Original</TableHead>
-                  <TableHead className="text-right w-[10%]">Acciones</TableHead> 
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredFollowUps.length > 0 ? filteredFollowUps.map((item: Order) => {
-                  const canEditDate = userRole === 'Admin' || (userRole === 'SalesRep' && teamMember?.name === item.salesRep);
-                  const canRegisterResult = canEditDate; 
-                  
-                  const isProgrammedItem = item.status === 'Programada';
-                  const relevantActionDateString = isProgrammedItem ? item.visitDate : item.nextActionDate;
-                  const relevantActionDateParsed = relevantActionDateString ? parseISO(relevantActionDateString) : null;
-                  
-                  const isOverdue = relevantActionDateParsed && isBefore(relevantActionDateParsed, today) && (item.status === 'Seguimiento' || item.status === 'Programada');
-
-                  return (
-                  <TableRow key={item.id} className={cn(isOverdue && "bg-yellow-100 dark:bg-yellow-800/30")}>
-                    <TableCell className="font-medium">
-                        {isOverdue && <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 inline-block mr-1" />}
-                        {item.clientName}
-                    </TableCell>
-                     <TableCell>
-                        {isProgrammedItem ? "Visita Programada" : item.nextActionType}
-                        {item.nextActionType === "Opción personalizada" && item.nextActionCustom && !isProgrammedItem && (
-                            <span className="text-xs text-muted-foreground block ml-2">- {item.nextActionCustom}</span>
+                    return (
+                    <TableRow key={item.id} className={cn(isOverdue && "bg-yellow-100 dark:bg-yellow-800/30")}>
+                      <TableCell className="font-medium">
+                          {isOverdue && <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 inline-block mr-1" />}
+                          {item.clientName}
+                      </TableCell>
+                      <TableCell>
+                          {isProgrammedItem ? "Visita Programada" : item.nextActionType}
+                          {item.nextActionType === "Opción personalizada" && item.nextActionCustom && !isProgrammedItem && (
+                              <span className="text-xs text-muted-foreground block ml-2">- {item.nextActionCustom}</span>
+                          )}
+                      </TableCell>
+                      <TableCell className="flex items-center space-x-1 py-3">
+                        <span className={cn(isOverdue && "font-semibold")}>
+                          {relevantActionDateParsed && isValid(relevantActionDateParsed) ? format(relevantActionDateParsed, "dd/MM/yy", { locale: es }) : 'N/D'}
+                        </span>
+                        {canEditDate && (
+                          <Popover
+                            open={popoverOpenItemId === item.id}
+                            onOpenChange={(isOpen) => {
+                              if (!isOpen) {
+                                setPopoverOpenItemId(null);
+                                setSelectedNewDate(undefined);
+                              } else {
+                                setSelectedNewDate(relevantActionDateParsed || new Date());
+                                setPopoverOpenItemId(item.id);
+                              }
+                            }}
+                          >
+                            <PopoverTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-6 w-6">
+                                <Edit2 className="h-3 w-3" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <Calendar
+                                mode="single"
+                                selected={selectedNewDate || relevantActionDateParsed}
+                                onSelect={setSelectedNewDate}
+                                initialFocus
+                                disabled={(date) => date < subDays(new Date(),1) && !isEqual(date, subDays(new Date(),1))} 
+                                locale={es}
+                              />
+                              <div className="p-2 border-t flex justify-end space-x-2">
+                                <Button variant="outline" size="sm" onClick={() => { setPopoverOpenItemId(null); setSelectedNewDate(undefined); }}>Cancelar</Button>
+                                <Button size="sm" onClick={() => handleSaveNewDate(item.id)} disabled={!selectedNewDate}>Guardar Fecha</Button>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
                         )}
-                    </TableCell>
-                    <TableCell className="flex items-center space-x-1 py-3">
-                      <span className={cn(isOverdue && "font-semibold")}>
-                        {relevantActionDateParsed && isValid(relevantActionDateParsed) ? format(relevantActionDateParsed, "dd/MM/yy", { locale: es }) : 'N/D'}
-                      </span>
-                      {canEditDate && (
-                        <Popover
-                          open={popoverOpenItemId === item.id}
-                          onOpenChange={(isOpen) => {
-                            if (!isOpen) {
-                              setPopoverOpenItemId(null);
-                              setSelectedNewDate(undefined);
-                            } else {
-                               setSelectedNewDate(relevantActionDateParsed || new Date());
-                               setPopoverOpenItemId(item.id);
-                            }
-                          }}
-                        >
-                          <PopoverTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-6 w-6">
-                              <Edit2 className="h-3 w-3" />
+                      </TableCell>
+                      {userRole === 'Admin' && <TableCell>{item.salesRep}</TableCell>}
+                      <TableCell className="text-center">
+                        <StatusBadge type="order" status={item.status} />
+                      </TableCell>
+                      <TableCell className="text-xs truncate max-w-[150px]" title={item.notes}>
+                          {item.notes || 'N/D'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Abrir menú</span>
+                              <MoreHorizontal className="h-4 w-4" />
                             </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0">
-                            <Calendar
-                              mode="single"
-                              selected={selectedNewDate || relevantActionDateParsed}
-                              onSelect={setSelectedNewDate}
-                              initialFocus
-                              disabled={(date) => date < subDays(new Date(),1) && !isEqual(date, subDays(new Date(),1))} 
-                              locale={es}
-                            />
-                            <div className="p-2 border-t flex justify-end space-x-2">
-                              <Button variant="outline" size="sm" onClick={() => { setPopoverOpenItemId(null); setSelectedNewDate(undefined); }}>Cancelar</Button>
-                              <Button size="sm" onClick={() => handleSaveNewDate(item.id)} disabled={!selectedNewDate}>Guardar Fecha</Button>
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                      )}
-                    </TableCell>
-                    {userRole === 'Admin' && <TableCell>{item.salesRep}</TableCell>}
-                    <TableCell className="text-center">
-                       <StatusBadge type="order" status={item.status} />
-                    </TableCell>
-                    <TableCell className="text-xs truncate max-w-[150px]" title={item.notes}>
-                        {item.notes || 'N/D'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Abrir menú</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {canRegisterResult && (
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {canRegisterResult && (
+                              <DropdownMenuItem asChild>
+                                <Link href={`/order-form?updateVisitId=${item.id}`}>
+                                  <Send className="mr-2 h-4 w-4" /> Registrar Interacción / Resultado
+                                </Link>
+                              </DropdownMenuItem>
+                            )}
+                            {canRegisterResult && <DropdownMenuSeparator />}
                             <DropdownMenuItem asChild>
-                              <Link href={`/order-form?updateVisitId=${item.id}`}>
-                                <Send className="mr-2 h-4 w-4" /> Registrar Interacción / Resultado
+                              <Link href="/my-agenda">
+                                  <CalendarDays className="mr-2 h-4 w-4" /> Ver en Agenda Completa
                               </Link>
                             </DropdownMenuItem>
-                          )}
-                          {canRegisterResult && <DropdownMenuSeparator />}
-                          <DropdownMenuItem asChild>
-                             <Link href="/my-agenda"> {/* Simplified for now */}
-                                <CalendarDays className="mr-2 h-4 w-4" /> Ver en Agenda Completa
-                             </Link>
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                )}) : (
-                  <TableRow>
-                    <TableCell colSpan={userRole === 'Admin' ? 7 : 6} className="h-24 text-center">
-                      No se encontraron tareas de seguimiento o visitas que coincidan con los filtros seleccionados.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  )}) : (
+                    <TableRow>
+                      <TableCell colSpan={userRole === 'Admin' ? 7 : 6} className="h-24 text-center">
+                        No se encontraron tareas de seguimiento o visitas que coincidan con los filtros seleccionados.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
          {filteredFollowUps.length > 0 && (
             <CardFooter>

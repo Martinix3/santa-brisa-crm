@@ -7,42 +7,71 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { mockTeamMembers, mockOrders } from "@/lib/data";
+import { mockTeamMembers } from "@/lib/data"; // mockOrders removed
 import type { TeamMember, Order } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { ArrowLeft, Mail, Award, Users, TrendingUp, AlertTriangle, Euro, Eye } from "lucide-react";
+import { ArrowLeft, Mail, Award, TrendingUp, AlertTriangle, Eye, Loader2 } from "lucide-react";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import StatusBadge from "@/components/app/status-badge";
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Link from "next/link";
+import { getOrdersFS } from "@/services/order-service";
+import { useToast } from "@/hooks/use-toast";
 
 export default function ClavadistaProfilePage() {
   const params = useParams();
   const router = useRouter();
-  const { userRole } = useAuth();
-
+  const { toast } = useToast();
+  
   const [clavadista, setClavadista] = React.useState<TeamMember | null>(null);
   const [participatedOrders, setParticipatedOrders] = React.useState<Order[]>([]);
   const [totalParticipations, setTotalParticipations] = React.useState<number>(0);
   const [totalValueParticipated, setTotalValueParticipated] = React.useState<number>(0);
+  const [isLoading, setIsLoading] = React.useState(true);
   
   const clavadistaId = params.clavadistaId as string;
 
   React.useEffect(() => {
-    const foundClavadista = mockTeamMembers.find(m => m.id === clavadistaId && m.role === 'Clavadista');
-    if (foundClavadista) {
-      setClavadista(foundClavadista);
-      const ordersWithClavadista = mockOrders
-        .filter(order => order.clavadistaId === foundClavadista.id)
-        .sort((a,b) => parseISO(b.visitDate).getTime() - parseISO(a.visitDate).getTime());
-      setParticipatedOrders(ordersWithClavadista);
-      setTotalParticipations(ordersWithClavadista.length);
-      setTotalValueParticipated(ordersWithClavadista.reduce((sum, order) => sum + (order.value || 0), 0));
-    } else {
-      setClavadista(null);
+    async function loadClavadistaData() {
+      if (!clavadistaId) {
+        setIsLoading(false);
+        return;
+      }
+      setIsLoading(true);
+      const foundClavadista = mockTeamMembers.find(m => m.id === clavadistaId && m.role === 'Clavadista');
+      
+      if (foundClavadista) {
+        setClavadista(foundClavadista);
+        try {
+          const allOrders = await getOrdersFS();
+          const ordersWithClavadista = allOrders
+            .filter(order => order.clavadistaId === foundClavadista.id && isValid(parseISO(order.visitDate)))
+            .sort((a,b) => parseISO(b.visitDate).getTime() - parseISO(a.visitDate).getTime());
+          
+          setParticipatedOrders(ordersWithClavadista);
+          setTotalParticipations(ordersWithClavadista.length);
+          setTotalValueParticipated(ordersWithClavadista.reduce((sum, order) => sum + (order.value || 0), 0));
+        } catch (error) {
+            console.error("Error fetching orders for clavadista:", error);
+            toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar los pedidos del clavadista.", variant: "destructive" });
+        }
+      } else {
+        setClavadista(null);
+      }
+      setIsLoading(false);
     }
-  }, [clavadistaId]);
+    loadClavadistaData();
+  }, [clavadistaId, toast]);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-8">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Cargando perfil del clavadista...</p>
+      </div>
+    );
+  }
 
   if (!clavadista) {
     return (
@@ -122,7 +151,7 @@ export default function ClavadistaProfilePage() {
                   {participatedOrders.slice(0, 15).map(order => ( 
                     <TableRow key={order.id}>
                       <TableCell className="font-medium">
-                        <Link href={`/orders-dashboard`} className="hover:underline text-primary"> {/* Assuming a general link to orders dashboard */}
+                        <Link href={`/orders-dashboard`} className="hover:underline text-primary">
                             {order.id}
                         </Link>
                       </TableCell>
@@ -149,5 +178,3 @@ export default function ClavadistaProfilePage() {
     </div>
   );
 }
-
-    

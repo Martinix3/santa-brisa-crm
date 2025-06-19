@@ -1,18 +1,21 @@
 
 "use client";
 
-import { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { TeamMember } from "@/types";
-import { mockTeamMembers } from "@/lib/data";
-import { Package, Briefcase, Footprints, Users, Eye } from 'lucide-react';
+import type { TeamMember, Order } from "@/types";
+import { mockTeamMembers } from "@/lib/data"; // Keep mockTeamMembers for structure and targets
+import { Package, Briefcase, Footprints, Users, Eye, Loader2 } from 'lucide-react';
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { getOrdersFS } from '@/services/order-service';
+import { getAccountsFS } from '@/services/account-service'; // To count accounts per rep
+import { parseISO, isSameMonth, isSameYear, isValid } from 'date-fns';
 
 const renderProgress = (current: number, target: number, unit: string, targetAchievedText: string) => {
   const progress = target > 0 ? Math.min((current / target) * 100, 100) : (current > 0 ? 100 : 0);
@@ -48,12 +51,83 @@ const renderProgress = (current: number, target: number, unit: string, targetAch
 
 
 export default function TeamTrackingPage() {
-  const salesTeamMembers = useMemo(() => mockTeamMembers.filter(m => m.role === 'SalesRep'), []);
+  const [teamStats, setTeamStats] = useState<TeamMember[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const salesTeamMembersBase = useMemo(() => mockTeamMembers.filter(m => m.role === 'SalesRep'), []);
 
-  const teamTotalBottlesValue = useMemo(() => salesTeamMembers.reduce((sum, m) => sum + (m.bottlesSold || 0), 0), [salesTeamMembers]);
-  const teamTotalOrdersValue = useMemo(() => salesTeamMembers.reduce((sum, m) => sum + (m.orders || 0), 0), [salesTeamMembers]);
-  const teamTotalVisitsValue = useMemo(() => salesTeamMembers.reduce((sum, m) => sum + (m.visits || 0), 0), [salesTeamMembers]);
+  useEffect(() => {
+    async function loadTeamData() {
+      setIsLoading(true);
+      try {
+        const fetchedOrders = await getOrdersFS();
+        const fetchedAccounts = await getAccountsFS();
+        const currentDate = new Date();
+
+        const stats = salesTeamMembersBase.map(member => {
+          let bottlesSold = 0;
+          let ordersCount = 0;
+          let visitsCount = 0;
+          let monthlyAccountsAchieved = 0;
+          let monthlyVisitsAchieved = 0;
+
+          fetchedOrders.forEach(order => {
+            if (order.salesRep === member.name) {
+              if (['Confirmado', 'Procesando', 'Enviado', 'Entregado'].includes(order.status) && order.numberOfUnits) {
+                bottlesSold += order.numberOfUnits;
+                ordersCount++;
+              }
+              if (order.status !== 'Programada' && isValid(parseISO(order.visitDate))) {
+                 visitsCount++;
+                 if (isSameMonth(parseISO(order.visitDate), currentDate) && isSameYear(parseISO(order.visitDate), currentDate)) {
+                    monthlyVisitsAchieved++;
+                 }
+              }
+            }
+          });
+          
+          fetchedAccounts.forEach(account => {
+            if (account.salesRepId === member.id && isValid(parseISO(account.createdAt))) {
+                if (isSameMonth(parseISO(account.createdAt), currentDate) && isSameYear(parseISO(account.createdAt), currentDate)) {
+                    monthlyAccountsAchieved++;
+                }
+            }
+          });
+
+
+          return {
+            ...member,
+            bottlesSold,
+            orders: ordersCount, // This represents total orders that contributed to sales for this member
+            visits: visitsCount, // This represents total completed/attempted visits by this member
+            // We use monthlyAccountsAchieved and monthlyVisitsAchieved for progress bars
+            // The 'orders' and 'visits' fields in TeamMember type are now for overall totals
+            monthlyAccountsAchieved, // Temp field for rendering progress
+            monthlyVisitsAchieved,   // Temp field for rendering progress
+          };
+        });
+        setTeamStats(stats);
+      } catch (error) {
+        console.error("Error loading team tracking data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadTeamData();
+  }, [salesTeamMembersBase]);
+
+  const teamTotalBottlesValue = useMemo(() => teamStats.reduce((sum, m) => sum + (m.bottlesSold || 0), 0), [teamStats]);
+  const teamTotalOrdersValue = useMemo(() => teamStats.reduce((sum, m) => sum + (m.orders || 0), 0), [teamStats]);
+  const teamTotalVisitsValue = useMemo(() => teamStats.reduce((sum, m) => sum + (m.visits || 0), 0), [teamStats]);
   
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-8">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Cargando datos del equipo...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <header className="flex items-center space-x-2">
@@ -78,10 +152,10 @@ export default function TeamTrackingPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {salesTeamMembers.map((member: TeamMember) => {
+              {teamStats.map((member: TeamMember & { monthlyAccountsAchieved?: number, monthlyVisitsAchieved?: number }) => {
                 const bottlesSold = member.bottlesSold || 0;
-                const accountsAchieved = member.orders || 0; 
-                const visitsMade = member.visits || 0; 
+                const accountsAchievedThisMonth = member.monthlyAccountsAchieved || 0; 
+                const visitsMadeThisMonth = member.monthlyVisitsAchieved || 0; 
                 const targetAccounts = member.monthlyTargetAccounts || 0;
                 const targetVisits = member.monthlyTargetVisits || 0;
                 
@@ -105,10 +179,10 @@ export default function TeamTrackingPage() {
                       <FormattedNumericValue value={bottlesSold} locale="es-ES" />
                     </TableCell>
                     <TableCell>
-                      {renderProgress(accountsAchieved, targetAccounts, "cuentas", "¡Obj. Cuentas Cumplido!")}
+                      {renderProgress(accountsAchievedThisMonth, targetAccounts, "cuentas", "¡Obj. Cuentas Cumplido!")}
                     </TableCell>
                     <TableCell>
-                       {renderProgress(visitsMade, targetVisits, "visitas", "¡Obj. Visitas Cumplido!")}
+                       {renderProgress(visitsMadeThisMonth, targetVisits, "visitas", "¡Obj. Visitas Cumplido!")}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button variant="outline" size="sm" asChild>
@@ -120,10 +194,10 @@ export default function TeamTrackingPage() {
                   </TableRow>
                 );
               })}
-               {salesTeamMembers.length === 0 && (
+               {teamStats.length === 0 && !isLoading && (
                   <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center">
-                      No hay representantes de ventas configurados en el sistema para mostrar.
+                      No hay representantes de ventas configurados o no se encontraron datos.
                     </TableCell>
                   </TableRow>
                 )}
@@ -147,14 +221,14 @@ export default function TeamTrackingPage() {
         </Card>
         <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Cuentas Equipo (Pedidos)</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Pedidos del Equipo</CardTitle>
             <Briefcase className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               <FormattedNumericValue value={teamTotalOrdersValue} locale="es-ES" />
             </div>
-            <p className="text-xs text-muted-foreground">Número total de pedidos registrados por el equipo.</p>
+            <p className="text-xs text-muted-foreground">Número total de pedidos (con venta) registrados por el equipo.</p>
           </CardContent>
         </Card>
         <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
@@ -173,5 +247,3 @@ export default function TeamTrackingPage() {
     </div>
   );
 }
-
-    

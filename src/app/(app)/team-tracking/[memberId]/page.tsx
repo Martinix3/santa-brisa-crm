@@ -7,18 +7,20 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { mockTeamMembers, mockOrders, mockAccounts } from "@/lib/data";
+import { mockTeamMembers } from "@/lib/data"; // mockOrders, mockAccounts removed
 import type { TeamMember, Order, Account } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { ArrowLeft, Mail, Phone, Package, Briefcase, Footprints, Target, Users, TrendingUp, AlertTriangle, ShoppingCart, ListChecks, Building2, FileText } from "lucide-react";
+import { ArrowLeft, Mail, Package, Briefcase, Footprints, AlertTriangle, ShoppingCart, Loader2 } from "lucide-react";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import StatusBadge from "@/components/app/status-badge";
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
 import { Line, LineChart, ResponsiveContainer, CartesianGrid, XAxis, YAxis, Tooltip as RechartsTooltip } from "recharts";
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isValid, getMonth, getYear, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Link from "next/link";
-import { Separator } from "@/components/ui/separator";
+import { getOrdersFS } from "@/services/order-service";
+import { getAccountsFS } from "@/services/account-service";
+
 
 const chartConfig = (color: string) => ({
   bottles: { 
@@ -27,35 +29,118 @@ const chartConfig = (color: string) => ({
   },
 });
 
+interface PerformanceDataPoint {
+  month: string; // e.g., "Ene", "Feb"
+  yearMonth: string; // e.g., "2023-01" for sorting
+  bottles: number;
+}
+
+
 export default function TeamMemberProfilePage() {
   const params = useParams();
   const router = useRouter();
-  const { userRole } = useAuth();
-
+  
   const [member, setMember] = React.useState<TeamMember | null>(null);
   const [memberOrders, setMemberOrders] = React.useState<Order[]>([]);
   const [memberAccounts, setMemberAccounts] = React.useState<Account[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [performanceChartData, setPerformanceChartData] = React.useState<PerformanceDataPoint[]>([]);
+
+  const [totalBottlesSold, setTotalBottlesSold] = React.useState(0);
+  const [totalOrdersCount, setTotalOrdersCount] = React.useState(0);
+  const [totalVisitsCount, setTotalVisitsCount] = React.useState(0);
   
   const memberId = params.memberId as string;
 
   React.useEffect(() => {
-    const foundMember = mockTeamMembers.find(m => m.id === memberId);
-    if (foundMember) {
-      setMember(foundMember);
-      const orders = mockOrders
-        .filter(order => order.salesRep === foundMember.name)
-        .sort((a,b) => parseISO(b.visitDate).getTime() - parseISO(a.visitDate).getTime()); // Sort by visit date desc
-      setMemberOrders(orders);
+    async function loadMemberData() {
+      if (!memberId) {
+        setIsLoading(false);
+        return;
+      }
+      setIsLoading(true);
+      try {
+        const foundMember = mockTeamMembers.find(m => m.id === memberId); // Base member info from mock
+        if (!foundMember) {
+          setMember(null);
+          setIsLoading(false);
+          return;
+        }
+        setMember(foundMember);
 
-      const accounts = mockAccounts
-        .filter(acc => acc.salesRepId === foundMember.id)
-        .sort((a,b) => (a.name.toLowerCase() > b.name.toLowerCase() ? 1 : -1));
-      setMemberAccounts(accounts);
+        const [fetchedOrders, fetchedAccounts] = await Promise.all([
+          getOrdersFS(),
+          getAccountsFS()
+        ]);
 
-    } else {
-      setMember(null);
+        const ordersByMember = fetchedOrders
+          .filter(order => order.salesRep === foundMember.name)
+          .sort((a,b) => parseISO(b.visitDate).getTime() - parseISO(a.visitDate).getTime());
+        setMemberOrders(ordersByMember);
+
+        const accountsForMember = fetchedAccounts
+          .filter(acc => acc.salesRepId === foundMember.id)
+          .sort((a,b) => (a.name.toLowerCase() > b.name.toLowerCase() ? 1 : -1));
+        setMemberAccounts(accountsForMember);
+
+        // Calculate stats
+        let bottles = 0;
+        let orderCount = 0;
+        let visitCount = 0;
+        const monthlySales: Record<string, number> = {}; // To store YYYY-MM -> bottles
+
+        ordersByMember.forEach(order => {
+          if (['Confirmado', 'Procesando', 'Enviado', 'Entregado'].includes(order.status) && order.numberOfUnits) {
+            bottles += order.numberOfUnits;
+            orderCount++;
+
+            const orderDate = parseISO(order.visitDate);
+            if (isValid(orderDate)) {
+              const yearMonth = format(orderDate, 'yyyy-MM');
+              monthlySales[yearMonth] = (monthlySales[yearMonth] || 0) + order.numberOfUnits;
+            }
+          }
+          if (order.status !== 'Programada') {
+            visitCount++;
+          }
+        });
+        setTotalBottlesSold(bottles);
+        setTotalOrdersCount(orderCount);
+        setTotalVisitsCount(visitCount);
+
+        // Prepare chart data for the last 6 months
+        const chartData: PerformanceDataPoint[] = [];
+        const today = new Date();
+        for (let i = 5; i >= 0; i--) {
+          const date = subMonths(today, i);
+          const yearMonth = format(date, 'yyyy-MM');
+          const monthName = format(date, 'MMM', { locale: es });
+          chartData.push({
+            month: monthName.charAt(0).toUpperCase() + monthName.slice(1), // Capitalize (e.g., "Ene")
+            yearMonth: yearMonth,
+            bottles: monthlySales[yearMonth] || 0,
+          });
+        }
+        setPerformanceChartData(chartData);
+
+      } catch (error) {
+        console.error("Error loading member profile data:", error);
+        setMember(null);
+      } finally {
+        setIsLoading(false);
+      }
     }
+    loadMemberData();
   }, [memberId]);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-8">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Cargando perfil del comercial...</p>
+      </div>
+    );
+  }
 
   if (!member) {
     return (
@@ -70,8 +155,6 @@ export default function TeamMemberProfilePage() {
     );
   }
   
-  const isAdmin = userRole === 'Admin';
-
   return (
     <div className="space-y-6">
       <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -96,15 +179,15 @@ export default function TeamMemberProfilePage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="shadow-subtle">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Botellas Vendidas (Total)</CardTitle><Package className="h-4 w-4 text-muted-foreground" /></CardHeader>
-            <CardContent><div className="text-2xl font-bold"><FormattedNumericValue value={member.bottlesSold || 0} /></div></CardContent>
+            <CardContent><div className="text-2xl font-bold"><FormattedNumericValue value={totalBottlesSold} /></div></CardContent>
         </Card>
         <Card className="shadow-subtle">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Pedidos Registrados (Total)</CardTitle><ShoppingCart className="h-4 w-4 text-muted-foreground" /></CardHeader>
-            <CardContent><div className="text-2xl font-bold"><FormattedNumericValue value={member.orders || 0} /></div></CardContent>
+            <CardContent><div className="text-2xl font-bold"><FormattedNumericValue value={totalOrdersCount} /></div></CardContent>
         </Card>
          <Card className="shadow-subtle">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Visitas Registradas (Total)</CardTitle><Footprints className="h-4 w-4 text-muted-foreground" /></CardHeader>
-            <CardContent><div className="text-2xl font-bold"><FormattedNumericValue value={member.visits || 0} /></div></CardContent>
+            <CardContent><div className="text-2xl font-bold"><FormattedNumericValue value={totalVisitsCount} /></div></CardContent>
         </Card>
         <Card className="shadow-subtle">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Obj. Cuentas (Mes)</CardTitle><Briefcase className="h-4 w-4 text-muted-foreground" /></CardHeader>
@@ -112,7 +195,7 @@ export default function TeamMemberProfilePage() {
         </Card>
       </div>
       
-      {member.performanceData && member.performanceData.length > 0 && (
+      {performanceChartData && performanceChartData.length > 0 && (
         <Card className="shadow-subtle">
           <CardHeader>
             <CardTitle>Tendencia de Ventas Mensuales (Botellas)</CardTitle>
@@ -121,7 +204,7 @@ export default function TeamMemberProfilePage() {
           <CardContent className="h-[300px] pr-0">
             <ChartContainer config={chartConfig('hsl(var(--primary))')} className="h-full w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={member.performanceData.map(d => ({...d, month: d.month.substring(0,3)}))} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                <LineChart data={performanceChartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                    <CartesianGrid strokeDasharray="3 3" />
                    <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" tickLine={false} axisLine={false} dy={5}/>
                    <YAxis stroke="hsl(var(--muted-foreground))" tickLine={false} axisLine={false} dx={-5} />
@@ -129,9 +212,12 @@ export default function TeamMemberProfilePage() {
                         contentStyle={{backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)'}}
                         itemStyle={{color: 'hsl(var(--foreground))'}}
                         formatter={(value: number) => [`${value.toLocaleString('es-ES')} botellas`, 'Botellas']} 
-                        labelFormatter={(label: string) => {
-                            const monthMap: { [key: string]: string } = { Ene: 'Enero', Feb: 'Febrero', Mar: 'Marzo', Abr: 'Abril', May: 'Mayo', Jun: 'Junio', Jul: 'Julio', Ago: 'Agosto', Sep: 'Septiembre', Oct: 'Octubre', Nov: 'Noviembre', Dic: 'Diciembre'};
-                            return monthMap[label] || label;
+                        labelFormatter={(label: string, payload: any[]) => {
+                            if (payload && payload.length > 0 && payload[0].payload.yearMonth) {
+                                const date = parseISO(payload[0].payload.yearMonth + "-01"); // Use first day of month
+                                if (isValid(date)) return format(date, "MMMM yyyy", { locale: es });
+                            }
+                            return label;
                         }}
                       />
                   <Line type="monotone" dataKey="bottles" strokeWidth={2} stroke="hsl(var(--primary))" dot={{r:4, fill: "hsl(var(--primary))", strokeWidth:2, stroke: "hsl(var(--card))"}} activeDot={{r:6}} />
@@ -228,9 +314,6 @@ export default function TeamMemberProfilePage() {
           </CardContent>
         </Card>
       </div>
-
     </div>
   );
 }
-
-    

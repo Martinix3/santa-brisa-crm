@@ -1,17 +1,18 @@
 
 import type { Kpi, StrategicObjective } from "@/types";
-import { TrendingUp, Users, Briefcase, CalendarPlus, Repeat } from "lucide-react"; // Added Repeat icon
+import { TrendingUp, Users, Briefcase, CalendarPlus, Repeat } from "lucide-react"; 
 
 // Datos de KPI para el lanzamiento del producto
-// These currentValue fields will be dynamically calculated in the dashboard.
+// These currentValue fields will be dynamically calculated in the dashboard by fetching data from Firestore.
 export const kpiDataLaunch: Kpi[] = [
   { id: 'kpi1', title: 'Ventas Totales', currentValue: 0, targetValue: 50000, unit: 'botellas', icon: TrendingUp },
   { id: 'kpi2', title: 'Ventas del Equipo', currentValue: 0, targetValue: 27000, unit: 'botellas', icon: Users },
   { id: 'kpi3', title: 'Cuentas Nuevas Equipo (Anual)', currentValue: 0, targetValue: 230, unit: 'cuentas', icon: Briefcase },
   { id: 'kpi4', title: 'Cuentas Nuevas Equipo (Mensual)', currentValue: 0, targetValue: 32, unit: 'cuentas', icon: CalendarPlus },
-  { id: 'kpi5', title: '% Tasa de Recompra', currentValue: 0, targetValue: 60, unit: '%', icon: Repeat }, // New KPI
+  { id: 'kpi5', title: '% Tasa de Recompra', currentValue: 0, targetValue: 60, unit: '%', icon: Repeat },
 ];
 
+// These target values are derived for convenience but actual current values are calculated in components
 export const objetivoTotalVentasEquipo = kpiDataLaunch.find(kpi => kpi.id === 'kpi2')!.targetValue;
 export const objetivoTotalCuentasEquipoAnual = kpiDataLaunch.find(kpi => kpi.id === 'kpi3')!.targetValue;
 

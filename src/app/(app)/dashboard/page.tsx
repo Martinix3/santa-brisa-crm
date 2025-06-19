@@ -10,15 +10,17 @@ import { Progress } from "@/components/ui/progress";
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 import { cn } from "@/lib/utils";
 import {
-  kpiDataLaunch, 
+  kpiDataLaunch as initialKpiDataLaunch, 
   objetivoTotalVentasEquipo, 
   objetivoTotalCuentasEquipoAnual,
   mockStrategicObjectives
 } from "@/lib/launch-dashboard-data";
-import { mockOrders, mockAccounts, mockTeamMembers } from "@/lib/data"; 
-import { CheckCircle2, Circle } from "lucide-react";
-import { parseISO, getYear, getMonth, isSameYear, isSameMonth } from 'date-fns';
+import { mockTeamMembers } from "@/lib/data"; 
+import { CheckCircle2, Circle, Loader2 } from "lucide-react";
+import { parseISO, getYear, getMonth, isSameYear, isSameMonth, isValid } from 'date-fns';
 import { useAuth } from "@/contexts/auth-context"; 
+import { getOrdersFS } from "@/services/order-service";
+import { getAccountsFS } from "@/services/account-service";
 
 const distributionChartConfig = {
   value: { label: "Botellas" },
@@ -34,105 +36,117 @@ const calculateProgressValue = (current: number, target: number): number => {
 
 export default function DashboardPage() {
   const { userRole, teamMember } = useAuth(); 
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [orders, setOrders] = React.useState<Order[]>([]);
+  const [accounts, setAccounts] = React.useState<Account[]>([]);
+  const [calculatedKpiData, setCalculatedKpiData] = React.useState<Kpi[]>(initialKpiDataLaunch);
 
-  const calculatedKpiData = React.useMemo(() => {
-    const validOrderStatusesForSales = ['Confirmado', 'Procesando', 'Enviado', 'Entregado'];
-    const salesTeamMemberIds = mockTeamMembers
-        .filter(m => m.role === 'SalesRep') // Only SalesRep contribute to specific team KPIs here
-        .map(m => m.id);
-    
-    let totalBottlesSoldOverall = 0;
-    let teamBottlesSoldOverall = 0; // SalesRep only for this KPI
-    let accountsCreatedByTeamThisYear = 0; // SalesRep only for this KPI
-    let accountsCreatedByTeamThisMonth = 0; // SalesRep only for this KPI
-    let ordersFromExistingCustomersCount = 0;
-    let totalValidOrdersCount = 0;
 
-    mockOrders.forEach(order => {
-      if (validOrderStatusesForSales.includes(order.status)) {
-        if (order.numberOfUnits) {
-          totalBottlesSoldOverall += order.numberOfUnits;
-          // For kpi2 (Ventas del Equipo), we count if the salesRep is a SalesRep.
-          const orderSalesRepDetails = mockTeamMembers.find(m => m.name === order.salesRep);
-          if (orderSalesRepDetails && orderSalesRepDetails.role === 'SalesRep') {
-            teamBottlesSoldOverall += order.numberOfUnits;
+  React.useEffect(() => {
+    async function loadDashboardData() {
+      setIsLoading(true);
+      try {
+        const [fetchedOrders, fetchedAccounts] = await Promise.all([
+          getOrdersFS(),
+          getAccountsFS(),
+        ]);
+        setOrders(fetchedOrders);
+        setAccounts(fetchedAccounts);
+
+        const validOrderStatusesForSales = ['Confirmado', 'Procesando', 'Enviado', 'Entregado'];
+        const salesTeamMemberIds = mockTeamMembers // Assuming mockTeamMembers is still the source for SalesRep definitions
+            .filter(m => m.role === 'SalesRep')
+            .map(m => m.id);
+        
+        let totalBottlesSoldOverall = 0;
+        let teamBottlesSoldOverall = 0;
+        let accountsCreatedByTeamThisYear = 0;
+        let accountsCreatedByTeamThisMonth = 0;
+        let ordersFromExistingCustomersCount = 0;
+        let totalValidOrdersCount = 0;
+
+        fetchedOrders.forEach(order => {
+          if (validOrderStatusesForSales.includes(order.status)) {
+            if (order.numberOfUnits) {
+              totalBottlesSoldOverall += order.numberOfUnits;
+              const orderSalesRepDetails = mockTeamMembers.find(m => m.name === order.salesRep);
+              if (orderSalesRepDetails && orderSalesRepDetails.role === 'SalesRep') {
+                teamBottlesSoldOverall += order.numberOfUnits;
+              }
+            }
+            totalValidOrdersCount++;
+            if (order.clientStatus === 'existing') {
+              ordersFromExistingCustomersCount++;
+            }
           }
-        }
-        totalValidOrdersCount++;
-        if (order.clientStatus === 'existing') {
-          ordersFromExistingCustomersCount++;
-        }
+        });
+
+        const currentDate = new Date();
+        fetchedAccounts.forEach(account => {
+          if (account.salesRepId && salesTeamMemberIds.includes(account.salesRepId)) {
+            const accountCreationDate = parseISO(account.createdAt);
+             if (isValid(accountCreationDate)) {
+                if (isSameYear(accountCreationDate, currentDate)) {
+                  accountsCreatedByTeamThisYear++;
+                }
+                if (isSameMonth(accountCreationDate, currentDate) && isSameYear(accountCreationDate, currentDate)) {
+                  accountsCreatedByTeamThisMonth++;
+                }
+            }
+          }
+        });
+
+        const updatedKpis = initialKpiDataLaunch.map(kpi => {
+          let newCurrentValue = 0;
+          switch (kpi.id) {
+            case 'kpi1': newCurrentValue = totalBottlesSoldOverall; break;
+            case 'kpi2': newCurrentValue = teamBottlesSoldOverall; break;
+            case 'kpi3': newCurrentValue = accountsCreatedByTeamThisYear; break;
+            case 'kpi4': newCurrentValue = accountsCreatedByTeamThisMonth; break; 
+            case 'kpi5':
+              newCurrentValue = totalValidOrdersCount > 0 
+                ? Math.round((ordersFromExistingCustomersCount / totalValidOrdersCount) * 100) 
+                : 0;
+              break;
+            default: newCurrentValue = kpi.currentValue; 
+          }
+          return { ...kpi, currentValue: newCurrentValue };
+        });
+        setCalculatedKpiData(updatedKpis);
+
+      } catch (error) {
+        console.error("Error loading dashboard data:", error);
+        // Potentially set an error state to show in UI
+      } finally {
+        setIsLoading(false);
       }
-    });
+    }
+    loadDashboardData();
+  }, []); // Re-run if teamMember changes, for SalesRep specific views
 
-    const currentDate = new Date();
-    const currentYear = getYear(currentDate);
-    const currentMonth = getMonth(currentDate);
-
-    const uniqueAccountIdsByTeamThisYear = new Set<string>();
-    const uniqueAccountIdsByTeamThisMonth = new Set<string>();
-
-    mockAccounts.forEach(account => {
-      // For kpi3 & kpi4 (Cuentas Nuevas Equipo), we count if salesRepId is a SalesRep.
-      if (account.salesRepId && salesTeamMemberIds.includes(account.salesRepId)) {
-        const accountCreationDate = parseISO(account.createdAt);
-        if (isSameYear(accountCreationDate, currentDate)) {
-           uniqueAccountIdsByTeamThisYear.add(account.id);
-        }
-        if (isSameMonth(accountCreationDate, currentDate) && isSameYear(accountCreationDate, currentDate)) {
-           uniqueAccountIdsByTeamThisMonth.add(account.id);
-        }
-      }
-    });
-    accountsCreatedByTeamThisYear = uniqueAccountIdsByTeamThisYear.size;
-    accountsCreatedByTeamThisMonth = uniqueAccountIdsByTeamThisMonth.size; 
-
-    return kpiDataLaunch.map(kpi => {
-      let newCurrentValue = 0;
-      const originalKpi = kpiDataLaunch.find(ik => ik.id === kpi.id); 
-      switch (kpi.id) {
-        case 'kpi1': newCurrentValue = totalBottlesSoldOverall; break;
-        case 'kpi2': newCurrentValue = teamBottlesSoldOverall; break;
-        case 'kpi3': newCurrentValue = accountsCreatedByTeamThisYear; break;
-        case 'kpi4': newCurrentValue = accountsCreatedByTeamThisMonth; break; 
-        case 'kpi5':
-          newCurrentValue = totalValidOrdersCount > 0 
-            ? Math.round((ordersFromExistingCustomersCount / totalValidOrdersCount) * 100) 
-            : 0;
-          break;
-        default: newCurrentValue = kpi.currentValue; 
-      }
-      return {
-        ...kpi, 
-        icon: originalKpi?.icon, 
-        currentValue: newCurrentValue,
-      };
-    });
-  }, []); 
-
-  // Personal SalesRep Progress (current month)
   const currentMonthNewAccountsByRep = React.useMemo(() => {
-    if (!teamMember || userRole !== 'SalesRep') return 0; 
+    if (!teamMember || userRole !== 'SalesRep' || accounts.length === 0) return 0; 
     const currentDate = new Date();
-    return mockAccounts.filter(acc => 
+    return accounts.filter(acc => 
       acc.salesRepId === teamMember.id &&
+      isValid(parseISO(acc.createdAt)) &&
       isSameMonth(parseISO(acc.createdAt), currentDate) &&
       isSameYear(parseISO(acc.createdAt), currentDate)
     ).length;
-  }, [teamMember, userRole]);
+  }, [teamMember, userRole, accounts]);
 
   const currentMonthVisitsByRep = React.useMemo(() => {
-    if (!teamMember || userRole !== 'SalesRep') return 0; 
+    if (!teamMember || userRole !== 'SalesRep' || orders.length === 0) return 0; 
     const currentDate = new Date();
-    return mockOrders.filter(order =>
+    return orders.filter(order =>
       order.salesRep === teamMember.name &&
+      isValid(parseISO(order.visitDate)) &&
       isSameMonth(parseISO(order.visitDate), currentDate) &&
       isSameYear(parseISO(order.visitDate), currentDate) &&
-      order.status !== 'Programada' // Only count completed/attempted visits, not just scheduled
+      order.status !== 'Programada' 
     ).length;
-  }, [teamMember, userRole]);
+  }, [teamMember, userRole, orders]);
 
-  // Team Monthly Progress (for Admin view)
   const salesRepsForTeamProgress = React.useMemo(() => mockTeamMembers.filter(m => m.role === 'SalesRep'), []);
   
   const teamMonthlyTargetAccounts = React.useMemo(() => {
@@ -141,15 +155,16 @@ export default function DashboardPage() {
   }, [userRole, salesRepsForTeamProgress]);
 
   const teamMonthlyAchievedAccounts = React.useMemo(() => {
-    if (userRole !== 'Admin') return 0;
+    if (userRole !== 'Admin' || accounts.length === 0) return 0;
     const currentDate = new Date();
     const salesRepIds = salesRepsForTeamProgress.map(rep => rep.id);
-    return mockAccounts.filter(acc => 
+    return accounts.filter(acc => 
       acc.salesRepId && salesRepIds.includes(acc.salesRepId) &&
+      isValid(parseISO(acc.createdAt)) &&
       isSameMonth(parseISO(acc.createdAt), currentDate) &&
       isSameYear(parseISO(acc.createdAt), currentDate)
     ).length;
-  }, [userRole, salesRepsForTeamProgress]);
+  }, [userRole, salesRepsForTeamProgress, accounts]);
 
   const teamMonthlyTargetVisits = React.useMemo(() => {
     if (userRole !== 'Admin') return 0;
@@ -157,16 +172,17 @@ export default function DashboardPage() {
   }, [userRole, salesRepsForTeamProgress]);
 
   const teamMonthlyAchievedVisits = React.useMemo(() => {
-    if (userRole !== 'Admin') return 0;
+    if (userRole !== 'Admin' || orders.length === 0) return 0;
     const currentDate = new Date();
     const salesRepNames = salesRepsForTeamProgress.map(rep => rep.name);
-    return mockOrders.filter(order =>
+    return orders.filter(order =>
       salesRepNames.includes(order.salesRep) &&
+      isValid(parseISO(order.visitDate)) &&
       isSameMonth(parseISO(order.visitDate), currentDate) &&
       isSameYear(parseISO(order.visitDate), currentDate) &&
-      order.status !== 'Programada' // Only count completed/attempted visits
+      order.status !== 'Programada'
     ).length;
-  }, [userRole, salesRepsForTeamProgress]);
+  }, [userRole, salesRepsForTeamProgress, orders]);
 
 
   const kpiVentasTotales = calculatedKpiData.find(k => k.id === 'kpi1');
@@ -196,14 +212,21 @@ export default function DashboardPage() {
   ];
 
   const monthlyProgressTitle = userRole === 'Admin' ? "Progreso Mensual del Equipo" : "Tu Progreso Mensual";
-  
   const showMonthlyProgressSection = userRole === 'Admin' || (userRole === 'SalesRep' && teamMember);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-8">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Cargando datos del dashboard...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-headline font-semibold">Panel Principal: Lanzamiento de Producto</h1>
       
-      {/* KPIs Principales (Progreso Anual) */}
       <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {calculatedKpiData.map((kpi: Kpi) => {
           const progress = kpi.targetValue > 0 ? Math.min((kpi.currentValue / kpi.targetValue) * 100, 100) : (kpi.currentValue > 0 ? 100 : 0);
@@ -243,7 +266,6 @@ export default function DashboardPage() {
         })}
       </section>
 
-      {/* Progreso Mensual (Equipo o Personal) */}
       {showMonthlyProgressSection && (
         <section className="mt-6">
           <h2 className="text-2xl font-headline font-semibold mb-4">{monthlyProgressTitle}</h2>
@@ -348,7 +370,6 @@ export default function DashboardPage() {
         </section>
       )}
 
-      {/* Resto de las secciones del Dashboard */}
       <section className="grid gap-6 md:grid-cols-3">
         <Card className="md:col-span-2 shadow-subtle hover:shadow-md transition-shadow duration-300">
           <CardHeader>

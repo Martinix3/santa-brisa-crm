@@ -4,15 +4,17 @@
 import * as React from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import type { Order, CrmEvent, CrmEventStatus } from '@/types';
-import { mockOrders, mockCrmEvents } from '@/lib/data';
-import { parseISO, format, startOfDay, endOfDay, isWithinInterval, addDays } from 'date-fns';
+import { mockCrmEvents } from '@/lib/data'; // mockOrders removed
+import { parseISO, format, startOfDay, endOfDay, isWithinInterval, addDays, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import StatusBadge from '@/components/app/status-badge';
-import { CalendarCheck, ClipboardList, PartyPopper } from 'lucide-react';
+import { CalendarCheck, ClipboardList, PartyPopper, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { getOrdersFS } from '@/services/order-service'; // Import Firestore service for orders
+import { useToast } from '@/hooks/use-toast';
 
 interface AgendaItemBase {
   id: string;
@@ -35,75 +37,101 @@ type AgendaItem = AgendaOrderItem | AgendaCrmEventItem;
 
 export default function DailyTasksWidget() {
   const { userRole, teamMember } = useAuth();
+  const { toast } = useToast();
   const today = startOfDay(new Date());
-  const nextSevenDaysEnd = endOfDay(addDays(today, 6)); // Hoy + 6 días más
+  const nextSevenDaysEnd = endOfDay(addDays(today, 6)); 
+  const [dailyItems, setDailyItems] = React.useState<AgendaItem[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
 
-  const dailyItems = React.useMemo<AgendaItem[]>(() => {
-    if ((!teamMember && userRole === 'SalesRep') || userRole === 'Distributor') {
-        return [];
+  React.useEffect(() => {
+    async function loadTasks() {
+      setIsLoading(true);
+      if ((!teamMember && userRole === 'SalesRep') || userRole === 'Distributor') {
+          setDailyItems([]);
+          setIsLoading(false);
+          return;
+      }
+
+      let relevantOrdersFromFS: Order[] = [];
+      let relevantEventsFromMock: CrmEvent[] = []; // Events still from mock for now
+
+      try {
+        relevantOrdersFromFS = await getOrdersFS();
+      } catch (error) {
+        console.error("Error fetching orders for daily tasks:", error);
+        toast({title: "Error al Cargar Tareas", description: "No se pudieron cargar las tareas de pedidos.", variant: "destructive"})
+      }
+
+      if (userRole === 'Admin') {
+        relevantOrdersFromFS = relevantOrdersFromFS.filter(order =>
+          (order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') &&
+          (order.status === 'Programada' ? order.visitDate : order.nextActionDate) &&
+          isValid(parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!))
+        );
+        relevantEventsFromMock = mockCrmEvents.filter(event => isValid(parseISO(event.startDate)));
+      } else if (userRole === 'SalesRep' && teamMember) {
+        relevantOrdersFromFS = relevantOrdersFromFS.filter(order =>
+          order.salesRep === teamMember.name &&
+          (order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') &&
+          (order.status === 'Programada' ? order.visitDate : order.nextActionDate) &&
+          isValid(parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!))
+        );
+        relevantEventsFromMock = mockCrmEvents.filter(event =>
+          event.assignedTeamMemberIds.includes(teamMember.id) && isValid(parseISO(event.startDate))
+        );
+      }
+
+      const orderAgendaItems: AgendaOrderItem[] = relevantOrdersFromFS
+        .map(order => ({
+          id: order.id,
+          itemDate: parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!),
+          sourceType: 'order' as 'order',
+          title: order.clientName,
+          description: order.status === 'Programada' ? 'Visita Programada' : `Acción: ${order.nextActionType}${order.nextActionType === 'Opción personalizada' && order.nextActionCustom ? ` - "${order.nextActionCustom}"` : ''}`,
+          rawItem: order,
+        }));
+
+      const eventAgendaItems: AgendaCrmEventItem[] = relevantEventsFromMock
+        .map(event => ({
+          id: event.id,
+          itemDate: parseISO(event.startDate),
+          sourceType: 'event' as 'event',
+          title: event.name,
+          description: `Tipo: ${event.type}${event.location ? ` en ${event.location}` : ''}`,
+          rawItem: event,
+        }));
+
+      const allItems = [...orderAgendaItems, ...eventAgendaItems];
+
+      setDailyItems(allItems
+        .filter(item => {
+          const itemStartDate = startOfDay(item.itemDate);
+          if (item.sourceType === 'event' && (item.rawItem as CrmEvent).endDate && isValid(parseISO((item.rawItem as CrmEvent).endDate!))) {
+            const itemEndDate = startOfDay(parseISO((item.rawItem as CrmEvent).endDate!));
+            return (itemStartDate <= nextSevenDaysEnd && itemEndDate >= today);
+          }
+          return isWithinInterval(itemStartDate, { start: today, end: nextSevenDaysEnd });
+        })
+        .sort((a, b) => { 
+          if (a.itemDate.getTime() !== b.itemDate.getTime()) {
+            return a.itemDate.getTime() - b.itemDate.getTime();
+          }
+          if (a.sourceType === 'event' && b.sourceType === 'order') return -1;
+          if (a.sourceType === 'order' && b.sourceType === 'event') return 1;
+          return 0;
+        }));
+      setIsLoading(false);
     }
+    loadTasks();
+  }, [userRole, teamMember, today, nextSevenDaysEnd, toast]);
 
-    let relevantOrders: Order[] = [];
-    let relevantEvents: CrmEvent[] = [];
-
-    if (userRole === 'Admin') {
-      relevantOrders = mockOrders.filter(order =>
-        (order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') &&
-        (order.status === 'Programada' ? order.visitDate : order.nextActionDate)
-      );
-      relevantEvents = mockCrmEvents;
-    } else if (userRole === 'SalesRep' && teamMember) {
-      relevantOrders = mockOrders.filter(order =>
-        order.salesRep === teamMember.name &&
-        (order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') &&
-        (order.status === 'Programada' ? order.visitDate : order.nextActionDate)
-      );
-      relevantEvents = mockCrmEvents.filter(event =>
-        event.assignedTeamMemberIds.includes(teamMember.id)
-      );
-    }
-
-    const orderAgendaItems: AgendaOrderItem[] = relevantOrders
-      .map(order => ({
-        id: order.id,
-        itemDate: parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!),
-        sourceType: 'order' as 'order',
-        title: order.clientName,
-        description: order.status === 'Programada' ? 'Visita Programada' : `Acción: ${order.nextActionType}${order.nextActionType === 'Opción personalizada' && order.nextActionCustom ? ` - "${order.nextActionCustom}"` : ''}`,
-        rawItem: order,
-      }));
-
-    const eventAgendaItems: AgendaCrmEventItem[] = relevantEvents
-      .map(event => ({
-        id: event.id,
-        itemDate: parseISO(event.startDate),
-        sourceType: 'event' as 'event',
-        title: event.name,
-        description: `Tipo: ${event.type}${event.location ? ` en ${event.location}` : ''}`,
-        rawItem: event,
-      }));
-
-    const allItems = [...orderAgendaItems, ...eventAgendaItems];
-
-    return allItems
-      .filter(item => {
-        const itemStartDate = startOfDay(item.itemDate);
-        if (item.sourceType === 'event' && (item.rawItem as CrmEvent).endDate) {
-          const itemEndDate = startOfDay(parseISO((item.rawItem as CrmEvent).endDate!));
-          return (itemStartDate <= nextSevenDaysEnd && itemEndDate >= today);
-        }
-        return isWithinInterval(itemStartDate, { start: today, end: nextSevenDaysEnd });
-      })
-      .sort((a, b) => { 
-        if (a.itemDate.getTime() !== b.itemDate.getTime()) {
-          return a.itemDate.getTime() - b.itemDate.getTime();
-        }
-        if (a.sourceType === 'event' && b.sourceType === 'order') return -1;
-        if (a.sourceType === 'order' && b.sourceType === 'event') return 1;
-        return 0;
-      });
-
-  }, [userRole, teamMember, today, nextSevenDaysEnd]);
+  if (isLoading) {
+    return (
+      <div className="p-4 flex justify-center items-center h-[300px]">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   if (dailyItems.length === 0) {
     return (
@@ -116,13 +144,13 @@ export default function DailyTasksWidget() {
   const getLinkForItem = (item: AgendaItem) => {
     if (item.sourceType === 'order') {
       const order = item.rawItem as Order;
-      if (order.status === 'Programada') {
+      if (order.status === 'Programada' || order.status === 'Seguimiento' || order.status === 'Fallido') {
         return `/order-form?updateVisitId=${order.id}`;
       }
-      return `/crm-follow-up`;
+      return `/crm-follow-up`; // Fallback for other order statuses if they appear
     }
     if (item.sourceType === 'event') {
-      return `/events`;
+      return `/events`; // Future: link to event details page
     }
     return '/my-agenda'; // Fallback link
   };

@@ -4,9 +4,9 @@ export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
 export interface Kpi {
   id: string;
   title: string;
-  currentValue: number;
+  currentValue: number; // This will often be calculated dynamically in components
   targetValue: number;
-  unit: string; // e.g., "botellas", "cuentas"
+  unit: string; 
   icon?: React.ElementType;
 }
 
@@ -22,22 +22,21 @@ export interface TeamMember {
   email: string;
   avatarUrl?: string; 
   role: UserRole; 
+  // These will be calculated dynamically based on Firestore data
   bottlesSold?: number; 
   monthlyTargetAccounts?: number; 
   monthlyTargetVisits?: number; 
   orders?: number; 
   visits?: number; 
-  performanceData?: { month: string; bottles: number }[];
+  performanceData?: { month: string; bottles: number }[]; // This can remain mock for now
 }
 
 export type OrderStatus = 'Pendiente' | 'Confirmado' | 'Procesando' | 'Enviado' | 'Entregado' | 'Cancelado' | 'Fallido' | 'Seguimiento' | 'Programada';
 export type ClientType = 'Distribuidor' | 'HORECA' | 'Retail' | 'Cliente Final';
 
-// New types for follow-up and failure reasons
 export type NextActionType = 'Llamar al responsable de compras' | 'Mandar información' | 'Visitar de nuevo' | 'Enviar muestra' | 'Esperar decisión' | 'Opción personalizada';
 export type FailureReasonType = 'No interesado' | 'Ya trabaja con otro proveedor' | 'Sin presupuesto' | 'Producto no encaja' | 'Otro (especificar)';
 
-// Promotional Materials
 export type PromotionalMaterialType = 'Merchandising Físico' | 'Material PLV' | 'Servicio de Personal' | 'Digital/Software';
 
 export interface LatestPurchaseInfo {
@@ -45,7 +44,7 @@ export interface LatestPurchaseInfo {
   totalPurchaseCost: number;
   purchaseDate: string; // YYYY-MM-DD
   calculatedUnitCost: number;
-  notes?: string; // Optional notes for this specific purchase
+  notes?: string; 
 }
 
 export interface PromotionalMaterial {
@@ -57,27 +56,26 @@ export interface PromotionalMaterial {
 }
 
 export interface AssignedPromotionalMaterial {
-  materialId: string; // Corresponds to PromotionalMaterial.id
+  materialId: string; 
   quantity: number;
-  // Optional: estimatedCost can be calculated on the fly: material.latestPurchase.calculatedUnitCost * quantity
 }
 
 export interface Order {
   id: string;
   clientName: string;
-  visitDate: string; // Should be YYYY-MM-DD
+  visitDate: string; // YYYY-MM-DD
   products?: string[]; 
   value?: number; 
   status: OrderStatus;
-  salesRep: string;
-  lastUpdated: string; // Should be YYYY-MM-DD
-  clavadistaId?: string; // ID of the Clavadista involved
-  assignedMaterials?: AssignedPromotionalMaterial[]; // Materials for this order/visit
+  salesRep: string; // Name of the sales rep for now
+  lastUpdated: string; // YYYY-MM-DD
+  clavadistaId?: string; 
+  assignedMaterials?: AssignedPromotionalMaterial[]; 
 
   clientType?: ClientType;
   numberOfUnits?: number; 
   unitPrice?: number; 
-  clientStatus?: "new" | "existing"; // Added to Order for clarity during processing
+  clientStatus?: "new" | "existing"; 
 
   // Customer and billing information (snapshot for the order)
   nombreFiscal?: string;
@@ -87,8 +85,8 @@ export interface Order {
   contactoNombre?: string;
   contactoCorreo?: string;
   contactoTelefono?: string;
-  observacionesAlta?: string; // Notes specific to new client sign-up with this order
-  notes?: string; // General notes for the visit/order
+  observacionesAlta?: string; 
+  notes?: string; 
 
   // Fields for follow-up / failure
   nextActionType?: NextActionType;
@@ -96,6 +94,10 @@ export interface Order {
   nextActionDate?: string; // YYYY-MM-DD
   failureReasonType?: FailureReasonType;
   failureReasonCustom?: string;
+
+  // Firestore specific fields (optional in UI type, handled by service)
+  accountId?: string; // ID of the linked Account document in Firestore
+  createdAt?: string; // YYYY-MM-DD, set by service on creation
 }
 
 export type MarketingResourceType = 'Folleto' | 'Presentación' | 'Imagen' | 'Guía';
@@ -114,7 +116,6 @@ export interface MarketingResourceCategory {
   resources: MarketingResource[];
 }
 
-// CRM Account Management
 export type AccountType = 'HORECA' | 'Distribuidor' | 'Retail Minorista' | 'Gran Superficie' | 'Evento Especial' | 'Otro';
 export type AccountStatus = 'Activo' | 'Inactivo' | 'Potencial' | 'Bloqueado';
 
@@ -122,7 +123,7 @@ export interface Account {
   id: string;
   name: string; 
   legalName?: string;
-  cif: string; // While optional in form, it's a key identifier for an account
+  cif: string; 
   type: AccountType;
   status: AccountStatus;
   addressBilling?: string;
@@ -130,14 +131,13 @@ export interface Account {
   mainContactName?: string;
   mainContactEmail?: string;
   mainContactPhone?: string;
-  notes?: string; // General notes for the account
+  notes?: string; 
   salesRepId?: string; 
   createdAt: string; // YYYY-MM-DD
   updatedAt: string; // YYYY-MM-DD
 }
 
 
-// CRM Event Management
 export type CrmEventType = 'Activación en Tienda' | 'Feria Comercial' | 'Evento Corporativo' | 'Degustación' | 'Patrocinio' | 'Activación' | 'Otro';
 export type CrmEventStatus = 'Planificado' | 'Confirmado' | 'En Curso' | 'Completado' | 'Cancelado' | 'Pospuesto';
 
@@ -150,7 +150,7 @@ export interface CrmEvent {
   endDate?: string; // YYYY-MM-DD, optional
   description?: string;
   location?: string;
-  assignedTeamMemberIds: string[]; // Array of TeamMember.id
+  assignedTeamMemberIds: string[]; 
   assignedMaterials?: AssignedPromotionalMaterial[]; 
   notes?: string;
   createdAt: string; // YYYY-MM-DD

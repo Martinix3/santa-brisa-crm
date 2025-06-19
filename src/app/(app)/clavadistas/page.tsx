@@ -1,32 +1,69 @@
 
 "use client";
 
-import { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { TeamMember, Order } from "@/types";
-import { mockTeamMembers, mockOrders } from "@/lib/data";
-import { Award, Eye, TrendingUp, Users } from 'lucide-react';
+import { mockTeamMembers } from "@/lib/data"; // mockOrders removed
+import { Award, Eye, TrendingUp, Users, Loader2 } from 'lucide-react';
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { getOrdersFS } from '@/services/order-service';
+import { useToast } from '@/hooks/use-toast';
+
+interface ClavadistaStat extends TeamMember {
+  totalParticipations: number;
+  totalValueParticipated: number;
+}
 
 export default function ClavadistasPage() {
-  const clavadistas = useMemo(() => mockTeamMembers.filter(m => m.role === 'Clavadista'), []);
+  const { toast } = useToast();
+  const [clavadistaStats, setClavadistaStats] = useState<ClavadistaStat[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const clavadistaStats = useMemo(() => {
-    return clavadistas.map(clavadista => {
-      const participations = mockOrders.filter(order => order.clavadistaId === clavadista.id);
-      const totalParticipations = participations.length;
-      const totalValueParticipated = participations.reduce((sum, order) => sum + (order.value || 0), 0);
-      return {
-        ...clavadista,
-        totalParticipations,
-        totalValueParticipated,
-      };
-    });
-  }, [clavadistas]);
+  const clavadistasBase = useMemo(() => mockTeamMembers.filter(m => m.role === 'Clavadista'), []);
+
+  useEffect(() => {
+    async function loadClavadistaStats() {
+      setIsLoading(true);
+      try {
+        const allOrders = await getOrdersFS();
+        const stats = clavadistasBase.map(clavadista => {
+          const participations = allOrders.filter(order => order.clavadistaId === clavadista.id);
+          const totalParticipations = participations.length;
+          const totalValueParticipated = participations.reduce((sum, order) => sum + (order.value || 0), 0);
+          return {
+            ...clavadista,
+            totalParticipations,
+            totalValueParticipated,
+          };
+        });
+        setClavadistaStats(stats);
+      } catch (error) {
+        console.error("Error loading clavadista stats:", error);
+        toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar las estadísticas de los clavadistas.", variant: "destructive" });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadClavadistaStats();
+  }, [clavadistasBase, toast]);
+
+  const overallTotalParticipations = useMemo(() => clavadistaStats.reduce((sum, m) => sum + m.totalParticipations, 0), [clavadistaStats]);
+  const overallTotalValueParticipated = useMemo(() => clavadistaStats.reduce((sum, m) => sum + m.totalValueParticipated, 0), [clavadistaStats]);
+
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-8">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Cargando datos de clavadistas...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -51,7 +88,7 @@ export default function ClavadistasPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {clavadistaStats.map((clavadista) => (
+              {clavadistaStats.length > 0 ? clavadistaStats.map((clavadista) => (
                 <TableRow key={clavadista.id}>
                   <TableCell>
                     <div className="flex items-center space-x-3">
@@ -81,11 +118,10 @@ export default function ClavadistasPage() {
                     </Button>
                   </TableCell>
                 </TableRow>
-              ))}
-               {clavadistaStats.length === 0 && (
-                <TableRow>
+              )) : (
+                 <TableRow>
                   <TableCell colSpan={4} className="h-24 text-center">
-                    No hay Clavadistas configurados en el sistema.
+                    No hay Clavadistas configurados o no se encontraron datos de participación.
                   </TableCell>
                 </TableRow>
               )}
@@ -102,7 +138,7 @@ export default function ClavadistasPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              <FormattedNumericValue value={clavadistaStats.reduce((sum, m) => sum + m.totalParticipations, 0)} locale="es-ES" />
+              <FormattedNumericValue value={overallTotalParticipations} locale="es-ES" />
             </div>
             <p className="text-xs text-muted-foreground">Suma de todas las participaciones de los clavadistas.</p>
           </CardContent>
@@ -114,7 +150,7 @@ export default function ClavadistasPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              <FormattedNumericValue value={clavadistaStats.reduce((sum, m) => sum + m.totalValueParticipated, 0)} locale="es-ES" options={{ style: 'currency', currency: 'EUR' }} />
+              <FormattedNumericValue value={overallTotalValueParticipated} locale="es-ES" options={{ style: 'currency', currency: 'EUR' }} />
             </div>
             <p className="text-xs text-muted-foreground">Suma del valor de pedidos donde participaron clavadistas.</p>
           </CardContent>
@@ -123,5 +159,3 @@ export default function ClavadistasPage() {
     </div>
   );
 }
-
-    

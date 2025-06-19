@@ -45,7 +45,7 @@ import { es } from 'date-fns/locale';
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
-import { getAccountByIdFS } from "@/services/account-service"; // Importar servicio de cuentas
+import { getAccountByIdFS } from "@/services/account-service"; 
 import { useToast } from "@/hooks/use-toast";
 
 
@@ -77,10 +77,9 @@ const editOrderFormSchema = z.object({
   contactoNombre: z.string().optional(),
   contactoCorreo: z.string().email("El formato del correo no es válido.").optional().or(z.literal('')),
   contactoTelefono: z.string().optional(),
-  observacionesAlta: z.string().optional(), // Este campo es solo informativo del alta original
+  observacionesAlta: z.string().optional(), 
   notes: z.string().optional(),
 
-  // Campos de seguimiento, solo para visualización y no para edición directa aquí
   nextActionType: z.enum(nextActionTypeList as [NextActionType, ...NextActionType[]]).optional(),
   nextActionCustom: z.string().optional(),
   nextActionDate: z.date().optional(),
@@ -122,7 +121,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const [salesReps, setSalesReps] = React.useState<TeamMember[]>([]);
   const [availableMaterials, setAvailableMaterials] = React.useState<PromotionalMaterial[]>([]);
   const [isLoadingDropdownData, setIsLoadingDropdownData] = React.useState(true);
-  const [isLoadingAccountDetails, setIsLoadingAccountDetails] = React.useState(false); // Nuevo estado
+  const [isLoadingAccountDetails, setIsLoadingAccountDetails] = React.useState(false); 
   const { toast } = useToast();
 
 
@@ -180,6 +179,8 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
 
 
   const currentStatus = form.watch("status");
+  const isAdmin = currentUserRole === 'Admin';
+  const isDistributor = currentUserRole === 'Distributor';
 
   React.useEffect(() => {
     async function initializeFormWithOrderAndAccountData() {
@@ -202,13 +203,12 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
           products: order.products?.join(",\n") || "",
           value: order.value,
           status: order.status,
-          salesRep: order.salesRep,
+          salesRep: order.salesRep || (salesReps.length > 0 ? salesReps[0].name : ""), // Default to first sales rep if original is empty
           clavadistaId: order.clavadistaId || NO_CLAVADISTA_VALUE,
           assignedMaterials: order.assignedMaterials || [],
           clientType: order.clientType,
           numberOfUnits: order.numberOfUnits,
           unitPrice: order.unitPrice,
-          // Usar datos de la cuenta si existen, sino los del pedido
           nombreFiscal: accountData?.legalName || order.nombreFiscal || "",
           cif: accountData?.cif || order.cif || "",
           direccionFiscal: accountData?.addressBilling || order.direccionFiscal || "",
@@ -216,7 +216,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
           contactoNombre: accountData?.mainContactName || order.contactoNombre || "",
           contactoCorreo: accountData?.mainContactEmail || order.contactoCorreo || "",
           contactoTelefono: accountData?.mainContactPhone || order.contactoTelefono || "",
-          observacionesAlta: order.observacionesAlta || "", // Mantener el del pedido (es del alta original)
+          observacionesAlta: order.observacionesAlta || "", 
           notes: order.notes || "",
           nextActionType: order.nextActionType,
           nextActionCustom: order.nextActionCustom || "",
@@ -226,22 +226,27 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         });
       }
     }
-    initializeFormWithOrderAndAccountData();
-  }, [order, isOpen, form, isLoadingDropdownData, toast]);
+    if (isOpen && !isLoadingDropdownData) { // Make sure salesReps is populated before reset if using it as default
+        initializeFormWithOrderAndAccountData();
+    }
+  }, [order, isOpen, form, isLoadingDropdownData, salesReps, toast]);
 
 
   const onSubmit = async (data: EditOrderFormValues) => {
     if (!order) return;
     setIsSaving(true);
+    
+    const canEditFullOrderDetails = isAdmin;
+    const canEditStatusAndNotesOnly = isDistributor;
 
     const dataToSave: EditOrderFormValues = {
       clientName: canEditFullOrderDetails ? data.clientName : order.clientName,
       products: canEditFullOrderDetails ? data.products : order.products?.join(",\n"),
       value: canEditFullOrderDetails ? data.value : order.value,
-      status: (isAdmin || isDistributor) ? data.status : order.status,
+      status: (isAdmin || canEditStatusAndNotesOnly) ? data.status : order.status,
       salesRep: isAdmin ? data.salesRep : order.salesRep,
-      clavadistaId: canEditFullOrderDetails ? (data.clavadistaId === NO_CLAVADISTA_VALUE ? undefined : data.clavadistaId) : order.clavadistaId,
-      assignedMaterials: canEditFullOrderDetails ? (data.assignedMaterials || []) : (order.assignedMaterials || []),
+      clavadistaId: isAdmin ? (data.clavadistaId === NO_CLAVADISTA_VALUE ? undefined : data.clavadistaId) : order.clavadistaId,
+      assignedMaterials: isAdmin ? (data.assignedMaterials || []) : (order.assignedMaterials || []),
       clientType: canEditFullOrderDetails ? data.clientType : order.clientType,
       numberOfUnits: canEditFullOrderDetails ? data.numberOfUnits : order.numberOfUnits,
       unitPrice: canEditFullOrderDetails ? data.unitPrice : order.unitPrice,
@@ -252,15 +257,14 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
       contactoNombre: canEditFullOrderDetails ? data.contactoNombre : order.contactoNombre,
       contactoCorreo: canEditFullOrderDetails ? data.contactoCorreo : order.contactoCorreo,
       contactoTelefono: canEditFullOrderDetails ? data.contactoTelefono : order.contactoTelefono,
-      observacionesAlta: order.observacionesAlta, // No se edita aquí
-      notes: (isAdmin || isDistributor) ? data.notes : order.notes,
-      nextActionType: order.nextActionType,
+      observacionesAlta: order.observacionesAlta, 
+      notes: (isAdmin || canEditStatusAndNotesOnly) ? data.notes : order.notes,
+      nextActionType: order.nextActionType, 
       nextActionCustom: order.nextActionCustom,
       nextActionDate: order.nextActionDate ? parseISO(order.nextActionDate) : undefined,
       failureReasonType: order.failureReasonType,
       failureReasonCustom: order.failureReasonCustom,
     };
-
 
     await new Promise(resolve => setTimeout(resolve, 700));
     onSave(dataToSave, order.id);
@@ -273,22 +277,20 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
 
   if (!order) return null;
 
-  const isDistributor = currentUserRole === 'Distributor';
   const isSalesRep = currentUserRole === 'SalesRep';
-  const isAdmin = currentUserRole === 'Admin';
-
-  const canEditFullOrderDetails = isAdmin;
+  
+  const canEditOrderDetailsOverall = isAdmin;
   const canEditStatusAndNotes = isAdmin || isDistributor;
   const isReadOnlyForMostFields = isSalesRep || (!isAdmin && !isDistributor);
 
   const formFieldsGenericDisabled = isReadOnlyForMostFields || isLoadingDropdownData || isLoadingAccountDetails;
-  const productRelatedFieldsDisabled = !canEditFullOrderDetails || currentStatus === 'Seguimiento' || currentStatus === 'Fallido' || currentStatus === 'Programada' || isLoadingDropdownData || isLoadingAccountDetails;
+  const productRelatedFieldsDisabled = !canEditOrderDetailsOverall || currentStatus === 'Seguimiento' || currentStatus === 'Fallido' || currentStatus === 'Programada' || isLoadingDropdownData || isLoadingAccountDetails;
   const billingFieldsDisabled = !isAdmin || currentStatus === 'Seguimiento' || currentStatus === 'Fallido' || currentStatus === 'Programada' || isLoadingDropdownData || isLoadingAccountDetails;
   const statusFieldDisabled = !canEditStatusAndNotes || isLoadingDropdownData || isLoadingAccountDetails;
   const notesFieldDisabled = !canEditStatusAndNotes || isLoadingDropdownData || isLoadingAccountDetails;
   const salesRepFieldDisabled = !isAdmin || isLoadingDropdownData || isLoadingAccountDetails;
-  const clavadistaFieldDisabled = !canEditFullOrderDetails || isLoadingDropdownData || isLoadingAccountDetails;
-  const materialsSectionDisabled = !canEditFullOrderDetails || currentStatus === 'Programada' || isLoadingDropdownData || isLoadingAccountDetails;
+  const clavadistaFieldDisabled = !canEditOrderDetailsOverall || isLoadingDropdownData || isLoadingAccountDetails;
+  const materialsSectionDisabled = !canEditOrderDetailsOverall || currentStatus === 'Programada' || isLoadingDropdownData || isLoadingAccountDetails;
 
 
   return (
@@ -314,7 +316,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="Nombre del cliente" {...field} disabled={!canEditFullOrderDetails || formFieldsGenericDisabled} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="Nombre del cliente" {...field} disabled={!canEditOrderDetailsOverall || formFieldsGenericDisabled} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="salesRep" render={({ field }) => (<FormItem><FormLabel>Representante de Ventas</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={salesRepFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un representante" /></SelectTrigger></FormControl><SelectContent>{salesReps.map((member: TeamMember) => (<SelectItem key={member.id} value={member.name}>{member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

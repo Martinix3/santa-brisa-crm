@@ -120,38 +120,56 @@ export default function OrdersDashboardPage() {
         return;
       }
 
+      const isAdmin = currentUserRole === 'Admin';
+      const isDistributor = currentUserRole === 'Distributor';
+      const canEditFullOrderDetails = isAdmin;
+      const canEditStatusAndNotes = isAdmin || isDistributor;
+
+
       const fullUpdatedOrderData: Partial<Order> = {
-        clientName: updatedData.clientName,
-        products: updatedData.products ? updatedData.products.split(/[,;\n]+/).map(p => p.trim()).filter(p => p.length > 0) : orderToUpdate.products,
-        value: updatedData.value !== undefined ? updatedData.value : orderToUpdate.value,
-        status: updatedData.status,
-        salesRep: updatedData.salesRep,
+        // Campos editables por Admin
+        clientName: canEditFullOrderDetails ? updatedData.clientName : orderToUpdate.clientName,
+        products: canEditFullOrderDetails && updatedData.products ? updatedData.products.split(/[,;\n]+/).map(p => p.trim()).filter(p => p.length > 0) : orderToUpdate.products,
+        value: canEditFullOrderDetails && updatedData.value !== undefined ? updatedData.value : orderToUpdate.value,
+        salesRep: canEditFullOrderDetails ? updatedData.salesRep : orderToUpdate.salesRep,
+        clavadistaId: canEditFullOrderDetails ? updatedData.clavadistaId : orderToUpdate.clavadistaId,
+        assignedMaterials: canEditFullOrderDetails ? updatedData.assignedMaterials : orderToUpdate.assignedMaterials,
+        clientType: canEditFullOrderDetails ? updatedData.clientType : orderToUpdate.clientType,
+        numberOfUnits: canEditFullOrderDetails && updatedData.numberOfUnits !== undefined ? updatedData.numberOfUnits : orderToUpdate.numberOfUnits,
+        unitPrice: canEditFullOrderDetails && updatedData.unitPrice !== undefined ? updatedData.unitPrice : orderToUpdate.unitPrice,
+        nombreFiscal: canEditFullOrderDetails ? updatedData.nombreFiscal : orderToUpdate.nombreFiscal,
+        cif: canEditFullOrderDetails ? updatedData.cif : orderToUpdate.cif,
+        direccionFiscal: canEditFullOrderDetails ? updatedData.direccionFiscal : orderToUpdate.direccionFiscal,
+        direccionEntrega: canEditFullOrderDetails ? updatedData.direccionEntrega : orderToUpdate.direccionEntrega,
+        contactoNombre: canEditFullOrderDetails ? updatedData.contactoNombre : orderToUpdate.contactoNombre,
+        contactoCorreo: canEditFullOrderDetails ? updatedData.contactoCorreo : orderToUpdate.contactoCorreo,
+        contactoTelefono: canEditFullOrderDetails ? updatedData.contactoTelefono : orderToUpdate.contactoTelefono,
+        
+        // Campos editables por Admin y Distributor
+        status: canEditStatusAndNotes ? updatedData.status : orderToUpdate.status,
+        notes: canEditStatusAndNotes ? updatedData.notes : orderToUpdate.notes,
+        
+        // Campos que no se editan desde aquí o se preservan
         lastUpdated: format(new Date(), "yyyy-MM-dd"), 
-        clavadistaId: updatedData.clavadistaId,
-        assignedMaterials: updatedData.assignedMaterials,
-        clientType: updatedData.clientType || orderToUpdate.clientType,
-        numberOfUnits: updatedData.numberOfUnits !== undefined ? updatedData.numberOfUnits : orderToUpdate.numberOfUnits,
-        unitPrice: updatedData.unitPrice !== undefined ? updatedData.unitPrice : orderToUpdate.unitPrice,
-        nombreFiscal: updatedData.nombreFiscal || orderToUpdate.nombreFiscal,
-        cif: updatedData.cif || orderToUpdate.cif,
-        direccionFiscal: updatedData.direccionFiscal || orderToUpdate.direccionFiscal,
-        direccionEntrega: updatedData.direccionEntrega || orderToUpdate.direccionEntrega,
-        contactoNombre: updatedData.contactoNombre || orderToUpdate.contactoNombre,
-        contactoCorreo: updatedData.contactoCorreo || orderToUpdate.contactoCorreo,
-        contactoTelefono: updatedData.contactoTelefono || orderToUpdate.contactoTelefono,
-        observacionesAlta: updatedData.observacionesAlta || orderToUpdate.observacionesAlta,
-        notes: updatedData.notes || orderToUpdate.notes,
+        observacionesAlta: orderToUpdate.observacionesAlta, 
         accountId: orderToUpdate.accountId, 
+        visitDate: orderToUpdate.visitDate, // Fecha de visita original no se cambia aquí
+        createdAt: orderToUpdate.createdAt, // Fecha de creación no se cambia
+        clientStatus: orderToUpdate.clientStatus,
+        nextActionType: orderToUpdate.nextActionType,
+        nextActionCustom: orderToUpdate.nextActionCustom,
+        nextActionDate: orderToUpdate.nextActionDate,
+        failureReasonType: orderToUpdate.failureReasonType,
+        failureReasonCustom: orderToUpdate.failureReasonCustom,
       };
       
       await updateOrderFS(orderId, fullUpdatedOrderData as Order); 
       
-      setAllOrders(prevOrders => prevOrders.map(o => o.id === orderId ? { ...orderToUpdate, ...fullUpdatedOrderData } : o));
+      setAllOrders(prevOrders => prevOrders.map(o => o.id === orderId ? { ...o, ...fullUpdatedOrderData } as Order : o));
       
       toast({ title: "¡Pedido Actualizado!", description: `Pedido ${orderId} actualizado exitosamente.`, variant: "default"});
       
-      // Actualizar salesRepId de la cuenta si es Admin y el salesRep del pedido cambió a un SalesRep
-      if (currentUserRole === 'Admin' && orderToUpdate.accountId && fullUpdatedOrderData.salesRep && fullUpdatedOrderData.salesRep !== orderToUpdate.salesRep) {
+      if (isAdmin && orderToUpdate.accountId && fullUpdatedOrderData.salesRep && fullUpdatedOrderData.salesRep !== orderToUpdate.salesRep) {
         const newSalesRepName = fullUpdatedOrderData.salesRep;
         const newSalesRepMember = allTeamMembers.find(m => m.name === newSalesRepName);
 
@@ -214,7 +232,7 @@ export default function OrdersDashboardPage() {
     try {
         const updatePayload: Partial<Order> = { status: newStatus, lastUpdated: format(new Date(), "yyyy-MM-dd") };
         await updateOrderFS(order.id, updatePayload);
-        setAllOrders(prevOrders => prevOrders.map(o => o.id === order.id ? { ...o, ...updatePayload } : o));
+        setAllOrders(prevOrders => prevOrders.map(o => o.id === order.id ? { ...o, ...updatePayload } as Order : o));
         toast({ title: "Estado Actualizado", description: `El estado del pedido ${order.id} es ahora ${newStatus}.` });
         refreshDataSignature();
     } catch (error) {

@@ -497,7 +497,8 @@ function AppNavigation({ navStructure, userRole }: AppNavigationProps) {
   return (
     <>
       {navStructure.map((group) => {
-        const userCanSeeGroupCategory = group.groupRoles ? group.groupRoles.includes(userRole) : true;
+        // User can see the group category if no groupRoles are defined OR if their role is included
+        const userCanSeeGroupCategory = !group.groupRoles || group.groupRoles.includes(userRole);
         
         if (!userCanSeeGroupCategory) {
           return null; 
@@ -506,7 +507,7 @@ function AppNavigation({ navStructure, userRole }: AppNavigationProps) {
         const visibleItemsInGroup = group.items.filter(item => item.roles.includes(userRole));
 
         if (visibleItemsInGroup.length === 0) {
-          return null;
+          return null; // Don't render the group if no items are visible for this user
         }
 
         return (
@@ -516,13 +517,30 @@ function AppNavigation({ navStructure, userRole }: AppNavigationProps) {
               <SidebarMenu>
                 {visibleItemsInGroup.map((item) => {
                   let isActive = false;
+                  // Specific check for /admin/settings to make sure other /admin/* routes don't activate it
                   if (item.href === '/admin/settings') {
-                    isActive = pathname.startsWith('/admin');
+                    isActive = pathname === item.href || (pathname.startsWith('/admin/') && !pathname.startsWith('/admin/user-management') && !pathname.startsWith('/admin/objectives-management') && !pathname.startsWith('/admin/kpi-launch-targets') && !pathname.startsWith('/admin/promotional-materials'));
                   } else if (item.href === '/dashboard') {
-                    isActive = pathname === item.href;
+                     isActive = pathname === item.href;
                   } else {
                     isActive = pathname.startsWith(item.href) && item.href !== '/dashboard';
                   }
+                  
+                  // More robust check for admin section sub-pages to keep "Configuración" active
+                  if (pathname.startsWith('/admin/') && group.id === 'configuracion') {
+                     const currentTopLevelAdminPath = pathname.split('/')[2]; // e.g., 'settings', 'user-management'
+                     if (item.href === `/admin/${currentTopLevelAdminPath}` || (item.href === '/admin/settings' && !['user-management', 'objectives-management', 'kpi-launch-targets', 'promotional-materials'].includes(currentTopLevelAdminPath) )) {
+                        // isActive = true; // This logic was a bit complex, simplifying below
+                     }
+                     // Simplified: if current path starts with /admin/ and the group is configuracion, check if item.href matches start of path
+                     if (item.href.startsWith('/admin/')) {
+                        isActive = pathname.startsWith(item.href);
+                     }
+                     if (item.href === '/admin/settings' && pathname.startsWith('/admin/')) isActive = true;
+
+
+                  }
+
 
                   return (
                     <SidebarMenuItem key={item.label}>
@@ -603,3 +621,6 @@ function UserMenu({ userRole, userEmail }: UserMenuProps) {
 }
 
 export default MainAppLayout;
+
+
+    

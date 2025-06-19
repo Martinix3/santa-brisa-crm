@@ -5,67 +5,56 @@ import { format, addDays, subDays, isEqual, parseISO } from 'date-fns';
 import { TrendingUp, Briefcase, CalendarPlus, Repeat } from "lucide-react";
 
 
-export const mockKpis: Kpi[] = [ // These are general mock KPIs, not used for the launch dashboard directly
+export const mockKpis: Kpi[] = [ 
   { id: 'kpi1_old', title: 'Botellas Vendidas (Mes)', currentValue: 0, icon: Package, targetValue:10000, unit:"botellas" },
   { id: 'kpi2_old', title: 'Nuevos Clientes Adquiridos', currentValue: 0, icon: Users, targetValue:100, unit:"clientes" },
   { id: 'kpi3_old', title: 'Pedidos Procesados', currentValue: 0, icon: ShoppingBag, targetValue:400, unit:"pedidos" },
   { id: 'kpi4_old', title: 'Tasa de Conversión (Pedidos/Visitas)', currentValue: 0, icon: BarChart3, targetValue:30, unit:"%" },
 ];
 
+// mockTeamMembers is now primarily for seeding Firestore.
+// The application will fetch TeamMember data from Firestore.
 export const mockTeamMembers: TeamMember[] = [
   {
-    id: 'tm1', name: 'Nico (Rep)', email: 'nico@santabrisa.com', avatarUrl: 'https://placehold.co/100x100.png?text=NI', role: 'SalesRep',
-    monthlyTargetAccounts: 20,
-    monthlyTargetVisits: 100,
-    performanceData: [
-        { month: 'Ene', bottles: 150 }, { month: 'Feb', bottles: 200 }, { month: 'Mar', bottles: 180 },
-        { month: 'Abr', bottles: 220 }, { month: 'May', bottles: 250 }, { month: 'Jun', bottles: 210 }
-    ],
+    id: 'auth_nico_santabrisa_com', // Example: Use a predictable ID for seeding, like "auth_" + email.replace(/[@.]/g, "_")
+    authUid: 'auth_nico_santabrisa_com', // Firebase Auth UID would be the primary key or linked here
+    name: 'Nico (Rep)', email: 'nico@santabrisa.com', avatarUrl: 'https://placehold.co/100x100.png?text=NI', role: 'SalesRep',
+    monthlyTargetAccounts: 20, monthlyTargetVisits: 100,
   },
   {
-    id: 'tm2', name: 'Alfonso (Rep)', email: 'alfonso@santabrisa.com', avatarUrl: 'https://placehold.co/100x100.png?text=AL', role: 'SalesRep',
-    monthlyTargetAccounts: 15,
-    monthlyTargetVisits: 80,
-    performanceData: [
-        { month: 'Ene', bottles: 120 }, { month: 'Feb', bottles: 160 }, { month: 'Mar', bottles: 140 },
-        { month: 'Abr', bottles: 180 }, { month: 'May', bottles: 200 }, { month: 'Jun', bottles: 170 }
-    ],
+    id: 'auth_alfonso_santabrisa_com', authUid: 'auth_alfonso_santabrisa_com',
+    name: 'Alfonso (Rep)', email: 'alfonso@santabrisa.com', avatarUrl: 'https://placehold.co/100x100.png?text=AL', role: 'SalesRep',
+    monthlyTargetAccounts: 15, monthlyTargetVisits: 80,
   },
   {
-    id: 'tm3', name: 'Federica (Rep)', email: 'federica@santabrisa.com', avatarUrl: 'https://placehold.co/100x100.png?text=FE', role: 'SalesRep',
-    monthlyTargetAccounts: 10,
-    monthlyTargetVisits: 60,
-    performanceData: [
-        { month: 'Ene', bottles: 90 }, { month: 'Feb', bottles: 110 }, { month: 'Mar', bottles: 100 },
-        { month: 'Abr', bottles: 130 }, { month: 'May', bottles: 150 }, { month: 'Jun', bottles: 120 }
-    ],
+    id: 'auth_federica_santabrisa_com', authUid: 'auth_federica_santabrisa_com',
+    name: 'Federica (Rep)', email: 'federica@santabrisa.com', avatarUrl: 'https://placehold.co/100x100.png?text=FE', role: 'SalesRep',
+    monthlyTargetAccounts: 10, monthlyTargetVisits: 60,
   },
   {
-    id: 'admin01', name: 'Admin User', email: 'admin@santabrisa.com', role: 'Admin', avatarUrl: 'https://placehold.co/100x100.png?text=AU',
-    monthlyTargetAccounts: 10, 
-    monthlyTargetVisits: 40,   
-    performanceData: [],
+    id: 'auth_admin_santabrisa_com', authUid: 'auth_admin_santabrisa_com',
+    name: 'Admin User', email: 'admin@santabrisa.com', role: 'Admin', avatarUrl: 'https://placehold.co/100x100.png?text=AU',
+    monthlyTargetAccounts: 10, monthlyTargetVisits: 40,   
   },
   {
-    id: 'adminMJ', name: 'Martín (Admin)', email: 'mj@santabrisa.com', role: 'Admin', avatarUrl: 'https://placehold.co/100x100.png?text=MJ',
-    monthlyTargetAccounts: 15, 
-    monthlyTargetVisits: 50,   
-    performanceData: [],
+    id: 'auth_mj_santabrisa_com', authUid: 'auth_mj_santabrisa_com',
+    name: 'Martín (Admin)', email: 'mj@santabrisa.com', role: 'Admin', avatarUrl: 'https://placehold.co/100x100.png?text=MJ',
+    monthlyTargetAccounts: 15, monthlyTargetVisits: 50,   
   },
   {
-    id: 'dist01', name: 'Distribuidor Principal', email: 'distribuidor@example.com', role: 'Distributor', avatarUrl: 'https://placehold.co/100x100.png?text=DP',
-    performanceData: []
+    id: 'auth_distribuidor_example_com', authUid: 'auth_distribuidor_example_com',
+    name: 'Distribuidor Principal', email: 'distribuidor@example.com', role: 'Distributor', avatarUrl: 'https://placehold.co/100x100.png?text=DP',
   },
   {
-    id: 'clv01', name: 'Laura (Clavadista)', email: 'laura.clava@example.com', role: 'Clavadista', avatarUrl: 'https://placehold.co/100x100.png?text=LC',
-    performanceData: []
+    id: 'auth_laura_clava_example_com', authUid: 'auth_laura_clava_example_com',
+    name: 'Laura (Clavadista)', email: 'laura.clava@example.com', role: 'Clavadista', avatarUrl: 'https://placehold.co/100x100.png?text=LC',
   },
   {
-    id: 'clv02', name: 'Carlos (Clavadista)', email: 'carlos.clava@example.com', role: 'Clavadista', avatarUrl: 'https://placehold.co/100x100.png?text=CC',
-    performanceData: []
+    id: 'auth_carlos_clava_example_com', authUid: 'auth_carlos_clava_example_com',
+    name: 'Carlos (Clavadista)', email: 'carlos.clava@example.com', role: 'Clavadista', avatarUrl: 'https://placehold.co/100x100.png?text=CC',
   }
 ];
-// Note: bottlesSold, orders, visits for TeamMember are now calculated dynamically from Firestore data in components.
+
 
 export const orderStatusesList: OrderStatus[] = ['Programada', 'Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Cancelado', 'Fallido', 'Seguimiento'];
 export const clientTypeList: ClientType[] = ['Distribuidor', 'HORECA', 'Retail', 'Cliente Final'];
@@ -73,7 +62,6 @@ export const clientTypeList: ClientType[] = ['Distribuidor', 'HORECA', 'Retail',
 export const nextActionTypeList: NextActionType[] = ['Llamar al responsable de compras', 'Mandar información', 'Visitar de nuevo', 'Enviar muestra', 'Esperar decisión', 'Opción personalizada'];
 export const failureReasonList: FailureReasonType[] = ['No interesado', 'Ya trabaja con otro proveedor', 'Sin presupuesto', 'Producto no encaja', 'Otro (especificar)'];
 
-// mockOrders is now an empty array. Data will be fetched from Firestore.
 export const mockOrders: Order[] = [];
 
 
@@ -113,8 +101,6 @@ export const userRolesList: UserRole[] = ['Admin', 'SalesRep', 'Distributor', 'C
 export const accountTypeList: AccountType[] = ['HORECA', 'Distribuidor', 'Retail Minorista', 'Gran Superficie', 'Evento Especial', 'Otro'];
 export const accountStatusList: AccountStatus[] = ['Activo', 'Inactivo', 'Potencial', 'Bloqueado'];
 
-// mockAccounts is used for initial Firestore seeding or as a fallback.
-// The application primarily fetches accounts from Firestore.
 export const mockAccounts: Account[] = [
   {
     id: 'acc_001',
@@ -129,7 +115,7 @@ export const mockAccounts: Account[] = [
     mainContactEmail: 'ana.perez@solnaciente.es',
     mainContactPhone: '+34 912 345 678',
     notes: 'Cliente leal, pedidos semanales. Interesado en nuevas promociones.',
-    salesRepId: 'tm1', 
+    salesRepId: 'auth_nico_santabrisa_com', 
     createdAt: '2023-01-15',
     updatedAt: '2024-05-10',
   },
@@ -146,7 +132,7 @@ export const mockAccounts: Account[] = [
     mainContactEmail: 'compras@gourmetdelsur.com',
     mainContactPhone: '+34 954 123 456',
     notes: 'Distribuidor principal para Andalucía. Gran volumen.',
-    salesRepId: 'tm2', 
+    salesRepId: 'auth_alfonso_santabrisa_com', 
     createdAt: '2022-11-01',
     updatedAt: '2024-04-20',
   },
@@ -162,15 +148,15 @@ export const mockAccounts: Account[] = [
     mainContactEmail: 'lucia.garcia@delicatessenhg.es',
     mainContactPhone: '+34 980 555 666',
     notes: 'Mostraron interés en la feria. Contactar para seguimiento.',
-    salesRepId: 'tm3', 
+    salesRepId: 'auth_federica_santabrisa_com', 
     createdAt: '2024-03-01',
     updatedAt: '2024-05-15',
   },
   {
-    id: 'acc_ord_ORD002', // Keep ID convention for potential mapping if original mockOrders were seeded
+    id: 'acc_ord_ORD002', 
     name: 'Supermercado La Compra Feliz',
     legalName: 'La Compra Feliz SA',
-    cif: 'A22222222', // Ensure unique CIF if used as key
+    cif: 'A22222222', 
     type: 'Retail',
     status: 'Activo',
     addressBilling: 'Avenida Comercial 5, Valencia',
@@ -179,7 +165,7 @@ export const mockAccounts: Account[] = [
     mainContactEmail: 'luisa@comprafeliz.com',
     mainContactPhone: '600222333',
     notes: 'Cliente desde ' + format(subDays(new Date(), 5), 'yyyy-MM-dd'),
-    salesRepId: 'tm2',
+    salesRepId: 'auth_alfonso_santabrisa_com',
     createdAt: format(subDays(new Date(), 5), 'yyyy-MM-dd'),
     updatedAt: format(subDays(new Date(), 2), 'yyyy-MM-dd'),
   },
@@ -231,7 +217,7 @@ export const mockCrmEvents: CrmEvent[] = [
     startDate: format(addDays(new Date(), 10), 'yyyy-MM-dd'),
     endDate: format(addDays(new Date(), 10), 'yyyy-MM-dd'),
     location: 'Tienda Gourmet Central, Calle Mayor 1',
-    assignedTeamMemberIds: ['tm1', 'tm3'], 
+    assignedTeamMemberIds: ['auth_nico_santabrisa_com', 'auth_federica_santabrisa_com'], 
     assignedMaterials: [
         { materialId: 'mat_003', quantity: 2 }, 
         { materialId: 'mat_007', quantity: 1 }  
@@ -248,7 +234,7 @@ export const mockCrmEvents: CrmEvent[] = [
     startDate: format(addDays(new Date(), 30), 'yyyy-MM-dd'),
     endDate: format(addDays(new Date(), 33), 'yyyy-MM-dd'),
     location: 'Fira de Barcelona, Gran Vía',
-    assignedTeamMemberIds: ['tm2', 'adminMJ'], 
+    assignedTeamMemberIds: ['auth_alfonso_santabrisa_com', 'auth_mj_santabrisa_com'], 
     assignedMaterials: [
         { materialId: 'mat_005', quantity: 1 }, 
         { materialId: 'mat_001', quantity: 10 }, 
@@ -266,7 +252,7 @@ export const mockCrmEvents: CrmEvent[] = [
     startDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
     endDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
     location: 'Restaurante Fusión, Calle Innova 5',
-    assignedTeamMemberIds: ['tm1'], 
+    assignedTeamMemberIds: ['auth_nico_santabrisa_com'], 
     assignedMaterials: [
         { materialId: 'mat_003', quantity: 3 } 
     ],
@@ -283,7 +269,7 @@ export const mockCrmEvents: CrmEvent[] = [
     startDate: format(addDays(new Date(), 45), 'yyyy-MM-dd'),
     endDate: format(addDays(new Date(), 46), 'yyyy-MM-dd'),
     location: 'Supermercado Principal, Av. Comercial',
-    assignedTeamMemberIds: ['tm2'], 
+    assignedTeamMemberIds: ['auth_alfonso_santabrisa_com'], 
     assignedMaterials: [
         { materialId: 'mat_004', quantity: 2 },
         { materialId: 'mat_007', quantity: 5 }

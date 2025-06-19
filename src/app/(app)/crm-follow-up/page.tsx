@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input"; 
 import type { Order, NextActionType, TeamMember, UserRole, OrderStatus } from "@/types";
-import { nextActionTypeList, mockTeamMembers } from "@/lib/data"; // mockOrders, mockAccounts removed
+import { nextActionTypeList } from "@/lib/data"; // mockTeamMembers removed
 import { Filter, CalendarDays, ClipboardList, ChevronDown, Edit2, AlertTriangle, MoreHorizontal, Send, Loader2 } from "lucide-react";
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -21,7 +21,8 @@ import StatusBadge from "@/components/app/status-badge";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { getOrdersFS, updateOrderFS } from "@/services/order-service";
-import { getAccountsFS } from "@/services/account-service"; // Needed for city filter if orders don't have addresses
+import { getTeamMembersFS } from "@/services/team-member-service"; // For salesRep filter
+// import { getAccountsFS } from "@/services/account-service"; // Needed for city filter if orders don't have addresses
 
 export default function CrmFollowUpPage() {
   const { userRole, teamMember } = useAuth();
@@ -44,40 +45,39 @@ export default function CrmFollowUpPage() {
 
   const [followUps, setFollowUps] = React.useState<Order[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
-  // const [accounts, setAccounts] = React.useState<Account[]>([]); // If needed for address filtering
+  const [salesRepsForFilterList, setSalesRepsForFilterList] = React.useState<string[]>(["Todos"]);
+
 
   React.useEffect(() => {
-    async function loadFollowUps() {
+    async function loadInitialData() {
       setIsLoading(true);
       try {
-        const fetchedOrders = await getOrdersFS();
-        // const fetchedAccounts = await getAccountsFS(); // If linking orders to accounts for addresses
-        // setAccounts(fetchedAccounts);
+        const [fetchedOrders, fetchedSalesReps] = await Promise.all([
+          getOrdersFS(),
+          userRole === 'Admin' ? getTeamMembersFS(['SalesRep', 'Admin']) : Promise.resolve([])
+        ]);
+        
         setFollowUps(
           fetchedOrders.filter(order =>
             ((order.status === 'Seguimiento' || order.status === 'Fallido') && order.nextActionDate) ||
             (order.status === 'Programada') 
           )
         );
+        if (userRole === 'Admin') {
+          setSalesRepsForFilterList(["Todos", ...fetchedSalesReps.map(rep => rep.name)]);
+        }
+
       } catch (error) {
-        console.error("Error loading follow-ups:", error);
-        toast({ title: "Error al Cargar Tareas", description: "No se pudieron cargar las tareas.", variant: "destructive" });
+        console.error("Error loading follow-ups or sales reps:", error);
+        toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar las tareas o comerciales.", variant: "destructive" });
       } finally {
         setIsLoading(false);
       }
     }
-    loadFollowUps();
-  }, [toast]);
+    loadInitialData();
+  }, [toast, userRole]);
 
 
-  const salesRepsForFilter = React.useMemo(() => {
-    const reps = new Set(mockTeamMembers // Assuming mockTeamMembers is still the source for SalesRep definitions
-        .filter(m => m.role === 'SalesRep' || m.role === 'Admin')
-        .map(m => m.name)
-    );
-    return ["Todos", ...Array.from(reps)];
-  }, []);
-  
   const uniqueActionTypesForFilter = ["Todos", ...nextActionTypeList, "Visita Programada"] as (NextActionType | "Todos" | "Visita Programada")[];
 
   const filteredFollowUps = React.useMemo(() => {
@@ -112,19 +112,14 @@ export default function CrmFollowUpPage() {
       .filter(followUp => {
         if (!cityFilter) return true;
         const cityLower = cityFilter.toLowerCase();
-        // Assuming order objects now have address fields directly, or link to accounts
         return (followUp.direccionEntrega && followUp.direccionEntrega.toLowerCase().includes(cityLower)) ||
                (followUp.direccionFiscal && followUp.direccionFiscal.toLowerCase().includes(cityLower));
-        // Or if linking to accounts:
-        // const account = accounts.find(acc => acc.id === followUp.accountId);
-        // return (account?.addressShipping && account.addressShipping.toLowerCase().includes(cityLower)) ||
-        //        (account?.addressBilling && account.addressBilling.toLowerCase().includes(cityLower));
       });
-  }, [followUps, userRole, teamMember, salesRepFilter, actionTypeFilter, dateRange, searchTerm, cityFilter]); // accounts removed if not used
+  }, [followUps, userRole, teamMember, salesRepFilter, actionTypeFilter, dateRange, searchTerm, cityFilter]);
 
   const handleSaveNewDate = async (followUpId: string) => {
     if (!selectedNewDate) return;
-    setIsLoading(true); // Or a specific saving state
+    setIsLoading(true); 
 
     const itemToUpdate = followUps.find(f => f.id === followUpId);
     if (!itemToUpdate) {
@@ -203,13 +198,13 @@ export default function CrmFollowUpPage() {
             {userRole === 'Admin' && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="w-full sm:w-auto">
+                  <Button variant="outline" className="w-full sm:w-auto" disabled={isLoading || salesRepsForFilterList.length <=1}>
                     <Filter className="mr-2 h-4 w-4" />
                     Comercial: {salesRepFilter} <ChevronDown className="ml-2 h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
-                  {salesRepsForFilter.map(rep => (
+                  {salesRepsForFilterList.map(rep => (
                     <DropdownMenuCheckboxItem
                       key={rep}
                       checked={salesRepFilter === rep}

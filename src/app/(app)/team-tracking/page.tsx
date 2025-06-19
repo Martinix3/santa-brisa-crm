@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { TeamMember, Order } from "@/types";
-import { mockTeamMembers } from "@/lib/data"; // Keep mockTeamMembers for structure and targets
+// mockTeamMembers removed
 import { Package, Briefcase, Footprints, Users, Eye, Loader2 } from 'lucide-react';
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 import { Progress } from "@/components/ui/progress";
@@ -14,8 +14,11 @@ import { cn } from "@/lib/utils";
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { getOrdersFS } from '@/services/order-service';
-import { getAccountsFS } from '@/services/account-service'; // To count accounts per rep
+import { getAccountsFS } from '@/services/account-service';
+import { getTeamMembersFS } from '@/services/team-member-service'; // Import service
 import { parseISO, isSameMonth, isSameYear, isValid } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
+
 
 const renderProgress = (current: number, target: number, unit: string, targetAchievedText: string) => {
   const progress = target > 0 ? Math.min((current / target) * 100, 100) : (current > 0 ? 100 : 0);
@@ -51,16 +54,47 @@ const renderProgress = (current: number, target: number, unit: string, targetAch
 
 
 export default function TeamTrackingPage() {
+  const { toast } = useToast();
   const [teamStats, setTeamStats] = useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const salesTeamMembersBase = useMemo(() => mockTeamMembers.filter(m => m.role === 'SalesRep'), []);
+  
+  // Use a state for salesTeamMembersBase and populate it from Firestore
+  const [salesTeamMembersBase, setSalesTeamMembersBase] = useState<TeamMember[]>([]);
 
   useEffect(() => {
-    async function loadTeamData() {
+    async function loadBaseTeamMembers() {
       setIsLoading(true);
       try {
-        const fetchedOrders = await getOrdersFS();
-        const fetchedAccounts = await getAccountsFS();
+        const members = await getTeamMembersFS(['SalesRep']); // Fetch only SalesRep
+        setSalesTeamMembersBase(members);
+      } catch (error) {
+        console.error("Error loading sales team members:", error);
+        toast({ title: "Error al Cargar Equipo", description: "No se pudo cargar la lista de comerciales.", variant: "destructive" });
+      }
+      // setIsLoading(false) will be handled in the main data loading useEffect
+    }
+    loadBaseTeamMembers();
+  }, [toast]);
+
+
+  useEffect(() => {
+    // Only proceed if salesTeamMembersBase has been loaded
+    if (salesTeamMembersBase.length === 0 && !isLoading) { // If still loading base, wait. If not loading and empty, then no sales reps.
+        setIsLoading(false); // Ensure loading is off if no sales reps
+        return;
+    }
+    if (salesTeamMembersBase.length === 0 && isLoading && salesTeamMembersBase.length === 0) { // still waiting for base team members
+        return;
+    }
+
+
+    async function loadTeamData() {
+      setIsLoading(true); // Start loading for stats calculation
+      try {
+        const [fetchedOrders, fetchedAccounts] = await Promise.all([
+            getOrdersFS(),
+            getAccountsFS()
+        ]);
         const currentDate = new Date();
 
         const stats = salesTeamMembersBase.map(member => {
@@ -93,27 +127,31 @@ export default function TeamTrackingPage() {
             }
           });
 
-
           return {
             ...member,
             bottlesSold,
-            orders: ordersCount, // This represents total orders that contributed to sales for this member
-            visits: visitsCount, // This represents total completed/attempted visits by this member
-            // We use monthlyAccountsAchieved and monthlyVisitsAchieved for progress bars
-            // The 'orders' and 'visits' fields in TeamMember type are now for overall totals
-            monthlyAccountsAchieved, // Temp field for rendering progress
-            monthlyVisitsAchieved,   // Temp field for rendering progress
+            orders: ordersCount, 
+            visits: visitsCount, 
+            monthlyAccountsAchieved, 
+            monthlyVisitsAchieved,   
           };
         });
         setTeamStats(stats);
       } catch (error) {
         console.error("Error loading team tracking data:", error);
+        toast({ title: "Error al Cargar Estadísticas", description: "No se pudieron cargar las estadísticas del equipo.", variant: "destructive" });
       } finally {
         setIsLoading(false);
       }
     }
-    loadTeamData();
-  }, [salesTeamMembersBase]);
+
+    if (salesTeamMembersBase.length > 0) { // Only load stats if there are sales reps
+        loadTeamData();
+    } else if (!isLoading) { // If not loading and no sales reps, ensure loading is false
+        setIsLoading(false);
+    }
+
+  }, [salesTeamMembersBase, toast, isLoading]); // Add isLoading to dependencies of the second useEffect
 
   const teamTotalBottlesValue = useMemo(() => teamStats.reduce((sum, m) => sum + (m.bottlesSold || 0), 0), [teamStats]);
   const teamTotalOrdersValue = useMemo(() => teamStats.reduce((sum, m) => sum + (m.orders || 0), 0), [teamStats]);

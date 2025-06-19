@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { mockPromotionalMaterials, promotionalMaterialTypeList } from "@/lib/data";
+import { mockPromotionalMaterials, promotionalMaterialTypeList } from "@/lib/data"; // Data for materials is still mock
 import type { PromotionalMaterial, PromotionalMaterialType, UserRole, LatestPurchaseInfo } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, Edit, Trash2, MoreHorizontal, PackagePlus, Filter, ChevronDown, AlertTriangle, CalendarDays } from "lucide-react";
@@ -55,7 +55,7 @@ export default function PromotionalMaterialsPage() {
             quantityPurchased: data.latestPurchaseQuantity,
             totalPurchaseCost: data.latestPurchaseTotalCost,
             purchaseDate: format(data.latestPurchaseDate, "yyyy-MM-dd"),
-            calculatedUnitCost: parseFloat(calculatedUnitCost.toFixed(4)), // Store with more precision
+            calculatedUnitCost: parseFloat(calculatedUnitCost.toFixed(4)), 
             notes: data.latestPurchaseNotes
         };
     }
@@ -68,7 +68,7 @@ export default function PromotionalMaterialsPage() {
             name: data.name,
             description: data.description,
             type: data.type,
-            latestPurchase: newLatestPurchase || mat.latestPurchase // Keep old purchase if new one is not provided
+            latestPurchase: newLatestPurchase || mat.latestPurchase 
         } : mat
       );
       setMaterials(updatedMaterials);

@@ -6,12 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { TeamMember, Order } from "@/types";
-import { mockTeamMembers } from "@/lib/data"; // mockOrders removed
+// mockTeamMembers removed, will fetch from Firestore
 import { Award, Eye, TrendingUp, Users, Loader2 } from 'lucide-react';
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { getOrdersFS } from '@/services/order-service';
+import { getTeamMembersFS } from '@/services/team-member-service'; // For fetching clavadistas
 import { useToast } from '@/hooks/use-toast';
 
 interface ClavadistaStat extends TeamMember {
@@ -24,13 +25,17 @@ export default function ClavadistasPage() {
   const [clavadistaStats, setClavadistaStats] = useState<ClavadistaStat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const clavadistasBase = useMemo(() => mockTeamMembers.filter(m => m.role === 'Clavadista'), []);
-
   useEffect(() => {
-    async function loadClavadistaStats() {
+    async function loadClavadistaData() {
       setIsLoading(true);
       try {
-        const allOrders = await getOrdersFS();
+        const [allOrders, allTeamMembers] = await Promise.all([
+          getOrdersFS(),
+          getTeamMembersFS(['Clavadista']) // Fetch only clavadistas
+        ]);
+        
+        const clavadistasBase = allTeamMembers.filter(m => m.role === 'Clavadista');
+
         const stats = clavadistasBase.map(clavadista => {
           const participations = allOrders.filter(order => order.clavadistaId === clavadista.id);
           const totalParticipations = participations.length;
@@ -49,8 +54,8 @@ export default function ClavadistasPage() {
         setIsLoading(false);
       }
     }
-    loadClavadistaStats();
-  }, [clavadistasBase, toast]);
+    loadClavadistaData();
+  }, [toast]);
 
   const overallTotalParticipations = useMemo(() => clavadistaStats.reduce((sum, m) => sum + m.totalParticipations, 0), [clavadistaStats]);
   const overallTotalValueParticipated = useMemo(() => clavadistaStats.reduce((sum, m) => sum + m.totalValueParticipated, 0), [clavadistaStats]);

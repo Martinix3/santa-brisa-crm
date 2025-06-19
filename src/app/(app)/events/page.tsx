@@ -8,8 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { mockCrmEvents, crmEventTypeList, crmEventStatusList, mockTeamMembers } from "@/lib/data";
-import type { CrmEvent, CrmEventType, CrmEventStatus } from "@/types";
+import { mockCrmEvents, crmEventTypeList, crmEventStatusList } from "@/lib/data"; // mockTeamMembers removed
+import type { CrmEvent, CrmEventType, CrmEventStatus, TeamMember } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, Edit, Trash2, MoreHorizontal, PartyPopper, Filter, ChevronDown, Eye } from "lucide-react";
 import EventDialog, { type EventFormValues } from "@/components/app/event-dialog";
@@ -17,11 +17,13 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { format, parseISO } from "date-fns";
 import { es } from 'date-fns/locale';
 import StatusBadge from "@/components/app/status-badge";
+import { getTeamMembersFS } from "@/services/team-member-service"; // To get team member names
 
 export default function EventsPage() {
   const { toast } = useToast();
   const { userRole } = useAuth();
-  const [events, setEvents] = React.useState<CrmEvent[]>(() => [...mockCrmEvents]);
+  const [events, setEvents] = React.useState<CrmEvent[]>(() => [...mockCrmEvents]); // Events are still mock for now
+  const [allTeamMembers, setAllTeamMembers] = React.useState<TeamMember[]>([]);
   const [editingEvent, setEditingEvent] = React.useState<CrmEvent | null>(null);
   const [isEventDialogOpen, setIsEventDialogOpen] = React.useState(false);
   const [isReadOnlyDialog, setIsReadOnlyDialog] = React.useState(false);
@@ -32,6 +34,20 @@ export default function EventsPage() {
   const [statusFilter, setStatusFilter] = React.useState<CrmEventStatus | "Todos">("Todos");
 
   const isAdmin = userRole === 'Admin';
+
+  React.useEffect(() => {
+    async function loadTeamMembers() {
+        try {
+            const members = await getTeamMembersFS();
+            setAllTeamMembers(members);
+        } catch (error) {
+            console.error("Failed to load team members for events page", error);
+            toast({ title: "Error", description: "No se pudieron cargar los miembros del equipo.", variant: "destructive" });
+        }
+    }
+    loadTeamMembers();
+  }, [toast]);
+
 
   const handleAddNewEvent = () => {
     if (!isAdmin) return;
@@ -120,13 +136,13 @@ export default function EventsPage() {
     setEventToDelete(null);
   };
 
-  const getAssignedTeamMemberNames = (teamMemberIds: string[]): string => {
-    if (!teamMemberIds || teamMemberIds.length === 0) return 'N/A';
+  const getAssignedTeamMemberNames = React.useCallback((teamMemberIds: string[]): string => {
+    if (!teamMemberIds || teamMemberIds.length === 0 || allTeamMembers.length === 0) return 'N/A';
     return teamMemberIds
-      .map(id => mockTeamMembers.find(member => member.id === id)?.name)
+      .map(id => allTeamMembers.find(member => member.id === id)?.name)
       .filter(name => !!name)
       .join(', ') || 'N/A';
-  };
+  }, [allTeamMembers]);
 
   const uniqueEventTypesForFilter = ["Todos", ...crmEventTypeList] as (CrmEventType | "Todos")[];
   const uniqueEventStatusesForFilter = ["Todos", ...crmEventStatusList] as (CrmEventStatus | "Todos")[];
@@ -306,6 +322,7 @@ export default function EventsPage() {
           }}
           onSave={handleSaveEvent}
           isReadOnly={isReadOnlyDialog || (!isAdmin && !!editingEvent)} 
+          allTeamMembers={allTeamMembers} // Pass all team members for selection
         />
       )}
     </div>

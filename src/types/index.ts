@@ -4,7 +4,7 @@ export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
 export interface Kpi {
   id: string;
   title: string;
-  currentValue: number; // This will often be calculated dynamically in components
+  currentValue: number; 
   targetValue: number;
   unit: string; 
   icon?: React.ElementType;
@@ -17,18 +17,21 @@ export interface StrategicObjective {
 }
 
 export interface TeamMember {
-  id: string;
+  id: string; // Firestore document ID, will often be the same as Firebase Auth UID
+  authUid?: string; // Firebase Auth UID, if different or for explicit mapping
   name: string;
-  email: string;
+  email: string; // Should be unique
   avatarUrl?: string; 
   role: UserRole; 
-  // These will be calculated dynamically based on Firestore data
-  bottlesSold?: number; 
   monthlyTargetAccounts?: number; 
   monthlyTargetVisits?: number; 
+  // Calculated fields, not directly stored or fetched as part of the TeamMember document usually
+  bottlesSold?: number; 
   orders?: number; 
   visits?: number; 
-  performanceData?: { month: string; bottles: number }[]; // This can remain mock for now
+  performanceData?: { month: string; bottles: number }[]; 
+  createdAt?: string; // YYYY-MM-DD
+  updatedAt?: string; // YYYY-MM-DD
 }
 
 export type OrderStatus = 'Pendiente' | 'Confirmado' | 'Procesando' | 'Enviado' | 'Entregado' | 'Cancelado' | 'Fallido' | 'Seguimiento' | 'Programada';
@@ -67,7 +70,7 @@ export interface Order {
   products?: string[]; 
   value?: number; 
   status: OrderStatus;
-  salesRep: string; // Name of the sales rep for now
+  salesRep: string; 
   lastUpdated: string; // YYYY-MM-DD
   clavadistaId?: string; 
   assignedMaterials?: AssignedPromotionalMaterial[]; 
@@ -77,7 +80,6 @@ export interface Order {
   unitPrice?: number; 
   clientStatus?: "new" | "existing"; 
 
-  // Customer and billing information (snapshot for the order)
   nombreFiscal?: string;
   cif?: string;
   direccionFiscal?: string;
@@ -88,16 +90,14 @@ export interface Order {
   observacionesAlta?: string; 
   notes?: string; 
 
-  // Fields for follow-up / failure
   nextActionType?: NextActionType;
   nextActionCustom?: string;
   nextActionDate?: string; // YYYY-MM-DD
   failureReasonType?: FailureReasonType;
   failureReasonCustom?: string;
 
-  // Firestore specific fields (optional in UI type, handled by service)
-  accountId?: string; // ID of the linked Account document in Firestore
-  createdAt?: string; // YYYY-MM-DD, set by service on creation
+  accountId?: string; 
+  createdAt?: string; 
 }
 
 export type MarketingResourceType = 'Folleto' | 'Presentación' | 'Imagen' | 'Guía';
@@ -155,4 +155,15 @@ export interface CrmEvent {
   notes?: string;
   createdAt: string; // YYYY-MM-DD
   updatedAt: string; // YYYY-MM-DD
+}
+
+// Form values specifically for creating/editing TeamMember
+export interface TeamMemberFormValues {
+  name: string;
+  email: string; // Not editable after creation ideally
+  role: UserRole;
+  monthlyTargetAccounts?: number;
+  monthlyTargetVisits?: number;
+  avatarUrl?: string;
+  authUid?: string; // Store Firebase Auth UID
 }

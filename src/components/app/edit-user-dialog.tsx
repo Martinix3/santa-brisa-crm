@@ -31,16 +31,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { TeamMember, UserRole } from "@/types";
+import type { TeamMember, UserRole, TeamMemberFormValues as TeamMemberFormValuesType } from "@/types"; // Use TeamMemberFormValuesType
 import { userRolesList } from "@/lib/data";
 import { Loader2 } from "lucide-react";
 
+// Schema for the edit dialog - email is not part of the values here as it's not editable
 const editUserFormSchema = z.object({
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres."),
-  email: z.string().email("El formato del correo electrónico no es válido."), 
   role: z.enum(userRolesList as [UserRole, ...UserRole[]], { required_error: "El rol es obligatorio." }),
   monthlyTargetAccounts: z.coerce.number().positive("El objetivo de cuentas debe ser un número positivo.").optional(),
   monthlyTargetVisits: z.coerce.number().positive("El objetivo de visitas debe ser un número positivo.").optional(),
+  avatarUrl: z.string().url("Debe ser una URL válida.").optional().or(z.literal("")),
+  authUid: z.string().optional(), // Keep authUid, though not directly editable
+  email: z.string().email().optional(), // Include email but it will be disabled
 }).superRefine((data, ctx) => {
   if (data.role === "SalesRep") {
     if (data.monthlyTargetAccounts === undefined || data.monthlyTargetAccounts <= 0) {
@@ -64,26 +67,31 @@ const editUserFormSchema = z.object({
   }
 });
 
+// This type is specifically for the Edit dialog's form values.
+// It matches TeamMemberFormValues but doesn't require email to be actively submitted (it's informational)
 export type EditUserFormValues = z.infer<typeof editUserFormSchema>;
+
 
 interface EditUserDialogProps {
   user: TeamMember | null;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (data: EditUserFormValues, userId: string) => void;
+  onSave: (data: TeamMemberFormValuesType, userId: string) => void; // Expects the broader TeamMemberFormValuesType for saving
 }
 
 export default function EditUserDialog({ user, isOpen, onOpenChange, onSave }: EditUserDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   
-  const form = useForm<EditUserFormValues>({
+  const form = useForm<EditUserFormValues>({ // Use the dialog-specific schema for form
     resolver: zodResolver(editUserFormSchema),
     defaultValues: {
       name: "",
-      email: "",
+      email: "", // email included for display
       role: undefined,
       monthlyTargetAccounts: undefined,
       monthlyTargetVisits: undefined,
+      avatarUrl: "",
+      authUid: "",
     },
   });
 
@@ -93,10 +101,12 @@ export default function EditUserDialog({ user, isOpen, onOpenChange, onSave }: E
     if (user && isOpen) {
       form.reset({
         name: user.name,
-        email: user.email,
+        email: user.email, // Set email for display
         role: user.role,
         monthlyTargetAccounts: user.role === 'SalesRep' ? user.monthlyTargetAccounts : undefined,
         monthlyTargetVisits: user.role === 'SalesRep' ? user.monthlyTargetVisits : undefined,
+        avatarUrl: user.avatarUrl || "",
+        authUid: user.authUid || user.id,
       });
     }
   }, [user, isOpen, form]);
@@ -104,8 +114,19 @@ export default function EditUserDialog({ user, isOpen, onOpenChange, onSave }: E
   const onSubmit = async (data: EditUserFormValues) => {
     if (!user) return;
     setIsSaving(true);
+    
+    // Prepare data for the onSave callback, which expects TeamMemberFormValuesType
+    const dataToSave: TeamMemberFormValuesType = {
+        name: data.name,
+        email: user.email, // Use original email, not from form as it's disabled
+        role: data.role,
+        monthlyTargetAccounts: data.monthlyTargetAccounts,
+        monthlyTargetVisits: data.monthlyTargetVisits,
+        avatarUrl: data.avatarUrl,
+        authUid: user.authUid || user.id, // Ensure authUid is passed
+    };
     await new Promise(resolve => setTimeout(resolve, 700));
-    onSave(data, user.id);
+    onSave(dataToSave, user.id);
     setIsSaving(false);
     onOpenChange(false); 
   };
@@ -126,7 +147,7 @@ export default function EditUserDialog({ user, isOpen, onOpenChange, onSave }: E
         <DialogHeader>
           <DialogTitle>Editar Usuario: {user.name}</DialogTitle>
           <DialogDescription>
-            Modifique los detalles del usuario. El correo electrónico no se puede cambiar aquí.
+            Modifique los detalles del usuario. El correo electrónico no se puede cambiar.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -146,12 +167,12 @@ export default function EditUserDialog({ user, isOpen, onOpenChange, onSave }: E
             />
             <FormField
               control={form.control}
-              name="email"
+              name="email" 
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Correo Electrónico (Login)</FormLabel>
                   <FormControl>
-                    <Input type="email" {...field} disabled />
+                    <Input type="email" {...field} disabled /> 
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -163,7 +184,7 @@ export default function EditUserDialog({ user, isOpen, onOpenChange, onSave }: E
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Rol del Usuario</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccione un rol" />
@@ -177,6 +198,19 @@ export default function EditUserDialog({ user, isOpen, onOpenChange, onSave }: E
                       ))}
                     </SelectContent>
                   </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+             <FormField
+              control={form.control}
+              name="avatarUrl"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>URL del Avatar (Opcional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="https://example.com/avatar.png" {...field} />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -229,7 +263,7 @@ export default function EditUserDialog({ user, isOpen, onOpenChange, onSave }: E
                   Cancelar
                 </Button>
               </DialogClose>
-              <Button type="submit" disabled={isSaving}>
+              <Button type="submit" disabled={isSaving || !form.formState.isDirty}>
                 {isSaving ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

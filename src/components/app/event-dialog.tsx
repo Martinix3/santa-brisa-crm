@@ -38,7 +38,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { CrmEvent, CrmEventType, CrmEventStatus, TeamMember, AssignedPromotionalMaterial, PromotionalMaterial } from "@/types";
-import { crmEventTypeList, crmEventStatusList, mockTeamMembers, mockPromotionalMaterials } from "@/lib/data";
+import { crmEventTypeList, crmEventStatusList, mockPromotionalMaterials } from "@/lib/data"; // mockTeamMembers removed
 import { Loader2, Calendar as CalendarIcon, PlusCircle, Trash2, Package, Euro } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -80,34 +80,29 @@ interface EventDialogProps {
   onOpenChange: (open: boolean) => void;
   onSave: (data: EventFormValues, eventId?: string) => void;
   isReadOnly?: boolean;
+  allTeamMembers: TeamMember[]; // Pass all team members from the parent page
 }
 
-const assignableTeamMembers = mockTeamMembers.filter(
-  member => member.role === 'SalesRep' || member.role === 'Admin'
-);
 
-export default function EventDialog({ event, isOpen, onOpenChange, onSave, isReadOnly = false }: EventDialogProps) {
+export default function EventDialog({ event, isOpen, onOpenChange, onSave, isReadOnly = false, allTeamMembers }: EventDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   
+  const assignableTeamMembers = React.useMemo(() => {
+    return allTeamMembers.filter(
+      member => member.role === 'SalesRep' || member.role === 'Admin' || member.role === 'Clavadista'
+    );
+  }, [allTeamMembers]);
+
   const form = useForm<EventFormValues>({
     resolver: zodResolver(eventFormSchema),
     defaultValues: {
-      name: "",
-      type: undefined,
-      status: "Planificado",
-      startDate: new Date(),
-      endDate: undefined,
-      description: "",
-      location: "",
-      assignedTeamMemberIds: [],
-      assignedMaterials: [],
-      notes: "",
+      name: "", type: undefined, status: "Planificado", startDate: new Date(), endDate: undefined,
+      description: "", location: "", assignedTeamMemberIds: [], assignedMaterials: [], notes: "",
     },
   });
 
   const { fields: materialFields, append: appendMaterial, remove: removeMaterial } = useFieldArray({
-    control: form.control,
-    name: "assignedMaterials",
+    control: form.control, name: "assignedMaterials",
   });
 
   const watchedMaterials = form.watch("assignedMaterials");
@@ -125,29 +120,17 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
     if (isOpen) {
       if (event) {
         form.reset({
-          name: event.name,
-          type: event.type,
-          status: event.status,
+          name: event.name, type: event.type, status: event.status,
           startDate: event.startDate && isValid(parseISO(event.startDate)) ? parseISO(event.startDate) : new Date(),
           endDate: event.endDate && isValid(parseISO(event.endDate)) ? parseISO(event.endDate) : undefined,
-          description: event.description || "",
-          location: event.location || "",
+          description: event.description || "", location: event.location || "",
           assignedTeamMemberIds: event.assignedTeamMemberIds || [],
-          assignedMaterials: event.assignedMaterials || [],
-          notes: event.notes || "",
+          assignedMaterials: event.assignedMaterials || [], notes: event.notes || "",
         });
       } else {
         form.reset({
-          name: "",
-          type: undefined,
-          status: "Planificado",
-          startDate: new Date(),
-          endDate: undefined,
-          description: "",
-          location: "",
-          assignedTeamMemberIds: [],
-          assignedMaterials: [],
-          notes: "",
+          name: "", type: undefined, status: "Planificado", startDate: new Date(), endDate: undefined,
+          description: "", location: "", assignedTeamMemberIds: [], assignedMaterials: [], notes: "",
         });
       }
     }
@@ -173,148 +156,19 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
-            
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nombre del Evento</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ej: Lanzamiento Nueva Cosecha" {...field} disabled={isReadOnly} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
+            <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Nombre del Evento</FormLabel><FormControl><Input placeholder="Ej: Lanzamiento Nueva Cosecha" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tipo de Evento</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}>
-                      <FormControl>
-                        <SelectTrigger><SelectValue placeholder="Seleccione un tipo" /></SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {crmEventTypeList.map(type => (
-                          <SelectItem key={type} value={type}>{type}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Estado del Evento</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}>
-                      <FormControl>
-                        <SelectTrigger><SelectValue placeholder="Seleccione un estado" /></SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {crmEventStatusList.map(status => (
-                          <SelectItem key={status} value={status}>{status}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <FormField control={form.control} name="type" render={({ field }) => (<FormItem><FormLabel>Tipo de Evento</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un tipo" /></SelectTrigger></FormControl><SelectContent>{crmEventTypeList.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado del Evento</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un estado" /></SelectTrigger></FormControl><SelectContent>{crmEventStatusList.map(status => (<SelectItem key={status} value={status}>{status}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="startDate"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Fecha de Inicio</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")} disabled={isReadOnly}>
-                            {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={isReadOnly || ((date: Date) => date < subDays(new Date(),1) && !isEqual(date, subDays(new Date(),1)) ) } initialFocus locale={es}/>
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="endDate"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Fecha de Fin (Opcional)</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")} disabled={isReadOnly}>
-                            {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={isReadOnly || ((date: Date) => date < (form.getValues("startDate") || subDays(new Date(),1)) || (date < subDays(new Date(),1) && !isEqual(date, subDays(new Date(),1))) ) } initialFocus locale={es}/>
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <FormField control={form.control} name="startDate" render={({ field }) => (<FormItem className="flex flex-col"><FormLabel>Fecha de Inicio</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")} disabled={isReadOnly}>{field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={isReadOnly || ((date: Date) => date < subDays(new Date(),1) && !isEqual(date, subDays(new Date(),1)) ) } initialFocus locale={es}/></PopoverContent></Popover><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="endDate" render={({ field }) => (<FormItem className="flex flex-col"><FormLabel>Fecha de Fin (Opcional)</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")} disabled={isReadOnly}>{field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={isReadOnly || ((date: Date) => date < (form.getValues("startDate") || subDays(new Date(),1)) || (date < subDays(new Date(),1) && !isEqual(date, subDays(new Date(),1))) ) } initialFocus locale={es}/></PopoverContent></Popover><FormMessage /></FormItem>)} />
             </div>
-            
-            <FormField
-              control={form.control}
-              name="location"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Ubicación (Opcional)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ej: Hotel Palace, Madrid" {...field} disabled={isReadOnly} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Descripción (Opcional)</FormLabel>
-                  <FormControl>
-                    <Textarea placeholder="Breve descripción del evento..." {...field} disabled={isReadOnly} className="min-h-[80px]" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <Separator className="my-4"/>
-            <h3 className="text-md font-medium text-muted-foreground">Recursos y Personal</h3>
-            
-            <FormField
-              control={form.control}
-              name="assignedTeamMemberIds"
-              render={({ field }) => (
+            <FormField control={form.control} name="location" render={({ field }) => (<FormItem><FormLabel>Ubicación (Opcional)</FormLabel><FormControl><Input placeholder="Ej: Hotel Palace, Madrid" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>Descripción (Opcional)</FormLabel><FormControl><Textarea placeholder="Breve descripción del evento..." {...field} disabled={isReadOnly} className="min-h-[80px]" /></FormControl><FormMessage /></FormItem>)} />
+            <Separator className="my-4"/><h3 className="text-md font-medium text-muted-foreground">Recursos y Personal</h3>
+            <FormField control={form.control} name="assignedTeamMemberIds" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Responsables Asignados</FormLabel>
                    <FormControl>
@@ -342,6 +196,7 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
                               </FormLabel>
                             </FormItem>
                           ))}
+                           {assignableTeamMembers.length === 0 && <p className="text-xs text-muted-foreground p-2">No hay miembros del equipo disponibles para asignar.</p>}
                         </div>
                       </ScrollArea>
                     </FormControl>
@@ -349,7 +204,6 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
                 </FormItem>
               )}
             />
-            
             <div className="space-y-3">
               <FormLabel className="flex items-center"><Package className="mr-2 h-4 w-4 text-primary"/> Materiales Promocionales Asignados</FormLabel>
               {materialFields.map((item, index) => {
@@ -357,103 +211,20 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
                 const unitCost = selectedMaterial?.latestPurchase?.calculatedUnitCost || 0;
                 return (
                   <div key={item.id} className="flex items-end gap-2 p-3 border rounded-md bg-secondary/30">
-                    <FormField
-                      control={form.control}
-                      name={`assignedMaterials.${index}.materialId`}
-                      render={({ field }) => (
-                        <FormItem className="flex-grow">
-                          <FormLabel className="text-xs">Material</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}>
-                            <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar material" /></SelectTrigger></FormControl>
-                            <SelectContent>
-                              {mockPromotionalMaterials.map(mat => (
-                                <SelectItem key={mat.id} value={mat.id}>{mat.name} ({mat.type}) - <FormattedNumericValue value={mat.latestPurchase?.calculatedUnitCost || 0} options={{style:'currency', currency:'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4}}/></SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name={`assignedMaterials.${index}.quantity`}
-                      render={({ field }) => (
-                        <FormItem className="w-24">
-                          <FormLabel className="text-xs">Cantidad</FormLabel>
-                          <FormControl><Input type="number" {...field} disabled={isReadOnly} 
-                            onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))}
-                            value={field.value ?? ""}
-                          /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <div className="text-sm text-muted-foreground w-28 text-right whitespace-nowrap">
-                       {watchedMaterials[index]?.quantity > 0 ? (
-                          <FormattedNumericValue value={unitCost * watchedMaterials[index].quantity} options={{style:'currency', currency:'EUR'}} />
-                       ) : <FormattedNumericValue value={0} options={{style:'currency', currency:'EUR'}} />}
-                    </div>
-                    {!isReadOnly && (
-                      <Button type="button" variant="ghost" size="icon" onClick={() => removeMaterial(index)} className="text-destructive hover:bg-destructive/10">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                );
+                    <FormField control={form.control} name={`assignedMaterials.${index}.materialId`} render={({ field }) => ( <FormItem className="flex-grow"><FormLabel className="text-xs">Material</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar material" /></SelectTrigger></FormControl><SelectContent>{mockPromotionalMaterials.map(mat => (<SelectItem key={mat.id} value={mat.id}>{mat.name} ({mat.type}) - <FormattedNumericValue value={mat.latestPurchase?.calculatedUnitCost || 0} options={{style:'currency', currency:'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4}}/></SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name={`assignedMaterials.${index}.quantity`} render={({ field }) => (<FormItem className="w-24"><FormLabel className="text-xs">Cantidad</FormLabel><FormControl><Input type="number" {...field} disabled={isReadOnly} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} value={field.value ?? ""}/></FormControl><FormMessage /></FormItem>)} />
+                    <div className="text-sm text-muted-foreground w-28 text-right whitespace-nowrap">{watchedMaterials[index]?.quantity > 0 ? (<FormattedNumericValue value={unitCost * watchedMaterials[index].quantity} options={{style:'currency', currency:'EUR'}} />) : <FormattedNumericValue value={0} options={{style:'currency', currency:'EUR'}} />}</div>
+                    {!isReadOnly && (<Button type="button" variant="ghost" size="icon" onClick={() => removeMaterial(index)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>)}
+                  </div>);
               })}
-              {!isReadOnly && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => appendMaterial({ materialId: "", quantity: 1 })}
-                  className="mt-2"
-                >
-                  <PlusCircle className="mr-2 h-4 w-4" /> Añadir Material al Evento
-                </Button>
-              )}
-              {watchedMaterials.length > 0 && (
-                <div className="text-right font-medium text-primary pt-2">
-                    Coste Total Estimado Materiales: <FormattedNumericValue value={totalEstimatedMaterialCost} options={{style:'currency', currency:'EUR'}} />
-                </div>
-              )}
+              {!isReadOnly && (<Button type="button" variant="outline" size="sm" onClick={() => appendMaterial({ materialId: "", quantity: 1 })} className="mt-2"><PlusCircle className="mr-2 h-4 w-4" /> Añadir Material al Evento</Button>)}
+              {watchedMaterials.length > 0 && (<div className="text-right font-medium text-primary pt-2">Coste Total Estimado Materiales: <FormattedNumericValue value={totalEstimatedMaterialCost} options={{style:'currency', currency:'EUR'}} /></div>)}
             </div>
-
-
             <Separator className="my-4"/>
-            <FormField
-              control={form.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Notas Internas (Opcional)</FormLabel>
-                  <FormControl>
-                    <Textarea placeholder="Cualquier información relevante para el equipo..." {...field} disabled={isReadOnly} className="min-h-[80px]" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
+            <FormField control={form.control} name="notes" render={({ field }) => (<FormItem><FormLabel>Notas Internas (Opcional)</FormLabel><FormControl><Textarea placeholder="Cualquier información relevante para el equipo..." {...field} disabled={isReadOnly} className="min-h-[80px]" /></FormControl><FormMessage /></FormItem>)} />
             <DialogFooter className="pt-6">
-              <DialogClose asChild>
-                <Button type="button" variant="outline" disabled={isSaving && !isReadOnly}>
-                  {isReadOnly ? "Cerrar" : "Cancelar"}
-                </Button>
-              </DialogClose>
-              {!isReadOnly && (
-                <Button type="submit" disabled={isSaving || (!form.formState.isDirty && !!event)}>
-                  {isSaving ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Guardando...
-                    </>
-                  ) : (
-                    event ? "Guardar Cambios" : "Añadir Evento"
-                  )}
-                </Button>
-              )}
+              <DialogClose asChild><Button type="button" variant="outline" disabled={isSaving && !isReadOnly}>{isReadOnly ? "Cerrar" : "Cancelar"}</Button></DialogClose>
+              {!isReadOnly && (<Button type="submit" disabled={isSaving || (!form.formState.isDirty && !!event)}>{isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>) : (event ? "Guardar Cambios" : "Añadir Evento")}</Button>)}
             </DialogFooter>
           </form>
         </Form>

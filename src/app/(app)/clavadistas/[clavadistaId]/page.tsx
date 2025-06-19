@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { mockTeamMembers } from "@/lib/data"; // mockOrders removed
+// mockTeamMembers removed
 import type { TeamMember, Order } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { ArrowLeft, Mail, Award, TrendingUp, AlertTriangle, Eye, Loader2 } from "lucide-react";
@@ -17,6 +17,7 @@ import { format, parseISO, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Link from "next/link";
 import { getOrdersFS } from "@/services/order-service";
+import { getTeamMemberByIdFS } from "@/services/team-member-service"; // For fetching clavadista details
 import { useToast } from "@/hooks/use-toast";
 
 export default function ClavadistaProfilePage() {
@@ -39,11 +40,11 @@ export default function ClavadistaProfilePage() {
         return;
       }
       setIsLoading(true);
-      const foundClavadista = mockTeamMembers.find(m => m.id === clavadistaId && m.role === 'Clavadista');
-      
-      if (foundClavadista) {
-        setClavadista(foundClavadista);
-        try {
+      try {
+        const foundClavadista = await getTeamMemberByIdFS(clavadistaId);
+        
+        if (foundClavadista && foundClavadista.role === 'Clavadista') {
+          setClavadista(foundClavadista);
           const allOrders = await getOrdersFS();
           const ordersWithClavadista = allOrders
             .filter(order => order.clavadistaId === foundClavadista.id && isValid(parseISO(order.visitDate)))
@@ -52,14 +53,19 @@ export default function ClavadistaProfilePage() {
           setParticipatedOrders(ordersWithClavadista);
           setTotalParticipations(ordersWithClavadista.length);
           setTotalValueParticipated(ordersWithClavadista.reduce((sum, order) => sum + (order.value || 0), 0));
-        } catch (error) {
-            console.error("Error fetching orders for clavadista:", error);
-            toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar los pedidos del clavadista.", variant: "destructive" });
+        } else {
+          setClavadista(null);
+          if (foundClavadista && foundClavadista.role !== 'Clavadista') {
+             toast({ title: "Perfil Inválido", description: "Este perfil no corresponde a un Clavadista.", variant: "destructive" });
+          }
         }
-      } else {
-        setClavadista(null);
+      } catch (error) {
+          console.error("Error fetching data for clavadista profile:", error);
+          toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar los datos del clavadista.", variant: "destructive" });
+          setClavadista(null);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     }
     loadClavadistaData();
   }, [clavadistaId, toast]);
@@ -78,7 +84,7 @@ export default function ClavadistaProfilePage() {
       <div className="flex flex-col items-center justify-center h-full p-8">
         <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
         <h1 className="text-2xl font-semibold mb-2">Clavadista no Encontrado</h1>
-        <p className="text-muted-foreground mb-6">El Clavadista que estás buscando no existe o ha sido eliminado.</p>
+        <p className="text-muted-foreground mb-6">El Clavadista que estás buscando no existe o no es un perfil válido.</p>
         <Button onClick={() => router.push('/clavadistas')}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Panel de Clavadistas
         </Button>

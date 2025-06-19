@@ -7,8 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/auth-context";
-import type { Order, CrmEvent, CrmEventStatus } from "@/types"; // Removed TeamMember, OrderStatus, NextActionType as direct imports if not used
-import { mockTeamMembers, mockCrmEvents } from "@/lib/data"; // mockOrders removed
+import type { Order, CrmEvent, CrmEventStatus, TeamMember } from "@/types"; 
+import { mockCrmEvents } from "@/lib/data"; // Events remain mock for now
 import { parseISO, format, isEqual, startOfDay, isSameMonth, isWithinInterval, addDays, isValid } from "date-fns";
 import { es } from "date-fns/locale";
 import { CalendarCheck, User, Info, Filter, PartyPopper, Users as UsersIcon, Send, AlertTriangle, Loader2 } from "lucide-react";
@@ -18,6 +18,7 @@ import StatusBadge from "@/components/app/status-badge";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { getOrdersFS } from "@/services/order-service";
+import { getTeamMembersFS } from "@/services/team-member-service"; // For salesRep filter
 import { useToast } from "@/hooks/use-toast";
 
 
@@ -48,11 +49,30 @@ export default function AgendaPage() {
   const [actionTypeFilter, setActionTypeFilter] = React.useState<SimplifiedActionFilterType>("Todos");
   const [agendaItems, setAgendaItems] = React.useState<AgendaItem[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [salesRepsList, setSalesRepsList] = React.useState<string[]>(["Todos"]);
+  const [allTeamMembers, setAllTeamMembers] = React.useState<TeamMember[]>([]);
 
 
-  const salesRepsList = React.useMemo(() => {
-    return ["Todos", ...mockTeamMembers.filter(m => m.role === 'SalesRep' || m.role === 'Admin').map(m => m.name)];
-  }, []);
+  React.useEffect(() => {
+    async function loadSalesReps() {
+        if (userRole === 'Admin') {
+            try {
+                const reps = await getTeamMembersFS(['SalesRep', 'Admin']);
+                setAllTeamMembers(reps); // Store all members for event filtering later
+                setSalesRepsList(["Todos", ...reps.map(m => m.name)]);
+            } catch (error) {
+                console.error("Failed to load sales reps for agenda", error);
+                toast({ title: "Error", description: "No se pudieron cargar los comerciales.", variant: "destructive" });
+            }
+        } else if (teamMember) {
+            setAllTeamMembers([teamMember]); // For SalesRep, their own details
+            setSalesRepsList([teamMember.name]);
+            setSelectedSalesRep(teamMember.name); // Auto-select own name
+        }
+    }
+    loadSalesReps();
+  }, [userRole, teamMember, toast]);
+
 
   React.useEffect(() => {
     async function loadAgendaData() {
@@ -65,9 +85,9 @@ export default function AgendaPage() {
           const ordersFromFS = await getOrdersFS();
           fetchedOrderItems = ordersFromFS
             .filter(order =>
-              (order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') &&
+              ((order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') &&
               (order.status === 'Programada' ? order.visitDate : order.nextActionDate) &&
-              isValid(parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!)) &&
+              isValid(parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!))) &&
               (userRole === 'Admin' ? (selectedSalesRep === "Todos" || order.salesRep === selectedSalesRep) : order.salesRep === teamMember?.name)
             )
             .map(order => ({
@@ -78,14 +98,16 @@ export default function AgendaPage() {
         }
 
         if (actionTypeFilter === "Todos" || actionTypeFilter === "Eventos") {
-          // Events are still from mockCrmEvents
-          fetchedEventItems = mockCrmEvents
-            .filter(event =>
-              isValid(parseISO(event.startDate)) &&
-              (userRole === 'Admin' ?
-                (selectedSalesRep === "Todos" || event.assignedTeamMemberIds.includes(mockTeamMembers.find(m=>m.name === selectedSalesRep)?.id || ''))
-                : (teamMember && event.assignedTeamMemberIds.includes(teamMember.id)))
-            )
+          fetchedEventItems = mockCrmEvents // Events still from mock
+            .filter(event => {
+              if (!isValid(parseISO(event.startDate))) return false;
+              if (userRole === 'Admin') {
+                if (selectedSalesRep === "Todos") return true;
+                const repDetails = allTeamMembers.find(m => m.name === selectedSalesRep);
+                return repDetails ? event.assignedTeamMemberIds.includes(repDetails.id) : false;
+              }
+              return teamMember ? event.assignedTeamMemberIds.includes(teamMember.id) : false;
+            })
             .map(event => ({
               ...event,
               itemDate: parseISO(event.startDate),
@@ -100,8 +122,18 @@ export default function AgendaPage() {
         setIsLoading(false);
       }
     }
-    loadAgendaData();
-  }, [userRole, teamMember, selectedSalesRep, actionTypeFilter, toast]);
+    
+    // Ensure allTeamMembers is loaded before fetching agenda items if admin and filtering by sales rep for events
+    if (userRole === 'Admin' && allTeamMembers.length > 0) {
+        loadAgendaData();
+    } else if (userRole !== 'Admin' && teamMember) { // For sales rep, teamMember is enough
+        loadAgendaData();
+    } else if (userRole === 'Admin' && allTeamMembers.length === 0 && !isLoading) { // Admin but no reps loaded yet (first load)
+        setIsLoading(false); // Prevent infinite loading if no reps
+    }
+
+
+  }, [userRole, teamMember, selectedSalesRep, actionTypeFilter, toast, allTeamMembers, isLoading]);
 
 
   const itemsForSelectedDay = React.useMemo(() => {
@@ -177,7 +209,7 @@ export default function AgendaPage() {
             {userRole === 'Admin' && (
               <div className="w-full sm:w-auto flex-grow sm:flex-grow-0">
                 <Label htmlFor="salesRepFilterAgenda">Comercial</Label>
-                <Select value={selectedSalesRep} onValueChange={setSelectedSalesRep}>
+                <Select value={selectedSalesRep} onValueChange={setSelectedSalesRep} disabled={salesRepsList.length <= 1 && salesRepsList[0] === "Todos"}>
                     <SelectTrigger id="salesRepFilterAgenda" className="w-full sm:w-[200px] mt-1">
                     <SelectValue placeholder="Filtrar por comercial" />
                     </SelectTrigger>
@@ -252,7 +284,9 @@ export default function AgendaPage() {
                       const orderItem = item.sourceType === 'order' ? item as AgendaOrderItem : null;
                       const eventItem = item.sourceType === 'event' ? item as AgendaCrmEventItem : null;
                       const isOverdue = orderItem && (orderItem.status === 'Programada' || orderItem.status === 'Seguimiento') && isValid(item.itemDate) && isBefore(item.itemDate, startOfDay(new Date()));
-
+                      const teamMemberDetails = orderItem && userRole === 'Admin' && selectedSalesRep === "Todos"
+                                               ? allTeamMembers.find(tm => tm.name === orderItem.salesRep)
+                                               : (eventItem && userRole === 'Admin' && selectedSalesRep === "Todos" ? allTeamMembers.filter(tm => eventItem.assignedTeamMemberIds.includes(tm.id)) : null);
 
                       return (
                       <li key={item.id} className={cn("p-3 bg-secondary/30 rounded-md shadow-sm", isOverdue && "border-l-4 border-yellow-500")}>
@@ -269,10 +303,10 @@ export default function AgendaPage() {
                                 <span className="ml-1">- "{orderItem.nextActionCustom}"</span>
                               )}
                             </p>
-                            {(userRole === 'Admin' && orderItem.salesRep && selectedSalesRep === "Todos") && (
+                            {teamMemberDetails && !Array.isArray(teamMemberDetails) && (
                               <p className="text-xs text-muted-foreground flex items-center mb-1">
                                 <User size={14} className="mr-1.5 text-primary" />
-                                Comercial: {orderItem.salesRep}
+                                Comercial: {teamMemberDetails.name}
                               </p>
                             )}
                             <div className="flex justify-between items-center mt-1.5">
@@ -315,10 +349,10 @@ export default function AgendaPage() {
                                   Finaliza: {format(parseISO(eventItem.endDate), "dd/MM/yy", { locale: es })}
                                 </p>
                               )}
-                            {(userRole === 'Admin' && selectedSalesRep === "Todos" && eventItem.assignedTeamMemberIds.length > 0) && (
+                            {teamMemberDetails && Array.isArray(teamMemberDetails) && teamMemberDetails.length > 0 && (
                               <p className="text-xs text-muted-foreground flex items-center mb-1">
                                 <UsersIcon size={14} className="mr-1.5 text-primary" />
-                                Responsables: {eventItem.assignedTeamMemberIds.map(id => mockTeamMembers.find(m=>m.id===id)?.name).join(', ')}
+                                Responsables: {teamMemberDetails.map(tm => tm.name).join(', ')}
                               </p>
                             )}
                             {eventItem.description && (

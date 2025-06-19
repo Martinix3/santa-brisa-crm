@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { mockTeamMembers } from "@/lib/data"; // mockOrders, mockAccounts removed
+// mockTeamMembers removed
 import type { TeamMember, Order, Account } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { ArrowLeft, Mail, Package, Briefcase, Footprints, AlertTriangle, ShoppingCart, Loader2 } from "lucide-react";
@@ -20,6 +20,8 @@ import { es } from 'date-fns/locale';
 import Link from "next/link";
 import { getOrdersFS } from "@/services/order-service";
 import { getAccountsFS } from "@/services/account-service";
+import { getTeamMemberByIdFS } from "@/services/team-member-service"; // For fetching member details
+import { useToast } from "@/hooks/use-toast";
 
 
 const chartConfig = (color: string) => ({
@@ -30,8 +32,8 @@ const chartConfig = (color: string) => ({
 });
 
 interface PerformanceDataPoint {
-  month: string; // e.g., "Ene", "Feb"
-  yearMonth: string; // e.g., "2023-01" for sorting
+  month: string; 
+  yearMonth: string; 
   bottles: number;
 }
 
@@ -39,6 +41,7 @@ interface PerformanceDataPoint {
 export default function TeamMemberProfilePage() {
   const params = useParams();
   const router = useRouter();
+  const { toast } = useToast(); // Added toast
   
   const [member, setMember] = React.useState<TeamMember | null>(null);
   const [memberOrders, setMemberOrders] = React.useState<Order[]>([]);
@@ -60,17 +63,20 @@ export default function TeamMemberProfilePage() {
       }
       setIsLoading(true);
       try {
-        const foundMember = mockTeamMembers.find(m => m.id === memberId); // Base member info from mock
-        if (!foundMember) {
+        const foundMember = await getTeamMemberByIdFS(memberId);
+        if (!foundMember || foundMember.role !== 'SalesRep') { // Ensure it's a SalesRep
           setMember(null);
+          if (foundMember && foundMember.role !== 'SalesRep') {
+            toast({ title: "Perfil No Válido", description: "Este perfil no corresponde a un Representante de Ventas.", variant: "destructive" });
+          }
           setIsLoading(false);
           return;
         }
         setMember(foundMember);
 
         const [fetchedOrders, fetchedAccounts] = await Promise.all([
-          getOrdersFS(),
-          getAccountsFS()
+          getOrdersFS(), // Consider fetching only orders for this salesRep if performance is an issue
+          getAccountsFS()  // Consider fetching only accounts for this salesRepId
         ]);
 
         const ordersByMember = fetchedOrders
@@ -83,11 +89,10 @@ export default function TeamMemberProfilePage() {
           .sort((a,b) => (a.name.toLowerCase() > b.name.toLowerCase() ? 1 : -1));
         setMemberAccounts(accountsForMember);
 
-        // Calculate stats
         let bottles = 0;
         let orderCount = 0;
         let visitCount = 0;
-        const monthlySales: Record<string, number> = {}; // To store YYYY-MM -> bottles
+        const monthlySales: Record<string, number> = {}; 
 
         ordersByMember.forEach(order => {
           if (['Confirmado', 'Procesando', 'Enviado', 'Entregado'].includes(order.status) && order.numberOfUnits) {
@@ -108,7 +113,6 @@ export default function TeamMemberProfilePage() {
         setTotalOrdersCount(orderCount);
         setTotalVisitsCount(visitCount);
 
-        // Prepare chart data for the last 6 months
         const chartData: PerformanceDataPoint[] = [];
         const today = new Date();
         for (let i = 5; i >= 0; i--) {
@@ -116,7 +120,7 @@ export default function TeamMemberProfilePage() {
           const yearMonth = format(date, 'yyyy-MM');
           const monthName = format(date, 'MMM', { locale: es });
           chartData.push({
-            month: monthName.charAt(0).toUpperCase() + monthName.slice(1), // Capitalize (e.g., "Ene")
+            month: monthName.charAt(0).toUpperCase() + monthName.slice(1), 
             yearMonth: yearMonth,
             bottles: monthlySales[yearMonth] || 0,
           });
@@ -125,13 +129,14 @@ export default function TeamMemberProfilePage() {
 
       } catch (error) {
         console.error("Error loading member profile data:", error);
+        toast({ title: "Error al Cargar Perfil", description: "No se pudieron cargar los datos del comercial.", variant: "destructive" });
         setMember(null);
       } finally {
         setIsLoading(false);
       }
     }
     loadMemberData();
-  }, [memberId]);
+  }, [memberId, toast]);
 
   if (isLoading) {
     return (
@@ -147,7 +152,7 @@ export default function TeamMemberProfilePage() {
       <div className="flex flex-col items-center justify-center h-full p-8">
         <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
         <h1 className="text-2xl font-semibold mb-2">Comercial no Encontrado</h1>
-        <p className="text-muted-foreground mb-6">El comercial que estás buscando no existe o ha sido eliminado.</p>
+        <p className="text-muted-foreground mb-6">El comercial que estás buscando no existe o no es un perfil válido.</p>
         <Button onClick={() => router.push('/team-tracking')}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Equipo de Ventas
         </Button>
@@ -214,7 +219,7 @@ export default function TeamMemberProfilePage() {
                         formatter={(value: number) => [`${value.toLocaleString('es-ES')} botellas`, 'Botellas']} 
                         labelFormatter={(label: string, payload: any[]) => {
                             if (payload && payload.length > 0 && payload[0].payload.yearMonth) {
-                                const date = parseISO(payload[0].payload.yearMonth + "-01"); // Use first day of month
+                                const date = parseISO(payload[0].payload.yearMonth + "-01"); 
                                 if (isValid(date)) return format(date, "MMMM yyyy", { locale: es });
                             }
                             return label;

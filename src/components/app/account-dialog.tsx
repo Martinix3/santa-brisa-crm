@@ -32,12 +32,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Account, AccountType, AccountStatus } from "@/types";
-import { accountTypeList, accountStatusList, mockTeamMembers } from "@/lib/data";
+import type { Account, AccountType, AccountStatus, TeamMember } from "@/types";
+import { accountTypeList, accountStatusList } from "@/lib/data"; // mockTeamMembers removed
 import { Loader2 } from "lucide-react";
 import { Separator } from "../ui/separator";
-// Importar isCifUnique si se decide usar validación directa contra Firestore en el futuro
-// import { isCifUnique } from "@/services/account-service"; 
+import { getTeamMembersFS } from "@/services/team-member-service";
+
 
 const NO_SALES_REP_VALUE = "##NONE##";
 
@@ -59,22 +59,22 @@ const accountFormSchemaBase = z.object({
 export type AccountFormValues = z.infer<typeof accountFormSchemaBase>;
 
 interface AccountDialogProps {
-  account: Account | null; // La cuenta que se está editando, o null si es nueva
+  account: Account | null; 
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (data: AccountFormValues) => void; 
-  allAccounts: Account[]; // Para validación de CIF único (lista cargada desde Firestore por la página padre)
+  allAccounts: Account[]; 
   isReadOnly?: boolean;
 }
 
 export default function AccountDialog({ account, isOpen, onOpenChange, onSave, allAccounts, isReadOnly = false }: AccountDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
+  const [salesRepList, setSalesRepList] = React.useState<TeamMember[]>([]);
   
-  // Creamos el schema dinámicamente para usar allAccounts y account?.id en la validación del CIF
   const accountFormSchema = React.useMemo(() => {
     return accountFormSchemaBase.refine(
       (data) => {
-        if (!data.cif) return true; // Si no hay CIF, no hay nada que validar aquí.
+        if (!data.cif) return true; 
         const existingAccountWithCif = allAccounts.find(
           (acc) => acc.cif && acc.cif.toLowerCase() === data.cif!.toLowerCase() && acc.id !== account?.id
         );
@@ -91,52 +91,37 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
   const form = useForm<AccountFormValues>({
     resolver: zodResolver(accountFormSchema),
     defaultValues: {
-      name: "",
-      legalName: "",
-      cif: "",
-      type: undefined,
-      status: "Potencial",
-      addressBilling: "",
-      addressShipping: "",
-      mainContactName: "",
-      mainContactEmail: "",
-      mainContactPhone: "",
-      notes: "",
-      salesRepId: NO_SALES_REP_VALUE,
+      name: "", legalName: "", cif: "", type: undefined, status: "Potencial",
+      addressBilling: "", addressShipping: "", mainContactName: "", mainContactEmail: "",
+      mainContactPhone: "", notes: "", salesRepId: NO_SALES_REP_VALUE,
     },
   });
 
   React.useEffect(() => {
+    async function loadSalesReps() {
+      try {
+        const reps = await getTeamMembersFS(['SalesRep', 'Admin']);
+        setSalesRepList(reps);
+      } catch (error) {
+        console.error("Failed to load sales reps for account dialog", error);
+      }
+    }
     if (isOpen) {
+      loadSalesReps();
       if (account) {
         form.reset({
           name: account.name,
-          legalName: account.legalName || "",
-          cif: account.cif,
-          type: account.type,
-          status: account.status,
-          addressBilling: account.addressBilling || "",
-          addressShipping: account.addressShipping || "",
-          mainContactName: account.mainContactName || "",
-          mainContactEmail: account.mainContactEmail || "",
-          mainContactPhone: account.mainContactPhone || "",
-          notes: account.notes || "",
+          legalName: account.legalName || "", cif: account.cif, type: account.type, status: account.status,
+          addressBilling: account.addressBilling || "", addressShipping: account.addressShipping || "",
+          mainContactName: account.mainContactName || "", mainContactEmail: account.mainContactEmail || "",
+          mainContactPhone: account.mainContactPhone || "", notes: account.notes || "",
           salesRepId: account.salesRepId || NO_SALES_REP_VALUE,
         });
       } else {
         form.reset({ 
-          name: "",
-          legalName: "",
-          cif: "",
-          type: undefined,
-          status: "Potencial",
-          addressBilling: "",
-          addressShipping: "",
-          mainContactName: "",
-          mainContactEmail: "",
-          mainContactPhone: "",
-          notes: "",
-          salesRepId: NO_SALES_REP_VALUE,
+          name: "", legalName: "", cif: "", type: undefined, status: "Potencial",
+          addressBilling: "", addressShipping: "", mainContactName: "", mainContactEmail: "",
+          mainContactPhone: "", notes: "", salesRepId: NO_SALES_REP_VALUE,
         });
       }
     }
@@ -154,12 +139,8 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
     await new Promise(resolve => setTimeout(resolve, 500)); 
     onSave(dataToSave); 
     setIsSaving(false);
-    // La lógica de cerrar el diálogo está ahora en onOpenChange en las páginas padre.
   };
   
-  const salesRepList = mockTeamMembers.filter(member => member.role === 'SalesRep' || member.role === 'Admin');
-
-
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg md:max-w-xl lg:max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -171,228 +152,30 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
-            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Nombre Comercial</FormLabel>
-                    <FormControl>
-                        <Input placeholder="Ej: Bar Manolo" {...field} disabled={isReadOnly} />
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                <FormField
-                control={form.control}
-                name="legalName"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Nombre Fiscal (Opcional)</FormLabel>
-                    <FormControl>
-                        <Input placeholder="Ej: Restauración Manolo S.L." {...field} disabled={isReadOnly} />
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
+                <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Nombre Comercial</FormLabel><FormControl><Input placeholder="Ej: Bar Manolo" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="legalName" render={({ field }) => (<FormItem><FormLabel>Nombre Fiscal (Opcional)</FormLabel><FormControl><Input placeholder="Ej: Restauración Manolo S.L." {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
             </div>
-
-            <FormField
-              control={form.control}
-              name="cif"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>CIF/NIF</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Identificador fiscal" {...field} disabled={isReadOnly} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
+            <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF/NIF</FormLabel><FormControl><Input placeholder="Identificador fiscal" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                control={form.control}
-                name="type"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Tipo de Cuenta</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}>
-                        <FormControl>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Seleccione un tipo" />
-                        </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                        {accountTypeList.map(type => (
-                            <SelectItem key={type} value={type}>{type}</SelectItem>
-                        ))}
-                        </SelectContent>
-                    </Select>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                <FormField
-                control={form.control}
-                name="status"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Estado de la Cuenta</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}>
-                        <FormControl>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Seleccione un estado" />
-                        </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                        {accountStatusList.map(status => (
-                            <SelectItem key={status} value={status}>{status}</SelectItem>
-                        ))}
-                        </SelectContent>
-                    </Select>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
+                <FormField control={form.control} name="type" render={({ field }) => (<FormItem><FormLabel>Tipo de Cuenta</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un tipo" /></SelectTrigger></FormControl><SelectContent>{accountTypeList.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado de la Cuenta</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un estado" /></SelectTrigger></FormControl><SelectContent>{accountStatusList.map(status => (<SelectItem key={status} value={status}>{status}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
             </div>
-
-            <Separator className="my-4"/>
-            <h3 className="text-md font-medium text-muted-foreground">Direcciones</h3>
-
-            <FormField
-              control={form.control}
-              name="addressBilling"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Dirección Fiscal/Facturación (Opcional)</FormLabel>
-                  <FormControl>
-                    <Textarea placeholder="Calle, número, ciudad, CP, provincia..." {...field} disabled={isReadOnly} className="min-h-[60px]" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="addressShipping"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Dirección de Entrega Principal (Opcional)</FormLabel>
-                  <FormControl>
-                    <Textarea placeholder="Calle, número, ciudad, CP, provincia..." {...field} disabled={isReadOnly} className="min-h-[60px]" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <Separator className="my-4"/>
-            <h3 className="text-md font-medium text-muted-foreground">Contacto Principal</h3>
-
-            <FormField
-              control={form.control}
-              name="mainContactName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nombre del Contacto (Opcional)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ej: María López" {...field} disabled={isReadOnly} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <Separator className="my-4"/><h3 className="text-md font-medium text-muted-foreground">Direcciones</h3>
+            <FormField control={form.control} name="addressBilling" render={({ field }) => (<FormItem><FormLabel>Dirección Fiscal/Facturación (Opcional)</FormLabel><FormControl><Textarea placeholder="Calle, número, ciudad, CP, provincia..." {...field} disabled={isReadOnly} className="min-h-[60px]" /></FormControl><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="addressShipping" render={({ field }) => (<FormItem><FormLabel>Dirección de Entrega Principal (Opcional)</FormLabel><FormControl><Textarea placeholder="Calle, número, ciudad, CP, provincia..." {...field} disabled={isReadOnly} className="min-h-[60px]" /></FormControl><FormMessage /></FormItem>)} />
+            <Separator className="my-4"/><h3 className="text-md font-medium text-muted-foreground">Contacto Principal</h3>
+            <FormField control={form.control} name="mainContactName" render={({ field }) => (<FormItem><FormLabel>Nombre del Contacto (Opcional)</FormLabel><FormControl><Input placeholder="Ej: María López" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                control={form.control}
-                name="mainContactEmail"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Email del Contacto (Opcional)</FormLabel>
-                    <FormControl>
-                        <Input type="email" placeholder="contacto@ejemplo.com" {...field} disabled={isReadOnly} />
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                <FormField
-                control={form.control}
-                name="mainContactPhone"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Teléfono del Contacto (Opcional)</FormLabel>
-                    <FormControl>
-                        <Input type="tel" placeholder="+34 600 000 000" {...field} disabled={isReadOnly} />
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
+                <FormField control={form.control} name="mainContactEmail" render={({ field }) => (<FormItem><FormLabel>Email del Contacto (Opcional)</FormLabel><FormControl><Input type="email" placeholder="contacto@ejemplo.com" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="mainContactPhone" render={({ field }) => (<FormItem><FormLabel>Teléfono del Contacto (Opcional)</FormLabel><FormControl><Input type="tel" placeholder="+34 600 000 000" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
             </div>
-
             <Separator className="my-4"/>
-             <FormField
-              control={form.control}
-              name="salesRepId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Representante Asignado (Opcional)</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar representante" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value={NO_SALES_REP_VALUE}>Sin asignar</SelectItem>
-                      {salesRepList.map(rep => (
-                        <SelectItem key={rep.id} value={rep.id}>{rep.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Notas Adicionales (Opcional)</FormLabel>
-                  <FormControl>
-                    <Textarea placeholder="Cualquier información relevante sobre la cuenta..." {...field} disabled={isReadOnly} className="min-h-[80px]" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
+             <FormField control={form.control} name="salesRepId" render={({ field }) => (<FormItem><FormLabel>Representante Asignado (Opcional)</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly || salesRepList.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={salesRepList.length === 0 ? "Cargando..." : "Seleccionar representante"} /></SelectTrigger></FormControl><SelectContent><SelectItem value={NO_SALES_REP_VALUE}>Sin asignar</SelectItem>{salesRepList.map(rep => (<SelectItem key={rep.id} value={rep.id}>{rep.name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="notes" render={({ field }) => (<FormItem><FormLabel>Notas Adicionales (Opcional)</FormLabel><FormControl><Textarea placeholder="Cualquier información relevante sobre la cuenta..." {...field} disabled={isReadOnly} className="min-h-[80px]" /></FormControl><FormMessage /></FormItem>)} />
             <DialogFooter className="pt-6">
-              <DialogClose asChild>
-                <Button type="button" variant="outline" disabled={isSaving && !isReadOnly}>
-                  {isReadOnly ? "Cerrar" : "Cancelar"}
-                </Button>
-              </DialogClose>
-              {!isReadOnly && (
-                <Button type="submit" disabled={isSaving || (!form.formState.isDirty && !!account )}>
-                  {isSaving ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Guardando...
-                    </>
-                  ) : (
-                    account ? "Guardar Cambios" : "Añadir Cuenta"
-                  )}
-                </Button>
-              )}
+              <DialogClose asChild><Button type="button" variant="outline" disabled={isSaving && !isReadOnly}>{isReadOnly ? "Cerrar" : "Cancelar"}</Button></DialogClose>
+              {!isReadOnly && (<Button type="submit" disabled={isSaving || (!form.formState.isDirty && !!account )}>{isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>) : (account ? "Guardar Cambios" : "Añadir Cuenta")}</Button>)}
             </DialogFooter>
           </form>
         </Form>

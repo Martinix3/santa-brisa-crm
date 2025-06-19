@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button';
 import Logo from '@/components/icons/Logo';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2, Building2, ClipboardList, CalendarCheck, PartyPopper, ListChecks, Footprints, Briefcase, Target, Award, Sparkles } from 'lucide-react'; // Added Sparkles
+import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2, Building2, ClipboardList, CalendarCheck, PartyPopper, ListChecks, Footprints, Briefcase, Target, Award, Sparkles } from 'lucide-react'; 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
   DropdownMenu, 
@@ -33,13 +33,18 @@ import {
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import type { UserRole, Order, CrmEvent, TeamMember } from '@/types';
+import type { UserRole, Order, CrmEvent, TeamMember, Account } from '@/types';
 import { useAuth } from '@/contexts/auth-context';
 import DailyTasksWidget from '@/components/app/daily-tasks-widget';
 import { Badge } from '@/components/ui/badge';
-import { mockOrders, mockCrmEvents, mockAccounts, mockTeamMembers } from '@/lib/data';
-import { parseISO, startOfDay, endOfDay, isWithinInterval, format, getMonth, getYear, isSameMonth, isSameYear, addDays } from 'date-fns';
+import { mockCrmEvents } from '@/lib/data'; // mockOrders, mockAccounts, mockTeamMembers removed
+import { parseISO, startOfDay, endOfDay, isWithinInterval, format, getMonth, getYear, isSameMonth, isSameYear, addDays, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { getOrdersFS } from '@/services/order-service';
+import { getAccountsFS } from '@/services/account-service';
+import { getTeamMembersFS } from '@/services/team-member-service'; // For monthly progress
+import { useToast } from '@/hooks/use-toast';
+
 
 interface NavItem {
   href: string;
@@ -78,7 +83,7 @@ const navigationStructure: NavGroup[] = [
       { href: '/events', label: 'Eventos', icon: PartyPopper, roles: ['Admin', 'SalesRep'] },
       { href: '/clavadistas', label: 'Clavadistas', icon: Award, roles: ['Admin', 'SalesRep'] },
       { href: '/marketing-resources', label: 'Recursos de Marketing', icon: Library, roles: ['Admin', 'SalesRep', 'Distributor'] },
-      { href: '/marketing/ai-assistant', label: 'Asistente IA', icon: Sparkles, roles: ['Admin', 'SalesRep'] }, // Nueva página
+      { href: '/marketing/ai-assistant', label: 'Asistente IA', icon: Sparkles, roles: ['Admin', 'SalesRep'] },
     ],
   },
   {
@@ -94,63 +99,75 @@ const navigationStructure: NavGroup[] = [
 
 function DailyTasksMenu() {
   const { userRole, teamMember } = useAuth();
+  const { toast } = useToast();
   const today = startOfDay(new Date());
   const nextSevenDaysEnd = endOfDay(addDays(today, 6)); 
   const [taskCount, setTaskCount] = useState(0);
 
   useEffect(() => {
-    if ((!teamMember && userRole === 'SalesRep') || userRole === 'Distributor') {
-      setTaskCount(0);
-      return;
-    }
+    async function fetchTasks() {
+      if ((!teamMember && userRole === 'SalesRep') || userRole === 'Distributor') {
+        setTaskCount(0);
+        return;
+      }
 
-    let relevantOrders: Order[] = [];
-    let relevantEvents: CrmEvent[] = [];
-
-    if (userRole === 'Admin') {
-      relevantOrders = mockOrders.filter(order =>
-        (order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') &&
-        (order.status === 'Programada' ? order.visitDate : order.nextActionDate)
-      );
-      relevantEvents = mockCrmEvents;
-    } else if (userRole === 'SalesRep' && teamMember) {
-      relevantOrders = mockOrders.filter(order =>
-        order.salesRep === teamMember.name &&
-        (order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') &&
-        (order.status === 'Programada' ? order.visitDate : order.nextActionDate)
-      );
-      relevantEvents = mockCrmEvents.filter(event =>
-        event.assignedTeamMemberIds.includes(teamMember.id)
-      );
-    }
-
-    const orderAgendaItems = relevantOrders
-      .map(order => ({
-        itemDate: parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!),
-        sourceType: 'order' as 'order',
-        rawItem: order,
-      }));
-
-    const eventAgendaItems = relevantEvents
-      .map(event => ({
-        itemDate: parseISO(event.startDate),
-        sourceType: 'event' as 'event',
-        rawItem: event,
-      }));
-
-    const allItems = [...orderAgendaItems, ...eventAgendaItems];
-    const count = allItems
-      .filter(item => {
-        const itemStartDate = startOfDay(item.itemDate);
-        if (item.sourceType === 'event' && (item.rawItem as CrmEvent).endDate) {
-          const itemEndDate = startOfDay(parseISO((item.rawItem as CrmEvent).endDate!));
-          return (itemStartDate <= nextSevenDaysEnd && itemEndDate >= today);
+      let relevantOrders: Order[] = [];
+      let relevantEvents: CrmEvent[] = []; // Events still from mock
+      
+      try {
+        const allOrders = await getOrdersFS();
+        if (userRole === 'Admin') {
+          relevantOrders = allOrders.filter(order =>
+            (order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') &&
+            (order.status === 'Programada' ? order.visitDate : order.nextActionDate)
+          );
+          relevantEvents = mockCrmEvents; // Using mock for now
+        } else if (userRole === 'SalesRep' && teamMember) {
+          relevantOrders = allOrders.filter(order =>
+            order.salesRep === teamMember.name &&
+            (order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') &&
+            (order.status === 'Programada' ? order.visitDate : order.nextActionDate)
+          );
+          relevantEvents = mockCrmEvents.filter(event => // Using mock for now
+            event.assignedTeamMemberIds.includes(teamMember.id)
+          );
         }
-        return isWithinInterval(itemStartDate, { start: today, end: nextSevenDaysEnd });
-      }).length;
-    setTaskCount(count);
+      } catch (error) {
+          console.error("Error fetching orders for daily tasks menu:", error);
+          toast({ title: "Error Tareas", description: "No se pudieron cargar las tareas de pedidos.", variant: "destructive"});
+      }
 
-  }, [userRole, teamMember, today, nextSevenDaysEnd]);
+
+      const orderAgendaItems = relevantOrders
+        .filter(order => isValid(parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!)))
+        .map(order => ({
+          itemDate: parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!),
+          sourceType: 'order' as 'order',
+          rawItem: order,
+        }));
+
+      const eventAgendaItems = relevantEvents
+        .filter(event => isValid(parseISO(event.startDate)))
+        .map(event => ({
+          itemDate: parseISO(event.startDate),
+          sourceType: 'event' as 'event',
+          rawItem: event,
+        }));
+
+      const allItems = [...orderAgendaItems, ...eventAgendaItems];
+      const count = allItems
+        .filter(item => {
+          const itemStartDate = startOfDay(item.itemDate);
+          if (item.sourceType === 'event' && (item.rawItem as CrmEvent).endDate) {
+            const itemEndDate = startOfDay(parseISO((item.rawItem as CrmEvent).endDate!));
+            return (itemStartDate <= nextSevenDaysEnd && itemEndDate >= today);
+          }
+          return isWithinInterval(itemStartDate, { start: today, end: nextSevenDaysEnd });
+        }).length;
+      setTaskCount(count);
+    }
+    fetchTasks();
+  }, [userRole, teamMember, today, nextSevenDaysEnd, toast]);
 
 
   if (userRole === 'Distributor') return null;
@@ -189,9 +206,12 @@ interface MonthlyProgressIndicatorProps {
   type: 'visits' | 'accounts';
   teamMember: TeamMember | null; 
   userRole: UserRole | null;
+  allTeamMembers: TeamMember[]; // Pass all members for Admin calculation
+  allOrders: Order[];
+  allAccounts: Account[];
 }
 
-function MonthlyProgressIndicator({ type, teamMember, userRole }: MonthlyProgressIndicatorProps) {
+function MonthlyProgressIndicator({ type, teamMember, userRole, allTeamMembers, allOrders, allAccounts }: MonthlyProgressIndicatorProps) {
   const [achieved, setAchieved] = useState(0);
   const [target, setTarget] = useState(0);
   const [tooltipTitle, setTooltipTitle] = useState("");
@@ -205,22 +225,25 @@ function MonthlyProgressIndicator({ type, teamMember, userRole }: MonthlyProgres
     const currentYearValue = getYear(currentDate);
 
     if (userRole === 'Admin') {
-      const salesReps = mockTeamMembers.filter(m => m.role === 'SalesRep');
+      const salesReps = allTeamMembers.filter(m => m.role === 'SalesRep');
       let teamTarget = 0;
       let teamAchieved = 0;
 
       if (type === 'visits') {
         teamTarget = salesReps.reduce((sum, rep) => sum + (rep.monthlyTargetVisits || 0), 0);
-        teamAchieved = mockOrders.filter(order => 
+        teamAchieved = allOrders.filter(order => 
           salesReps.some(rep => rep.name === order.salesRep) &&
+          isValid(parseISO(order.visitDate)) &&
           isSameMonth(parseISO(order.visitDate), currentDate) &&
-          isSameYear(parseISO(order.visitDate), currentDate)
+          isSameYear(parseISO(order.visitDate), currentDate) &&
+          order.status !== 'Programada'
         ).length;
         setTooltipTitle(`Equipo: Visitas`);
       } else if (type === 'accounts') {
         teamTarget = salesReps.reduce((sum, rep) => sum + (rep.monthlyTargetAccounts || 0), 0);
-        teamAchieved = mockAccounts.filter(acc => 
+        teamAchieved = allAccounts.filter(acc => 
           salesReps.some(rep => rep.id === acc.salesRepId) &&
+          isValid(parseISO(acc.createdAt)) &&
           isSameMonth(parseISO(acc.createdAt), currentDate) &&
           isSameYear(parseISO(acc.createdAt), currentDate)
         ).length;
@@ -235,16 +258,19 @@ function MonthlyProgressIndicator({ type, teamMember, userRole }: MonthlyProgres
 
       if (type === 'visits') {
         individualTarget = teamMember.monthlyTargetVisits || 0;
-        individualAchieved = mockOrders.filter(order =>
+        individualAchieved = allOrders.filter(order =>
           order.salesRep === teamMember.name &&
+          isValid(parseISO(order.visitDate)) &&
           isSameMonth(parseISO(order.visitDate), currentDate) &&
-          isSameYear(parseISO(order.visitDate), currentDate)
+          isSameYear(parseISO(order.visitDate), currentDate) &&
+          order.status !== 'Programada'
         ).length;
          setTooltipTitle(`Personal: Visitas`);
       } else if (type === 'accounts') {
         individualTarget = teamMember.monthlyTargetAccounts || 0;
-        individualAchieved = mockAccounts.filter(acc =>
+        individualAchieved = allAccounts.filter(acc =>
           acc.salesRepId === teamMember.id &&
+          isValid(parseISO(acc.createdAt)) &&
           isSameMonth(parseISO(acc.createdAt), currentDate) &&
           isSameYear(parseISO(acc.createdAt), currentDate)
         ).length;
@@ -257,7 +283,7 @@ function MonthlyProgressIndicator({ type, teamMember, userRole }: MonthlyProgres
       setAchieved(0);
       setTooltipTitle("");
     }
-  }, [teamMember, userRole, type, currentDate]);
+  }, [teamMember, userRole, type, currentDate, allTeamMembers, allOrders, allAccounts]);
 
   if (!target && achieved === 0 && userRole !== 'Admin') return null; 
   if (userRole === 'Admin' && target === 0 && achieved === 0) { 
@@ -317,12 +343,49 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
   const { user, userRole, teamMember, loading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const { toast } = useToast();
+
+  const [allTeamMembersData, setAllTeamMembersData] = useState<TeamMember[]>([]);
+  const [allOrdersData, setAllOrdersData] = useState<Order[]>([]);
+  const [allAccountsData, setAllAccountsData] = useState<Account[]>([]);
+  const [isDataLoading, setIsDataLoading] = useState(true);
+
 
   useEffect(() => {
     if (!loading && !user && pathname !== '/login') {
       router.push('/login');
     }
   }, [user, loading, router, pathname]);
+
+  useEffect(() => {
+    // Fetch data for progress indicators if user is Admin or SalesRep
+    async function loadProgressData() {
+        if (userRole === 'Admin' || userRole === 'SalesRep') {
+            setIsDataLoading(true);
+            try {
+                const [members, orders, accounts] = await Promise.all([
+                    getTeamMembersFS(),
+                    getOrdersFS(),
+                    getAccountsFS()
+                ]);
+                setAllTeamMembersData(members);
+                setAllOrdersData(orders);
+                setAllAccountsData(accounts);
+            } catch (error) {
+                console.error("Error loading data for progress indicators:", error);
+                toast({ title: "Error Datos Progreso", description: "No se pudieron cargar los datos para indicadores.", variant: "destructive" });
+            } finally {
+                setIsDataLoading(false);
+            }
+        } else {
+             setIsDataLoading(false); // No need to load this data for other roles
+        }
+    }
+    if (!loading && user) { // Only load if auth is done and user is logged in
+        loadProgressData();
+    }
+  }, [userRole, user, loading, toast]);
+
 
   if (loading) {
     return (
@@ -360,18 +423,7 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
           <Link href="/dashboard" className="hidden group-data-[collapsible=icon]:block">
              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" aria-label="Logotipo de Santa Brisa CRM (colapsado)">
               <rect width="32" height="32" rx="4" fill="hsl(var(--primary))" />
-              <text
-                x="50%"
-                y="50%"
-                dominantBaseline="central"
-                textAnchor="middle"
-                fontFamily="Inter, sans-serif"
-                fontSize="12"
-                fontWeight="bold"
-                fill="hsl(var(--primary-foreground))"
-              >
-                SB
-              </text>
+              <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" fontFamily="Inter, sans-serif" fontSize="12" fontWeight="bold" fill="hsl(var(--primary-foreground))">SB</text>
             </svg>
           </Link>
         </SidebarHeader>
@@ -381,11 +433,7 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
         <SidebarFooter className="p-2">
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton 
-                tooltip={{children: "Cerrar Sesión", side: "right"}} 
-                className="hover:bg-destructive/20 hover:text-destructive"
-                onClick={handleLogout}
-              >
+              <SidebarMenuButton tooltip={{children: "Cerrar Sesión", side: "right"}} className="hover:bg-destructive/20 hover:text-destructive" onClick={handleLogout}>
                 <LogOut />
                 <span>Cerrar Sesión</span>
               </SidebarMenuButton>
@@ -401,12 +449,13 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {showMonthlyProgress && (
+            {showMonthlyProgress && !isDataLoading && (
               <>
-                <MonthlyProgressIndicator type="accounts" teamMember={teamMember} userRole={userRole} />
-                <MonthlyProgressIndicator type="visits" teamMember={teamMember} userRole={userRole} />
+                <MonthlyProgressIndicator type="accounts" teamMember={teamMember} userRole={userRole} allTeamMembers={allTeamMembersData} allOrders={allOrdersData} allAccounts={allAccountsData} />
+                <MonthlyProgressIndicator type="visits" teamMember={teamMember} userRole={userRole} allTeamMembers={allTeamMembersData} allOrders={allOrdersData} allAccounts={allAccountsData} />
               </>
             )}
+            {showMonthlyProgress && isDataLoading && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
             <DailyTasksMenu />
             <UserMenu userRole={userRole} userEmail={user?.email} />
           </div>
@@ -461,15 +510,8 @@ function AppNavigation({ navStructure, userRole }: AppNavigationProps) {
                   
                   return (
                     <SidebarMenuItem key={item.label}>
-                      <SidebarMenuButton
-                        asChild
-                        isActive={isActive}
-                        tooltip={{ children: item.label, side: "right" }}
-                      >
-                        <Link href={item.href}>
-                          <item.icon />
-                          <span>{item.label}</span>
-                        </Link>
+                      <SidebarMenuButton asChild isActive={isActive} tooltip={{ children: item.label, side: "right" }}>
+                        <Link href={item.href}><item.icon /><span>{item.label}</span></Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   );

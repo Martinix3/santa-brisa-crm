@@ -42,36 +42,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log(`AuthContext: Firebase user authenticated. UID: ${firebaseUser.uid}, Email: ${firebaseUser.email}`);
         
         try {
-          console.log(`AuthContext: Attempting to fetch profile for UID: ${firebaseUser.uid}`);
+          console.log(`AuthContext: Attempting to fetch profile by authUid: ${firebaseUser.uid}`);
           let memberDetails = await getTeamMemberByAuthUidFS(firebaseUser.uid);
           
           if (memberDetails) {
-            console.log(`AuthContext: Profile found for UID ${firebaseUser.uid}:`, JSON.stringify(memberDetails));
+            console.log(`AuthContext: Profile found by authUid ${firebaseUser.uid}:`, JSON.stringify(memberDetails));
             setTeamMember(memberDetails);
             setUserRole(memberDetails.role);
           } else {
-            console.warn(`AuthContext: No profile found in Firestore for UID: ${firebaseUser.uid}. Attempting fallback to email: ${firebaseUser.email}`);
+            console.warn(`AuthContext: No profile found in Firestore for authUid: ${firebaseUser.uid}.`);
             if (firebaseUser.email) {
                 const lowerCaseEmail = firebaseUser.email.toLowerCase();
-                console.log(`AuthContext: Performing email fallback for: ${lowerCaseEmail}`);
+                console.log(`AuthContext: Attempting fallback to email: ${lowerCaseEmail}`);
                 const memberByEmail = await getTeamMemberByEmailFS(lowerCaseEmail);
                 if (memberByEmail) {
                     console.log(`AuthContext: Profile found via email fallback for ${lowerCaseEmail}:`, JSON.stringify(memberByEmail));
                     setTeamMember(memberByEmail);
                     setUserRole(memberByEmail.role);
-                    // If authUid is missing or different, or if email casing in Firestore is different, update it.
+                    
                     if (!memberByEmail.authUid || memberByEmail.authUid !== firebaseUser.uid || memberByEmail.email !== lowerCaseEmail) {
-                        console.log(`AuthContext: Updating Firestore record ${memberByEmail.id} for ${memberByEmail.email} with authUid: ${firebaseUser.uid} and email: ${lowerCaseEmail}`);
+                        console.log(`AuthContext: Firestore record ${memberByEmail.id} needs authUid/email update. Current authUid: ${memberByEmail.authUid}, Current email: ${memberByEmail.email}. Updating with authUid: ${firebaseUser.uid}, email: ${lowerCaseEmail}`);
                         try {
                           const updateData: Partial<TeamMemberFormValues> = { 
                             authUid: firebaseUser.uid, 
-                            email: lowerCaseEmail // Ensure email is stored in lowercase
+                            email: lowerCaseEmail 
                           };
                           await updateTeamMemberFS(memberByEmail.id, updateData);
-                          // Update local state immediately to reflect the change
                           setTeamMember({ ...memberByEmail, authUid: firebaseUser.uid, email: lowerCaseEmail }); 
+                           console.log(`AuthContext: Firestore record ${memberByEmail.id} updated successfully.`);
                         } catch (updateError) {
-                          console.error("AuthContext: Error updating authUid/email in Firestore:", updateError);
+                          console.error("AuthContext: Error updating authUid/email in Firestore during fallback:", updateError);
                         }
                     }
                 } else {
@@ -81,7 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     setUserRole(null);
                 }
             } else {
-                 console.error(`AuthContext: CRITICAL - User UID ${firebaseUser.uid} has no email associated in Firebase Auth. Cannot perform email fallback.`);
+                 console.error(`AuthContext: CRITICAL - User UID ${firebaseUser.uid} authenticated but has no email associated in Firebase Auth. Cannot perform email fallback.`);
                  toast({ title: "Error de Autenticación", description: "El usuario no tiene un email asociado. Contacte al administrador.", variant: "destructive", duration: 10000 });
                  setTeamMember(null);
                  setUserRole(null);
@@ -147,15 +147,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const createUserInAuthAndFirestore = async (userData: TeamMemberFormValues, pass: string): Promise<{firebaseUser: FirebaseUser | null, teamMemberId: string | null}> => {
     let firebaseUser: FirebaseUser | null = null;
     let teamMemberId: string | null = null;
+    const lowerCaseEmail = userData.email.toLowerCase();
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, userData.email, pass);
+      const userCredential = await createUserWithEmailAndPassword(auth, lowerCaseEmail, pass);
       firebaseUser = userCredential.user;
       
       if (firebaseUser) {
         const memberDataForFirestore: TeamMemberFormValues = {
           ...userData,
+          email: lowerCaseEmail, 
           authUid: firebaseUser.uid, 
-          email: userData.email.toLowerCase(), // Ensure email is stored in lowercase
         };
         teamMemberId = await addTeamMemberFS(memberDataForFirestore);
         console.log(`AuthContext: User ${memberDataForFirestore.email} created in Auth and Firestore. Firestore ID: ${teamMemberId}`);
@@ -166,7 +167,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error("AuthContext: Error creating user in Firebase Auth or Firestore:", error);
       let description = "No se pudo crear el usuario.";
       if (error.code === 'auth/email-already-in-use') {
-        description = "Este correo electrónico ya está registrado en Firebase Authentication.";
+        description = `El correo electrónico ${lowerCaseEmail} ya está registrado en Firebase Authentication.`;
       } else if (error.code === 'auth/weak-password') {
         description = "La contraseña es demasiado débil. Debe tener al menos 6 caracteres.";
       }
@@ -202,3 +203,4 @@ export function useAuth() {
   }
   return context;
 }
+

@@ -14,6 +14,9 @@ import {
   SidebarFooter,
   SidebarInset,
   SidebarTrigger,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarGroupContent,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import Logo from '@/components/icons/Logo';
@@ -34,29 +37,64 @@ import type { UserRole, Order, CrmEvent, TeamMember } from '@/types';
 import { useAuth } from '@/contexts/auth-context';
 import DailyTasksWidget from '@/components/app/daily-tasks-widget';
 import { Badge } from '@/components/ui/badge';
-import { mockOrders, mockCrmEvents, mockAccounts, mockTeamMembers } from '@/lib/data'; // Import mockTeamMembers
+import { mockOrders, mockCrmEvents, mockAccounts, mockTeamMembers } from '@/lib/data';
 import { parseISO, startOfDay, endOfDay, isWithinInterval, format, getMonth, getYear, isSameMonth, isSameYear, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-const allNavItems = [
-  { href: '/dashboard', label: 'Panel', icon: LayoutDashboard, roles: ['Admin', 'SalesRep', 'Distributor'] as UserRole[] },
-  { href: '/my-agenda', label: 'Agenda', icon: CalendarCheck, roles: ['Admin', 'SalesRep'] as UserRole[] },
-  { href: '/crm-follow-up', label: 'Tareas de Seguimiento', icon: ClipboardList, roles: ['Admin', 'SalesRep'] as UserRole[] },
-  { href: '/events', label: 'Eventos', icon: PartyPopper, roles: ['Admin', 'SalesRep'] as UserRole[] },
-  { href: '/order-form', label: 'Registrar Visita', icon: FileText, roles: ['Admin', 'SalesRep'] as UserRole[] },
-  { href: '/accounts', label: 'Cuentas', icon: Building2, roles: ['Admin', 'SalesRep', 'Distributor'] as UserRole[] },
-  { href: '/orders-dashboard', label: 'Panel de Pedidos', icon: ShoppingCart, roles: ['Admin', 'SalesRep', 'Distributor'] as UserRole[] },
-  { href: '/team-tracking', label: 'Equipo de Ventas', icon: Users, roles: ['Admin', 'SalesRep'] as UserRole[] },
-  { href: '/clavadistas', label: 'Clavadistas', icon: Award, roles: ['Admin', 'SalesRep'] as UserRole[] },
-  { href: '/marketing-resources', label: 'Recursos de Marketing', icon: Library, roles: ['Admin', 'SalesRep', 'Distributor'] as UserRole[] },
-  { href: '/admin/settings', label: 'Configuración', icon: Settings, roles: ['Admin'] as UserRole[] },
+interface NavItem {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  roles: UserRole[];
+}
+
+interface NavGroup {
+  id: string;
+  label: string;
+  items: NavItem[];
+  groupRoles?: UserRole[]; // Roles that can see this group label. If undefined, visible to all (items inside still filtered).
+}
+
+const navigationStructure: NavGroup[] = [
+  {
+    id: 'ventas',
+    label: 'Ventas',
+    groupRoles: ['Admin', 'SalesRep', 'Distributor'],
+    items: [
+      { href: '/dashboard', label: 'Panel', icon: LayoutDashboard, roles: ['Admin', 'SalesRep', 'Distributor'] },
+      { href: '/my-agenda', label: 'Agenda', icon: CalendarCheck, roles: ['Admin', 'SalesRep'] },
+      { href: '/crm-follow-up', label: 'Tareas de Seguimiento', icon: ClipboardList, roles: ['Admin', 'SalesRep'] },
+      { href: '/order-form', label: 'Registrar Visita', icon: FileText, roles: ['Admin', 'SalesRep'] },
+      { href: '/accounts', label: 'Cuentas', icon: Building2, roles: ['Admin', 'SalesRep', 'Distributor'] },
+      { href: '/orders-dashboard', label: 'Panel de Pedidos', icon: ShoppingCart, roles: ['Admin', 'SalesRep', 'Distributor'] },
+      { href: '/team-tracking', label: 'Equipo de Ventas', icon: Users, roles: ['Admin', 'SalesRep'] },
+    ],
+  },
+  {
+    id: 'marketing',
+    label: 'Marketing',
+    groupRoles: ['Admin', 'SalesRep', 'Distributor'],
+    items: [
+      { href: '/events', label: 'Eventos', icon: PartyPopper, roles: ['Admin', 'SalesRep'] },
+      { href: '/clavadistas', label: 'Clavadistas', icon: Award, roles: ['Admin', 'SalesRep'] },
+      { href: '/marketing-resources', label: 'Recursos de Marketing', icon: Library, roles: ['Admin', 'SalesRep', 'Distributor'] },
+    ],
+  },
+  {
+    id: 'configuracion',
+    label: 'Configuración',
+    groupRoles: ['Admin'],
+    items: [
+      { href: '/admin/settings', label: 'Configuración', icon: Settings, roles: ['Admin'] },
+    ],
+  },
 ];
 
 
 function DailyTasksMenu() {
   const { userRole, teamMember } = useAuth();
   const today = startOfDay(new Date());
-  const nextSevenDaysEnd = endOfDay(addDays(today, 6)); // Hoy + 6 días más = 7 días en total
+  const nextSevenDaysEnd = endOfDay(addDays(today, 6)); 
   const [taskCount, setTaskCount] = useState(0);
 
   useEffect(() => {
@@ -105,10 +143,8 @@ function DailyTasksMenu() {
         const itemStartDate = startOfDay(item.itemDate);
         if (item.sourceType === 'event' && (item.rawItem as CrmEvent).endDate) {
           const itemEndDate = startOfDay(parseISO((item.rawItem as CrmEvent).endDate!));
-          // Check if any part of the event range falls within our "next seven days" window
           return (itemStartDate <= nextSevenDaysEnd && itemEndDate >= today);
         }
-        // For single-day items (orders or events without endDate)
         return isWithinInterval(itemStartDate, { start: today, end: nextSevenDaysEnd });
       }).length;
     setTaskCount(count);
@@ -150,7 +186,7 @@ function DailyTasksMenu() {
 
 interface MonthlyProgressIndicatorProps {
   type: 'visits' | 'accounts';
-  teamMember: TeamMember | null; // Nullable if admin is viewing team progress
+  teamMember: TeamMember | null; 
   userRole: UserRole | null;
 }
 
@@ -222,8 +258,8 @@ function MonthlyProgressIndicator({ type, teamMember, userRole }: MonthlyProgres
     }
   }, [teamMember, userRole, type, currentDate]);
 
-  if (!target && achieved === 0 && userRole !== 'Admin') return null; // Don't show if no target and no achievement for SalesRep
-  if (userRole === 'Admin' && target === 0 && achieved === 0) { // For Admin, if no salesreps or no targets/achievements, show nothing or a specific message
+  if (!target && achieved === 0 && userRole !== 'Admin') return null; 
+  if (userRole === 'Admin' && target === 0 && achieved === 0) { 
     return (
         <Tooltip>
             <TooltipTrigger asChild>
@@ -242,7 +278,7 @@ function MonthlyProgressIndicator({ type, teamMember, userRole }: MonthlyProgres
 
   const remaining = Math.max(0, target - achieved);
 
-  if (remaining <= 0 && target > 0) { // Target achieved or exceeded
+  if (remaining <= 0 && target > 0) { 
     return (
         <Tooltip>
             <TooltipTrigger asChild>
@@ -305,8 +341,6 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
   
   if (!user) return null; 
 
-  const navItemsForRole = userRole ? allNavItems.filter(item => item.roles.includes(userRole)) : [];
-
   const handleLogout = async () => {
     await logout();
     router.push('/login'); 
@@ -341,7 +375,7 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
           </Link>
         </SidebarHeader>
         <SidebarContent>
-          <AppNavigation navItems={navItemsForRole} />
+          <AppNavigation navStructure={navigationStructure} userRole={userRole} />
         </SidebarContent>
         <SidebarFooter className="p-2">
           <SidebarMenu>
@@ -364,7 +398,6 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
             <div className="md:hidden">
               <SidebarTrigger />
             </div>
-            {/* Breadcrumbs or page title can go here */}
           </div>
           <div className="flex items-center gap-2">
             {showMonthlyProgress && (
@@ -386,39 +419,69 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
 }
 
 interface AppNavigationProps {
-  navItems: { href: string; label: string; icon: React.ElementType; roles: UserRole[] }[];
+  navStructure: NavGroup[];
+  userRole: UserRole | null;
 }
 
-function AppNavigation({ navItems }: AppNavigationProps) {
+function AppNavigation({ navStructure, userRole }: AppNavigationProps) {
   const pathname = usePathname();
+
+  if (!userRole) return null;
+
   return (
-    <SidebarMenu>
-      {navItems.map((item) => {
-        let isActive = false;
-        if (item.href === '/admin/settings') {
-          isActive = pathname.startsWith('/admin');
-        } else if (item.href === '/dashboard') {
-          isActive = pathname === item.href;
-        } else {
-          isActive = pathname.startsWith(item.href); 
-        }
+    <>
+      {navStructure.map((group) => {
+        // Filter items within the group first
+        const visibleItemsInGroup = group.items.filter(item => item.roles.includes(userRole));
         
+        // If groupRoles is defined, check if user has any of them. If not, and no items are visible, skip group.
+        // If groupRoles is undefined, show group label if there are visible items.
+        const canShowGroup = 
+          (group.groupRoles ? group.groupRoles.includes(userRole) : true) && 
+          visibleItemsInGroup.length > 0;
+
+        if (!canShowGroup) {
+          return null;
+        }
+
         return (
-          <SidebarMenuItem key={item.label}>
-            <SidebarMenuButton
-              asChild
-              isActive={isActive}
-              tooltip={{children: item.label, side: "right"}}
-            >
-              <Link href={item.href}>
-                <item.icon />
-                <span>{item.label}</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          <SidebarGroup key={group.id}>
+            {group.items.length > 1 || group.id !== 'configuracion' ? ( // Don't show label if only one item & not special like config
+              <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            ) : null}
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {visibleItemsInGroup.map((item) => {
+                  let isActive = false;
+                  if (item.href === '/admin/settings') { // Special case for settings parent route
+                    isActive = pathname.startsWith('/admin');
+                  } else if (item.href === '/dashboard') {
+                    isActive = pathname === item.href; // Exact match for dashboard
+                  } else {
+                    isActive = pathname.startsWith(item.href) && item.href !== '/dashboard'; // Starts with for others, excluding dashboard
+                  }
+                  
+                  return (
+                    <SidebarMenuItem key={item.label}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={isActive}
+                        tooltip={{ children: item.label, side: "right" }}
+                      >
+                        <Link href={item.href}>
+                          <item.icon />
+                          <span>{item.label}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
         );
       })}
-    </SidebarMenu>
+    </>
   );
 }
 
@@ -484,5 +547,3 @@ function UserMenu({ userRole, userEmail }: UserMenuProps) {
 }
 
 export default MainAppLayout;
-
-    

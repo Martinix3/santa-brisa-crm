@@ -102,7 +102,7 @@ export default function PromotionalMaterialDialog({ material, isOpen, onOpenChan
         <DialogHeader>
           <DialogTitle>{isReadOnly ? "Detalles del Material Promocional" : (material ? "Editar Material Promocional" : "Añadir Nuevo Material Promocional")}</DialogTitle>
           <DialogDescription>
-            {isReadOnly ? `Viendo detalles de "${material?.name}".` : (material ? "Modifica los detalles del material." : "Introduce la información del nuevo material promocional.")}
+            {isReadOnly ? `Viendo detalles de "${material?.name}".` : (material ? "Modifica los detalles del material, asegurándote que el coste unitario refleje el coste de adquisición actual." : "Introduce la información del nuevo material promocional, incluyendo el coste real de adquisición por unidad.")}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -145,9 +145,9 @@ export default function PromotionalMaterialDialog({ material, isOpen, onOpenChan
               name="unitCost"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Coste Unitario (€)</FormLabel>
+                  <FormLabel>Coste Unitario de Adquisición (€)</FormLabel>
                   <FormControl>
-                    <Input type="number" step="0.01" placeholder="Ej: 15.50" {...field} disabled={isReadOnly} />
+                    <Input type="number" step="0.01" placeholder="Ej: 10.75 (coste por unidad comprada)" {...field} disabled={isReadOnly} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

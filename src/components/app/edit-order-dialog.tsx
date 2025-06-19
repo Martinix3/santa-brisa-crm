@@ -35,9 +35,9 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { Order, OrderStatus, UserRole, TeamMember, NextActionType, FailureReasonType, ClientType, PromotionalMaterial } from "@/types"; // Added PromotionalMaterial
-import { orderStatusesList, nextActionTypeList, failureReasonList, clientTypeList } from "@/lib/data"; // mockTeamMembers, mockPromotionalMaterials removed
-import { Loader2, CalendarIcon, Printer, Award, Package, PlusCircle, Trash2 } from "lucide-react"; // Removed Euro
+import type { Order, OrderStatus, UserRole, TeamMember, NextActionType, FailureReasonType, ClientType, PromotionalMaterial } from "@/types";
+import { orderStatusesList, nextActionTypeList, failureReasonList, clientTypeList } from "@/lib/data"; 
+import { Loader2, CalendarIcon, Printer, Award, Package, PlusCircle, Trash2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
@@ -61,7 +61,7 @@ const editOrderFormSchema = z.object({
   products: z.string().optional(), 
   value: z.coerce.number().positive("El valor del pedido debe ser positivo.").optional(), 
   status: z.enum(orderStatusesList as [OrderStatus, ...OrderStatus[]]),
-  salesRep: z.string().min(1, "El representante de ventas es obligatorio."),
+  salesRep: z.string().min(1, "El representante de ventas es obligatorio."), // Mantenerlo obligatorio
   clavadistaId: z.string().optional(), 
   assignedMaterials: z.array(assignedMaterialSchemaForDialog).optional().default([]),
   
@@ -79,6 +79,7 @@ const editOrderFormSchema = z.object({
   observacionesAlta: z.string().optional(),
   notes: z.string().optional(),
 
+  // Campos de seguimiento, solo para visualización y no para edición directa aquí
   nextActionType: z.enum(nextActionTypeList as [NextActionType, ...NextActionType[]]).optional(),
   nextActionCustom: z.string().optional(),
   nextActionDate: z.date().optional(),
@@ -100,22 +101,9 @@ const editOrderFormSchema = z.object({
             if (!data.cif || data.cif.trim() === "") ctx.addIssue({ code: z.ZodIssueCode.custom, message: "CIF es obligatorio.", path: ["cif"] });
         }
     }
-    if (data.status === 'Seguimiento' || data.status === 'Fallido') {
-        if (!data.nextActionType) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La próxima acción es obligatoria.", path: ["nextActionType"] });
-        }
-        if (data.nextActionType === "Opción personalizada" && (!data.nextActionCustom || data.nextActionCustom.trim() === "")) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Debe especificar la próxima acción personalizada.", path: ["nextActionCustom"] });
-        }
-    }
-    if (data.status === 'Fallido') {
-        if (!data.failureReasonType) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El motivo del fallo es obligatorio.", path: ["failureReasonType"] });
-        }
-        if (data.failureReasonType === "Otro (especificar)" && (!data.failureReasonCustom || data.failureReasonCustom.trim() === "")) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Debe especificar el motivo del fallo personalizado.", path: ["failureReasonCustom"] });
-        }
-    }
+    // Validaciones para nextActionType y failureReasonType son removidas de aquí,
+    // ya que estos campos son para visualización/información en este diálogo y no para validación de entrada.
+    // Su validación se realiza en el formulario de registro de visita/interacción.
 });
 
 
@@ -192,12 +180,13 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
 
 
   const currentStatus = form.watch("status");
-  const nextActionType = form.watch("nextActionType");
-  const failureReasonType = form.watch("failureReasonType");
+  // Los campos de seguimiento no se editan activamente aquí, así que no es necesario 'watch'los para lógica condicional de UI
+  // const nextActionType = form.watch("nextActionType");
+  // const failureReasonType = form.watch("failureReasonType");
 
 
   React.useEffect(() => {
-    if (order && isOpen && !isLoadingDropdownData) { // Ensure dropdown data is loaded before resetting form
+    if (order && isOpen && !isLoadingDropdownData) { 
       form.reset({
         clientName: order.clientName,
         products: order.products?.join(",\n") || "",
@@ -218,6 +207,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         contactoTelefono: order.contactoTelefono || "",
         observacionesAlta: order.observacionesAlta || "",
         notes: order.notes || "",
+        // Los campos de seguimiento se muestran pero no se editan directamente aquí
         nextActionType: order.nextActionType,
         nextActionCustom: order.nextActionCustom || "",
         nextActionDate: order.nextActionDate && isValid(parseISO(order.nextActionDate)) ? parseISO(order.nextActionDate) : undefined,
@@ -231,15 +221,38 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     if (!order) return;
     setIsSaving(true);
 
-    const saveData: EditOrderFormValues = {
-        ...data,
-        clavadistaId: data.clavadistaId === NO_CLAVADISTA_VALUE ? undefined : data.clavadistaId,
-        nextActionDate: data.nextActionDate ? data.nextActionDate : undefined, 
-        assignedMaterials: data.assignedMaterials || [],
+    // Solo los campos editables por el rol actual deben enviarse
+    const dataToSave: EditOrderFormValues = {
+      clientName: canEditFullOrderDetails ? data.clientName : order.clientName,
+      products: canEditFullOrderDetails ? data.products : order.products?.join(",\n"),
+      value: canEditFullOrderDetails ? data.value : order.value,
+      status: (isAdmin || isDistributor) ? data.status : order.status,
+      salesRep: isAdmin ? data.salesRep : order.salesRep,
+      clavadistaId: canEditFullOrderDetails ? (data.clavadistaId === NO_CLAVADISTA_VALUE ? undefined : data.clavadistaId) : order.clavadistaId,
+      assignedMaterials: canEditFullOrderDetails ? (data.assignedMaterials || []) : (order.assignedMaterials || []),
+      clientType: canEditFullOrderDetails ? data.clientType : order.clientType,
+      numberOfUnits: canEditFullOrderDetails ? data.numberOfUnits : order.numberOfUnits,
+      unitPrice: canEditFullOrderDetails ? data.unitPrice : order.unitPrice,
+      nombreFiscal: canEditFullOrderDetails ? data.nombreFiscal : order.nombreFiscal,
+      cif: canEditFullOrderDetails ? data.cif : order.cif,
+      direccionFiscal: canEditFullOrderDetails ? data.direccionFiscal : order.direccionFiscal,
+      direccionEntrega: canEditFullOrderDetails ? data.direccionEntrega : order.direccionEntrega,
+      contactoNombre: canEditFullOrderDetails ? data.contactoNombre : order.contactoNombre,
+      contactoCorreo: canEditFullOrderDetails ? data.contactoCorreo : order.contactoCorreo,
+      contactoTelefono: canEditFullOrderDetails ? data.contactoTelefono : order.contactoTelefono,
+      observacionesAlta: canEditFullOrderDetails ? data.observacionesAlta : order.observacionesAlta,
+      notes: (isAdmin || isDistributor) ? data.notes : order.notes,
+      // Los campos de seguimiento no se editan aquí, se toman del pedido original
+      nextActionType: order.nextActionType,
+      nextActionCustom: order.nextActionCustom,
+      nextActionDate: order.nextActionDate ? parseISO(order.nextActionDate) : undefined,
+      failureReasonType: order.failureReasonType,
+      failureReasonCustom: order.failureReasonCustom,
     };
 
+
     await new Promise(resolve => setTimeout(resolve, 700));
-    onSave(saveData, order.id);
+    onSave(dataToSave, order.id);
     setIsSaving(false);
   };
 
@@ -254,17 +267,17 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const isAdmin = currentUserRole === 'Admin';
   
   const canEditFullOrderDetails = isAdmin;
-  const canEditStatusAndFollowUp = isAdmin || isDistributor; 
-  const isReadOnly = isSalesRep && !isAdmin; 
+  const canEditStatusAndNotes = isAdmin || isDistributor; 
+  const isReadOnlyForMostFields = isSalesRep || (!isAdmin && !isDistributor);
 
-  const formFieldsGenericDisabled = isReadOnly || (!canEditFullOrderDetails && !canEditStatusAndFollowUp) || isLoadingDropdownData;
-  const productRelatedFieldsDisabled = isReadOnly || !canEditFullOrderDetails || currentStatus === 'Seguimiento' || currentStatus === 'Fallido' || currentStatus === 'Programada' || isLoadingDropdownData;
-  const billingFieldsDisabled = isReadOnly || !canEditFullOrderDetails || currentStatus === 'Seguimiento' || currentStatus === 'Fallido' || currentStatus === 'Programada' || isLoadingDropdownData;
-  const followUpFieldsDisabled = isReadOnly || !canEditStatusAndFollowUp || isLoadingDropdownData;
-  const statusFieldDisabled = isReadOnly || (!isAdmin && !isDistributor) || isLoadingDropdownData;
-  const salesRepFieldDisabled = isReadOnly || !isAdmin || isLoadingDropdownData;
-  const clavadistaFieldDisabled = isReadOnly || !canEditFullOrderDetails || isLoadingDropdownData;
-  const materialsSectionDisabled = isReadOnly || !canEditFullOrderDetails || currentStatus === 'Programada' || isLoadingDropdownData;
+  const formFieldsGenericDisabled = isReadOnlyForMostFields || isLoadingDropdownData;
+  const productRelatedFieldsDisabled = !canEditFullOrderDetails || currentStatus === 'Seguimiento' || currentStatus === 'Fallido' || currentStatus === 'Programada' || isLoadingDropdownData;
+  const billingFieldsDisabled = !canEditFullOrderDetails || currentStatus === 'Seguimiento' || currentStatus === 'Fallido' || currentStatus === 'Programada' || isLoadingDropdownData;
+  const statusFieldDisabled = !canEditStatusAndNotes || isLoadingDropdownData;
+  const notesFieldDisabled = !canEditStatusAndNotes || isLoadingDropdownData;
+  const salesRepFieldDisabled = !isAdmin || isLoadingDropdownData;
+  const clavadistaFieldDisabled = !canEditFullOrderDetails || isLoadingDropdownData;
+  const materialsSectionDisabled = !canEditFullOrderDetails || currentStatus === 'Programada' || isLoadingDropdownData;
 
 
   return (
@@ -272,12 +285,12 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
       <DialogContent className="sm:max-w-md md:max-w-lg lg:max-w-xl max-h-[90vh] overflow-y-auto print-dialog-content">
         <DialogHeader className="print-hide">
           <DialogTitle>
-            {isReadOnly ? "Detalles:" : "Editar:"} {order.id} ({order.status})
+            {isReadOnlyForMostFields && !canEditStatusAndNotes ? "Detalles:" : "Editar:"} {order.id} ({order.status})
           </DialogTitle>
           <DialogDescription>
-            {isReadOnly
+            {isReadOnlyForMostFields && !canEditStatusAndNotes
               ? "Viendo los detalles."
-              : "Modifique los detalles y el estado. Haga clic en guardar cuando haya terminado."}
+              : "Modifique los detalles y/o el estado. Haga clic en guardar cuando haya terminado."}
           </DialogDescription>
         </DialogHeader>
         {isLoadingDropdownData ? (
@@ -289,9 +302,9 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
             <h3 className="text-md font-medium text-muted-foreground pt-2">Detalles Generales</h3>
             <Separator />
-            <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="Nombre del cliente" {...field} disabled={formFieldsGenericDisabled || !canEditFullOrderDetails} /></FormControl><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="Nombre del cliente" {...field} disabled={!canEditFullOrderDetails || formFieldsGenericDisabled} /></FormControl><FormMessage /></FormItem>)} />
             <FormField control={form.control} name="salesRep" render={({ field }) => (<FormItem><FormLabel>Representante de Ventas</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={salesRepFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un representante" /></SelectTrigger></FormControl><SelectContent>{salesReps.map((member: TeamMember) => (<SelectItem key={member.id} value={member.name}>{member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
-            <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value} disabled={statusFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un estado" /></SelectTrigger></FormControl><SelectContent>{orderStatusesList.map((statusVal) => (<SelectItem key={statusVal} value={statusVal}>{statusVal}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+            <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={statusFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un estado" /></SelectTrigger></FormControl><SelectContent>{orderStatusesList.filter(s => s !== 'Programada' && s !== 'Fallido' && s !== 'Seguimiento').map((statusVal) => (<SelectItem key={statusVal} value={statusVal}>{statusVal}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
             
             <FormField
                 control={form.control}
@@ -321,7 +334,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
               <>
                 <h3 className="text-md font-medium text-muted-foreground pt-4">Detalles del Pedido</h3>
                 <Separator />
-                 <FormField control={form.control} name="clientType" render={({ field }) => (<FormItem><FormLabel>Tipo de Cliente</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value} disabled={productRelatedFieldsDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione tipo cliente" /></SelectTrigger></FormControl><SelectContent>{clientTypeList.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                 <FormField control={form.control} name="clientType" render={({ field }) => (<FormItem><FormLabel>Tipo de Cliente</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={productRelatedFieldsDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione tipo cliente" /></SelectTrigger></FormControl><SelectContent>{clientTypeList.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
                 <FormField control={form.control} name="products" render={({ field }) => (<FormItem><FormLabel>Productos Pedidos</FormLabel><FormControl><Textarea placeholder="Listar productos y cantidades..." className="min-h-[80px]" {...field} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
                 <FormField control={form.control} name="value" render={({ field }) => (<FormItem><FormLabel>Valor del Pedido (€)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="p. ej., 250.75" {...field} onChange={event => field.onChange(event.target.value === '' ? undefined : parseFloat(event.target.value))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
                 <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades</FormLabel><FormControl><Input type="number" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value,10))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
@@ -341,12 +354,12 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
               </>
             )}
 
-            {(currentStatus === 'Seguimiento' || currentStatus === 'Fallido') && (
+            {(currentStatus === 'Seguimiento' || currentStatus === 'Fallido' || currentStatus === 'Programada') && (
                 <>
-                  <h3 className="text-md font-medium text-muted-foreground pt-4">Plan de Seguimiento</h3>
+                  <h3 className="text-md font-medium text-muted-foreground pt-4">Información de Seguimiento/Programación</h3>
                   <Separator />
-                  <FormField control={form.control} name="nextActionType" render={({ field }) => (<FormItem><FormLabel>Próxima Acción</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={followUpFieldsDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione una próxima acción" /></SelectTrigger></FormControl><SelectContent>{nextActionTypeList.map(action => (<SelectItem key={action} value={action}>{action}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
-                  {nextActionType === "Opción personalizada" && (<FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Detalle Próxima Acción Personalizada</FormLabel><FormControl><Input placeholder="Especifique la acción" {...field} disabled={followUpFieldsDisabled} /></FormControl><FormMessage /></FormItem>)} />)}
+                  <FormField control={form.control} name="nextActionType" render={({ field }) => (<FormItem><FormLabel>Próxima Acción</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={true}><FormControl><SelectTrigger><SelectValue placeholder="N/A para este estado" /></SelectTrigger></FormControl><SelectContent>{nextActionTypeList.map(action => (<SelectItem key={action} value={action}>{action}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                  {order.nextActionType === "Opción personalizada" && (<FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Detalle Próxima Acción Personalizada</FormLabel><FormControl><Input placeholder="Especifique la acción" {...field} disabled={true} /></FormControl><FormMessage /></FormItem>)} />)}
                   <FormField
                     control={form.control}
                     name="nextActionDate"
@@ -354,8 +367,8 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                       <FormItem className="flex flex-col">
                         <FormLabel>Fecha Tentativa Próxima Acción</FormLabel>
                         <Popover><PopoverTrigger asChild><FormControl>
-                              <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal",!field.value && "text-muted-foreground")} disabled={followUpFieldsDisabled}>
-                                {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione una fecha</span>}
+                              <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal",!field.value && "text-muted-foreground")} disabled={true}>
+                                {field.value ? format(field.value, "PPP", { locale: es }) : <span>N/A</span>}
                                 <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                               </Button></FormControl></PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus locale={es} /></PopoverContent>
@@ -363,15 +376,13 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                       </FormItem>
                     )}
                   />
+                   {order.status === 'Fallido' && (
+                     <>
+                      <FormField control={form.control} name="failureReasonType" render={({ field }) => (<FormItem><FormLabel>Motivo del Fallo</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={true}><FormControl><SelectTrigger><SelectValue placeholder="N/A para este estado" /></SelectTrigger></FormControl><SelectContent>{failureReasonList.map(reason => (<SelectItem key={reason} value={reason}>{reason}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                      {order.failureReasonType === "Otro (especificar)" && (<FormField control={form.control} name="failureReasonCustom" render={({ field }) => (<FormItem><FormLabel>Detalle Motivo del Fallo Personalizado</FormLabel><FormControl><Textarea placeholder="Especifique el motivo" {...field} disabled={true} /></FormControl><FormMessage /></FormItem>)} />)}
+                     </>
+                   )}
                 </>
-            )}
-            {currentStatus === 'Fallido' && (
-                 <>
-                  <h3 className="text-md font-medium text-muted-foreground pt-4">Detalles del Fallo</h3>
-                  <Separator />
-                  <FormField control={form.control} name="failureReasonType" render={({ field }) => (<FormItem><FormLabel>Motivo del Fallo</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={followUpFieldsDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un motivo" /></SelectTrigger></FormControl><SelectContent>{failureReasonList.map(reason => (<SelectItem key={reason} value={reason}>{reason}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
-                  {failureReasonType === "Otro (especificar)" && (<FormField control={form.control} name="failureReasonCustom" render={({ field }) => (<FormItem><FormLabel>Detalle Motivo del Fallo Personalizado</FormLabel><FormControl><Textarea placeholder="Especifique el motivo" {...field} disabled={followUpFieldsDisabled} /></FormControl><FormMessage /></FormItem>)} />)}
-                 </>
             )}
 
             {currentStatus !== 'Programada' && (
@@ -454,15 +465,15 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
 
             <h3 className="text-md font-medium text-muted-foreground pt-4">Notas Adicionales</h3>
             <Separator />
-            <FormField control={form.control} name="notes" render={({ field }) => (<FormItem><FormLabel>Notas Generales</FormLabel><FormControl><Textarea placeholder="Notas generales sobre el pedido o visita" {...field} className="min-h-[60px]" disabled={isReadOnly || (!isAdmin && !isDistributor)}/></FormControl><FormMessage /></FormItem>)}/>
+            <FormField control={form.control} name="notes" render={({ field }) => (<FormItem><FormLabel>Notas Generales</FormLabel><FormControl><Textarea placeholder="Notas generales sobre el pedido o visita" {...field} className="min-h-[60px]" disabled={notesFieldDisabled}/></FormControl><FormMessage /></FormItem>)}/>
 
             <DialogFooter className="pt-6 print-hide">
               <Button type="button" variant="outline" onClick={handlePrint} className="mr-auto">
-                  <Printer className="mr-2 h-4 w-4" /> Imprimir
+                  <Printer className="mr-2 h-4 w-4" /> Imprimir Ficha
               </Button>
               <DialogClose asChild><Button type="button" variant="outline" disabled={isSaving}>Cancelar</Button></DialogClose>
-              {!isReadOnly && (
-                <Button type="submit" disabled={isSaving || isLoadingDropdownData || (!form.formState.isDirty && (currentUserRole === 'Admin' || currentUserRole === 'Distributor'))}>
+              {!(isReadOnlyForMostFields && !canEditStatusAndNotes) && (
+                <Button type="submit" disabled={isSaving || isLoadingDropdownData || (!form.formState.isDirty && (isAdmin || isDistributor)) }>
                   {isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>) : ("Guardar Cambios")}
                 </Button>
               )}
@@ -474,3 +485,4 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     </Dialog>
   );
 }
+

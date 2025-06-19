@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox"; 
 import type { Order, OrderStatus, UserRole } from "@/types";
 import { orderStatusesList } from "@/lib/data"; 
-import { MoreHorizontal, Eye, Edit, Trash2, Filter, CalendarDays, ChevronDown, Check, Download, ShoppingCart, Loader2 } from "lucide-react"; 
+import { MoreHorizontal, Eye, Edit, Trash2, Filter, CalendarDays, ChevronDown, Download, ShoppingCart, Loader2 } from "lucide-react"; // Removed Check
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -51,9 +51,13 @@ export default function OrdersDashboardPage() {
     async function loadOrders() {
       setIsLoading(true);
       try {
-        await initializeMockOrdersInFirestore(initialMockOrdersForSeeding);
+        // Comenta o elimina la siguiente línea DESPUÉS de la primera carga si ya no necesitas sembrar datos
+        // await initializeMockOrdersInFirestore(initialMockOrdersForSeeding);
+        
         const firestoreOrders = await getOrdersFS();
-        setAllOrders(firestoreOrders.filter(order => relevantOrderStatusesForDashboard.includes(order.status)));
+        setAllOrders(firestoreOrders.filter(order => 
+            order.status !== 'Programada' && order.status !== 'Seguimiento' && order.status !== 'Fallido'
+        ));
       } catch (error) {
         console.error("Error fetching orders:", error);
         toast({ title: "Error al Cargar Pedidos", description: "No se pudieron cargar los pedidos desde Firestore.", variant: "destructive" });
@@ -73,7 +77,7 @@ export default function OrdersDashboardPage() {
     .filter(order =>
       (order.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
        order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       order.salesRep.toLowerCase().includes(searchTerm.toLowerCase()))
+       (order.salesRep && order.salesRep.toLowerCase().includes(searchTerm.toLowerCase())))
     )
     .filter(order => statusFilter === "Todos" || order.status === statusFilter)
     .filter(order => {
@@ -103,17 +107,20 @@ export default function OrdersDashboardPage() {
       const orderToUpdate = allOrders.find(o => o.id === orderId);
       if (!orderToUpdate) {
         toast({ title: "Error", description: "Pedido no encontrado.", variant: "destructive" });
+        setIsLoading(false);
         return;
       }
 
       const fullUpdatedOrderData: Partial<Order> = {
-        ...orderToUpdate, 
+        // ...orderToUpdate, // No esparcir todo, solo los campos que vienen del form
         clientName: updatedData.clientName,
         products: updatedData.products ? updatedData.products.split(/[,;\n]+/).map(p => p.trim()).filter(p => p.length > 0) : orderToUpdate.products,
         value: updatedData.value !== undefined ? updatedData.value : orderToUpdate.value,
         status: updatedData.status,
         salesRep: updatedData.salesRep,
         lastUpdated: format(new Date(), "yyyy-MM-dd"), 
+        clavadistaId: updatedData.clavadistaId,
+        assignedMaterials: updatedData.assignedMaterials,
         clientType: updatedData.clientType || orderToUpdate.clientType,
         numberOfUnits: updatedData.numberOfUnits !== undefined ? updatedData.numberOfUnits : orderToUpdate.numberOfUnits,
         unitPrice: updatedData.unitPrice !== undefined ? updatedData.unitPrice : orderToUpdate.unitPrice,
@@ -126,18 +133,17 @@ export default function OrdersDashboardPage() {
         contactoTelefono: updatedData.contactoTelefono || orderToUpdate.contactoTelefono,
         observacionesAlta: updatedData.observacionesAlta || orderToUpdate.observacionesAlta,
         notes: updatedData.notes || orderToUpdate.notes,
-        nextActionType: updatedData.nextActionType || orderToUpdate.nextActionType,
-        nextActionCustom: updatedData.nextActionCustom || orderToUpdate.nextActionCustom,
-        nextActionDate: updatedData.nextActionDate ? format(updatedData.nextActionDate, "yyyy-MM-dd") : orderToUpdate.nextActionDate,
-        failureReasonType: updatedData.failureReasonType || orderToUpdate.failureReasonType,
-        failureReasonCustom: updatedData.failureReasonCustom || orderToUpdate.failureReasonCustom,
-        clavadistaId: updatedData.clavadistaId,
-        assignedMaterials: updatedData.assignedMaterials,
+        // Campos de seguimiento no se actualizan desde este diálogo de edición principal
+        // nextActionType: orderToUpdate.nextActionType,
+        // nextActionCustom: orderToUpdate.nextActionCustom,
+        // nextActionDate: orderToUpdate.nextActionDate,
+        // failureReasonType: orderToUpdate.failureReasonType,
+        // failureReasonCustom: orderToUpdate.failureReasonCustom,
       };
       
       await updateOrderFS(orderId, fullUpdatedOrderData as Order); 
       
-      setAllOrders(prevOrders => prevOrders.map(o => o.id === orderId ? { ...o, ...fullUpdatedOrderData } : o));
+      setAllOrders(prevOrders => prevOrders.map(o => o.id === orderId ? { ...orderToUpdate, ...fullUpdatedOrderData } : o));
       
       toast({ title: "¡Pedido Actualizado!", description: `Pedido ${orderId} actualizado exitosamente.`, variant: "default"});
     } catch (error) {
@@ -177,33 +183,18 @@ export default function OrdersDashboardPage() {
         toast({ title: "Permiso Denegado", description: "No tienes permiso para cambiar el estado del pedido.", variant: "destructive" });
         return;
     }
-    const updatedFormValues: EditOrderFormValues = {
-        clientName: order.clientName,
-        products: order.products?.join(", "),
-        value: order.value,
-        status: newStatus, 
-        salesRep: order.salesRep,
-        clavadistaId: order.clavadistaId,
-        assignedMaterials: order.assignedMaterials,
-        clientType: order.clientType,
-        numberOfUnits: order.numberOfUnits,
-        unitPrice: order.unitPrice,
-        nombreFiscal: order.nombreFiscal,
-        cif: order.cif,
-        direccionFiscal: order.direccionFiscal,
-        direccionEntrega: order.direccionEntrega,
-        contactoNombre: order.contactoNombre,
-        contactoCorreo: order.contactoCorreo,
-        contactoTelefono: order.contactoTelefono,
-        observacionesAlta: order.observacionesAlta,
-        notes: order.notes,
-        nextActionType: order.nextActionType,
-        nextActionCustom: order.nextActionCustom,
-        nextActionDate: order.nextActionDate ? parseISO(order.nextActionDate) : undefined,
-        failureReasonType: order.failureReasonType,
-        failureReasonCustom: order.failureReasonCustom,
-    };
-    await handleUpdateOrder(updatedFormValues, order.id);
+    setIsLoading(true);
+    try {
+        const updatePayload: Partial<Order> = { status: newStatus, lastUpdated: format(new Date(), "yyyy-MM-dd") };
+        await updateOrderFS(order.id, updatePayload);
+        setAllOrders(prevOrders => prevOrders.map(o => o.id === order.id ? { ...o, ...updatePayload } : o));
+        toast({ title: "Estado Actualizado", description: `El estado del pedido ${order.id} es ahora ${newStatus}.` });
+    } catch (error) {
+        console.error("Error updating order status:", error);
+        toast({ title: "Error al Cambiar Estado", description: "No se pudo actualizar el estado del pedido.", variant: "destructive" });
+    } finally {
+        setIsLoading(false);
+    }
   }
 
   const handleSelectAllChange = (checked: boolean) => {
@@ -495,7 +486,7 @@ export default function OrdersDashboardPage() {
                               <Eye className="mr-2 h-4 w-4" /> Ver Detalles
                             </DropdownMenuItem>
                             {(canEditOrderDetails || canEditOrderStatus) && ( 
-                              <DropdownMenuItem onSelect={() => handleViewOrEditClick(order)}>
+                              <DropdownMenuItem onSelect={() => handleViewOrEditClick(order)} disabled={!canEditOrderDetails && !canEditOrderStatus}>
                                 <Edit className="mr-2 h-4 w-4" /> Editar
                               </DropdownMenuItem>
                             )}
@@ -507,6 +498,7 @@ export default function OrdersDashboardPage() {
                                     <DropdownMenuItem 
                                       className="text-destructive focus:text-destructive focus:bg-destructive/10"
                                       onSelect={(e) => { e.preventDefault(); handleDeleteOrderClick(order); }}
+                                      disabled={!canDeleteOrder}
                                       >
                                       <Trash2 className="mr-2 h-4 w-4" /> Eliminar Pedido
                                     </DropdownMenuItem>
@@ -564,3 +556,4 @@ export default function OrdersDashboardPage() {
     </div>
   );
 }
+

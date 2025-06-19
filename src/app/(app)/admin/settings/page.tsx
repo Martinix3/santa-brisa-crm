@@ -4,7 +4,7 @@
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Users, Goal, Target, Settings } from "lucide-react";
+import { Users, Goal, Target, Settings, PackagePlus } from "lucide-react"; // Added PackagePlus
 import { useAuth } from "@/contexts/auth-context";
 import { AlertTriangle } from "lucide-react";
 
@@ -26,6 +26,12 @@ const adminSections = [
     description: "Ajustar las metas numéricas para los KPIs del panel de lanzamiento.",
     href: "/admin/kpi-launch-targets",
     icon: Target,
+  },
+  {
+    title: "Gestión de Materiales Promocionales",
+    description: "Administrar materiales de marketing (cubiteras, PLV, etc.) y sus costes.",
+    href: "/admin/promotional-materials",
+    icon: PackagePlus,
   },
 ];
 
@@ -53,7 +59,7 @@ export default function AdminSettingsPage() {
         <h1 className="text-3xl font-headline font-semibold">Configuración de Administración</h1>
       </header>
       <CardDescription>
-        Accede a las diferentes secciones de configuración para gestionar usuarios, objetivos estratégicos y metas de KPIs.
+        Accede a las diferentes secciones de configuración para gestionar usuarios, objetivos, KPIs y materiales promocionales.
       </CardDescription>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

@@ -1,5 +1,5 @@
 
-import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType, Account, AccountType, AccountStatus, NextActionType, FailureReasonType, CrmEvent, CrmEventType, CrmEventStatus } from '@/types';
+import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType, Account, AccountType, AccountStatus, NextActionType, FailureReasonType, CrmEvent, CrmEventType, CrmEventStatus, PromotionalMaterial, PromotionalMaterialType, AssignedPromotionalMaterial } from '@/types';
 import { Package, Users, ShoppingBag, BarChart3 } from 'lucide-react';
 import { format, addDays, subDays, isEqual } from 'date-fns';
 
@@ -314,6 +314,19 @@ mockOrders.forEach(order => {
     }
 });
 
+// Promotional Materials Data
+export const promotionalMaterialTypeList: PromotionalMaterialType[] = ['Merchandising Físico', 'Material PLV', 'Servicio de Personal', 'Digital/Software'];
+
+export const mockPromotionalMaterials: PromotionalMaterial[] = [
+  { id: 'mat_001', name: 'Cubitera Metálica Santa Brisa', type: 'Merchandising Físico', unitCost: 12.50, description: 'Cubitera elegante con logo grabado.' },
+  { id: 'mat_002', name: 'Bandeja de Camarero Santa Brisa', type: 'Merchandising Físico', unitCost: 8.00, description: 'Bandeja antideslizante con marca.' },
+  { id: 'mat_003', name: 'Set 6 Copas Grabadas Santa Brisa', type: 'Merchandising Físico', unitCost: 25.00, description: 'Copas de cristal de alta calidad.' },
+  { id: 'mat_004', name: 'Expositor de Mesa (PLV)', type: 'Material PLV', unitCost: 15.00, description: 'Pequeño expositor para mostrador o mesa.' },
+  { id: 'mat_005', name: 'Roll-up Promocional (PLV)', type: 'Material PLV', unitCost: 60.00, description: 'Banner enrollable para eventos o tiendas.' },
+  { id: 'mat_006', name: 'Servicio de Camarero/Coctelero (por hora)', type: 'Servicio de Personal', unitCost: 20.00, description: 'Personal cualificado para eventos.' },
+  { id: 'mat_007', name: 'Flyers Promocionales (pack 100u)', type: 'Material PLV', unitCost: 10.00, description: 'Folletos A6 a color.' },
+];
+
 // CRM Event Management Data
 export const crmEventTypeList: CrmEventType[] = ['Activación en Tienda', 'Feria Comercial', 'Evento Corporativo', 'Degustación', 'Patrocinio', 'Activación', 'Otro'];
 export const crmEventStatusList: CrmEventStatus[] = ['Planificado', 'Confirmado', 'En Curso', 'Completado', 'Cancelado', 'Pospuesto'];
@@ -328,7 +341,10 @@ export const mockCrmEvents: CrmEvent[] = [
     endDate: format(addDays(new Date(), 10), 'yyyy-MM-dd'),
     location: 'Tienda Gourmet Central, Calle Mayor 1',
     assignedTeamMemberIds: ['tm1', 'tm3'], // Nico, Federica
-    requiredMaterials: 'Stand promocional, 2 cajas de producto, folletos, copas de degustación',
+    assignedMaterials: [
+        { materialId: 'mat_003', quantity: 2 }, // 2 Sets de Copas
+        { materialId: 'mat_007', quantity: 1 }  // 1 Pack de Flyers
+    ],
     createdAt: format(subDays(new Date(), 5), 'yyyy-MM-dd'),
     updatedAt: format(subDays(new Date(), 1), 'yyyy-MM-dd'),
     description: 'Evento de degustación y presentación de la nueva cosecha para clientes de la tienda.'
@@ -342,7 +358,11 @@ export const mockCrmEvents: CrmEvent[] = [
     endDate: format(addDays(new Date(), 33), 'yyyy-MM-dd'),
     location: 'Fira de Barcelona, Gran Vía',
     assignedTeamMemberIds: ['tm2', 'adminMJ'], // Alfonso, Martín (Admin)
-    requiredMaterials: 'Stand completo (diseño B), material gráfico, muestras de todos los productos, personal de apoyo.',
+    assignedMaterials: [
+        { materialId: 'mat_005', quantity: 1 }, // Roll-up
+        { materialId: 'mat_001', quantity: 10 }, // Cubiteras
+        { materialId: 'mat_006', quantity: 16 } // 16 horas de camarero (2 días x 8h)
+    ],
     notes: 'Stand H2. Reuniones clave ya agendadas.',
     createdAt: format(subDays(new Date(), 20), 'yyyy-MM-dd'),
     updatedAt: format(subDays(new Date(), 2), 'yyyy-MM-dd'),
@@ -356,7 +376,9 @@ export const mockCrmEvents: CrmEvent[] = [
     endDate: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
     location: 'Restaurante Fusión, Calle Innova 5',
     assignedTeamMemberIds: ['tm1'], // Nico
-    requiredMaterials: 'Selección especial de vinos, fichas de cata, material PLV pequeño.',
+    assignedMaterials: [
+        { materialId: 'mat_003', quantity: 3 } 
+    ],
     description: 'Evento exclusivo para sumilleres y prensa especializada. Gran éxito.',
     notes: 'Se generaron 3 leads HORECA importantes.',
     createdAt: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
@@ -371,14 +393,12 @@ export const mockCrmEvents: CrmEvent[] = [
     endDate: format(addDays(new Date(), 46), 'yyyy-MM-dd'),
     location: 'Supermercado Principal, Av. Comercial',
     assignedTeamMemberIds: ['tm2'], // Alfonso
-    requiredMaterials: 'Expositor especial Navidad, flyers promocionales, azafata.',
+    assignedMaterials: [
+        { materialId: 'mat_004', quantity: 2 },
+        { materialId: 'mat_007', quantity: 5 }
+    ],
     description: 'Promoción de packs navideños.',
     createdAt: format(subDays(new Date(), 2), 'yyyy-MM-dd'),
     updatedAt: format(subDays(new Date(), 2), 'yyyy-MM-dd'),
   },
 ];
-
-
-    
-
-    

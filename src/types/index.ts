@@ -110,6 +110,23 @@ export interface Account {
   updatedAt: string; // YYYY-MM-DD
 }
 
+// Promotional Materials
+export type PromotionalMaterialType = 'Merchandising Físico' | 'Material PLV' | 'Servicio de Personal' | 'Digital/Software';
+
+export interface PromotionalMaterial {
+  id: string;
+  name: string;
+  description?: string;
+  type: PromotionalMaterialType;
+  unitCost: number; // Cost per unit or per hour for services
+}
+
+export interface AssignedPromotionalMaterial {
+  materialId: string; // Corresponds to PromotionalMaterial.id
+  quantity: number;
+  // Optional: estimatedCost can be calculated on the fly: material.unitCost * quantity
+}
+
 // CRM Event Management
 export type CrmEventType = 'Activación en Tienda' | 'Feria Comercial' | 'Evento Corporativo' | 'Degustación' | 'Patrocinio' | 'Activación' | 'Otro';
 export type CrmEventStatus = 'Planificado' | 'Confirmado' | 'En Curso' | 'Completado' | 'Cancelado' | 'Pospuesto';
@@ -124,7 +141,7 @@ export interface CrmEvent {
   description?: string;
   location?: string;
   assignedTeamMemberIds: string[]; // Array of TeamMember.id
-  requiredMaterials?: string;
+  assignedMaterials?: AssignedPromotionalMaterial[]; // Replaced requiredMaterials
   notes?: string;
   createdAt: string; // YYYY-MM-DD
   updatedAt: string; // YYYY-MM-DD

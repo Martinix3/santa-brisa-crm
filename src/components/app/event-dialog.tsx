@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, useFieldArray } from "react-hook-form";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +18,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -36,13 +37,19 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { CrmEvent, CrmEventType, CrmEventStatus, TeamMember } from "@/types";
-import { crmEventTypeList, crmEventStatusList, mockTeamMembers } from "@/lib/data";
-import { Loader2, Calendar as CalendarIcon } from "lucide-react";
+import type { CrmEvent, CrmEventType, CrmEventStatus, TeamMember, AssignedPromotionalMaterial, PromotionalMaterial } from "@/types";
+import { crmEventTypeList, crmEventStatusList, mockTeamMembers, mockPromotionalMaterials } from "@/lib/data";
+import { Loader2, Calendar as CalendarIcon, PlusCircle, Trash2, Package, Euro } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { format, parseISO, isValid, subDays, isEqual } from "date-fns"; // Added subDays and isEqual
+import { format, parseISO, isValid, subDays, isEqual } from "date-fns";
 import { es } from 'date-fns/locale';
+import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
+
+const assignedMaterialSchema = z.object({
+  materialId: z.string().min(1, "Debe seleccionar un material."),
+  quantity: z.coerce.number().min(1, "La cantidad debe ser al menos 1."),
+});
 
 const eventFormSchema = z.object({
   name: z.string().min(3, "El nombre del evento debe tener al menos 3 caracteres."),
@@ -53,7 +60,7 @@ const eventFormSchema = z.object({
   description: z.string().optional(),
   location: z.string().optional(),
   assignedTeamMemberIds: z.array(z.string()).default([]),
-  requiredMaterials: z.string().optional(),
+  assignedMaterials: z.array(assignedMaterialSchema).optional().default([]),
   notes: z.string().optional(),
 }).superRefine((data, ctx) => {
   if (data.startDate && data.endDate && data.endDate < data.startDate) {
@@ -93,10 +100,25 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
       description: "",
       location: "",
       assignedTeamMemberIds: [],
-      requiredMaterials: "",
+      assignedMaterials: [],
       notes: "",
     },
   });
+
+  const { fields: materialFields, append: appendMaterial, remove: removeMaterial } = useFieldArray({
+    control: form.control,
+    name: "assignedMaterials",
+  });
+
+  const watchedMaterials = form.watch("assignedMaterials");
+
+  const totalEstimatedMaterialCost = React.useMemo(() => {
+    return watchedMaterials.reduce((total, current) => {
+      const materialDetails = mockPromotionalMaterials.find(m => m.id === current.materialId);
+      return total + (materialDetails ? materialDetails.unitCost * current.quantity : 0);
+    }, 0);
+  }, [watchedMaterials]);
+
 
   React.useEffect(() => {
     if (isOpen) {
@@ -110,7 +132,7 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
           description: event.description || "",
           location: event.location || "",
           assignedTeamMemberIds: event.assignedTeamMemberIds || [],
-          requiredMaterials: event.requiredMaterials || "",
+          assignedMaterials: event.assignedMaterials || [],
           notes: event.notes || "",
         });
       } else {
@@ -123,7 +145,7 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
           description: "",
           location: "",
           assignedTeamMemberIds: [],
-          requiredMaterials: "",
+          assignedMaterials: [],
           notes: "",
         });
       }
@@ -134,19 +156,14 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
     if (isReadOnly) return;
     setIsSaving(true);
     
-    const dataToSave = {
-      ...data,
-      // Dates are already Date objects from the form, will be formatted in the parent onSave function if needed.
-    };
-
     await new Promise(resolve => setTimeout(resolve, 500)); 
-    onSave(dataToSave, event?.id);
+    onSave(data, event?.id);
     setIsSaving(false);
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg md:max-w-xl lg:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg md:max-w-xl lg:max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isReadOnly ? "Detalles del Evento" : (event ? "Editar Evento" : "Añadir Nuevo Evento")}</DialogTitle>
           <DialogDescription>
@@ -291,8 +308,8 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
             />
             
             <Separator className="my-4"/>
-            <h3 className="text-md font-medium text-muted-foreground">Detalles Adicionales</h3>
-
+            <h3 className="text-md font-medium text-muted-foreground">Recursos y Personal</h3>
+            
             <FormField
               control={form.control}
               name="assignedTeamMemberIds"
@@ -331,21 +348,75 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
                 </FormItem>
               )}
             />
-
-
-            <FormField
-              control={form.control}
-              name="requiredMaterials"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Material Necesario (Opcional)</FormLabel>
-                  <FormControl>
-                    <Textarea placeholder="Ej: Stand, folletos, botellas de muestra..." {...field} disabled={isReadOnly} className="min-h-[80px]" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+            
+            <div className="space-y-3">
+              <FormLabel className="flex items-center"><Package className="mr-2 h-4 w-4 text-primary"/> Materiales Promocionales Asignados</FormLabel>
+              {materialFields.map((item, index) => {
+                const selectedMaterial = mockPromotionalMaterials.find(m => m.id === watchedMaterials[index]?.materialId);
+                return (
+                  <div key={item.id} className="flex items-end gap-2 p-3 border rounded-md bg-secondary/30">
+                    <FormField
+                      control={form.control}
+                      name={`assignedMaterials.${index}.materialId`}
+                      render={({ field }) => (
+                        <FormItem className="flex-grow">
+                          <FormLabel className="text-xs">Material</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}>
+                            <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar material" /></SelectTrigger></FormControl>
+                            <SelectContent>
+                              {mockPromotionalMaterials.map(mat => (
+                                <SelectItem key={mat.id} value={mat.id}>{mat.name} ({mat.type}) - <FormattedNumericValue value={mat.unitCost} options={{style:'currency', currency:'EUR'}}/></SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`assignedMaterials.${index}.quantity`}
+                      render={({ field }) => (
+                        <FormItem className="w-24">
+                          <FormLabel className="text-xs">Cantidad</FormLabel>
+                          <FormControl><Input type="number" {...field} disabled={isReadOnly} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="text-sm text-muted-foreground w-28 text-right whitespace-nowrap">
+                       {selectedMaterial && watchedMaterials[index]?.quantity > 0 ? (
+                          <FormattedNumericValue value={selectedMaterial.unitCost * watchedMaterials[index].quantity} options={{style:'currency', currency:'EUR'}} />
+                       ) : <FormattedNumericValue value={0} options={{style:'currency', currency:'EUR'}} />}
+                    </div>
+                    {!isReadOnly && (
+                      <Button type="button" variant="ghost" size="icon" onClick={() => removeMaterial(index)} className="text-destructive hover:bg-destructive/10">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+              {!isReadOnly && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => appendMaterial({ materialId: "", quantity: 1 })}
+                  className="mt-2"
+                >
+                  <PlusCircle className="mr-2 h-4 w-4" /> Añadir Material al Evento
+                </Button>
               )}
-            />
+              {watchedMaterials.length > 0 && (
+                <div className="text-right font-medium text-primary pt-2">
+                    Coste Total Estimado Materiales: <FormattedNumericValue value={totalEstimatedMaterialCost} options={{style:'currency', currency:'EUR'}} />
+                </div>
+              )}
+            </div>
+
+
+            <Separator className="my-4"/>
             <FormField
               control={form.control}
               name="notes"
@@ -385,4 +456,3 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
     </Dialog>
   );
 }
-

@@ -22,27 +22,27 @@ import { Button } from '@/components/ui/button';
 import Logo from '@/components/icons/Logo';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2, Building2, ClipboardList, CalendarCheck, PartyPopper, ListChecks, Footprints, Briefcase, Target, Award, Sparkles } from 'lucide-react'; 
+import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2, Building2, ClipboardList, CalendarCheck, PartyPopper, ListChecks, Footprints, Briefcase, Target, Award, Sparkles } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuLabel, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { UserRole, Order, CrmEvent, TeamMember, Account } from '@/types';
 import { useAuth } from '@/contexts/auth-context';
 import DailyTasksWidget from '@/components/app/daily-tasks-widget';
 import { Badge } from '@/components/ui/badge';
-import { mockCrmEvents } from '@/lib/data'; // mockOrders, mockAccounts, mockTeamMembers removed
 import { parseISO, startOfDay, endOfDay, isWithinInterval, format, getMonth, getYear, isSameMonth, isSameYear, addDays, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getOrdersFS } from '@/services/order-service';
+import { getEventsFS } from '@/services/event-service'; // Import event service
 import { getAccountsFS } from '@/services/account-service';
-import { getTeamMembersFS } from '@/services/team-member-service'; // For monthly progress
+import { getTeamMembersFS } from '@/services/team-member-service';
 import { useToast } from '@/hooks/use-toast';
 
 
@@ -57,7 +57,7 @@ interface NavGroup {
   id: string;
   label: string;
   items: NavItem[];
-  groupRoles?: UserRole[]; 
+  groupRoles?: UserRole[];
 }
 
 const navigationStructure: NavGroup[] = [
@@ -80,7 +80,7 @@ const navigationStructure: NavGroup[] = [
     label: 'Marketing',
     groupRoles: ['Admin', 'SalesRep', 'Distributor'],
     items: [
-      { href: '/events', label: 'Eventos', icon: PartyPopper, roles: ['Admin', 'SalesRep'] },
+      { href: '/events', label: 'Eventos', icon: PartyPopper, roles: ['Admin', 'SalesRep', 'Distributor'] }, // Distributor can view events
       { href: '/clavadistas', label: 'Clavadistas', icon: Award, roles: ['Admin', 'SalesRep'] },
       { href: '/marketing-resources', label: 'Recursos de Marketing', icon: Library, roles: ['Admin', 'SalesRep', 'Distributor'] },
       { href: '/marketing/ai-assistant', label: 'Asistente IA', icon: Sparkles, roles: ['Admin', 'SalesRep'] },
@@ -101,45 +101,54 @@ function DailyTasksMenu() {
   const { userRole, teamMember } = useAuth();
   const { toast } = useToast();
   const today = startOfDay(new Date());
-  const nextSevenDaysEnd = endOfDay(addDays(today, 6)); 
+  const nextSevenDaysEnd = endOfDay(addDays(today, 6));
   const [taskCount, setTaskCount] = useState(0);
+  const [isLoadingTasks, setIsLoadingTasks] = useState(true);
+
 
   useEffect(() => {
     async function fetchTasks() {
+      setIsLoadingTasks(true);
       if ((!teamMember && userRole === 'SalesRep') || userRole === 'Distributor') {
         setTaskCount(0);
+        setIsLoadingTasks(false);
         return;
       }
 
       let relevantOrders: Order[] = [];
-      let relevantEvents: CrmEvent[] = []; // Events still from mock
-      
+      let relevantEvents: CrmEvent[] = [];
+
       try {
-        const allOrders = await getOrdersFS();
+        const [allOrders, allEvents] = await Promise.all([
+            getOrdersFS(),
+            getEventsFS()
+        ]);
+
         if (userRole === 'Admin') {
           relevantOrders = allOrders.filter(order =>
             (order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') &&
-            (order.status === 'Programada' ? order.visitDate : order.nextActionDate)
+            (order.status === 'Programada' ? order.visitDate : order.nextActionDate) &&
+            isValid(parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!))
           );
-          relevantEvents = mockCrmEvents; // Using mock for now
+          relevantEvents = allEvents.filter(event => isValid(parseISO(event.startDate)));
         } else if (userRole === 'SalesRep' && teamMember) {
           relevantOrders = allOrders.filter(order =>
             order.salesRep === teamMember.name &&
             (order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') &&
-            (order.status === 'Programada' ? order.visitDate : order.nextActionDate)
+            (order.status === 'Programada' ? order.visitDate : order.nextActionDate) &&
+            isValid(parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!))
           );
-          relevantEvents = mockCrmEvents.filter(event => // Using mock for now
-            event.assignedTeamMemberIds.includes(teamMember.id)
+          relevantEvents = allEvents.filter(event =>
+            event.assignedTeamMemberIds.includes(teamMember.id) && isValid(parseISO(event.startDate))
           );
         }
       } catch (error) {
-          console.error("Error fetching orders for daily tasks menu:", error);
-          toast({ title: "Error Tareas", description: "No se pudieron cargar las tareas de pedidos.", variant: "destructive"});
+          console.error("Error fetching data for daily tasks menu:", error);
+          toast({ title: "Error Tareas", description: "No se pudieron cargar las tareas del menú.", variant: "destructive"});
       }
 
 
       const orderAgendaItems = relevantOrders
-        .filter(order => isValid(parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!)))
         .map(order => ({
           itemDate: parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!),
           sourceType: 'order' as 'order',
@@ -147,7 +156,6 @@ function DailyTasksMenu() {
         }));
 
       const eventAgendaItems = relevantEvents
-        .filter(event => isValid(parseISO(event.startDate)))
         .map(event => ({
           itemDate: parseISO(event.startDate),
           sourceType: 'event' as 'event',
@@ -165,12 +173,19 @@ function DailyTasksMenu() {
           return isWithinInterval(itemStartDate, { start: today, end: nextSevenDaysEnd });
         }).length;
       setTaskCount(count);
+      setIsLoadingTasks(false);
     }
-    fetchTasks();
+
+    if(userRole && (userRole === 'Admin' || (userRole === 'SalesRep' && teamMember))) {
+        fetchTasks();
+    } else if (userRole === 'Distributor') {
+        setIsLoadingTasks(false);
+        setTaskCount(0);
+    }
   }, [userRole, teamMember, today, nextSevenDaysEnd, toast]);
 
 
-  if (userRole === 'Distributor') return null;
+  if (userRole === 'Distributor' || isLoadingTasks) return null; // Hide if loading or distributor
 
   return (
     <DropdownMenu>
@@ -204,9 +219,9 @@ function DailyTasksMenu() {
 
 interface MonthlyProgressIndicatorProps {
   type: 'visits' | 'accounts';
-  teamMember: TeamMember | null; 
+  teamMember: TeamMember | null;
   userRole: UserRole | null;
-  allTeamMembers: TeamMember[]; // Pass all members for Admin calculation
+  allTeamMembers: TeamMember[];
   allOrders: Order[];
   allAccounts: Account[];
 }
@@ -231,7 +246,7 @@ function MonthlyProgressIndicator({ type, teamMember, userRole, allTeamMembers, 
 
       if (type === 'visits') {
         teamTarget = salesReps.reduce((sum, rep) => sum + (rep.monthlyTargetVisits || 0), 0);
-        teamAchieved = allOrders.filter(order => 
+        teamAchieved = allOrders.filter(order =>
           salesReps.some(rep => rep.name === order.salesRep) &&
           isValid(parseISO(order.visitDate)) &&
           isSameMonth(parseISO(order.visitDate), currentDate) &&
@@ -241,7 +256,7 @@ function MonthlyProgressIndicator({ type, teamMember, userRole, allTeamMembers, 
         setTooltipTitle(`Equipo: Visitas`);
       } else if (type === 'accounts') {
         teamTarget = salesReps.reduce((sum, rep) => sum + (rep.monthlyTargetAccounts || 0), 0);
-        teamAchieved = allAccounts.filter(acc => 
+        teamAchieved = allAccounts.filter(acc =>
           salesReps.some(rep => rep.id === acc.salesRepId) &&
           isValid(parseISO(acc.createdAt)) &&
           isSameMonth(parseISO(acc.createdAt), currentDate) &&
@@ -285,8 +300,8 @@ function MonthlyProgressIndicator({ type, teamMember, userRole, allTeamMembers, 
     }
   }, [teamMember, userRole, type, currentDate, allTeamMembers, allOrders, allAccounts]);
 
-  if (!target && achieved === 0 && userRole !== 'Admin') return null; 
-  if (userRole === 'Admin' && target === 0 && achieved === 0) { 
+  if (!target && achieved === 0 && userRole !== 'Admin') return null;
+  if (userRole === 'Admin' && target === 0 && achieved === 0) {
     return (
         <Tooltip>
             <TooltipTrigger asChild>
@@ -305,13 +320,13 @@ function MonthlyProgressIndicator({ type, teamMember, userRole, allTeamMembers, 
 
   const remaining = Math.max(0, target - achieved);
 
-  if (remaining <= 0 && target > 0) { 
+  if (remaining <= 0 && target > 0) {
     return (
         <Tooltip>
             <TooltipTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-9 w-auto px-2 text-green-600">
                     <Icon className="h-5 w-5" />
-                    <Target className="ml-1 h-4 w-4" /> 
+                    <Target className="ml-1 h-4 w-4" />
                 </Button>
             </TooltipTrigger>
             <TooltipContent>
@@ -358,7 +373,6 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
   }, [user, loading, router, pathname]);
 
   useEffect(() => {
-    // Fetch data for progress indicators if user is Admin or SalesRep
     async function loadProgressData() {
         if (userRole === 'Admin' || userRole === 'SalesRep') {
             setIsDataLoading(true);
@@ -378,10 +392,10 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
                 setIsDataLoading(false);
             }
         } else {
-             setIsDataLoading(false); // No need to load this data for other roles
+             setIsDataLoading(false);
         }
     }
-    if (!loading && user) { // Only load if auth is done and user is logged in
+    if (!loading && user) {
         loadProgressData();
     }
   }, [userRole, user, loading, toast]);
@@ -394,20 +408,20 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-  
-  if (!user && pathname !== '/login') { 
-    return null; 
+
+  if (!user && pathname !== '/login') {
+    return null;
   }
-  
+
   if (!user && pathname === '/login') {
-    return <>{children}</>; 
+    return <>{children}</>;
   }
-  
-  if (!user) return null; 
+
+  if (!user) return null;
 
   const handleLogout = async () => {
     await logout();
-    router.push('/login'); 
+    router.push('/login');
   };
 
   const showMonthlyProgress = (userRole === 'SalesRep' || userRole === 'Admin');
@@ -482,9 +496,9 @@ function AppNavigation({ navStructure, userRole }: AppNavigationProps) {
     <>
       {navStructure.map((group) => {
         const visibleItemsInGroup = group.items.filter(item => item.roles.includes(userRole));
-        
-        const canShowGroup = 
-          (group.groupRoles ? group.groupRoles.includes(userRole) : true) && 
+
+        const canShowGroup =
+          (group.groupRoles ? group.groupRoles.includes(userRole) : true) &&
           visibleItemsInGroup.length > 0;
 
         if (!canShowGroup) {
@@ -493,21 +507,21 @@ function AppNavigation({ navStructure, userRole }: AppNavigationProps) {
 
         return (
           <SidebarGroup key={group.id}>
-            {group.items.length > 1 || group.id !== 'configuracion' ? ( 
+            {group.items.length > 1 || group.id !== 'configuracion' ? (
               <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
             ) : null}
             <SidebarGroupContent>
               <SidebarMenu>
                 {visibleItemsInGroup.map((item) => {
                   let isActive = false;
-                  if (item.href === '/admin/settings') { 
+                  if (item.href === '/admin/settings') {
                     isActive = pathname.startsWith('/admin');
                   } else if (item.href === '/dashboard') {
-                    isActive = pathname === item.href; 
+                    isActive = pathname === item.href;
                   } else {
-                    isActive = pathname.startsWith(item.href) && item.href !== '/dashboard'; 
+                    isActive = pathname.startsWith(item.href) && item.href !== '/dashboard';
                   }
-                  
+
                   return (
                     <SidebarMenuItem key={item.label}>
                       <SidebarMenuButton asChild isActive={isActive} tooltip={{ children: item.label, side: "right" }}>
@@ -549,7 +563,7 @@ function UserMenu({ userRole, userEmail }: UserMenuProps) {
     await logout();
     router.push('/login');
   };
-  
+
   return (
     <TooltipProvider>
       <DropdownMenu>

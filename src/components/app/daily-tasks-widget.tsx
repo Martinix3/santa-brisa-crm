@@ -4,7 +4,6 @@
 import * as React from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import type { Order, CrmEvent, CrmEventStatus } from '@/types';
-import { mockCrmEvents } from '@/lib/data'; // mockOrders removed
 import { parseISO, format, startOfDay, endOfDay, isWithinInterval, addDays, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -13,7 +12,8 @@ import { Separator } from '@/components/ui/separator';
 import StatusBadge from '@/components/app/status-badge';
 import { CalendarCheck, ClipboardList, PartyPopper, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { getOrdersFS } from '@/services/order-service'; // Import Firestore service for orders
+import { getOrdersFS } from '@/services/order-service';
+import { getEventsFS } from '@/services/event-service'; // Import event service
 import { useToast } from '@/hooks/use-toast';
 
 interface AgendaItemBase {
@@ -39,7 +39,7 @@ export default function DailyTasksWidget() {
   const { userRole, teamMember } = useAuth();
   const { toast } = useToast();
   const today = startOfDay(new Date());
-  const nextSevenDaysEnd = endOfDay(addDays(today, 6)); 
+  const nextSevenDaysEnd = endOfDay(addDays(today, 6));
   const [dailyItems, setDailyItems] = React.useState<AgendaItem[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
 
@@ -53,35 +53,44 @@ export default function DailyTasksWidget() {
       }
 
       let relevantOrdersFromFS: Order[] = [];
-      let relevantEventsFromMock: CrmEvent[] = []; // Events still from mock for now
+      let relevantEventsFromFS: CrmEvent[] = [];
 
       try {
-        relevantOrdersFromFS = await getOrdersFS();
+        const [fetchedOrders, fetchedEvents] = await Promise.all([
+            getOrdersFS(),
+            getEventsFS()
+        ]);
+        relevantOrdersFromFS = fetchedOrders;
+        relevantEventsFromFS = fetchedEvents;
+
       } catch (error) {
-        console.error("Error fetching orders for daily tasks:", error);
-        toast({title: "Error al Cargar Tareas", description: "No se pudieron cargar las tareas de pedidos.", variant: "destructive"})
+        console.error("Error fetching data for daily tasks:", error);
+        toast({title: "Error al Cargar Tareas", description: "No se pudieron cargar todas las tareas.", variant: "destructive"})
       }
 
+      let filteredOrders: Order[] = [];
+      let filteredEvents: CrmEvent[] = [];
+
       if (userRole === 'Admin') {
-        relevantOrdersFromFS = relevantOrdersFromFS.filter(order =>
+        filteredOrders = relevantOrdersFromFS.filter(order =>
           (order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') &&
           (order.status === 'Programada' ? order.visitDate : order.nextActionDate) &&
           isValid(parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!))
         );
-        relevantEventsFromMock = mockCrmEvents.filter(event => isValid(parseISO(event.startDate)));
+        filteredEvents = relevantEventsFromFS.filter(event => isValid(parseISO(event.startDate)));
       } else if (userRole === 'SalesRep' && teamMember) {
-        relevantOrdersFromFS = relevantOrdersFromFS.filter(order =>
+        filteredOrders = relevantOrdersFromFS.filter(order =>
           order.salesRep === teamMember.name &&
           (order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') &&
           (order.status === 'Programada' ? order.visitDate : order.nextActionDate) &&
           isValid(parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!))
         );
-        relevantEventsFromMock = mockCrmEvents.filter(event =>
+        filteredEvents = relevantEventsFromFS.filter(event =>
           event.assignedTeamMemberIds.includes(teamMember.id) && isValid(parseISO(event.startDate))
         );
       }
 
-      const orderAgendaItems: AgendaOrderItem[] = relevantOrdersFromFS
+      const orderAgendaItems: AgendaOrderItem[] = filteredOrders
         .map(order => ({
           id: order.id,
           itemDate: parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!),
@@ -91,7 +100,7 @@ export default function DailyTasksWidget() {
           rawItem: order,
         }));
 
-      const eventAgendaItems: AgendaCrmEventItem[] = relevantEventsFromMock
+      const eventAgendaItems: AgendaCrmEventItem[] = filteredEvents
         .map(event => ({
           id: event.id,
           itemDate: parseISO(event.startDate),
@@ -112,7 +121,7 @@ export default function DailyTasksWidget() {
           }
           return isWithinInterval(itemStartDate, { start: today, end: nextSevenDaysEnd });
         })
-        .sort((a, b) => { 
+        .sort((a, b) => {
           if (a.itemDate.getTime() !== b.itemDate.getTime()) {
             return a.itemDate.getTime() - b.itemDate.getTime();
           }
@@ -147,14 +156,14 @@ export default function DailyTasksWidget() {
       if (order.status === 'Programada' || order.status === 'Seguimiento' || order.status === 'Fallido') {
         return `/order-form?updateVisitId=${order.id}`;
       }
-      return `/crm-follow-up`; // Fallback for other order statuses if they appear
+      return `/crm-follow-up`;
     }
     if (item.sourceType === 'event') {
-      return `/events`; // Future: link to event details page
+       return `/events?viewEventId=${item.id}`; // Link to events page with a query param to highlight/view
     }
-    return '/my-agenda'; // Fallback link
+    return '/my-agenda';
   };
-  
+
   const getIconForItem = (item: AgendaItem) => {
     if (item.sourceType === 'order') return <ClipboardList className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />;
     if (item.sourceType === 'event') return <PartyPopper className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />;

@@ -8,27 +8,30 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { mockCrmEvents, crmEventTypeList, crmEventStatusList } from "@/lib/data"; // mockTeamMembers removed
+import { crmEventTypeList, crmEventStatusList } from "@/lib/data";
 import type { CrmEvent, CrmEventType, CrmEventStatus, TeamMember } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { PlusCircle, Edit, Trash2, MoreHorizontal, PartyPopper, Filter, ChevronDown, Eye } from "lucide-react";
+import { PlusCircle, Edit, Trash2, MoreHorizontal, PartyPopper, Filter, ChevronDown, Eye, Loader2 } from "lucide-react";
 import EventDialog, { type EventFormValues } from "@/components/app/event-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format, parseISO } from "date-fns";
 import { es } from 'date-fns/locale';
 import StatusBadge from "@/components/app/status-badge";
-import { getTeamMembersFS } from "@/services/team-member-service"; // To get team member names
+import { getTeamMembersFS } from "@/services/team-member-service";
+import { getEventsFS, addEventFS, updateEventFS, deleteEventFS, initializeMockEventsInFirestore } from "@/services/event-service";
+import { mockCrmEvents as initialMockEventsForSeeding } from "@/lib/data"; // For initial seeding only
 
 export default function EventsPage() {
   const { toast } = useToast();
   const { userRole } = useAuth();
-  const [events, setEvents] = React.useState<CrmEvent[]>(() => [...mockCrmEvents]); // Events are still mock for now
+  const [events, setEvents] = React.useState<CrmEvent[]>([]);
   const [allTeamMembers, setAllTeamMembers] = React.useState<TeamMember[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
   const [editingEvent, setEditingEvent] = React.useState<CrmEvent | null>(null);
   const [isEventDialogOpen, setIsEventDialogOpen] = React.useState(false);
   const [isReadOnlyDialog, setIsReadOnlyDialog] = React.useState(false);
   const [eventToDelete, setEventToDelete] = React.useState<CrmEvent | null>(null);
-  
+
   const [searchTerm, setSearchTerm] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState<CrmEventType | "Todos">("Todos");
   const [statusFilter, setStatusFilter] = React.useState<CrmEventStatus | "Todos">("Todos");
@@ -36,16 +39,24 @@ export default function EventsPage() {
   const isAdmin = userRole === 'Admin';
 
   React.useEffect(() => {
-    async function loadTeamMembers() {
+    async function loadInitialData() {
+        setIsLoading(true);
         try {
-            const members = await getTeamMembersFS();
-            setAllTeamMembers(members);
+            // await initializeMockEventsInFirestore(initialMockEventsForSeeding); // Uncomment for one-time seeding
+            const [fetchedEvents, fetchedTeamMembers] = await Promise.all([
+                getEventsFS(),
+                getTeamMembersFS() // Fetch all team members
+            ]);
+            setEvents(fetchedEvents);
+            setAllTeamMembers(fetchedTeamMembers);
         } catch (error) {
-            console.error("Failed to load team members for events page", error);
-            toast({ title: "Error", description: "No se pudieron cargar los miembros del equipo.", variant: "destructive" });
+            console.error("Failed to load events or team members:", error);
+            toast({ title: "Error", description: "No se pudieron cargar los eventos o miembros del equipo.", variant: "destructive" });
+        } finally {
+            setIsLoading(false);
         }
     }
-    loadTeamMembers();
+    loadInitialData();
   }, [toast]);
 
 
@@ -68,52 +79,36 @@ export default function EventsPage() {
     setIsReadOnlyDialog(false);
     setIsEventDialogOpen(true);
   };
-  
-  const handleSaveEvent = (data: EventFormValues, eventId?: string) => {
-    if (!isAdmin && !eventId) return; 
 
-    const currentDate = format(new Date(), "yyyy-MM-dd");
-    let successMessage = "";
+  const handleSaveEvent = async (data: EventFormValues, eventId?: string) => {
+    if (!isAdmin && !eventId) return;
+    setIsLoading(true); // Indicate loading state for table refresh
 
-    if (eventId) { 
-      const updatedEvents = events.map(evt =>
-        evt.id === eventId ? { 
-            ...evt, 
-            ...data, 
-            startDate: format(data.startDate, "yyyy-MM-dd"), 
-            endDate: data.endDate ? format(data.endDate, "yyyy-MM-dd") : undefined,
-            updatedAt: currentDate 
-        } : evt
-      );
-      setEvents(updatedEvents);
-      const mockIndex = mockCrmEvents.findIndex(evt => evt.id === eventId);
-      if (mockIndex !== -1) {
-        mockCrmEvents[mockIndex] = { 
-            ...mockCrmEvents[mockIndex], 
-            ...data, 
-            startDate: format(data.startDate, "yyyy-MM-dd"),
-            endDate: data.endDate ? format(data.endDate, "yyyy-MM-dd") : undefined,
-            updatedAt: currentDate 
-        };
+    try {
+      let successMessage = "";
+      if (eventId) {
+        await updateEventFS(eventId, data);
+        successMessage = `El evento "${data.name}" ha sido actualizado.`;
+      } else {
+        if (!isAdmin) {
+            setIsLoading(false);
+            return;
+        }
+        await addEventFS(data);
+        successMessage = `El evento "${data.name}" ha sido añadido.`;
       }
-      successMessage = `El evento "${data.name}" ha sido actualizado.`;
-    } else { 
-      if (!isAdmin) return; 
-      const newEvent: CrmEvent = {
-        id: `evt_${Date.now()}`,
-        ...data,
-        startDate: format(data.startDate, "yyyy-MM-dd"), 
-        endDate: data.endDate ? format(data.endDate, "yyyy-MM-dd") : undefined,
-        createdAt: currentDate,
-        updatedAt: currentDate,
-      };
-      setEvents(prev => [newEvent, ...prev]);
-      mockCrmEvents.unshift(newEvent); 
-      successMessage = `El evento "${data.name}" ha sido añadido.`;
+      // Refetch events to update the list
+      const updatedEvents = await getEventsFS();
+      setEvents(updatedEvents);
+      toast({ title: "¡Operación Exitosa!", description: successMessage });
+      setIsEventDialogOpen(false);
+      setEditingEvent(null);
+    } catch (error) {
+        console.error("Error saving event:", error);
+        toast({ title: "Error al Guardar", description: "No se pudo guardar el evento en Firestore.", variant: "destructive"});
+    } finally {
+        setIsLoading(false);
     }
-    toast({ title: "¡Operación Exitosa!", description: successMessage });
-    setIsEventDialogOpen(false);
-    setEditingEvent(null);
   };
 
 
@@ -122,18 +117,20 @@ export default function EventsPage() {
     setEventToDelete(event);
   };
 
-  const confirmDeleteEvent = () => {
+  const confirmDeleteEvent = async () => {
     if (!isAdmin || !eventToDelete) return;
-    
-    const updatedEvents = events.filter(evt => evt.id !== eventToDelete.id);
-    setEvents(updatedEvents);
-
-    const mockIndex = mockCrmEvents.findIndex(evt => evt.id === eventToDelete.id);
-    if (mockIndex !== -1) {
-      mockCrmEvents.splice(mockIndex, 1);
+    setIsLoading(true);
+    try {
+      await deleteEventFS(eventToDelete.id);
+      setEvents(prev => prev.filter(evt => evt.id !== eventToDelete.id));
+      toast({ title: "¡Evento Eliminado!", description: `El evento "${eventToDelete.name}" ha sido eliminado.`, variant: "destructive" });
+    } catch (error) {
+        console.error("Error deleting event:", error);
+        toast({ title: "Error al Eliminar", description: "No se pudo eliminar el evento de Firestore.", variant: "destructive"});
+    } finally {
+        setIsLoading(false);
+        setEventToDelete(null);
     }
-    toast({ title: "¡Evento Eliminado!", description: `El evento "${eventToDelete.name}" ha sido eliminado.`, variant: "destructive" });
-    setEventToDelete(null);
   };
 
   const getAssignedTeamMemberNames = React.useCallback((teamMemberIds: string[]): string => {
@@ -163,7 +160,7 @@ export default function EventsPage() {
             <h1 className="text-3xl font-headline font-semibold">Calendario y Gestión de Eventos</h1>
         </div>
         {isAdmin && (
-          <Button onClick={handleAddNewEvent}>
+          <Button onClick={handleAddNewEvent} disabled={isLoading}>
             <PlusCircle className="mr-2 h-4 w-4" /> Añadir Nuevo Evento
           </Button>
         )}
@@ -213,116 +210,123 @@ export default function EventsPage() {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[25%]">Nombre del Evento</TableHead>
-                  <TableHead className="w-[15%]">Tipo</TableHead>
-                  <TableHead className="w-[15%]">Fechas</TableHead>
-                  <TableHead className="w-[20%]">Responsables</TableHead>
-                  <TableHead className="text-center w-[10%]">Estado</TableHead>
-                  <TableHead className="text-right w-[15%]">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredEvents.length > 0 ? filteredEvents.map((event) => (
-                  <TableRow key={event.id}>
-                    <TableCell className="font-medium">{event.name}</TableCell>
-                    <TableCell>{event.type}</TableCell>
-                    <TableCell>
-                      {format(parseISO(event.startDate), "dd/MM/yy", { locale: es })}
-                      {event.endDate && event.endDate !== event.startDate ? ` - ${format(parseISO(event.endDate), "dd/MM/yy", { locale: es })}` : ''}
-                    </TableCell>
-                    <TableCell className="text-xs truncate max-w-[200px]" title={getAssignedTeamMemberNames(event.assignedTeamMemberIds)}>
-                        {getAssignedTeamMemberNames(event.assignedTeamMemberIds)}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <StatusBadge type="event" status={event.status} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Abrir menú</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                           <DropdownMenuItem onSelect={() => handleViewDetailsEvent(event)}>
-                            <Eye className="mr-2 h-4 w-4" /> Ver Detalles
-                          </DropdownMenuItem>
-                          {isAdmin && (
-                            <>
-                              <DropdownMenuItem onSelect={() => handleEditEvent(event)}>
-                                <Edit className="mr-2 h-4 w-4" /> Editar Evento
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                               <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <DropdownMenuItem 
-                                    className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                                    onSelect={(e) => { e.preventDefault(); handleDeleteEvent(event); }}
-                                    >
-                                    <Trash2 className="mr-2 h-4 w-4" /> Eliminar Evento
-                                  </DropdownMenuItem>
-                                </AlertDialogTrigger>
-                                {eventToDelete && eventToDelete.id === event.id && (
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                        <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            Esta acción no se puede deshacer. Esto eliminará permanentemente el evento:
-                                            <br />
-                                            <strong className="mt-2 block">"{eventToDelete.name}"</strong>
-                                        </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                        <AlertDialogCancel onClick={() => setEventToDelete(null)}>Cancelar</AlertDialogCancel>
-                                        <AlertDialogAction onClick={confirmDeleteEvent} variant="destructive">Sí, eliminar</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                )}
-                              </AlertDialog>
-                            </>
-                          )}
-                           {!isAdmin && !['Ver Detalles'].length && <DropdownMenuItem disabled>No hay acciones disponibles</DropdownMenuItem>}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                )) : (
+          {isLoading ? (
+             <div className="flex justify-center items-center h-64">
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+              <p className="ml-4 text-muted-foreground">Cargando eventos...</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center">
-                      No se encontraron eventos que coincidan con tu búsqueda o filtros. {isAdmin ? "Puedes añadir un nuevo evento." : ""}
-                    </TableCell>
+                    <TableHead className="w-[25%]">Nombre del Evento</TableHead>
+                    <TableHead className="w-[15%]">Tipo</TableHead>
+                    <TableHead className="w-[15%]">Fechas</TableHead>
+                    <TableHead className="w-[20%]">Responsables</TableHead>
+                    <TableHead className="text-center w-[10%]">Estado</TableHead>
+                    <TableHead className="text-right w-[15%]">Acciones</TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {filteredEvents.length > 0 ? filteredEvents.map((event) => (
+                    <TableRow key={event.id}>
+                      <TableCell className="font-medium">{event.name}</TableCell>
+                      <TableCell>{event.type}</TableCell>
+                      <TableCell>
+                        {format(parseISO(event.startDate), "dd/MM/yy", { locale: es })}
+                        {event.endDate && event.endDate !== event.startDate ? ` - ${format(parseISO(event.endDate), "dd/MM/yy", { locale: es })}` : ''}
+                      </TableCell>
+                      <TableCell className="text-xs truncate max-w-[200px]" title={getAssignedTeamMemberNames(event.assignedTeamMemberIds)}>
+                          {getAssignedTeamMemberNames(event.assignedTeamMemberIds)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <StatusBadge type="event" status={event.status} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Abrir menú</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onSelect={() => handleViewDetailsEvent(event)}>
+                              <Eye className="mr-2 h-4 w-4" /> Ver Detalles
+                            </DropdownMenuItem>
+                            {isAdmin && (
+                              <>
+                                <DropdownMenuItem onSelect={() => handleEditEvent(event)}>
+                                  <Edit className="mr-2 h-4 w-4" /> Editar Evento
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem
+                                      className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                      onSelect={(e) => { e.preventDefault(); handleDeleteEvent(event); }}
+                                      >
+                                      <Trash2 className="mr-2 h-4 w-4" /> Eliminar Evento
+                                    </DropdownMenuItem>
+                                  </AlertDialogTrigger>
+                                  {eventToDelete && eventToDelete.id === event.id && (
+                                      <AlertDialogContent>
+                                          <AlertDialogHeader>
+                                          <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                              Esta acción no se puede deshacer. Esto eliminará permanentemente el evento:
+                                              <br />
+                                              <strong className="mt-2 block">"{eventToDelete.name}"</strong>
+                                          </AlertDialogDescription>
+                                          </AlertDialogHeader>
+                                          <AlertDialogFooter>
+                                          <AlertDialogCancel onClick={() => setEventToDelete(null)}>Cancelar</AlertDialogCancel>
+                                          <AlertDialogAction onClick={confirmDeleteEvent} variant="destructive">Sí, eliminar</AlertDialogAction>
+                                          </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                  )}
+                                </AlertDialog>
+                              </>
+                            )}
+                            {!isAdmin && !['Ver Detalles'].length && <DropdownMenuItem disabled>No hay acciones disponibles</DropdownMenuItem>}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  )) : (
+                    <TableRow>
+                      <TableCell colSpan={6} className="h-24 text-center">
+                        No se encontraron eventos que coincidan con tu búsqueda o filtros. {isAdmin ? "Puedes añadir un nuevo evento." : ""}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
-        {filteredEvents.length > 0 && (
+        {!isLoading && filteredEvents.length > 0 && (
             <CardFooter>
                 <p className="text-xs text-muted-foreground">Total de eventos mostrados: {filteredEvents.length} de {events.length}</p>
             </CardFooter>
         )}
       </Card>
 
-      {(isAdmin || isEventDialogOpen) && ( 
+      {(isAdmin || isEventDialogOpen) && (
         <EventDialog
           event={editingEvent}
           isOpen={isEventDialogOpen}
           onOpenChange={(open) => {
             setIsEventDialogOpen(open);
             if (!open) {
-              setEditingEvent(null); 
-              setIsReadOnlyDialog(false); 
+              setEditingEvent(null);
+              setIsReadOnlyDialog(false);
             }
           }}
           onSave={handleSaveEvent}
-          isReadOnly={isReadOnlyDialog || (!isAdmin && !!editingEvent)} 
-          allTeamMembers={allTeamMembers} // Pass all team members for selection
+          isReadOnly={isReadOnlyDialog || (!isAdmin && !!editingEvent)}
+          allTeamMembers={allTeamMembers}
         />
       )}
     </div>

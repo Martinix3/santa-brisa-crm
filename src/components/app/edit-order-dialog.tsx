@@ -203,7 +203,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
           products: order.products?.join(",\n") || "",
           value: order.value,
           status: order.status,
-          salesRep: order.salesRep || (salesReps.length > 0 ? salesReps[0].name : ""), // Default to first sales rep if original is empty
+          salesRep: order.salesRep || (salesReps.length > 0 ? salesReps[0].name : ""),
           clavadistaId: order.clavadistaId || NO_CLAVADISTA_VALUE,
           assignedMaterials: order.assignedMaterials || [],
           clientType: order.clientType,
@@ -226,7 +226,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         });
       }
     }
-    if (isOpen && !isLoadingDropdownData) { // Make sure salesReps is populated before reset if using it as default
+    if (isOpen && !isLoadingDropdownData) { 
         initializeFormWithOrderAndAccountData();
     }
   }, [order, isOpen, form, isLoadingDropdownData, salesReps, toast]);
@@ -237,13 +237,13 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     setIsSaving(true);
     
     const canEditFullOrderDetails = isAdmin;
-    const canEditStatusAndNotesOnly = isDistributor;
+    const canEditStatusAndNotes = isAdmin || isDistributor; // Corrected variable name
 
     const dataToSave: EditOrderFormValues = {
       clientName: canEditFullOrderDetails ? data.clientName : order.clientName,
       products: canEditFullOrderDetails ? data.products : order.products?.join(",\n"),
       value: canEditFullOrderDetails ? data.value : order.value,
-      status: (isAdmin || canEditStatusAndNotesOnly) ? data.status : order.status,
+      status: canEditStatusAndNotes ? data.status : order.status, // Used corrected variable
       salesRep: isAdmin ? data.salesRep : order.salesRep,
       clavadistaId: isAdmin ? (data.clavadistaId === NO_CLAVADISTA_VALUE ? undefined : data.clavadistaId) : order.clavadistaId,
       assignedMaterials: isAdmin ? (data.assignedMaterials || []) : (order.assignedMaterials || []),
@@ -258,7 +258,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
       contactoCorreo: canEditFullOrderDetails ? data.contactoCorreo : order.contactoCorreo,
       contactoTelefono: canEditFullOrderDetails ? data.contactoTelefono : order.contactoTelefono,
       observacionesAlta: order.observacionesAlta, 
-      notes: (isAdmin || canEditStatusAndNotesOnly) ? data.notes : order.notes,
+      notes: canEditStatusAndNotes ? data.notes : order.notes, // Used corrected variable
       nextActionType: order.nextActionType, 
       nextActionCustom: order.nextActionCustom,
       nextActionDate: order.nextActionDate ? parseISO(order.nextActionDate) : undefined,

@@ -33,14 +33,14 @@ const fromFirestoreOrder = (docSnap: any): Order => {
     status: data.status || 'Pendiente',
     salesRep: data.salesRep || '',
     lastUpdated: data.lastUpdated instanceof Timestamp ? format(data.lastUpdated.toDate(), "yyyy-MM-dd") : (typeof data.lastUpdated === 'string' ? data.lastUpdated : format(new Date(), "yyyy-MM-dd")),
-    clavadistaId: data.clavadistaId || undefined,
+    clavadistaId: data.clavadistaId || undefined, 
     assignedMaterials: data.assignedMaterials || [],
     canalOrigenColocacion: data.canalOrigenColocacion || undefined,
     paymentMethod: data.paymentMethod || undefined,
 
     clientType: data.clientType,
-    numberOfUnits: data.numberOfUnits,
-    unitPrice: data.unitPrice,
+    numberOfUnits: data.numberOfUnits, 
+    unitPrice: data.unitPrice, 
     clientStatus: data.clientStatus,
 
     nombreFiscal: data.nombreFiscal || '',
@@ -252,5 +252,3 @@ export const initializeMockOrdersInFirestore = async (mockOrdersData: Order[]) =
         console.log('Orders collection is not empty. Skipping initialization.');
     }
 };
-
-```

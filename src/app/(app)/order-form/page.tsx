@@ -1086,5 +1086,3 @@ export default function OrderFormPage() {
     </div>
   );
 }
-
-```

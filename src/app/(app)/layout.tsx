@@ -116,14 +116,15 @@ const navigationStructure: NavGroup[] = [
 function DailyTasksMenu() {
   const { userRole, teamMember, loading: authContextLoading, dataSignature } = useAuth();
   const { toast } = useToast();
-  const today = startOfDay(new Date());
-  const nextSevenDaysEnd = endOfDay(addDays(today, 6));
   const [taskCount, setTaskCount] = useState(0);
   const [isLoadingTasks, setIsLoadingTasks] = useState(true);
 
   useEffect(() => {
-    async function fetchTasks() {
-      setIsLoadingTasks(true);
+    const localToday = startOfDay(new Date());
+    const localNextSevenDaysEnd = endOfDay(addDays(localToday, 6));
+
+    async function fetchTasksInternal() {
+      // setIsLoadingTasks(true); // Ya se gestiona antes de llamar
       let relevantOrders: Order[] = [];
       let relevantEvents: CrmEvent[] = [];
 
@@ -161,11 +162,8 @@ function DailyTasksMenu() {
             event.assignedTeamMemberIds.includes(teamMember.id) && isValid(parseISO(event.startDate))
           );
         }
-      } catch (error) {
-          console.error("Error fetching data for daily tasks menu:", error);
-          toast({ title: "Error Tareas", description: "No se pudieron cargar las tareas del menú.", variant: "destructive"});
-      } finally {
-          const orderAgendaItems = relevantOrders
+
+        const orderAgendaItems = relevantOrders
             .map(order => ({
               itemDate: parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!),
               sourceType: 'order' as 'order',
@@ -185,11 +183,17 @@ function DailyTasksMenu() {
               const itemStartDate = startOfDay(item.itemDate);
               if (item.sourceType === 'event' && (item.rawItem as CrmEvent).endDate) {
                 const itemEndDate = startOfDay(parseISO((item.rawItem as CrmEvent).endDate!));
-                return (itemStartDate <= nextSevenDaysEnd && itemEndDate >= today);
+                return (itemStartDate <= localNextSevenDaysEnd && itemEndDate >= localToday); 
               }
-              return isWithinInterval(itemStartDate, { start: today, end: nextSevenDaysEnd });
+              return isWithinInterval(itemStartDate, { start: localToday, end: localNextSevenDaysEnd });
             }).length;
           setTaskCount(count);
+
+      } catch (error) {
+          console.error("Error fetching data for daily tasks menu:", error);
+          toast({ title: "Error Tareas", description: "No se pudieron cargar las tareas del menú.", variant: "destructive"});
+          setTaskCount(0);
+      } finally {
           setIsLoadingTasks(false);
       }
     }
@@ -200,29 +204,27 @@ function DailyTasksMenu() {
     }
 
     if (!userRole) { 
-        setIsLoadingTasks(true); 
+        setIsLoadingTasks(false);
         setTaskCount(0);
         return;
     }
     
     if ((userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember) {
-      setIsLoadingTasks(true); 
+      setIsLoadingTasks(false);
       setTaskCount(0);
       return;
     }
-
     
-    if (userRole === 'Admin' || (teamMember && (userRole === 'SalesRep' || userRole === 'Clavadista'))) {
-        fetchTasks();
-    } else if (userRole === 'Distributor') {
-        setTaskCount(0);
-        setIsLoadingTasks(false);
-    } else {
-        
+    const shouldFetchTasks = userRole === 'Admin' || (teamMember && (userRole === 'SalesRep' || userRole === 'Clavadista'));
+
+    if (shouldFetchTasks) {
+        setIsLoadingTasks(true); 
+        fetchTasksInternal();
+    } else { 
         setTaskCount(0);
         setIsLoadingTasks(false);
     }
-  }, [userRole, teamMember, authContextLoading, toast, today, nextSevenDaysEnd, dataSignature]);
+  }, [userRole, teamMember, authContextLoading, dataSignature, toast]);
 
 
   const canShowWidgetIcon = userRole === 'Admin' || userRole === 'SalesRep' || userRole === 'Clavadista';
@@ -262,7 +264,7 @@ function DailyTasksMenu() {
             <DropdownMenuLabel className="font-normal text-center py-2">
               <p className="text-sm font-medium leading-none">Próximas Tareas</p>
               <p className="text-xs leading-none text-muted-foreground">
-                Hasta el {format(nextSevenDaysEnd, "dd 'de' MMMM", { locale: es })}
+                Hasta el {format(endOfDay(addDays(startOfDay(new Date()), 6)), "dd 'de' MMMM", { locale: es })}
               </p>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />

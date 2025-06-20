@@ -38,15 +38,15 @@ type AgendaItem = AgendaOrderItem | AgendaCrmEventItem;
 export default function DailyTasksWidget() {
   const { userRole, teamMember, loading: authLoading, dataSignature } = useAuth();
   const { toast } = useToast();
-  const today = startOfDay(new Date());
-  const nextSevenDaysEnd = endOfDay(addDays(today, 6));
   const [dailyItems, setDailyItems] = React.useState<AgendaItem[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
 
   React.useEffect(() => {
-    async function loadTasks() {
-      setIsLoading(true);
+    const localToday = startOfDay(new Date());
+    const localNextSevenDaysEnd = endOfDay(addDays(localToday, 6));
 
+    async function loadTasksInternal() {
+      // setIsLoading(true); // Ya se gestiona antes de llamar
       let relevantOrdersFromFS: Order[] = [];
       let relevantEventsFromFS: CrmEvent[] = [];
 
@@ -62,8 +62,8 @@ export default function DailyTasksWidget() {
         console.error("Error fetching data for daily tasks:", error);
         toast({title: "Error al Cargar Tareas", description: "No se pudieron cargar todas las tareas.", variant: "destructive"})
         setDailyItems([]);
-        setIsLoading(false);
-        return;
+        // setIsLoading(false); // Se maneja en finally
+        return; // Salir si hay error en la obtención inicial
       }
 
       let filteredOrders: Order[] = [];
@@ -126,9 +126,9 @@ export default function DailyTasksWidget() {
           const itemStartDate = startOfDay(item.itemDate);
           if (item.sourceType === 'event' && (item.rawItem as CrmEvent).endDate && isValid(parseISO((item.rawItem as CrmEvent).endDate!))) {
             const itemEndDate = startOfDay(parseISO((item.rawItem as CrmEvent).endDate!));
-            return (itemStartDate <= nextSevenDaysEnd && itemEndDate >= today);
+            return (itemStartDate <= localNextSevenDaysEnd && itemEndDate >= localToday);
           }
-          return isWithinInterval(itemStartDate, { start: today, end: nextSevenDaysEnd });
+          return isWithinInterval(itemStartDate, { start: localToday, end: localNextSevenDaysEnd });
         })
         .sort((a, b) => {
           if (a.itemDate.getTime() !== b.itemDate.getTime()) {
@@ -138,7 +138,6 @@ export default function DailyTasksWidget() {
           if (a.sourceType === 'order' && b.sourceType === 'event') return 1;
           return 0;
         }));
-      setIsLoading(false);
     }
 
     if (authLoading) {
@@ -146,19 +145,29 @@ export default function DailyTasksWidget() {
       return;
     }
 
-    if ((userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember && userRole !== null) {
-      setIsLoading(true);
+    if (!userRole) {
+      setIsLoading(false);
+      setDailyItems([]);
+      return;
+    }
+    
+    if ((userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember) {
+      setIsLoading(false);
+      setDailyItems([]);
       return;
     }
 
-    if (userRole === 'Distributor') {
+    const shouldFetch = userRole === 'Admin' || (teamMember && (userRole === 'SalesRep' || userRole === 'Clavadista'));
+
+    if (shouldFetch) {
+      setIsLoading(true);
+      loadTasksInternal().finally(() => setIsLoading(false));
+    } else {
       setDailyItems([]);
       setIsLoading(false);
-    } else {
-      loadTasks();
     }
 
-  }, [authLoading, userRole, teamMember, today, nextSevenDaysEnd, toast, dataSignature]);
+  }, [authLoading, userRole, teamMember, dataSignature, toast]);
 
   if (isLoading) {
     return (

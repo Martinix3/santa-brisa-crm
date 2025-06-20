@@ -99,7 +99,7 @@ const navigationStructure: NavGroup[] = [
       { href: '/events', label: 'Eventos', icon: PartyPopper, roles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'] },
       { href: '/clavadistas', label: 'Panel de Clavadistas', icon: Award, roles: ['Admin', 'SalesRep', 'Clavadista'] }, 
       { href: '/marketing-resources', label: 'Recursos de Marketing', icon: Library, roles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'] },
-      { href: '/marketing/ai-assistant', label: 'Asistente IA', icon: Sparkles, roles: ['Admin', 'SalesRep', 'Clavadista'] },
+      { href: '/marketing/ai-assistant', label: 'Asistente IA', icon: Sparkles, roles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'] },
     ],
   },
   {
@@ -199,26 +199,26 @@ function DailyTasksMenu() {
       return;
     }
 
-    if (!userRole) { // userRole es null mientras teamMember se está cargando
-        setIsLoadingTasks(true); // Mantener la carga si el rol aún no está definido después de authLoading
+    if (!userRole) { 
+        setIsLoadingTasks(true); 
         setTaskCount(0);
         return;
     }
     
     if ((userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember) {
-      setIsLoadingTasks(true); // Si es SalesRep/Clavadista pero teamMember no está listo, seguir cargando
+      setIsLoadingTasks(true); 
       setTaskCount(0);
       return;
     }
 
-    // Si es Admin, o es SalesRep/Clavadista y teamMember está listo, o es Distributor (sin tareas)
+    
     if (userRole === 'Admin' || (teamMember && (userRole === 'SalesRep' || userRole === 'Clavadista'))) {
         fetchTasks();
     } else if (userRole === 'Distributor') {
         setTaskCount(0);
         setIsLoadingTasks(false);
     } else {
-        // Para otros casos o si userRole es null por alguna razón inesperada
+        
         setTaskCount(0);
         setIsLoadingTasks(false);
     }

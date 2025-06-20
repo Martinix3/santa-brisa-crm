@@ -598,5 +598,3 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     </Dialog>
   );
 }
-
-```

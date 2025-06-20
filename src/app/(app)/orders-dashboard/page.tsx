@@ -97,8 +97,16 @@ export default function OrdersDashboardPage() {
       const cityLower = cityFilter.toLowerCase();
       const deliveryAddress = order.direccionEntrega;
       const billingAddress = order.direccionFiscal;
-      return (deliveryAddress && (deliveryAddress.city?.toLowerCase().includes(cityLower) || deliveryAddress.province?.toLowerCase().includes(cityLower))) ||
-             (billingAddress && (billingAddress.city?.toLowerCase().includes(cityLower) || billingAddress.province?.toLowerCase().includes(cityLower)));
+
+      const deliveryProvince = deliveryAddress?.province?.toLowerCase();
+      const deliveryCity = deliveryAddress?.city?.toLowerCase();
+      const billingProvince = billingAddress?.province?.toLowerCase();
+      const billingCity = billingAddress?.city?.toLowerCase();
+
+      return (deliveryProvince && deliveryProvince.includes(cityLower)) ||
+             (deliveryCity && deliveryCity.includes(cityLower)) ||
+             (billingProvince && billingProvince.includes(cityLower)) ||
+             (billingCity && billingCity.includes(cityLower));
     });
   }, [allOrders, searchTerm, statusFilter, dateRange, cityFilter]);
 
@@ -262,7 +270,7 @@ export default function OrdersDashboardPage() {
     }
   };
   
-  const headerCheckboxState = React.useMemo(() => {
+  const headerCheckboxState: boolean | 'indeterminate' = React.useMemo(() => {
     if (filteredOrders.length === 0) return false;
     const isAllFilteredSelected = selectedOrderIds.length === filteredOrders.length && filteredOrders.every(fo => selectedOrderIds.includes(fo.id));
     if (isAllFilteredSelected) return true;
@@ -625,5 +633,3 @@ export default function OrdersDashboardPage() {
     </div>
   );
 }
-
-```

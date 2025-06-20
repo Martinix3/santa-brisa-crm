@@ -69,7 +69,7 @@ const navigationStructure: NavGroup[] = [
     items: [
       { href: '/dashboard', label: 'Panel Principal', icon: LayoutDashboard, roles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'], exact: true },
       { href: '/my-agenda', label: 'Mi Agenda', icon: CalendarCheck, roles: ['Admin', 'SalesRep', 'Clavadista'] },
-      { href: '/orders-dashboard', label: 'Panel de Pedidos', icon: ShoppingCart, roles: ['Admin', 'SalesRep', 'Distributor'] },
+      { href: '/orders-dashboard', label: 'Panel de Pedidos', icon: ShoppingCart, roles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'] },
       { href: '/accounts', label: 'Cuentas', icon: Building2, roles: ['Admin', 'SalesRep', 'Distributor'] }, 
     ],
   },

@@ -243,10 +243,10 @@ export default function OrdersDashboardPage() {
     }
   }
 
-  const handleSelectAllChange = (checked: boolean) => {
-    if (checked) {
+  const handleSelectAllChange = (checked: boolean | 'indeterminate') => {
+    if (checked === true) { // Explicitly true
       setSelectedOrderIds(filteredOrders.map(order => order.id));
-    } else {
+    } else { // false or indeterminate (when clicked from indeterminate, it becomes checked, handled above)
       setSelectedOrderIds([]);
     }
   };
@@ -258,9 +258,9 @@ export default function OrdersDashboardPage() {
       setSelectedOrderIds(prev => prev.filter(id => id !== orderId));
     }
   };
-
+  
   const isAllFilteredSelected = filteredOrders.length > 0 && selectedOrderIds.length === filteredOrders.length && filteredOrders.every(fo => selectedOrderIds.includes(fo.id));
-  const isSomeFilteredSelected = selectedOrderIds.length > 0 && selectedOrderIds.length < filteredOrders.length;
+  const isSomeFilteredSelected = selectedOrderIds.length > 0 && !isAllFilteredSelected;
 
 
   const escapeCsvCell = (cellData: any): string => {
@@ -336,6 +336,12 @@ export default function OrdersDashboardPage() {
   const canEditOrderStatus = currentUserRole === 'Admin' || currentUserRole === 'Distributor';
   const canDeleteOrder = currentUserRole === 'Admin';
   const canDownloadCsv = currentUserRole === 'Admin' || currentUserRole === 'Distributor';
+
+  const headerCheckboxState = React.useMemo(() => {
+    if (isAllFilteredSelected) return true;
+    if (isSomeFilteredSelected) return 'indeterminate' as const;
+    return false;
+  }, [isAllFilteredSelected, isSomeFilteredSelected]);
 
 
   return (
@@ -453,9 +459,8 @@ export default function OrdersDashboardPage() {
                     {canDownloadCsv && (
                       <TableHead className="w-[5%] px-2">
                         <Checkbox
-                          checked={isAllFilteredSelected}
-                          indeterminate={(isSomeFilteredSelected && !isAllFilteredSelected) || undefined}
-                          onCheckedChange={(checked) => handleSelectAllChange(Boolean(checked))}
+                          checked={headerCheckboxState}
+                          onCheckedChange={(checkedState) => handleSelectAllChange(checkedState)}
                           aria-label="Seleccionar todos los pedidos filtrados"
                         />
                       </TableHead>

@@ -27,12 +27,15 @@ interface AgendaItemBase {
   itemDate: Date;
   displayTime?: string;
   sourceType: 'order' | 'event';
+  rawItem: Order | CrmEvent;
 }
-interface AgendaOrderItem extends Order, AgendaItemBase {
+interface AgendaOrderItem extends AgendaItemBase {
   sourceType: 'order';
+  rawItem: Order;
 }
-interface AgendaCrmEventItem extends CrmEvent, AgendaItemBase {
+interface AgendaCrmEventItem extends AgendaItemBase {
   sourceType: 'event';
+  rawItem: CrmEvent;
 }
 type AgendaItem = AgendaOrderItem | AgendaCrmEventItem;
 
@@ -41,39 +44,45 @@ type SimplifiedActionFilterType = typeof simplifiedActionTypeOptions[number];
 
 
 export default function AgendaPage() {
-  const { userRole, teamMember } = useAuth();
+  const { userRole, teamMember, loading: authContextLoading } = useAuth();
   const { toast } = useToast();
   const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(new Date());
   const [currentMonth, setCurrentMonth] = React.useState<Date>(new Date());
-  const [selectedSalesRepForAdmin, setSelectedSalesRepForAdmin] = React.useState<string>("Todos"); // Renamed for clarity
+  const [selectedSalesRepForAdmin, setSelectedSalesRepForAdmin] = React.useState<string>("Todos"); 
   const [actionTypeFilter, setActionTypeFilter] = React.useState<SimplifiedActionFilterType>("Todos");
   const [agendaItems, setAgendaItems] = React.useState<AgendaItem[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
-  // const [salesRepsList, setSalesRepsList] = React.useState<TeamMember[]>([]); // No longer needed, use allTeamMembersForAdmin
   const [allTeamMembersForAdmin, setAllTeamMembersForAdmin] = React.useState<TeamMember[]>([]);
 
 
   React.useEffect(() => {
     async function loadFilterData() {
         if (userRole === 'Admin') {
+            setIsLoading(true); // Set loading true while fetching filter data
             try {
                 const reps = await getTeamMembersFS(['SalesRep', 'Admin', 'Clavadista']); 
                 setAllTeamMembersForAdmin(reps); 
             } catch (error) {
                 console.error("Failed to load team members for admin filter", error);
                 toast({ title: "Error", description: "No se pudieron cargar los miembros del equipo para el filtro.", variant: "destructive" });
+            } finally {
+                // setIsLoading(false); // Loading for agenda data will handle this
             }
         }
     }
-    loadFilterData();
-  }, [userRole, toast]);
+    if (!authContextLoading && userRole === 'Admin') { // Ensure auth is done before fetching
+        loadFilterData();
+    } else if (!authContextLoading && userRole !== 'Admin') {
+        // If not admin, no need to load team members for filter, proceed if needed
+    }
+  }, [userRole, authContextLoading, toast]);
 
 
   React.useEffect(() => {
     async function loadAgendaData() {
       setIsLoading(true);
-      let fetchedOrderItems: AgendaOrderItem[] = [];
-      let fetchedEventItems: AgendaCrmEventItem[] = [];
+      let fetchedOrderItems: AgendaItem[] = [];
+      let fetchedEventItems: AgendaItem[] = [];
 
       try {
         const [ordersFromFS, eventsFromFS] = await Promise.all([
@@ -85,15 +94,15 @@ export default function AgendaPage() {
             fetchedOrderItems = ordersFromFS
             .filter(order => {
               const isRelevantStatus = (order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada');
-              const hasValidDate = (order.status === 'Programada' ? order.visitDate : order.nextActionDate) && 
-                                   isValid(parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!));
+              const dateField = order.status === 'Programada' ? order.visitDate : order.nextActionDate;
+              const hasValidDate = dateField && isValid(parseISO(dateField));
+                                   
               if (!isRelevantStatus || !hasValidDate) return false;
 
               if (userRole === 'Admin') {
                 if (selectedSalesRepForAdmin === "Todos") return true;
                 const selectedMember = allTeamMembersForAdmin.find(rep => rep.id === selectedSalesRepForAdmin);
                 if (!selectedMember) return false;
-                // Admin sees tasks for selected SalesRep (by name) or selected Clavadista (by ID)
                 return (selectedMember.role === 'SalesRep' && selectedMember.name === order.salesRep) ||
                        (selectedMember.role === 'Clavadista' && selectedMember.id === order.clavadistaId);
               } else if (userRole === 'SalesRep' && teamMember) {
@@ -104,9 +113,10 @@ export default function AgendaPage() {
               return false;
             })
             .map(order => ({
-              ...order,
-              itemDate: parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!),
+              id: order.id,
+              itemDate: parseISO((order.status === 'Programada' ? order.visitDate : order.nextActionDate)!),
               sourceType: 'order' as 'order',
+              rawItem: order,
             }));
         }
 
@@ -116,14 +126,17 @@ export default function AgendaPage() {
               if (!isValid(parseISO(event.startDate))) return false;
               if (userRole === 'Admin') {
                 if (selectedSalesRepForAdmin === "Todos") return true;
+                // For Admin, filter events assigned to the selected team member (can be any role in allTeamMembersForAdmin)
                 return event.assignedTeamMemberIds.includes(selectedSalesRepForAdmin);
               }
+              // For SalesRep or Clavadista, filter events assigned to themselves
               return teamMember ? event.assignedTeamMemberIds.includes(teamMember.id) : false;
             })
             .map(event => ({
-              ...event,
+              id: event.id,
               itemDate: parseISO(event.startDate),
               sourceType: 'event' as 'event',
+              rawItem: event,
             }));
         }
         setAgendaItems([...fetchedOrderItems, ...fetchedEventItems].sort((a, b) => a.itemDate.getTime() - b.itemDate.getTime()));
@@ -135,26 +148,44 @@ export default function AgendaPage() {
       }
     }
 
-    if (userRole === 'Admin') { // Admin can load data even if allTeamMembersForAdmin is initially empty (will filter by "Todos")
+    if (authContextLoading) {
+      setIsLoading(true); // Keep loading if auth is still in progress
+      return;
+    }
+
+    // Auth is done, now check conditions to load agenda
+    if (userRole === 'Admin') {
+        // For Admin, allTeamMembersForAdmin might still be loading if loadFilterData hasn't finished
+        // However, loadAgendaData can proceed with selectedSalesRepForAdmin === "Todos" initially
+        if (selectedSalesRepForAdmin === "Todos" || allTeamMembersForAdmin.length > 0) {
+             loadAgendaData();
+        } else {
+            // If Admin selected a specific user but allTeamMembersForAdmin isn't ready, wait or show loading
+            // This case is tricky; for simplicity, we let it try and handle empty allTeamMembersForAdmin inside filter
+            loadAgendaData();
+        }
+    } else if (teamMember && (userRole === 'SalesRep' || userRole === 'Clavadista')) {
         loadAgendaData();
-    } else if (teamMember) { // SalesRep and Clavadista need teamMember
-        loadAgendaData();
-    } else if (!isLoading && !teamMember && (userRole === 'SalesRep' || userRole === 'Clavadista')){ // If not loading and no teamMember for these roles
-        setIsLoading(false); // Ensure loading is false if we can't proceed
+    } else if (userRole === 'Distributor') {
+        setAgendaItems([]); // No agenda items for Distributor
+        setIsLoading(false);
+    } else if (!teamMember && (userRole === 'SalesRep' || userRole === 'Clavadista')){
+        // If not loading and no teamMember for these roles, means profile fetch failed or not applicable
         setAgendaItems([]);
+        setIsLoading(false); 
     }
 
 
-  }, [userRole, teamMember, selectedSalesRepForAdmin, actionTypeFilter, toast, allTeamMembersForAdmin, isLoading]); // Added isLoading to dependencies
+  }, [userRole, teamMember, selectedSalesRepForAdmin, actionTypeFilter, toast, allTeamMembersForAdmin, authContextLoading]);
 
 
   const itemsForSelectedDay = React.useMemo(() => {
     if (!selectedDate) return [];
     return agendaItems.filter(item => {
-        if (item.sourceType === 'event' && (item as AgendaCrmEventItem).endDate && isValid(parseISO((item as AgendaCrmEventItem).endDate!))) {
+        if (item.sourceType === 'event' && (item.rawItem as CrmEvent).endDate && isValid(parseISO((item.rawItem as CrmEvent).endDate!))) {
              return isWithinInterval(startOfDay(selectedDate), {
                 start: startOfDay(item.itemDate),
-                end: startOfDay(parseISO((item as AgendaCrmEventItem).endDate!))
+                end: startOfDay(parseISO((item.rawItem as CrmEvent).endDate!))
             });
         }
         return isEqual(startOfDay(item.itemDate), startOfDay(selectedDate));
@@ -168,17 +199,22 @@ export default function AgendaPage() {
   const highlightedDaysModifier = React.useMemo(() => {
     const datesWithItems = new Set<string>();
     itemsInCurrentMonth.forEach(item => {
-        datesWithItems.add(format(item.itemDate, "yyyy-MM-dd"));
-        if (item.sourceType === 'event' && (item as AgendaCrmEventItem).endDate && isValid(parseISO((item as AgendaCrmEventItem).endDate!))) {
-            let currentDateIterator = item.itemDate;
-            const stopDate = parseISO((item as AgendaCrmEventItem).endDate!);
-            while(currentDateIterator <= stopDate) {
-                datesWithItems.add(format(currentDateIterator, "yyyy-MM-dd"));
-                currentDateIterator = addDays(currentDateIterator, 1);
+        if (isValid(item.itemDate)) { // Ensure itemDate is valid before formatting
+            datesWithItems.add(format(item.itemDate, "yyyy-MM-dd"));
+            if (item.sourceType === 'event') {
+                const event = item.rawItem as CrmEvent;
+                if (event.endDate && isValid(parseISO(event.endDate))) {
+                    let currentDateIterator = item.itemDate;
+                    const stopDate = parseISO(event.endDate);
+                    while(currentDateIterator <= stopDate) {
+                        datesWithItems.add(format(currentDateIterator, "yyyy-MM-dd"));
+                        currentDateIterator = addDays(currentDateIterator, 1);
+                    }
+                }
             }
         }
     });
-    return Array.from(datesWithItems).map(dateStr => parseISO(dateStr));
+    return Array.from(datesWithItems).map(dateStr => parseISO(dateStr)).filter(isValid); // Filter out invalid dates from parseISO
   }, [itemsInCurrentMonth]);
 
   const modifiers = {
@@ -191,11 +227,20 @@ export default function AgendaPage() {
     selected: 'bg-primary text-primary-foreground rounded-full',
   };
 
-  if (!userRole || (userRole === 'Distributor')) { // Distributors don't use this agenda
+  if (authContextLoading && !userRole) { // Initial auth loading
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-8">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Cargando autenticación...</p>
+      </div>
+    );
+  }
+
+  if (!userRole || (userRole === 'Distributor')) { 
      return (
       <Card>
         <CardHeader><CardTitle>Acceso Denegado</CardTitle></CardHeader>
-        <CardContent><p>No tienes permisos para ver esta sección.</p></CardContent>
+        <CardContent><p>No tienes permisos para ver esta sección o la agenda no aplica a tu rol.</p></CardContent>
       </Card>
     );
   }
@@ -222,7 +267,11 @@ export default function AgendaPage() {
             {canFilterByUser && (
               <div className="w-full sm:w-auto flex-grow sm:flex-grow-0">
                 <Label htmlFor="salesRepFilterAgenda">Comercial / Clavadista</Label>
-                <Select value={selectedSalesRepForAdmin} onValueChange={setSelectedSalesRepForAdmin} disabled={allTeamMembersForAdmin.length === 0 && userRole ==='Admin'}>
+                <Select 
+                    value={selectedSalesRepForAdmin} 
+                    onValueChange={setSelectedSalesRepForAdmin} 
+                    disabled={allTeamMembersForAdmin.length === 0 && userRole ==='Admin'}
+                >
                     <SelectTrigger id="salesRepFilterAgenda" className="w-full sm:w-[200px] mt-1">
                     <SelectValue placeholder="Filtrar por responsable" />
                     </SelectTrigger>
@@ -295,10 +344,14 @@ export default function AgendaPage() {
                 {itemsForSelectedDay.length > 0 ? (
                   <ul className="space-y-3">
                     {itemsForSelectedDay.map(item => {
-                      const orderItem = item.sourceType === 'order' ? item.rawItem as AgendaOrderItem : null;
-                      const eventItem = item.sourceType === 'event' ? item.rawItem as AgendaCrmEventItem : null;
-                      const itemDateForCheck = parseISO(item.sourceType === 'order' ? (orderItem!.status === 'Programada' ? orderItem!.visitDate : orderItem!.nextActionDate!) : eventItem!.startDate);
-                      const isOverdue = item.sourceType === 'order' && (orderItem!.status === 'Programada' || orderItem!.status === 'Seguimiento') && isValid(itemDateForCheck) && isBefore(itemDateForCheck, startOfDay(new Date()));
+                      const orderItem = item.sourceType === 'order' ? item.rawItem as Order : null;
+                      const eventItem = item.sourceType === 'event' ? item.rawItem as CrmEvent : null;
+                      
+                      const isOverdue = item.sourceType === 'order' && 
+                                        orderItem && // Check if orderItem is valid
+                                        (orderItem.status === 'Programada' || orderItem.status === 'Seguimiento') && 
+                                        isValid(item.itemDate) && // item.itemDate is already a Date object
+                                        isBefore(item.itemDate, startOfDay(new Date()));
                       
                       let teamMemberDisplay: string | null = null;
                       if (userRole === 'Admin' && selectedSalesRepForAdmin === "Todos") {
@@ -326,7 +379,7 @@ export default function AgendaPage() {
                           <>
                             <div className="flex items-center justify-between mb-1">
                               <h4 className="font-semibold text-sm">{orderItem.clientName}</h4>
-                              {isOverdue && <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />}
+                              {isOverdue && <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 inline-block mr-1" />}
                             </div>
                             <p className="text-xs text-muted-foreground flex items-center mb-1">
                               <Info size={14} className="mr-1.5 text-primary" />
@@ -343,7 +396,7 @@ export default function AgendaPage() {
                             )}
                             <div className="flex justify-between items-center mt-1.5">
                               <StatusBadge type="order" status={orderItem.status} className="text-xs" />
-                              {isValid(parseISO(orderItem.visitDate)) &&
+                              {orderItem.visitDate && isValid(parseISO(orderItem.visitDate)) &&
                                 <span className="text-xs text-muted-foreground">
                                     Fecha Original Visita: {format(parseISO(orderItem.visitDate), "dd/MM/yy", {locale: es})}
                                 </span>
@@ -376,7 +429,7 @@ export default function AgendaPage() {
                             {eventItem.location && (
                               <p className="text-xs text-muted-foreground mb-1">Ubicación: {eventItem.location}</p>
                             )}
-                            {eventItem.endDate && isValid(parseISO(eventItem.endDate)) && format(parseISO(eventItem.endDate), "yyyy-MM-dd") !== format(itemDateForCheck, "yyyy-MM-dd") && (
+                            {eventItem.endDate && isValid(parseISO(eventItem.endDate)) && format(parseISO(eventItem.endDate), "yyyy-MM-dd") !== format(item.itemDate, "yyyy-MM-dd") && (
                                 <p className="text-xs text-muted-foreground mb-1">
                                   Finaliza: {format(parseISO(eventItem.endDate), "dd/MM/yy", { locale: es })}
                                 </p>

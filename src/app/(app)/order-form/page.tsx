@@ -25,11 +25,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Check, Loader2, Info, Edit3, Send, FileText, Award, Package, PlusCircle, Trash2, Users } from "lucide-react";
+import { Calendar as CalendarIcon, Check, Loader2, Info, Edit3, Send, FileText, Award, Package, PlusCircle, Trash2, Users, Zap } from "lucide-react"; // Added Zap for CanalOrigenColocacion
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { clientTypeList, nextActionTypeList, failureReasonList, accountTypeList } from "@/lib/data";
-import type { Order, ClientType, NextActionType, FailureReasonType, Account, AccountType, AccountStatus, TeamMember, PromotionalMaterial, UserRole } from "@/types";
+import { clientTypeList, nextActionTypeList, failureReasonList, accountTypeList, canalOrigenColocacionList } from "@/lib/data"; // Added canalOrigenColocacionList
+import type { Order, ClientType, NextActionType, FailureReasonType, Account, AccountType, AccountStatus, TeamMember, PromotionalMaterial, UserRole, CanalOrigenColocacion } from "@/types"; // Added CanalOrigenColocacion
 import { useAuth } from "@/contexts/auth-context";
 import { useSearchParams, useRouter } from "next/navigation";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
@@ -57,6 +57,7 @@ const orderFormSchemaBase = z.object({
   outcome: z.enum(["Programar Visita", "successful", "failed", "follow-up"], { required_error: "Por favor, seleccione un resultado." }),
   clavadistaId: z.string().optional(),
   selectedSalesRepId: z.string().optional(), 
+  canalOrigenColocacion: z.enum(canalOrigenColocacionList as [CanalOrigenColocacion, ...CanalOrigenColocacion[]]).optional(), // Added
 
   clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
   numberOfUnits: z.coerce.number().positive("El número de unidades debe ser un número positivo.").optional(),
@@ -102,10 +103,10 @@ const orderFormSchema = orderFormSchemaBase.superRefine((data, ctx) => {
     }
   }
 
-  // Require clientStatus if outcome is failed or follow-up, but NOT for "Programar Visita" as it's hidden
-  if ((data.outcome === "failed" || data.outcome === "follow-up") && !data.clientStatus) {
+  if (data.outcome !== "Programar Visita" && !data.clientStatus) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Debe indicar si es cliente nuevo o existente.", path: ["clientStatus"] });
   }
+
 
   if (data.outcome === "failed" || data.outcome === "follow-up") {
     if (!data.nextActionType) {
@@ -188,6 +189,7 @@ export default function OrderFormPage() {
       outcome: undefined,
       clavadistaId: NO_CLAVADISTA_VALUE,
       selectedSalesRepId: userRole === 'Admin' ? ADMIN_SELF_REGISTER_VALUE : undefined,
+      canalOrigenColocacion: undefined, // Added
       clientType: undefined,
       numberOfUnits: undefined,
       unitPrice: undefined,
@@ -263,6 +265,7 @@ export default function OrderFormPage() {
                 outcome: undefined, 
                 clavadistaId: existingVisit.clavadistaId || NO_CLAVADISTA_VALUE,
                 selectedSalesRepId: userRole === 'Admin' ? preselectedSalesRepId : undefined,
+                canalOrigenColocacion: existingVisit.canalOrigenColocacion || undefined, // Added
                 notes: existingVisit.notes || "",
                 clientType: existingVisit.clientType,
                 numberOfUnits: existingVisit.numberOfUnits,
@@ -303,6 +306,7 @@ export default function OrderFormPage() {
             form.reset({
                 clientName: "", visitDate: new Date(), clientStatus: undefined, outcome: undefined, clavadistaId: NO_CLAVADISTA_VALUE,
                 selectedSalesRepId: userRole === 'Admin' ? ADMIN_SELF_REGISTER_VALUE : undefined,
+                canalOrigenColocacion: undefined, // Added
                 notes: "",
                 nombreFiscal: "", cif: "", direccionFiscal: "", direccionEntrega: "", contactoNombre: "", contactoCorreo: "", contactoTelefono: "", observacionesAlta: "",
                 clientType: undefined, numberOfUnits: undefined, unitPrice: undefined, orderValue: undefined,
@@ -422,6 +426,7 @@ export default function OrderFormPage() {
         clientName: values.clientName,
         visitDate: format(values.visitDate, "yyyy-MM-dd"),
         clavadistaId: finalClavadistaId,
+        canalOrigenColocacion: values.canalOrigenColocacion, // Added
         assignedMaterials: values.assignedMaterials || [],
         notes: values.notes,
         clientStatus: values.clientStatus, // This will be undefined if outcome is "Programar Visita"
@@ -437,7 +442,6 @@ export default function OrderFormPage() {
         observacionesAlta: values.observacionesAlta,
       };
       
-      // Explicitly set clientStatus for the order if it was provided in the form values
       if (values.clientStatus) {
           orderData.clientStatus = values.clientStatus;
       }
@@ -468,10 +472,6 @@ export default function OrderFormPage() {
       } else if (values.outcome === "Programar Visita") {
           orderData.status = 'Programada';
           orderData.assignedMaterials = []; 
-          // For "Programar Visita", clientStatus isn't collected at this stage.
-          // It will be collected when the visit is later updated with an outcome.
-          // However, if a new account is being created, it will default to 'Potencial'.
-          // If it's an existing client, we don't need to set clientStatus on the order yet.
           toast({ title: "¡Visita Programada!", description: <div className="flex items-start"><CalendarIcon className="h-5 w-5 text-purple-500 mr-2 mt-1" /><p>Visita para {values.clientName} programada para el {format(values.visitDate, "dd/MM/yyyy", { locale: es })}.{accountCreationMessage}</p></div> });
       } else {
           toast({ title: "Error de Envío", description: "Por favor, complete todos los campos obligatorios para el resultado seleccionado.", variant: "destructive" });
@@ -490,6 +490,7 @@ export default function OrderFormPage() {
       form.reset({
           clientName: "", visitDate: new Date(), clientStatus: undefined, outcome: undefined, clavadistaId: NO_CLAVADISTA_VALUE,
           selectedSalesRepId: userRole === 'Admin' ? ADMIN_SELF_REGISTER_VALUE : undefined,
+          canalOrigenColocacion: undefined, // Added
           notes: "",
           nombreFiscal: "", cif: "", direccionFiscal: "", direccionEntrega: "", contactoNombre: "", contactoCorreo: "", contactoTelefono: "", observacionesAlta: "",
           clientType: undefined, numberOfUnits: undefined, unitPrice: undefined, orderValue: undefined,
@@ -598,6 +599,29 @@ export default function OrderFormPage() {
                         <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={!!editingVisitId || ((date: Date) => date < new Date("2000-01-01"))} initialFocus locale={es}/>
                       </PopoverContent>
                     </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+               <FormField
+                control={form.control}
+                name="canalOrigenColocacion"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center"><Zap className="mr-2 h-4 w-4 text-primary" />Canal de Origen de esta Colocación</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingDropdownData}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder={isLoadingDropdownData ? "Cargando..." : "Seleccionar canal de origen"} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {canalOrigenColocacionList.map((canal: CanalOrigenColocacion) => (
+                          <SelectItem key={canal} value={canal}>{canal}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>¿Cómo se originó esta oportunidad de colocación/pedido?</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

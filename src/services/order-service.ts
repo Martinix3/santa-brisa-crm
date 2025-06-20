@@ -17,7 +17,7 @@ import {
   WriteBatch,
   writeBatch
 } from 'firebase/firestore';
-import type { Order, OrderFormValues } from '@/types'; // Assuming OrderFormValues is defined for form data
+import type { Order, OrderFormValues, CanalOrigenColocacion } from '@/types'; // Added CanalOrigenColocacion
 import { format, parseISO, isValid } from 'date-fns';
 
 const ORDERS_COLLECTION = 'orders';
@@ -36,6 +36,7 @@ const fromFirestoreOrder = (docSnap: any): Order => {
     lastUpdated: data.lastUpdated instanceof Timestamp ? format(data.lastUpdated.toDate(), "yyyy-MM-dd") : (typeof data.lastUpdated === 'string' ? data.lastUpdated : format(new Date(), "yyyy-MM-dd")),
     clavadistaId: data.clavadistaId || undefined,
     assignedMaterials: data.assignedMaterials || [],
+    canalOrigenColocacion: data.canalOrigenColocacion || undefined, // Added field
     clientType: data.clientType,
     numberOfUnits: data.numberOfUnits,
     unitPrice: data.unitPrice,
@@ -61,8 +62,6 @@ const fromFirestoreOrder = (docSnap: any): Order => {
 };
 
 // Helper para convertir datos del formulario/UI a lo que se guarda en Firestore
-// `OrderFormValues` should be a subset of `Order` or a specific type for form handling.
-// For simplicity, we'll assume `Partial<Order>` or a specific form type is used.
 const toFirestoreOrder = (data: Partial<Order> & { visitDate: Date | string, nextActionDate?: Date | string, accountId?: string }, isNew: boolean): any => {
   const firestoreData: { [key: string]: any } = {};
 
@@ -70,7 +69,7 @@ const toFirestoreOrder = (data: Partial<Order> & { visitDate: Date | string, nex
   for (const key in data) {
     if (Object.prototype.hasOwnProperty.call(data, key)) {
       const value = (data as any)[key];
-      if (value === undefined) continue; // Skip undefined values
+      if (value === undefined && key !== 'canalOrigenColocacion' && key !== 'clavadistaId' && key !== 'nextActionDate' && key !== 'accountId' && key !== 'products' && key !== 'assignedMaterials' && key !== 'value' && key !== 'clientType' && key !== 'numberOfUnits' && key !== 'unitPrice' && key !== 'clientStatus' && key !== 'nombreFiscal' && key !== 'cif' && key !== 'direccionFiscal' && key !== 'direccionEntrega' && key !== 'contactoNombre' && key !== 'contactoCorreo' && key !== 'contactoTelefono' && key !== 'observacionesAlta' && key !== 'notes' && key !== 'nextActionType' && key !== 'nextActionCustom' && key !== 'failureReasonType' && key !== 'failureReasonCustom' && key !== 'createdAt') continue;
 
       if ((key === 'visitDate' || key === 'nextActionDate' || key === 'lastUpdated' || key === 'createdAt') && value) {
         const dateValue = typeof value === 'string' ? parseISO(value) : value;
@@ -85,12 +84,11 @@ const toFirestoreOrder = (data: Partial<Order> & { visitDate: Date | string, nex
     }
   }
   
-  // Ensure specific fields that should be null if not present are handled
   firestoreData.clavadistaId = data.clavadistaId || null;
   firestoreData.nextActionDate = data.nextActionDate ? (firestoreData.nextActionDate instanceof Timestamp ? firestoreData.nextActionDate : Timestamp.fromDate(typeof data.nextActionDate === 'string' ? parseISO(data.nextActionDate) : data.nextActionDate)) : null;
   firestoreData.accountId = data.accountId || null;
   firestoreData.assignedMaterials = data.assignedMaterials || [];
-
+  firestoreData.canalOrigenColocacion = data.canalOrigenColocacion || null; // Store null if undefined
 
   if (isNew) {
     firestoreData.createdAt = Timestamp.fromDate(new Date());
@@ -100,7 +98,7 @@ const toFirestoreOrder = (data: Partial<Order> & { visitDate: Date | string, nex
   // Clean up any undefined fields that might have slipped through
   Object.keys(firestoreData).forEach(key => {
     if (firestoreData[key] === undefined) {
-      delete firestoreData[key];
+      firestoreData[key] = null; // Ensure undefined becomes null
     }
   });
 
@@ -138,7 +136,7 @@ export const addOrderFS = async (data: Partial<Order> & {visitDate: Date | strin
   return docRef.id;
 };
 
-export const updateOrderFS = async (id: string, data: Partial<Order> & {visitDate: Date | string}): Promise<void> => {
+export const updateOrderFS = async (id: string, data: Partial<Order> & {visitDate?: Date | string}): Promise<void> => { // visitDate made optional for updates
   const orderDocRef = doc(db, ORDERS_COLLECTION, id);
   const firestoreData = toFirestoreOrder(data, false); 
   await updateDoc(orderDocRef, firestoreData);
@@ -170,6 +168,7 @@ export const initializeMockOrdersInFirestore = async (mockOrdersData: Order[]) =
             firestoreReadyData.clavadistaId = order.clavadistaId || null;
             firestoreReadyData.accountId = order.accountId || null;
             firestoreReadyData.assignedMaterials = order.assignedMaterials || [];
+            firestoreReadyData.canalOrigenColocacion = order.canalOrigenColocacion || null;
             
             // Clean up undefined or empty strings for optional fields
             Object.keys(firestoreReadyData).forEach(key => {
@@ -191,11 +190,3 @@ export const initializeMockOrdersInFirestore = async (mockOrdersData: Order[]) =
         console.log('Orders collection is not empty. Skipping initialization.');
     }
 };
-
-// Example of how you might fetch orders for a specific sales rep (if salesRep is stored by ID)
-// export const getOrdersBySalesRepFS = async (salesRepId: string): Promise<Order[]> => {
-//   const ordersCol = collection(db, ORDERS_COLLECTION);
-//   const q = query(ordersCol, where("salesRepId", "==", salesRepId), orderBy('visitDate', 'desc'));
-//   const orderSnapshot = await getDocs(q);
-//   return orderSnapshot.docs.map(docSnap => fromFirestoreOrder(docSnap));
-// };

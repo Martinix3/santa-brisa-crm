@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button';
 import Logo from '@/components/icons/Logo';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2, Building2, ClipboardList, CalendarCheck, PartyPopper, ListChecks, Footprints, Briefcase, Target, Award, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2, Building2, ClipboardList, CalendarCheck, PartyPopper, ListChecks, Footprints, Briefcase, Target, Award, Sparkles, Receipt } from 'lucide-react'; // Added Receipt
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -73,6 +73,14 @@ const navigationStructure: NavGroup[] = [
       { href: '/accounts', label: 'Cuentas', icon: Building2, roles: ['Admin', 'SalesRep', 'Distributor'] },
       { href: '/orders-dashboard', label: 'Panel de Pedidos', icon: ShoppingCart, roles: ['Admin', 'SalesRep', 'Distributor'] },
       { href: '/team-tracking', label: 'Equipo de Ventas', icon: Users, roles: ['Admin', 'SalesRep'] },
+    ],
+  },
+  {
+    id: 'facturacion', // New group for Direct Sales
+    label: 'Facturación SB',
+    groupRoles: ['Admin'],
+    items: [
+      { href: '/direct-sales-sb', label: 'Ventas Directas SB', icon: Receipt, roles: ['Admin'] },
     ],
   },
   {
@@ -531,8 +539,10 @@ function AppNavigation({ navStructure, userRole }: AppNavigationProps) {
                     isActive = pathname === item.href || (pathname.startsWith('/admin/') && !pathname.startsWith('/admin/user-management') && !pathname.startsWith('/admin/objectives-management') && !pathname.startsWith('/admin/kpi-launch-targets') && !pathname.startsWith('/admin/promotional-materials'));
                   } else if (item.href === '/dashboard') {
                      isActive = pathname === item.href;
+                  } else if (item.href === '/direct-sales-sb') {
+                     isActive = pathname === item.href;
                   } else {
-                    isActive = pathname.startsWith(item.href) && item.href !== '/dashboard';
+                    isActive = pathname.startsWith(item.href) && item.href !== '/dashboard' && item.href !== '/direct-sales-sb';
                   }
                   
                   if (pathname.startsWith('/admin/') && group.id === 'configuracion') {

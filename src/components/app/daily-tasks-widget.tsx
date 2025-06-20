@@ -36,7 +36,7 @@ interface AgendaCrmEventItem extends AgendaItemBase {
 type AgendaItem = AgendaOrderItem | AgendaCrmEventItem;
 
 export default function DailyTasksWidget() {
-  const { userRole, teamMember, loading: authLoading } = useAuth();
+  const { userRole, teamMember, loading: authLoading, dataSignature } = useAuth();
   const { toast } = useToast();
   const today = startOfDay(new Date());
   const nextSevenDaysEnd = endOfDay(addDays(today, 6));
@@ -45,7 +45,6 @@ export default function DailyTasksWidget() {
 
   React.useEffect(() => {
     async function loadTasks() {
-      // Esta función interna ahora solo se llama cuando estamos seguros de que podemos proceder.
       setIsLoading(true);
 
       let relevantOrdersFromFS: Order[] = [];
@@ -62,8 +61,8 @@ export default function DailyTasksWidget() {
       } catch (error) {
         console.error("Error fetching data for daily tasks:", error);
         toast({title: "Error al Cargar Tareas", description: "No se pudieron cargar todas las tareas.", variant: "destructive"})
-        setDailyItems([]); // Limpiar en caso de error
-        setIsLoading(false); // Asegurar que isLoading se actualice
+        setDailyItems([]);
+        setIsLoading(false);
         return;
       }
 
@@ -143,28 +142,23 @@ export default function DailyTasksWidget() {
     }
 
     if (authLoading) {
-      setIsLoading(true); // Si la autenticación general está cargando, el widget también debe mostrar carga.
-      return;
-    }
-
-    // La autenticación ha terminado (authLoading es false).
-    // Ahora verificamos si el rol del usuario es uno que depende de teamMember y si teamMember ya está disponible.
-    if ((userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember && userRole !== null) {
-      // El rol requiere teamMember, pero teamMember aún no está listo (y userRole ya está definido).
-      // Mantenemos el estado de carga y esperamos que el efecto se vuelva a ejecutar cuando teamMember cambie.
       setIsLoading(true);
       return;
     }
 
-    // Si es Distributor, o si es Admin, o si es SalesRep/Clavadista y teamMember está listo, procedemos a cargar tareas.
-    if (userRole === 'Distributor') {
-      setDailyItems([]);
-      setIsLoading(false); // No hay tareas para Distributor, terminamos la carga.
-    } else {
-      loadTasks(); // Llama a la función que realmente carga y procesa las tareas.
+    if ((userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember && userRole !== null) {
+      setIsLoading(true);
+      return;
     }
 
-  }, [authLoading, userRole, teamMember, today, nextSevenDaysEnd, toast]);
+    if (userRole === 'Distributor') {
+      setDailyItems([]);
+      setIsLoading(false);
+    } else {
+      loadTasks();
+    }
+
+  }, [authLoading, userRole, teamMember, today, nextSevenDaysEnd, toast, dataSignature]);
 
   if (isLoading) {
     return (

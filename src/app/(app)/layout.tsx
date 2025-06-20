@@ -114,7 +114,7 @@ const navigationStructure: NavGroup[] = [
 
 
 function DailyTasksMenu() {
-  const { userRole, teamMember, loading: authContextLoading } = useAuth();
+  const { userRole, teamMember, loading: authContextLoading, dataSignature } = useAuth();
   const { toast } = useToast();
   const today = startOfDay(new Date());
   const nextSevenDaysEnd = endOfDay(addDays(today, 6));
@@ -222,7 +222,7 @@ function DailyTasksMenu() {
         setTaskCount(0);
         setIsLoadingTasks(false);
     }
-  }, [userRole, teamMember, authContextLoading, toast, today, nextSevenDaysEnd]);
+  }, [userRole, teamMember, authContextLoading, toast, today, nextSevenDaysEnd, dataSignature]);
 
 
   const canShowWidgetIcon = userRole === 'Admin' || userRole === 'SalesRep' || userRole === 'Clavadista';
@@ -410,7 +410,7 @@ function MonthlyProgressIndicator({ type, teamMember, userRole, allTeamMembers, 
 
 
 function MainAppLayout({ children }: { children: React.ReactNode }) {
-  const { user, userRole, teamMember, loading, logout } = useAuth();
+  const { user, userRole, teamMember, loading, logout, dataSignature } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
@@ -453,7 +453,7 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
     if (!loading && user) {
         loadProgressData();
     }
-  }, [userRole, user, loading, toast]);
+  }, [userRole, user, loading, toast, dataSignature]);
 
 
   if (loading) {

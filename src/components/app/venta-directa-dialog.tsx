@@ -277,5 +277,3 @@ export default function VentaDirectaDialog({ venta, isOpen, onOpenChange, onSave
     </Dialog>
   );
 }
-
-```

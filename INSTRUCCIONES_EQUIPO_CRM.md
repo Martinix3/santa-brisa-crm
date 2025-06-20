@@ -132,6 +132,10 @@ El CRM está en constante evolución. Algunas de las funcionalidades que se plan
 *   **Perfil de Usuario Personalizado:** Posibilidad de ver y (según permisos) editar detalles básicos de tu perfil de usuario directamente en la aplicación.
 *   **Cambio de Contraseña:** Funcionalidad para que los usuarios puedan cambiar su propia contraseña de acceso al CRM.
 *   **Subida de Facturas:** Permitir adjuntar archivos de factura (PDFs, imágenes) directamente a los pedidos (para Admin y Distributor) o a las Ventas Directas SB (para Admin).
+*   **Notificaciones Mejoradas:** Alertas dentro de la app (y opcionalmente por email) para tareas vencidas, nuevos pedidos asignados o cambios relevantes.
+*   **Informes y Exportaciones Avanzadas:** Herramientas para que los Administradores puedan generar informes más personalizados y exportar datos en formatos como Excel.
+*   **Integración con Calendarios Externos:** Sincronización de "Mi Agenda" del CRM con calendarios como Google Calendar u Outlook Calendar.
+*   **Gestión de Stock de Material Promocional:** Un control más detallado del inventario de materiales de marketing.
 *   *(Otras mejoras se irán comunicando)*
 
 ## 5. Soporte

@@ -80,7 +80,7 @@ const orderFormSchemaBase = z.object({
 
   notes: z.string().optional(),
   assignedMaterials: z.array(assignedMaterialSchema).optional().default([]),
-  accountId: z.string().optional(), // Mantener accountId para pasar entre cargas y para vincular
+  accountId: z.string().optional(), 
 });
 
 const orderFormSchema = orderFormSchemaBase.superRefine((data, ctx) => {
@@ -102,7 +102,8 @@ const orderFormSchema = orderFormSchemaBase.superRefine((data, ctx) => {
     }
   }
 
-  if ((data.outcome === "failed" || data.outcome === "follow-up" || data.outcome === "Programar Visita") && !data.clientStatus) {
+  // Require clientStatus if outcome is failed or follow-up, but NOT for "Programar Visita" as it's hidden
+  if ((data.outcome === "failed" || data.outcome === "follow-up") && !data.clientStatus) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Debe indicar si es cliente nuevo o existente.", path: ["clientStatus"] });
   }
 
@@ -281,7 +282,7 @@ export default function OrderFormPage() {
                 failureReasonType: existingVisit.failureReasonType,
                 failureReasonCustom: existingVisit.failureReasonCustom || "",
                 assignedMaterials: existingVisit.assignedMaterials || [],
-                accountId: existingVisit.accountId, // Cargar el accountId existente
+                accountId: existingVisit.accountId, 
               });
             } else if (existingVisit) {
                toast({ title: "Acceso Denegado", description: "No tienes permiso para actualizar esta visita o ya ha sido procesada de otra forma.", variant: "destructive"});
@@ -363,13 +364,13 @@ export default function OrderFormPage() {
     }
 
 
-    let currentAccountId = values.accountId; // Usar el accountId si ya está en el formulario (p.ej. al editar)
+    let currentAccountId = values.accountId; 
     let accountCreationMessage = "";
 
     const finalClavadistaId = values.clavadistaId === NO_CLAVADISTA_VALUE ? undefined : values.clavadistaId;
 
     try {
-      if (values.clientStatus === "new" && !currentAccountId) { // Solo crear cuenta si es nueva Y no tiene ya un accountId
+      if (values.clientStatus === "new" && !currentAccountId) { 
           let accountExists = false;
           const allCurrentAccounts = await getAccountsFS();
 
@@ -423,9 +424,9 @@ export default function OrderFormPage() {
         clavadistaId: finalClavadistaId,
         assignedMaterials: values.assignedMaterials || [],
         notes: values.notes,
-        clientStatus: values.clientStatus,
+        clientStatus: values.clientStatus, // This will be undefined if outcome is "Programar Visita"
         salesRep: salesRepNameForOrder,
-        accountId: currentAccountId, // Asegurarse de que accountId se guarde
+        accountId: currentAccountId, 
         nombreFiscal: values.nombreFiscal,
         cif: values.cif,
         direccionFiscal: values.direccionFiscal,
@@ -435,6 +436,12 @@ export default function OrderFormPage() {
         contactoTelefono: values.contactoTelefono,
         observacionesAlta: values.observacionesAlta,
       };
+      
+      // Explicitly set clientStatus for the order if it was provided in the form values
+      if (values.clientStatus) {
+          orderData.clientStatus = values.clientStatus;
+      }
+
 
       if (values.outcome === "successful" && values.clientStatus && values.orderValue && values.clientType && values.numberOfUnits && values.unitPrice) {
           orderData.status = 'Confirmado';
@@ -460,7 +467,11 @@ export default function OrderFormPage() {
           toast({ title: "¡Visita Fallida Registrada!", description: <div className="flex items-start"><Info className="h-5 w-5 text-orange-500 mr-2 mt-1" /><p>Interacción fallida con {values.clientName} registrada.{accountCreationMessage}</p></div> });
       } else if (values.outcome === "Programar Visita") {
           orderData.status = 'Programada';
-          orderData.assignedMaterials = []; // No se asignan materiales en una mera programación
+          orderData.assignedMaterials = []; 
+          // For "Programar Visita", clientStatus isn't collected at this stage.
+          // It will be collected when the visit is later updated with an outcome.
+          // However, if a new account is being created, it will default to 'Potencial'.
+          // If it's an existing client, we don't need to set clientStatus on the order yet.
           toast({ title: "¡Visita Programada!", description: <div className="flex items-start"><CalendarIcon className="h-5 w-5 text-purple-500 mr-2 mt-1" /><p>Visita para {values.clientName} programada para el {format(values.visitDate, "dd/MM/yyyy", { locale: es })}.{accountCreationMessage}</p></div> });
       } else {
           toast({ title: "Error de Envío", description: "Por favor, complete todos los campos obligatorios para el resultado seleccionado.", variant: "destructive" });
@@ -474,7 +485,7 @@ export default function OrderFormPage() {
         await addOrderFS(orderData as Order);
       }
       
-      refreshDataSignature(); // Notificar a otras partes de la app que los datos han cambiado
+      refreshDataSignature(); 
 
       form.reset({
           clientName: "", visitDate: new Date(), clientStatus: undefined, outcome: undefined, clavadistaId: NO_CLAVADISTA_VALUE,
@@ -863,6 +874,3 @@ export default function OrderFormPage() {
     </div>
   );
 }
-
-
-    

@@ -32,8 +32,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Account, AccountType, AccountStatus, TeamMember } from "@/types";
-import { accountTypeList, accountStatusList } from "@/lib/data"; // mockTeamMembers removed
+import type { Account, AccountType, AccountStatus, TeamMember, AddressDetails } from "@/types";
+import { accountTypeList, accountStatusList, provincesSpainList } from "@/lib/data"; 
 import { Loader2 } from "lucide-react";
 import { Separator } from "../ui/separator";
 import { getTeamMembersFS } from "@/services/team-member-service";
@@ -47,14 +47,50 @@ const accountFormSchemaBase = z.object({
   cif: z.string().min(5, "El CIF/NIF debe tener al menos 5 caracteres."),
   type: z.enum(accountTypeList as [AccountType, ...AccountType[]], { required_error: "El tipo de cuenta es obligatorio." }),
   status: z.enum(accountStatusList as [AccountStatus, ...AccountStatus[]], { required_error: "El estado de la cuenta es obligatorio." }),
-  addressBilling: z.string().optional(),
-  addressShipping: z.string().optional(),
+  
+  // Campos de dirección de facturación desglosados
+  addressBilling_street: z.string().optional(),
+  addressBilling_number: z.string().optional(),
+  addressBilling_city: z.string().optional(),
+  addressBilling_province: z.string().optional(),
+  addressBilling_postalCode: z.string().optional(),
+  addressBilling_country: z.string().optional().default("España"),
+
+  // Campos de dirección de envío desglosados
+  addressShipping_street: z.string().optional(),
+  addressShipping_number: z.string().optional(),
+  addressShipping_city: z.string().optional(),
+  addressShipping_province: z.string().optional(),
+  addressShipping_postalCode: z.string().optional(),
+  addressShipping_country: z.string().optional().default("España"),
+
   mainContactName: z.string().optional(),
   mainContactEmail: z.string().email("Formato de correo inválido.").optional().or(z.literal("")),
   mainContactPhone: z.string().optional(),
   notes: z.string().optional(),
   salesRepId: z.string().optional(),
+}).superRefine((data, ctx) => {
+  // Validación para dirección de facturación si algún campo está relleno
+  const billingFields = [data.addressBilling_street, data.addressBilling_city, data.addressBilling_province, data.addressBilling_postalCode];
+  const someBillingFieldFilled = billingFields.some(field => field && field.trim() !== "");
+  if (someBillingFieldFilled) {
+    if (!data.addressBilling_street?.trim()) ctx.addIssue({ path: ["addressBilling_street"], message: "Calle es obligatoria si se rellena la dirección." });
+    if (!data.addressBilling_city?.trim()) ctx.addIssue({ path: ["addressBilling_city"], message: "Ciudad es obligatoria si se rellena la dirección." });
+    if (!data.addressBilling_province?.trim()) ctx.addIssue({ path: ["addressBilling_province"], message: "Provincia es obligatoria si se rellena la dirección." });
+    if (!data.addressBilling_postalCode?.trim()) ctx.addIssue({ path: ["addressBilling_postalCode"], message: "Código postal es obligatorio si se rellena la dirección." });
+  }
+
+  // Validación para dirección de envío si algún campo está relleno
+  const shippingFields = [data.addressShipping_street, data.addressShipping_city, data.addressShipping_province, data.addressShipping_postalCode];
+  const someShippingFieldFilled = shippingFields.some(field => field && field.trim() !== "");
+  if (someShippingFieldFilled) {
+    if (!data.addressShipping_street?.trim()) ctx.addIssue({ path: ["addressShipping_street"], message: "Calle es obligatoria si se rellena la dirección." });
+    if (!data.addressShipping_city?.trim()) ctx.addIssue({ path: ["addressShipping_city"], message: "Ciudad es obligatoria si se rellena la dirección." });
+    if (!data.addressShipping_province?.trim()) ctx.addIssue({ path: ["addressShipping_province"], message: "Provincia es obligatoria si se rellena la dirección." });
+    if (!data.addressShipping_postalCode?.trim()) ctx.addIssue({ path: ["addressShipping_postalCode"], message: "Código postal es obligatorio si se rellena la dirección." });
+  }
 });
+
 
 export type AccountFormValues = z.infer<typeof accountFormSchemaBase>;
 
@@ -92,8 +128,9 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
     resolver: zodResolver(accountFormSchema),
     defaultValues: {
       name: "", legalName: "", cif: "", type: undefined, status: "Potencial",
-      addressBilling: "", addressShipping: "", mainContactName: "", mainContactEmail: "",
-      mainContactPhone: "", notes: "", salesRepId: NO_SALES_REP_VALUE,
+      addressBilling_street: "", addressBilling_number: "", addressBilling_city: "", addressBilling_province: "", addressBilling_postalCode: "", addressBilling_country: "España",
+      addressShipping_street: "", addressShipping_number: "", addressShipping_city: "", addressShipping_province: "", addressShipping_postalCode: "", addressShipping_country: "España",
+      mainContactName: "", mainContactEmail: "", mainContactPhone: "", notes: "", salesRepId: NO_SALES_REP_VALUE,
     },
   });
 
@@ -111,17 +148,35 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
       if (account) {
         form.reset({
           name: account.name,
-          legalName: account.legalName || "", cif: account.cif, type: account.type, status: account.status,
-          addressBilling: account.addressBilling || "", addressShipping: account.addressShipping || "",
-          mainContactName: account.mainContactName || "", mainContactEmail: account.mainContactEmail || "",
-          mainContactPhone: account.mainContactPhone || "", notes: account.notes || "",
+          legalName: account.legalName || "", 
+          cif: account.cif, 
+          type: account.type, 
+          status: account.status,
+          addressBilling_street: account.addressBilling?.street || "",
+          addressBilling_number: account.addressBilling?.number || "",
+          addressBilling_city: account.addressBilling?.city || "",
+          addressBilling_province: account.addressBilling?.province || "",
+          addressBilling_postalCode: account.addressBilling?.postalCode || "",
+          addressBilling_country: account.addressBilling?.country || "España",
+          addressShipping_street: account.addressShipping?.street || "",
+          addressShipping_number: account.addressShipping?.number || "",
+          addressShipping_city: account.addressShipping?.city || "",
+          addressShipping_province: account.addressShipping?.province || "",
+          addressShipping_postalCode: account.addressShipping?.postalCode || "",
+          addressShipping_country: account.addressShipping?.country || "España",
+          mainContactName: account.mainContactName || "", 
+          mainContactEmail: account.mainContactEmail || "",
+          mainContactPhone: account.mainContactPhone || "", 
+          notes: account.notes || "",
           salesRepId: account.salesRepId || NO_SALES_REP_VALUE,
         });
       } else {
         form.reset({ 
           name: "", legalName: "", cif: "", type: undefined, status: "Potencial",
-          addressBilling: "", addressShipping: "", mainContactName: "", mainContactEmail: "",
-          mainContactPhone: "", notes: "", salesRepId: NO_SALES_REP_VALUE,
+          addressBilling_street: "", addressBilling_number: "", addressBilling_city: "", addressBilling_province: "", addressBilling_postalCode: "", addressBilling_country: "España",
+          addressShipping_street: "", addressShipping_number: "", addressShipping_city: "", addressShipping_province: "", addressShipping_postalCode: "", addressShipping_country: "España",
+          mainContactName: "", mainContactEmail: "", mainContactPhone: "", 
+          notes: "", salesRepId: NO_SALES_REP_VALUE,
         });
       }
     }
@@ -143,7 +198,7 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
   
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg md:max-w-xl lg:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg md:max-w-xl lg:max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isReadOnly ? "Detalles de la Cuenta" : (account ? "Editar Cuenta" : "Añadir Nueva Cuenta")}</DialogTitle>
           <DialogDescription>
@@ -161,14 +216,37 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
                 <FormField control={form.control} name="type" render={({ field }) => (<FormItem><FormLabel>Tipo de Cuenta</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un tipo" /></SelectTrigger></FormControl><SelectContent>{accountTypeList.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado de la Cuenta</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un estado" /></SelectTrigger></FormControl><SelectContent>{accountStatusList.map(status => (<SelectItem key={status} value={status}>{status}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
             </div>
-            <Separator className="my-4"/><h3 className="text-md font-medium text-muted-foreground">Direcciones</h3>
-            <FormField control={form.control} name="addressBilling" render={({ field }) => (<FormItem><FormLabel>Dirección Fiscal/Facturación (Opcional)</FormLabel><FormControl><Textarea placeholder="Calle, número, ciudad, CP, provincia..." {...field} disabled={isReadOnly} className="min-h-[60px]" /></FormControl><FormMessage /></FormItem>)} />
-            <FormField control={form.control} name="addressShipping" render={({ field }) => (<FormItem><FormLabel>Dirección de Entrega Principal (Opcional)</FormLabel><FormControl><Textarea placeholder="Calle, número, ciudad, CP, provincia..." {...field} disabled={isReadOnly} className="min-h-[60px]" /></FormControl><FormMessage /></FormItem>)} />
-            <Separator className="my-4"/><h3 className="text-md font-medium text-muted-foreground">Contacto Principal</h3>
-            <FormField control={form.control} name="mainContactName" render={({ field }) => (<FormItem><FormLabel>Nombre del Contacto (Opcional)</FormLabel><FormControl><Input placeholder="Ej: María López" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+            
+            <Separator className="my-4"/><h3 className="text-md font-medium text-muted-foreground">Dirección Fiscal/Facturación (Opcional)</h3>
+            <FormField control={form.control} name="addressBilling_street" render={({ field }) => (<FormItem><FormLabel>Calle</FormLabel><FormControl><Input placeholder="Ej: Calle Mayor" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <FormField control={form.control} name="addressBilling_number" render={({ field }) => (<FormItem><FormLabel>Número</FormLabel><FormControl><Input placeholder="Ej: 123" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="addressBilling_postalCode" render={({ field }) => (<FormItem><FormLabel>Cód. Postal</FormLabel><FormControl><Input placeholder="Ej: 28001" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="addressBilling_city" render={({ field }) => (<FormItem><FormLabel>Ciudad</FormLabel><FormControl><Input placeholder="Ej: Madrid" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="addressBilling_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(prov => (<SelectItem key={prov} value={prov}>{prov}</SelectItem>))}</SelectContent></Select>
+              <FormMessage /></FormItem>)} />
+            </div>
+             <FormField control={form.control} name="addressBilling_country" render={({ field }) => (<FormItem><FormLabel>País</FormLabel><FormControl><Input placeholder="Ej: España" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+
+
+            <Separator className="my-4"/><h3 className="text-md font-medium text-muted-foreground">Dirección de Entrega Principal (Opcional)</h3>
+            <FormField control={form.control} name="addressShipping_street" render={({ field }) => (<FormItem><FormLabel>Calle</FormLabel><FormControl><Input placeholder="Ej: Calle Secundaria" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <FormField control={form.control} name="addressShipping_number" render={({ field }) => (<FormItem><FormLabel>Número</FormLabel><FormControl><Input placeholder="Ej: 45" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="addressShipping_postalCode" render={({ field }) => (<FormItem><FormLabel>Cód. Postal</FormLabel><FormControl><Input placeholder="Ej: 08001" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="addressShipping_city" render={({ field }) => (<FormItem><FormLabel>Ciudad</FormLabel><FormControl><Input placeholder="Ej: Barcelona" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="addressShipping_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(prov => (<SelectItem key={prov} value={prov}>{prov}</SelectItem>))}</SelectContent></Select>
+              <FormMessage /></FormItem>)} />
+            </div>
+            <FormField control={form.control} name="addressShipping_country" render={({ field }) => (<FormItem><FormLabel>País</FormLabel><FormControl><Input placeholder="Ej: España" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+
+            <Separator className="my-4"/><h3 className="text-md font-medium text-muted-foreground">Contacto Principal (Opcional)</h3>
+            <FormField control={form.control} name="mainContactName" render={({ field }) => (<FormItem><FormLabel>Nombre del Contacto</FormLabel><FormControl><Input placeholder="Ej: María López" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField control={form.control} name="mainContactEmail" render={({ field }) => (<FormItem><FormLabel>Email del Contacto (Opcional)</FormLabel><FormControl><Input type="email" placeholder="contacto@ejemplo.com" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="mainContactPhone" render={({ field }) => (<FormItem><FormLabel>Teléfono del Contacto (Opcional)</FormLabel><FormControl><Input type="tel" placeholder="+34 600 000 000" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="mainContactEmail" render={({ field }) => (<FormItem><FormLabel>Email del Contacto</FormLabel><FormControl><Input type="email" placeholder="contacto@ejemplo.com" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="mainContactPhone" render={({ field }) => (<FormItem><FormLabel>Teléfono del Contacto</FormLabel><FormControl><Input type="tel" placeholder="+34 600 000 000" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
             </div>
             <Separator className="my-4"/>
              <FormField control={form.control} name="salesRepId" render={({ field }) => (<FormItem><FormLabel>Representante Asignado (Opcional)</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly || salesRepList.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={salesRepList.length === 0 ? "Cargando..." : "Seleccionar representante"} /></SelectTrigger></FormControl><SelectContent><SelectItem value={NO_SALES_REP_VALUE}>Sin asignar</SelectItem>{salesRepList.map(rep => (<SelectItem key={rep.id} value={rep.id}>{rep.name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
@@ -183,3 +261,5 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
     </Dialog>
   );
 }
+
+```

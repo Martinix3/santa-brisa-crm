@@ -1,5 +1,5 @@
 
-import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType, Account, AccountType, AccountStatus, NextActionType, FailureReasonType, CrmEvent, CrmEventType, CrmEventStatus, PromotionalMaterial, PromotionalMaterialType, AssignedPromotionalMaterial, CanalOrigenColocacion, CanalVentaDirectaSB, EstadoVentaDirectaSB, VentaDirectaSB, VentaDirectaSBItem } from '@/types';
+import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType, Account, AccountType, AccountStatus, NextActionType, FailureReasonType, CrmEvent, CrmEventType, CrmEventStatus, PromotionalMaterial, PromotionalMaterialType, AssignedPromotionalMaterial, CanalOrigenColocacion, CanalVentaDirectaSB, EstadoVentaDirectaSB, VentaDirectaSB, VentaDirectaSBItem, PaymentMethod, AddressDetails } from '@/types'; // Added PaymentMethod
 import { Package, Users, ShoppingBag, BarChart3 } from 'lucide-react';
 import { format, addDays, subDays, isEqual, parseISO } from 'date-fns';
 import { TrendingUp, Briefcase, CalendarPlus, Repeat } from "lucide-react";
@@ -17,7 +17,7 @@ export const mockOrders: Order[] = [];
 export const mockAccounts: Account[] = [];
 export const mockCrmEvents: CrmEvent[] = [];
 export const mockPromotionalMaterials: PromotionalMaterial[] = [];
-export const mockVentasDirectasSB: VentaDirectaSB[] = []; // Array para mock de ventas directas
+export const mockVentasDirectasSB: VentaDirectaSB[] = [];
 
 
 export const orderStatusesList: OrderStatus[] = ['Programada', 'Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Cancelado', 'Fallido', 'Seguimiento'];
@@ -63,17 +63,20 @@ export const userRolesList: UserRole[] = ['Admin', 'SalesRep', 'Distributor', 'C
 export const accountTypeList: AccountType[] = ['HORECA', 'Distribuidor', 'Retail Minorista', 'Gran Superficie', 'Evento Especial', 'Cliente Final Directo', 'Importador', 'Otro'];
 export const accountStatusList: AccountStatus[] = ['Activo', 'Inactivo', 'Potencial', 'Bloqueado'];
 
-
-
 export const promotionalMaterialTypeList: PromotionalMaterialType[] = ['Merchandising Físico', 'Material PLV', 'Servicio de Personal', 'Digital/Software'];
-
-
 
 export const crmEventTypeList: CrmEventType[] = ['Activación en Tienda', 'Feria Comercial', 'Evento Corporativo', 'Degustación', 'Patrocinio', 'Activación', 'Otro'];
 export const crmEventStatusList: CrmEventStatus[] = ['Planificado', 'Confirmado', 'En Curso', 'Completado', 'Cancelado', 'Pospuesto'];
 
-// Nuevas listas para Ventas Directas SB
 export const canalVentaDirectaList: CanalVentaDirectaSB[] = ['Importador', 'Online', 'Estratégica', 'Otro Directo'];
 export const estadoVentaDirectaList: EstadoVentaDirectaSB[] = ['Borrador', 'Confirmada', 'Facturada', 'Pagada', 'Cancelada'];
 export const canalOrigenColocacionList: CanalOrigenColocacion[] = ['Equipo Santa Brisa', 'Iniciativa Importador', 'Marketing Digital', 'Referido', 'Otro'];
 
+export const paymentMethodList: PaymentMethod[] = ['Adelantado', 'Contado', 'Transferencia 30 días'];
+export const provincesSpainList: string[] = [
+  "Álava", "Albacete", "Alicante", "Almería", "Asturias", "Ávila", "Badajoz", "Barcelona", "Burgos", "Cáceres",
+  "Cádiz", "Cantabria", "Castellón", "Ciudad Real", "Córdoba", "La Coruña", "Cuenca", "Gerona", "Granada", "Guadalajara",
+  "Guipúzcoa", "Huelva", "Huesca", "Islas Baleares", "Jaén", "León", "Lérida", "Lugo", "Madrid", "Málaga", "Murcia",
+  "Navarra", "Orense", "Palencia", "Las Palmas", "Pontevedra", "La Rioja", "Salamanca", "Santa Cruz de Tenerife",
+  "Segovia", "Sevilla", "Soria", "Tarragona", "Teruel", "Toledo", "Valencia", "Valladolid", "Vizcaya", "Zamora", "Zaragoza"
+];

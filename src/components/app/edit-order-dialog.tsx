@@ -35,9 +35,9 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { Order, OrderStatus, UserRole, TeamMember, NextActionType, FailureReasonType, ClientType, PromotionalMaterial, Account, CanalOrigenColocacion } from "@/types"; // Added CanalOrigenColocacion
-import { orderStatusesList, nextActionTypeList, failureReasonList, clientTypeList, canalOrigenColocacionList } from "@/lib/data"; // Added canalOrigenColocacionList
-import { Loader2, CalendarIcon, Printer, Award, Package, PlusCircle, Trash2, Zap } from "lucide-react"; // Added Zap
+import type { Order, OrderStatus, UserRole, TeamMember, NextActionType, FailureReasonType, ClientType, PromotionalMaterial, Account, CanalOrigenColocacion, AddressDetails, PaymentMethod } from "@/types"; 
+import { orderStatusesList, nextActionTypeList, failureReasonList, clientTypeList, canalOrigenColocacionList, provincesSpainList, paymentMethodList } from "@/lib/data"; 
+import { Loader2, CalendarIcon, Printer, Award, Package, PlusCircle, Trash2, Zap, CreditCard } from "lucide-react"; 
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
@@ -64,7 +64,8 @@ const editOrderFormSchema = z.object({
   status: z.enum(orderStatusesList as [OrderStatus, ...OrderStatus[]]),
   salesRep: z.string().min(1, "El representante de ventas es obligatorio."),
   clavadistaId: z.string().optional(),
-  canalOrigenColocacion: z.enum(canalOrigenColocacionList as [CanalOrigenColocacion, ...CanalOrigenColocacion[]]).optional(), // Added
+  canalOrigenColocacion: z.enum(canalOrigenColocacionList as [CanalOrigenColocacion, ...CanalOrigenColocacion[]]).optional(),
+  paymentMethod: z.enum(paymentMethodList as [PaymentMethod, ...PaymentMethod[]]).optional(),
   assignedMaterials: z.array(assignedMaterialSchemaForDialog).optional().default([]),
 
   clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
@@ -73,8 +74,20 @@ const editOrderFormSchema = z.object({
 
   nombreFiscal: z.string().optional(),
   cif: z.string().optional(),
-  direccionFiscal: z.string().optional(),
-  direccionEntrega: z.string().optional(),
+  // Campos de dirección desglosada
+  direccionFiscal_street: z.string().optional(),
+  direccionFiscal_number: z.string().optional(),
+  direccionFiscal_city: z.string().optional(),
+  direccionFiscal_province: z.string().optional(),
+  direccionFiscal_postalCode: z.string().optional(),
+  direccionFiscal_country: z.string().optional().default("España"),
+  direccionEntrega_street: z.string().optional(),
+  direccionEntrega_number: z.string().optional(),
+  direccionEntrega_city: z.string().optional(),
+  direccionEntrega_province: z.string().optional(),
+  direccionEntrega_postalCode: z.string().optional(),
+  direccionEntrega_country: z.string().optional().default("España"),
+  
   contactoNombre: z.string().optional(),
   contactoCorreo: z.string().email("El formato del correo no es válido.").optional().or(z.literal('')),
   contactoTelefono: z.string().optional(),
@@ -97,16 +110,28 @@ const editOrderFormSchema = z.object({
          if (!data.clientType) {
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El tipo de cliente es obligatorio.", path: ["clientType"] });
         }
+        if (!data.paymentMethod) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La forma de pago es obligatoria.", path: ["paymentMethod"] });
+        }
         if (['Confirmado', 'Procesando', 'Enviado', 'Entregado'].includes(data.status)) {
             if (!data.nombreFiscal || data.nombreFiscal.trim() === "") ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Nombre fiscal es obligatorio.", path: ["nombreFiscal"] });
             if (!data.cif || data.cif.trim() === "") ctx.addIssue({ code: z.ZodIssueCode.custom, message: "CIF es obligatorio.", path: ["cif"] });
-             if (!data.direccionFiscal || data.direccionFiscal.trim() === "") ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Dirección fiscal es obligatoria.", path: ["direccionFiscal"] });
+             if (!data.direccionFiscal_street || data.direccionFiscal_street.trim() === "" ||
+                 !data.direccionFiscal_city || data.direccionFiscal_city.trim() === "" ||
+                 !data.direccionFiscal_province || data.direccionFiscal_province.trim() === "" ||
+                 !data.direccionFiscal_postalCode || data.direccionFiscal_postalCode.trim() === "") {
+                ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La dirección fiscal completa es obligatoria.", path: ["direccionFiscal_street"] });
+             }
         }
     }
 });
 
 
-export type EditOrderFormValues = z.infer<typeof editOrderFormSchema>;
+export type EditOrderFormValues = z.infer<typeof editOrderFormSchema> & {
+    // Campos de dirección desglosada (opcionales, porque el Zod schema los tiene como opcionales)
+    direccionFiscal_street?: string; direccionFiscal_number?: string; direccionFiscal_city?: string; direccionFiscal_province?: string; direccionFiscal_postalCode?: string; direccionFiscal_country?: string;
+    direccionEntrega_street?: string; direccionEntrega_number?: string; direccionEntrega_city?: string; direccionEntrega_province?: string; direccionEntrega_postalCode?: string; direccionEntrega_country?: string;
+};
 
 interface EditOrderDialogProps {
   order: Order | null;
@@ -155,13 +180,15 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     resolver: zodResolver(editOrderFormSchema),
     defaultValues: {
       clientName: "", products: "", value: undefined, status: "Pendiente", salesRep: "",
-      clavadistaId: NO_CLAVADISTA_VALUE, canalOrigenColocacion: undefined, // Added
+      clavadistaId: NO_CLAVADISTA_VALUE, canalOrigenColocacion: undefined, paymentMethod: undefined,
       assignedMaterials: [], clientType: undefined,
       numberOfUnits: undefined, unitPrice: undefined, nombreFiscal: "", cif: "",
-      direccionFiscal: "", direccionEntrega: "", contactoNombre: "", contactoCorreo: "",
-      contactoTelefono: "", observacionesAlta: "", notes: "", nextActionType: undefined,
-      nextActionCustom: "", nextActionDate: undefined, failureReasonType: undefined,
-      failureReasonCustom: "",
+      direccionFiscal_street: "", direccionFiscal_number: "", direccionFiscal_city: "", direccionFiscal_province: "", direccionFiscal_postalCode: "", direccionFiscal_country: "España",
+      direccionEntrega_street: "", direccionEntrega_number: "", direccionEntrega_city: "", direccionEntrega_province: "", direccionEntrega_postalCode: "", direccionEntrega_country: "España",
+      contactoNombre: "", contactoCorreo: "", contactoTelefono: "",
+      observacionesAlta: "", notes: "", nextActionType: undefined,
+      nextActionCustom: "", nextActionDate: undefined,
+      failureReasonType: undefined, failureReasonCustom: "",
     },
   });
 
@@ -187,34 +214,33 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   React.useEffect(() => {
     async function initializeFormWithOrderAndAccountData() {
       if (!order) {
-        form.reset({ // Reset to truly empty/default values if no order
+        form.reset({ 
             clientName: "", products: "", value: undefined, status: "Pendiente", salesRep: (salesReps.length > 0 ? salesReps[0].name : ""),
-            clavadistaId: NO_CLAVADISTA_VALUE, canalOrigenColocacion: undefined, assignedMaterials: [],
+            clavadistaId: NO_CLAVADISTA_VALUE, canalOrigenColocacion: undefined, paymentMethod: undefined, assignedMaterials: [],
             clientType: undefined, numberOfUnits: undefined, unitPrice: undefined,
-            nombreFiscal: "", cif: "", direccionFiscal: "", direccionEntrega: "",
+            nombreFiscal: "", cif: "", 
+            direccionFiscal_street: "", direccionFiscal_number: "", direccionFiscal_city: "", direccionFiscal_province: "", direccionFiscal_postalCode: "", direccionFiscal_country: "España",
+            direccionEntrega_street: "", direccionEntrega_number: "", direccionEntrega_city: "", direccionEntrega_province: "", direccionEntrega_postalCode: "", direccionEntrega_country: "España",
             contactoNombre: "", contactoCorreo: "", contactoTelefono: "",
             observacionesAlta: "", notes: "", nextActionType: undefined,
             nextActionCustom: "", nextActionDate: undefined,
             failureReasonType: undefined, failureReasonCustom: "",
         });
-        setIsLoadingAccountDetails(false); // Ensure loader is off if no order
+        setIsLoadingAccountDetails(false); 
         return;
       }
 
       let accountData: Account | null = null;
       if (order.accountId) {
-        setIsLoadingAccountDetails(true); // Set loading true before fetching account
+        setIsLoadingAccountDetails(true); 
         try {
           accountData = await getAccountByIdFS(order.accountId);
         } catch (err) {
           console.error("Error fetching account details for order dialog:", err);
           toast({ title: "Error Cuenta", description: "No se pudieron cargar los detalles de la cuenta asociada.", variant: "destructive"});
-          // accountData remains null
         }
-        // Do not set isLoadingAccountDetails(false) here, do it after form.reset
       }
 
-      // Reset the form after accountData has been fetched (or attempt failed)
       form.reset({
         clientName: order.clientName,
         products: order.products?.join(",\n") || "",
@@ -223,17 +249,28 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         salesRep: order.salesRep || (salesReps.length > 0 ? salesReps[0].name : ""),
         clavadistaId: order.clavadistaId || NO_CLAVADISTA_VALUE,
         canalOrigenColocacion: order.canalOrigenColocacion || undefined,
+        paymentMethod: order.paymentMethod || undefined,
         assignedMaterials: order.assignedMaterials || [],
         clientType: order.clientType,
         numberOfUnits: order.numberOfUnits,
         unitPrice: order.unitPrice,
-        nombreFiscal: accountData?.legalName || order.nombreFiscal || "",
-        cif: accountData?.cif || order.cif || "",
-        direccionFiscal: accountData?.addressBilling || order.direccionFiscal || "",
-        direccionEntrega: accountData?.addressShipping || order.direccionEntrega || "",
-        contactoNombre: accountData?.mainContactName || order.contactoNombre || "",
-        contactoCorreo: accountData?.mainContactEmail || order.contactoCorreo || "",
-        contactoTelefono: accountData?.mainContactPhone || order.contactoTelefono || "",
+        nombreFiscal: order.nombreFiscal || accountData?.legalName || "",
+        cif: order.cif || accountData?.cif || "",
+        direccionFiscal_street: order.direccionFiscal?.street || accountData?.addressBilling?.street || "",
+        direccionFiscal_number: order.direccionFiscal?.number || accountData?.addressBilling?.number || "",
+        direccionFiscal_city: order.direccionFiscal?.city || accountData?.addressBilling?.city || "",
+        direccionFiscal_province: order.direccionFiscal?.province || accountData?.addressBilling?.province || "",
+        direccionFiscal_postalCode: order.direccionFiscal?.postalCode || accountData?.addressBilling?.postalCode || "",
+        direccionFiscal_country: order.direccionFiscal?.country || accountData?.addressBilling?.country || "España",
+        direccionEntrega_street: order.direccionEntrega?.street || accountData?.addressShipping?.street || accountData?.addressBilling?.street || "",
+        direccionEntrega_number: order.direccionEntrega?.number || accountData?.addressShipping?.number || accountData?.addressBilling?.number || "",
+        direccionEntrega_city: order.direccionEntrega?.city || accountData?.addressShipping?.city || accountData?.addressBilling?.city || "",
+        direccionEntrega_province: order.direccionEntrega?.province || accountData?.addressShipping?.province || accountData?.addressBilling?.province || "",
+        direccionEntrega_postalCode: order.direccionEntrega?.postalCode || accountData?.addressShipping?.postalCode || accountData?.addressBilling?.postalCode || "",
+        direccionEntrega_country: order.direccionEntrega?.country || accountData?.addressShipping?.country || accountData?.addressBilling?.country || "España",
+        contactoNombre: order.contactoNombre || accountData?.mainContactName || "",
+        contactoCorreo: order.contactoCorreo || accountData?.mainContactEmail || "",
+        contactoTelefono: order.contactoTelefono || accountData?.mainContactPhone || "",
         observacionesAlta: order.observacionesAlta || "", 
         notes: order.notes || "",
         nextActionType: order.nextActionType,
@@ -243,7 +280,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         failureReasonCustom: order.failureReasonCustom || "",
       });
 
-      setIsLoadingAccountDetails(false); // Set loading false *after* form reset
+      setIsLoadingAccountDetails(false); 
     }
 
     if (isOpen && !isLoadingDropdownData) { 
@@ -256,39 +293,10 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     if (!order) return;
     setIsSaving(true);
     
-    const canEditFullOrderDetails = isAdmin;
-    const canEditStatusAndNotes = isAdmin || isDistributor;
-
-    const dataToSave: EditOrderFormValues = {
-      clientName: canEditFullOrderDetails ? data.clientName : order.clientName,
-      products: canEditFullOrderDetails ? data.products : order.products?.join(",\n"),
-      value: canEditFullOrderDetails ? data.value : order.value,
-      status: canEditStatusAndNotes ? data.status : order.status, 
-      salesRep: isAdmin ? data.salesRep : order.salesRep,
-      clavadistaId: isAdmin ? (data.clavadistaId === NO_CLAVADISTA_VALUE ? undefined : data.clavadistaId) : order.clavadistaId,
-      canalOrigenColocacion: isAdmin ? data.canalOrigenColocacion : order.canalOrigenColocacion, // Added
-      assignedMaterials: isAdmin ? (data.assignedMaterials || []) : (order.assignedMaterials || []),
-      clientType: canEditFullOrderDetails ? data.clientType : order.clientType,
-      numberOfUnits: canEditFullOrderDetails ? data.numberOfUnits : order.numberOfUnits,
-      unitPrice: canEditFullOrderDetails ? data.unitPrice : order.unitPrice,
-      nombreFiscal: canEditFullOrderDetails ? data.nombreFiscal : order.nombreFiscal,
-      cif: canEditFullOrderDetails ? data.cif : order.cif,
-      direccionFiscal: canEditFullOrderDetails ? data.direccionFiscal : order.direccionFiscal,
-      direccionEntrega: canEditFullOrderDetails ? data.direccionEntrega : order.direccionEntrega,
-      contactoNombre: canEditFullOrderDetails ? data.contactoNombre : order.contactoNombre,
-      contactoCorreo: canEditFullOrderDetails ? data.contactoCorreo : order.contactoCorreo,
-      contactoTelefono: canEditFullOrderDetails ? data.contactoTelefono : order.contactoTelefono,
-      observacionesAlta: order.observacionesAlta, 
-      notes: canEditStatusAndNotes ? data.notes : order.notes, 
-      nextActionType: order.nextActionType, 
-      nextActionCustom: order.nextActionCustom,
-      nextActionDate: order.nextActionDate ? parseISO(order.nextActionDate) : undefined,
-      failureReasonType: order.failureReasonType,
-      failureReasonCustom: order.failureReasonCustom,
-    };
-
+    // No es necesario reconstruir el objeto aquí si onSave espera EditOrderFormValues
+    // El servicio de orden ya se encarga de construir el objeto AddressDetails a partir de los campos desglosados.
     await new Promise(resolve => setTimeout(resolve, 700));
-    onSave(dataToSave, order.id);
+    onSave(data, order.id);
     setIsSaving(false);
   };
 
@@ -296,8 +304,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     window.print();
   };
 
-  if (!order && isOpen) { // If isOpen but no order, show loading or error, but dialog wrapper might handle this.
-    // This case should be rare if orders-dashboard correctly sets order before opening.
+  if (!order && isOpen) { 
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <DialogContent>
@@ -324,12 +331,13 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const salesRepFieldDisabled = !isAdmin || isLoadingDropdownData || isLoadingAccountDetails;
   const clavadistaFieldDisabled = !canEditOrderDetailsOverall || isLoadingDropdownData || isLoadingAccountDetails;
   const canalOrigenFieldDisabled = !canEditOrderDetailsOverall || isLoadingDropdownData || isLoadingAccountDetails;
+  const paymentMethodFieldDisabled = !canEditOrderDetailsOverall || productRelatedFieldsDisabled;
   const materialsSectionDisabled = !canEditOrderDetailsOverall || currentStatus === 'Programada' || isLoadingDropdownData || isLoadingAccountDetails;
 
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md md:max-w-lg lg:max-w-2xl xl:max-w-3xl max-h-[90vh] overflow-y-auto print-dialog-content">
+      <DialogContent className="sm:max-w-md md:max-w-lg lg:max-w-3xl xl:max-w-4xl max-h-[90vh] overflow-y-auto print-dialog-content">
         <DialogHeader className="print-hide">
           <DialogTitle>
             {(isReadOnlyForMostFields && !canEditStatusAndNotesOnly) ? "Detalles Pedido:" : "Editar Pedido:"} {order?.id} ({order?.status})
@@ -353,14 +361,15 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="Nombre del cliente" {...field} disabled={!canEditOrderDetailsOverall || formFieldsGenericDisabled} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="salesRep" render={({ field }) => (<FormItem><FormLabel>Representante de Ventas</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={salesRepFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un representante" /></SelectTrigger></FormControl><SelectContent>{salesReps.map((member: TeamMember) => (<SelectItem key={member.id} value={member.name}>{member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"> {/* Adjusted to 4 columns for payment method */}
                 <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={statusFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un estado" /></SelectTrigger></FormControl><SelectContent>{orderStatusesList.filter(s => s !== 'Programada' && s !== 'Fallido' && s !== 'Seguimiento').map((statusVal) => (<SelectItem key={statusVal} value={statusVal}>{statusVal}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel className="flex items-center"><CreditCard className="mr-1 h-4 w-4"/>Forma Pago</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={paymentMethodFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar forma de pago" /></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(method => (<SelectItem key={method} value={method}>{method}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                 <FormField
                     control={form.control}
                     name="clavadistaId"
                     render={({ field }) => (
                     <FormItem>
-                        <FormLabel className="flex items-center"><Award className="mr-2 h-4 w-4 text-primary" />Clavadista (Opcional)</FormLabel>
+                        <FormLabel className="flex items-center"><Award className="mr-2 h-4 w-4 text-primary" />Clavadista</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value || NO_CLAVADISTA_VALUE} disabled={clavadistaFieldDisabled}>
                         <FormControl>
                             <SelectTrigger>
@@ -383,7 +392,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                     name="canalOrigenColocacion"
                     render={({ field }) => (
                     <FormItem>
-                        <FormLabel className="flex items-center"><Zap className="mr-2 h-4 w-4 text-primary" />Canal Origen (Opcional)</FormLabel>
+                        <FormLabel className="flex items-center"><Zap className="mr-2 h-4 w-4 text-primary" />Canal Origen</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value} disabled={canalOrigenFieldDisabled}>
                         <FormControl>
                             <SelectTrigger>
@@ -425,8 +434,26 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
              <>
                 <FormField control={form.control} name="nombreFiscal" render={({ field }) => (<FormItem><FormLabel>Nombre Fiscal</FormLabel><FormControl><Input placeholder="Nombre legal para facturación" {...field} disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
                 <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF/NIF</FormLabel><FormControl><Input placeholder="Identificador fiscal" {...field} disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="direccionFiscal" render={({ field }) => (<FormItem><FormLabel>Dirección Fiscal</FormLabel><FormControl><Textarea placeholder="Dirección fiscal completa" {...field} className="min-h-[60px]" disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="direccionEntrega" render={({ field }) => (<FormItem><FormLabel>Dirección de Entrega</FormLabel><FormControl><Textarea placeholder="Dirección de entrega completa" {...field} className="min-h-[60px]" disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
+                
+                <Separator className="my-2" /><h4 className="text-sm font-medium text-muted-foreground pt-1">Dirección Fiscal (Pedido)</h4>
+                <FormField control={form.control} name="direccionFiscal_street" render={({ field }) => (<FormItem><FormLabel>Calle</FormLabel><FormControl><Input placeholder="Ej: Calle Mayor" {...field} disabled={billingFieldsDisabled} /></FormControl><FormMessage /></FormItem>)} />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <FormField control={form.control} name="direccionFiscal_number" render={({ field }) => (<FormItem><FormLabel>Número</FormLabel><FormControl><Input placeholder="Ej: 123" {...field} disabled={billingFieldsDisabled} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="direccionFiscal_postalCode" render={({ field }) => (<FormItem><FormLabel>Cód. Postal</FormLabel><FormControl><Input placeholder="Ej: 28001" {...field} disabled={billingFieldsDisabled} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="direccionFiscal_city" render={({ field }) => (<FormItem><FormLabel>Ciudad</FormLabel><FormControl><Input placeholder="Ej: Madrid" {...field} disabled={billingFieldsDisabled} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="direccionFiscal_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={billingFieldsDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                </div>
+                <FormField control={form.control} name="direccionFiscal_country" render={({ field }) => (<FormItem><FormLabel>País</FormLabel><FormControl><Input placeholder="Ej: España" {...field} disabled={billingFieldsDisabled} /></FormControl><FormMessage /></FormItem>)} />
+
+                <Separator className="my-2" /><h4 className="text-sm font-medium text-muted-foreground pt-1">Dirección de Entrega (Pedido)</h4>
+                <FormField control={form.control} name="direccionEntrega_street" render={({ field }) => (<FormItem><FormLabel>Calle</FormLabel><FormControl><Input placeholder="Ej: Calle Secundaria" {...field} disabled={billingFieldsDisabled} /></FormControl><FormMessage /></FormItem>)} />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <FormField control={form.control} name="direccionEntrega_number" render={({ field }) => (<FormItem><FormLabel>Número</FormLabel><FormControl><Input placeholder="Ej: 45" {...field} disabled={billingFieldsDisabled} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="direccionEntrega_postalCode" render={({ field }) => (<FormItem><FormLabel>Cód. Postal</FormLabel><FormControl><Input placeholder="Ej: 08001" {...field} disabled={billingFieldsDisabled} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="direccionEntrega_city" render={({ field }) => (<FormItem><FormLabel>Ciudad</FormLabel><FormControl><Input placeholder="Ej: Barcelona" {...field} disabled={billingFieldsDisabled} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="direccionEntrega_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={billingFieldsDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                </div>
+                <FormField control={form.control} name="direccionEntrega_country" render={({ field }) => (<FormItem><FormLabel>País</FormLabel><FormControl><Input placeholder="Ej: España" {...field} disabled={billingFieldsDisabled} /></FormControl><FormMessage /></FormItem>)} />
 
                 <h4 className="text-sm font-medium text-muted-foreground pt-2">Datos de Contacto para este Pedido</h4>
                 <FormField control={form.control} name="contactoNombre" render={({ field }) => (<FormItem><FormLabel>Nombre de Contacto</FormLabel><FormControl><Input placeholder="Persona de contacto para el pedido" {...field} disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
@@ -571,3 +598,5 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     </Dialog>
   );
 }
+
+```

@@ -17,21 +17,20 @@ export interface StrategicObjective {
 }
 
 export interface TeamMember {
-  id: string; // Firestore document ID, will often be the same as Firebase Auth UID
-  authUid?: string; // Firebase Auth UID, if different or for explicit mapping
+  id: string; 
+  authUid?: string; 
   name: string;
-  email: string; // Should be unique
+  email: string; 
   avatarUrl?: string; 
   role: UserRole; 
   monthlyTargetAccounts?: number; 
   monthlyTargetVisits?: number; 
-  // Calculated fields, not directly stored or fetched as part of the TeamMember document usually
   bottlesSold?: number; 
   orders?: number; 
   visits?: number; 
   performanceData?: { month: string; bottles: number }[]; 
-  createdAt?: string; // YYYY-MM-DD
-  updatedAt?: string; // YYYY-MM-DD
+  createdAt?: string; 
+  updatedAt?: string; 
 }
 
 export type OrderStatus = 'Pendiente' | 'Confirmado' | 'Procesando' | 'Enviado' | 'Entregado' | 'Cancelado' | 'Fallido' | 'Seguimiento' | 'Programada';
@@ -45,7 +44,7 @@ export type PromotionalMaterialType = 'Merchandising Físico' | 'Material PLV' |
 export interface LatestPurchaseInfo {
   quantityPurchased: number;
   totalPurchaseCost: number;
-  purchaseDate: string; // YYYY-MM-DD
+  purchaseDate: string; 
   calculatedUnitCost: number;
   notes?: string; 
 }
@@ -65,18 +64,30 @@ export interface AssignedPromotionalMaterial {
 
 export type CanalOrigenColocacion = 'Equipo Santa Brisa' | 'Iniciativa Importador' | 'Marketing Digital' | 'Referido' | 'Otro';
 
+export interface AddressDetails {
+  street: string;
+  number?: string;
+  city: string;
+  province: string;
+  postalCode: string;
+  country?: string; // Default a "España" si no se especifica
+}
+
+export type PaymentMethod = 'Adelantado' | 'Contado' | 'Transferencia 30 días';
+
 export interface Order {
   id: string;
   clientName: string;
-  visitDate: string; // YYYY-MM-DD
+  visitDate: string; 
   products?: string[]; 
   value?: number; 
   status: OrderStatus;
   salesRep: string; 
-  lastUpdated: string; // YYYY-MM-DD
+  lastUpdated: string; 
   clavadistaId?: string; 
   assignedMaterials?: AssignedPromotionalMaterial[]; 
   canalOrigenColocacion?: CanalOrigenColocacion;
+  paymentMethod?: PaymentMethod; 
 
   clientType?: ClientType;
   numberOfUnits?: number; 
@@ -85,8 +96,9 @@ export interface Order {
 
   nombreFiscal?: string;
   cif?: string;
-  direccionFiscal?: string;
-  direccionEntrega?: string;
+  // Campos de dirección desglosada para el pedido (copiados de la cuenta o introducidos si es nueva)
+  direccionFiscal?: AddressDetails; 
+  direccionEntrega?: AddressDetails;
   contactoNombre?: string;
   contactoCorreo?: string;
   contactoTelefono?: string;
@@ -95,7 +107,7 @@ export interface Order {
 
   nextActionType?: NextActionType;
   nextActionCustom?: string;
-  nextActionDate?: string; // YYYY-MM-DD
+  nextActionDate?: string; 
   failureReasonType?: FailureReasonType;
   failureReasonCustom?: string;
 
@@ -129,15 +141,15 @@ export interface Account {
   cif: string; 
   type: AccountType;
   status: AccountStatus;
-  addressBilling?: string;
-  addressShipping?: string;
+  addressBilling?: AddressDetails;
+  addressShipping?: AddressDetails;
   mainContactName?: string;
   mainContactEmail?: string;
   mainContactPhone?: string;
   notes?: string; 
   salesRepId?: string; 
-  createdAt: string; // YYYY-MM-DD
-  updatedAt: string; // YYYY-MM-DD
+  createdAt: string; 
+  updatedAt: string; 
 }
 
 
@@ -149,30 +161,28 @@ export interface CrmEvent {
   name: string;
   type: CrmEventType;
   status: CrmEventStatus;
-  startDate: string; // YYYY-MM-DD
-  endDate?: string; // YYYY-MM-DD, optional
+  startDate: string; 
+  endDate?: string; 
   description?: string;
   location?: string;
   assignedTeamMemberIds: string[]; 
   assignedMaterials?: AssignedPromotionalMaterial[]; 
   notes?: string;
-  createdAt: string; // YYYY-MM-DD
-  updatedAt: string; // YYYY-MM-DD
+  createdAt: string; 
+  updatedAt: string; 
 }
 
-// Form values specifically for creating/editing TeamMember
 export interface TeamMemberFormValues {
   name: string;
-  email: string; // Not editable after creation ideally
+  email: string; 
   role: UserRole;
   monthlyTargetAccounts?: number;
   monthlyTargetVisits?: number;
   avatarUrl?: string;
-  authUid?: string; // Store Firebase Auth UID
+  authUid?: string; 
 }
 
 
-// Tipos para Ventas Directas de Santa Brisa
 export type CanalVentaDirectaSB = 'Importador' | 'Online' | 'Estratégica' | 'Otro Directo';
 export type EstadoVentaDirectaSB = 'Borrador' | 'Confirmada' | 'Facturada' | 'Pagada' | 'Cancelada';
 
@@ -190,7 +200,7 @@ export interface VentaDirectaSB {
   clienteId: string; 
   nombreClienteFactura: string; 
   cifClienteFactura?: string;
-  direccionClienteFactura?: string;
+  direccionClienteFactura?: string; // Se mantiene como string, se llenará concatenando AddressDetails de la cuenta
   canalVentaDirectaSB: CanalVentaDirectaSB;
   items: VentaDirectaSBItem[];
   subtotalGeneralNetoSB: number;
@@ -205,14 +215,10 @@ export interface VentaDirectaSB {
   updatedAt: string; 
 }
 
-// Form values for VentaDirectaSB
 export interface VentaDirectaSBFormValues {
   fechaEmision: Date;
   numeroFacturaSB?: string;
   clienteId: string;
-  // nombreClienteFactura: string; // No se necesita aquí, se tomará de la Account
-  // cifClienteFactura?: string;    // No se necesita aquí
-  // direccionClienteFactura?: string; // No se necesita aquí
   canalVentaDirectaSB: CanalVentaDirectaSB;
   items: {
     productoDescripcion: string;
@@ -222,6 +228,8 @@ export interface VentaDirectaSBFormValues {
   tipoIvaAplicadoSB?: number;
   estadoVentaDirectaSB: EstadoVentaDirectaSB;
   fechaVencimientoPago?: Date;
-  referenciasOrdenesColocacion?: string; // Usar string para entrada simple de IDs separados por coma
+  referenciasOrdenesColocacion?: string; 
   notasInternasSB?: string;
 }
+
+```

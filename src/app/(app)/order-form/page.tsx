@@ -25,11 +25,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Check, Loader2, Info, Edit3, Send, FileText, Award, Package, PlusCircle, Trash2, Users, Zap, Search } from "lucide-react";
+import { Calendar as CalendarIcon, Check, Loader2, Info, Edit3, Send, FileText, Award, Package, PlusCircle, Trash2, Users, Zap, Search, CreditCard } from "lucide-react"; // Added CreditCard
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { clientTypeList, nextActionTypeList, failureReasonList, accountTypeList, canalOrigenColocacionList } from "@/lib/data";
-import type { Order, ClientType, NextActionType, FailureReasonType, Account, AccountType, AccountStatus, TeamMember, PromotionalMaterial, UserRole, CanalOrigenColocacion } from "@/types";
+import { clientTypeList, nextActionTypeList, failureReasonList, accountTypeList, canalOrigenColocacionList, provincesSpainList, paymentMethodList } from "@/lib/data"; // Added provincesSpainList, paymentMethodList
+import type { Order, ClientType, NextActionType, FailureReasonType, Account, AccountType, AccountStatus, TeamMember, PromotionalMaterial, UserRole, CanalOrigenColocacion, AddressDetails, PaymentMethod } from "@/types"; // Added AddressDetails, PaymentMethod
 import { useAuth } from "@/contexts/auth-context";
 import { useSearchParams, useRouter } from "next/navigation";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
@@ -41,7 +41,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 
 const SINGLE_PRODUCT_NAME = "Santa Brisa 750ml";
-const IVA_RATE = 21; // 21%
+const IVA_RATE = 21; 
 const NO_CLAVADISTA_VALUE = "##NONE##";
 const ADMIN_SELF_REGISTER_VALUE = "##ADMIN_SELF##";
 const NEW_CLIENT_ACCOUNT_ID_PLACEHOLDER = "##NEW_CLIENT##";
@@ -60,16 +60,28 @@ const orderFormSchemaBase = z.object({
   clavadistaId: z.string().optional(),
   selectedSalesRepId: z.string().optional(), 
   canalOrigenColocacion: z.enum(canalOrigenColocacionList as [CanalOrigenColocacion, ...CanalOrigenColocacion[]]).optional(),
+  paymentMethod: z.enum(paymentMethodList as [PaymentMethod, ...PaymentMethod[]]).optional(),
 
   clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
   numberOfUnits: z.coerce.number().positive("El número de unidades debe ser un número positivo.").optional(),
   unitPrice: z.coerce.number().positive("El precio unitario debe ser un número positivo.").optional(),
   orderValue: z.coerce.number().positive("El valor del pedido debe ser positivo.").optional(),
 
+  // Campos de cuenta nueva (dirección desglosada)
   nombreFiscal: z.string().optional(),
   cif: z.string().optional(),
-  direccionFiscal: z.string().optional(),
-  direccionEntrega: z.string().optional(),
+  direccionFiscal_street: z.string().optional(),
+  direccionFiscal_number: z.string().optional(),
+  direccionFiscal_city: z.string().optional(),
+  direccionFiscal_province: z.string().optional(),
+  direccionFiscal_postalCode: z.string().optional(),
+  direccionFiscal_country: z.string().optional().default("España"),
+  direccionEntrega_street: z.string().optional(),
+  direccionEntrega_number: z.string().optional(),
+  direccionEntrega_city: z.string().optional(),
+  direccionEntrega_province: z.string().optional(),
+  direccionEntrega_postalCode: z.string().optional(),
+  direccionEntrega_country: z.string().optional().default("España"),
   contactoNombre: z.string().optional(),
   contactoCorreo: z.string().email("El formato del correo electrónico no es válido.").optional().or(z.literal('')),
   contactoTelefono: z.string().optional(),
@@ -94,6 +106,9 @@ const orderFormSchema = orderFormSchemaBase.superRefine((data, ctx) => {
     if (!data.clientType) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El tipo de cliente es obligatorio para un pedido exitoso.", path: ["clientType"] });
     }
+    if (!data.paymentMethod) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La forma de pago es obligatoria para un pedido exitoso.", path: ["paymentMethod"] });
+    }
     if (data.numberOfUnits === undefined || data.numberOfUnits <= 0) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El número de unidades es obligatorio y positivo.", path: ["numberOfUnits"] });
     }
@@ -108,7 +123,6 @@ const orderFormSchema = orderFormSchemaBase.superRefine((data, ctx) => {
   if (data.outcome !== "Programar Visita" && !data.clientStatus) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Debe indicar si es cliente nuevo o existente.", path: ["clientStatus"] });
   }
-
 
   if (data.outcome === "failed" || data.outcome === "follow-up") {
     if (!data.nextActionType) {
@@ -127,6 +141,28 @@ const orderFormSchema = orderFormSchemaBase.superRefine((data, ctx) => {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Debe especificar el motivo del fallo personalizado.", path: ["failureReasonCustom"] });
     }
   }
+  
+  // Validación para dirección fiscal si es cliente nuevo y algún campo está relleno
+  if (data.clientStatus === "new") {
+    const billingFieldsNew = [data.direccionFiscal_street, data.direccionFiscal_city, data.direccionFiscal_province, data.direccionFiscal_postalCode];
+    const someBillingFieldFilledNew = billingFieldsNew.some(field => field && field.trim() !== "");
+    if (someBillingFieldFilledNew) {
+        if (!data.direccionFiscal_street?.trim()) ctx.addIssue({ path: ["direccionFiscal_street"], message: "Calle fiscal es obligatoria." });
+        if (!data.direccionFiscal_city?.trim()) ctx.addIssue({ path: ["direccionFiscal_city"], message: "Ciudad fiscal es obligatoria." });
+        if (!data.direccionFiscal_province?.trim()) ctx.addIssue({ path: ["direccionFiscal_province"], message: "Provincia fiscal es obligatoria." });
+        if (!data.direccionFiscal_postalCode?.trim()) ctx.addIssue({ path: ["direccionFiscal_postalCode"], message: "CP fiscal es obligatorio." });
+    }
+    // Similar para dirección de entrega si se rellenan sus campos
+    const shippingFieldsNew = [data.direccionEntrega_street, data.direccionEntrega_city, data.direccionEntrega_province, data.direccionEntrega_postalCode];
+    const someShippingFieldFilledNew = shippingFieldsNew.some(field => field && field.trim() !== "");
+    if (someShippingFieldFilledNew) {
+        if (!data.direccionEntrega_street?.trim()) ctx.addIssue({ path: ["direccionEntrega_street"], message: "Calle entrega es obligatoria." });
+        if (!data.direccionEntrega_city?.trim()) ctx.addIssue({ path: ["direccionEntrega_city"], message: "Ciudad entrega es obligatoria." });
+        if (!data.direccionEntrega_province?.trim()) ctx.addIssue({ path: ["direccionEntrega_province"], message: "Provincia entrega es obligatoria." });
+        if (!data.direccionEntrega_postalCode?.trim()) ctx.addIssue({ path: ["direccionEntrega_postalCode"], message: "CP entrega es obligatorio." });
+    }
+  }
+
 });
 
 
@@ -189,39 +225,22 @@ export default function OrderFormPage() {
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(orderFormSchema),
     defaultValues: {
-      clientName: "",
-      visitDate: new Date(),
-      clientStatus: undefined,
-      outcome: undefined,
+      clientName: "", visitDate: new Date(), clientStatus: undefined, outcome: undefined,
       clavadistaId: userRole === 'Clavadista' && teamMember ? teamMember.id : NO_CLAVADISTA_VALUE,
       selectedSalesRepId: userRole === 'Admin' ? ADMIN_SELF_REGISTER_VALUE : undefined,
-      canalOrigenColocacion: undefined,
-      clientType: undefined,
-      numberOfUnits: undefined,
-      unitPrice: undefined,
-      orderValue: undefined,
-      nombreFiscal: "",
-      cif: "",
-      direccionFiscal: "",
-      direccionEntrega: "",
-      contactoNombre: "",
-      contactoCorreo: "",
-      contactoTelefono: "",
-      observacionesAlta: "",
-      nextActionType: undefined,
-      nextActionCustom: "",
-      nextActionDate: undefined,
-      failureReasonType: undefined,
-      failureReasonCustom: "",
-      notes: "",
-      assignedMaterials: [],
-      accountId: undefined,
+      canalOrigenColocacion: undefined, paymentMethod: 'Adelantado',
+      clientType: undefined, numberOfUnits: undefined, unitPrice: undefined, orderValue: undefined,
+      nombreFiscal: "", cif: "",
+      direccionFiscal_street: "", direccionFiscal_number: "", direccionFiscal_city: "", direccionFiscal_province: "", direccionFiscal_postalCode: "", direccionFiscal_country: "España",
+      direccionEntrega_street: "", direccionEntrega_number: "", direccionEntrega_city: "", direccionEntrega_province: "", direccionEntrega_postalCode: "", direccionEntrega_country: "España",
+      contactoNombre: "", contactoCorreo: "", contactoTelefono: "", observacionesAlta: "",
+      nextActionType: undefined, nextActionCustom: "", nextActionDate: undefined,
+      failureReasonType: undefined, failureReasonCustom: "", notes: "", assignedMaterials: [], accountId: undefined,
     },
   });
 
   const { fields: materialFields, append: appendMaterial, remove: removeMaterial } = useFieldArray({
-    control: form.control,
-    name: "assignedMaterials",
+    control: form.control, name: "assignedMaterials",
   });
 
   const watchedMaterials = form.watch("assignedMaterials");
@@ -260,11 +279,8 @@ export default function OrderFormPage() {
               let preselectedSalesRepId = ADMIN_SELF_REGISTER_VALUE;
               if (userRole === 'Admin' && existingVisit.salesRep) {
                   const assignedRep = salesRepsList.find(sr => sr.name === existingVisit.salesRep);
-                  if (assignedRep) {
-                      preselectedSalesRepId = assignedRep.id;
-                  } else if (teamMember && existingVisit.salesRep === teamMember.name) { 
-                      preselectedSalesRepId = ADMIN_SELF_REGISTER_VALUE;
-                  }
+                  if (assignedRep) preselectedSalesRepId = assignedRep.id;
+                  else if (teamMember && existingVisit.salesRep === teamMember.name) preselectedSalesRepId = ADMIN_SELF_REGISTER_VALUE;
               }
 
               form.reset({
@@ -275,6 +291,7 @@ export default function OrderFormPage() {
                 clavadistaId: userRole === 'Clavadista' && teamMember ? teamMember.id : (existingVisit.clavadistaId || NO_CLAVADISTA_VALUE),
                 selectedSalesRepId: userRole === 'Admin' ? preselectedSalesRepId : undefined,
                 canalOrigenColocacion: existingVisit.canalOrigenColocacion || undefined,
+                paymentMethod: existingVisit.paymentMethod || 'Adelantado',
                 notes: existingVisit.notes || "",
                 clientType: existingVisit.clientType,
                 numberOfUnits: existingVisit.numberOfUnits,
@@ -282,8 +299,18 @@ export default function OrderFormPage() {
                 orderValue: existingVisit.value,
                 nombreFiscal: existingVisit.nombreFiscal || "",
                 cif: existingVisit.cif || "",
-                direccionFiscal: existingVisit.direccionFiscal || "",
-                direccionEntrega: existingVisit.direccionEntrega || "",
+                direccionFiscal_street: existingVisit.direccionFiscal?.street || "",
+                direccionFiscal_number: existingVisit.direccionFiscal?.number || "",
+                direccionFiscal_city: existingVisit.direccionFiscal?.city || "",
+                direccionFiscal_province: existingVisit.direccionFiscal?.province || "",
+                direccionFiscal_postalCode: existingVisit.direccionFiscal?.postalCode || "",
+                direccionFiscal_country: existingVisit.direccionFiscal?.country || "España",
+                direccionEntrega_street: existingVisit.direccionEntrega?.street || "",
+                direccionEntrega_number: existingVisit.direccionEntrega?.number || "",
+                direccionEntrega_city: existingVisit.direccionEntrega?.city || "",
+                direccionEntrega_province: existingVisit.direccionEntrega?.province || "",
+                direccionEntrega_postalCode: existingVisit.direccionEntrega?.postalCode || "",
+                direccionEntrega_country: existingVisit.direccionEntrega?.country || "España",
                 contactoNombre: existingVisit.contactoNombre || "",
                 contactoCorreo: existingVisit.contactoCorreo || "",
                 contactoTelefono: existingVisit.contactoTelefono || "",
@@ -317,9 +344,11 @@ export default function OrderFormPage() {
                 clientName: "", visitDate: new Date(), clientStatus: undefined, outcome: undefined, 
                 clavadistaId: userRole === 'Clavadista' && teamMember ? teamMember.id : NO_CLAVADISTA_VALUE,
                 selectedSalesRepId: userRole === 'Admin' ? ADMIN_SELF_REGISTER_VALUE : undefined,
-                canalOrigenColocacion: undefined,
-                notes: "",
-                nombreFiscal: "", cif: "", direccionFiscal: "", direccionEntrega: "", contactoNombre: "", contactoCorreo: "", contactoTelefono: "", observacionesAlta: "",
+                canalOrigenColocacion: undefined, paymentMethod: 'Adelantado',
+                notes: "", nombreFiscal: "", cif: "", 
+                direccionFiscal_street: "", direccionFiscal_number: "", direccionFiscal_city: "", direccionFiscal_province: "", direccionFiscal_postalCode: "", direccionFiscal_country: "España",
+                direccionEntrega_street: "", direccionEntrega_number: "", direccionEntrega_city: "", direccionEntrega_province: "", direccionEntrega_postalCode: "", direccionEntrega_country: "España",
+                contactoNombre: "", contactoCorreo: "", contactoTelefono: "", observacionesAlta: "",
                 clientType: undefined, numberOfUnits: undefined, unitPrice: undefined, orderValue: undefined,
                 nextActionType: undefined, nextActionCustom: "", nextActionDate: undefined,
                 failureReasonType: undefined, failureReasonCustom: "", assignedMaterials: [], accountId: undefined,
@@ -366,8 +395,8 @@ export default function OrderFormPage() {
         form.setValue("clientName", "");
         form.setValue("cif", "");
         form.setValue("nombreFiscal", "");
-        form.setValue("direccionFiscal", "");
-        form.setValue("direccionEntrega", "");
+        form.setValue("direccionFiscal_street", ""); form.setValue("direccionFiscal_number", ""); form.setValue("direccionFiscal_city", ""); form.setValue("direccionFiscal_province", ""); form.setValue("direccionFiscal_postalCode", ""); form.setValue("direccionFiscal_country", "España");
+        form.setValue("direccionEntrega_street", ""); form.setValue("direccionEntrega_number", ""); form.setValue("direccionEntrega_city", ""); form.setValue("direccionEntrega_province", ""); form.setValue("direccionEntrega_postalCode", ""); form.setValue("direccionEntrega_country", "España");
         form.setValue("contactoNombre", "");
         form.setValue("contactoCorreo", "");
         form.setValue("contactoTelefono", "");
@@ -381,8 +410,22 @@ export default function OrderFormPage() {
         form.setValue("accountId", selectedAccount.id, { shouldValidate: true });
         form.setValue("cif", selectedAccount.cif, { shouldValidate: true });
         form.setValue("nombreFiscal", selectedAccount.legalName || selectedAccount.name, { shouldValidate: true });
-        form.setValue("direccionFiscal", selectedAccount.addressBilling || "", { shouldValidate: true });
-        form.setValue("direccionEntrega", selectedAccount.addressShipping || selectedAccount.addressBilling || "", { shouldValidate: true }); 
+        
+        form.setValue("direccionFiscal_street", selectedAccount.addressBilling?.street || "", { shouldValidate: true });
+        form.setValue("direccionFiscal_number", selectedAccount.addressBilling?.number || "", { shouldValidate: true });
+        form.setValue("direccionFiscal_city", selectedAccount.addressBilling?.city || "", { shouldValidate: true });
+        form.setValue("direccionFiscal_province", selectedAccount.addressBilling?.province || "", { shouldValidate: true });
+        form.setValue("direccionFiscal_postalCode", selectedAccount.addressBilling?.postalCode || "", { shouldValidate: true });
+        form.setValue("direccionFiscal_country", selectedAccount.addressBilling?.country || "España", { shouldValidate: true });
+
+        const shippingAddress = selectedAccount.addressShipping || selectedAccount.addressBilling;
+        form.setValue("direccionEntrega_street", shippingAddress?.street || "", { shouldValidate: true });
+        form.setValue("direccionEntrega_number", shippingAddress?.number || "", { shouldValidate: true });
+        form.setValue("direccionEntrega_city", shippingAddress?.city || "", { shouldValidate: true });
+        form.setValue("direccionEntrega_province", shippingAddress?.province || "", { shouldValidate: true });
+        form.setValue("direccionEntrega_postalCode", shippingAddress?.postalCode || "", { shouldValidate: true });
+        form.setValue("direccionEntrega_country", shippingAddress?.country || "España", { shouldValidate: true });
+        
         form.setValue("contactoNombre", selectedAccount.mainContactName || "", { shouldValidate: true });
         form.setValue("contactoCorreo", selectedAccount.mainContactEmail || "", { shouldValidate: true });
         form.setValue("contactoTelefono", selectedAccount.mainContactPhone || "", { shouldValidate: true });
@@ -448,14 +491,17 @@ export default function OrderFormPage() {
 
               const newAccountType: AccountType = (values.outcome === "successful" && values.clientType) ? values.clientType : (accountTypeList.includes(values.clientType as AccountType) ? values.clientType as AccountType : 'Otro');
 
-              const newAccountData: AccountFormValues = {
+              const newAccountData: AccountFormValues & { // Ensure the type for addAccountFS matches
+                addressBilling_street?: string, addressBilling_city?: string, addressBilling_province?: string, addressBilling_postalCode?: string, addressBilling_country?: string, addressBilling_number?: string,
+                addressShipping_street?: string, addressShipping_city?: string, addressShipping_province?: string, addressShipping_postalCode?: string, addressShipping_country?: string, addressShipping_number?: string,
+              } = {
                   name: values.clientName,
                   legalName: values.nombreFiscal || values.clientName,
                   cif: values.cif || `AUTOGEN_${Date.now()}`,
                   type: newAccountType,
                   status: newAccountStatus,
-                  addressBilling: values.direccionFiscal,
-                  addressShipping: values.direccionEntrega,
+                  addressBilling_street: values.direccionFiscal_street, addressBilling_number: values.direccionFiscal_number, addressBilling_city: values.direccionFiscal_city, addressBilling_province: values.direccionFiscal_province, addressBilling_postalCode: values.direccionFiscal_postalCode, addressBilling_country: values.direccionFiscal_country,
+                  addressShipping_street: values.direccionEntrega_street, addressShipping_number: values.direccionEntrega_number, addressShipping_city: values.direccionEntrega_city, addressShipping_province: values.direccionEntrega_province, addressShipping_postalCode: values.direccionEntrega_postalCode, addressShipping_country: values.direccionEntrega_country,
                   mainContactName: values.contactoNombre,
                   mainContactEmail: values.contactoCorreo,
                   mainContactPhone: values.contactoTelefono,
@@ -464,55 +510,50 @@ export default function OrderFormPage() {
               };
               currentAccountId = await addAccountFS(newAccountData);
               accountCreationMessage = ` Nueva cuenta "${newAccountData.name}" creada con estado: ${newAccountStatus}.`;
-              setAllAccounts(prev => [...prev, {id: currentAccountId!, ...newAccountData, createdAt: format(new Date(), "yyyy-MM-dd"), updatedAt: format(new Date(), "yyyy-MM-dd")}]);
+              // No need to update local `allAccounts` state here, it's used for dropdowns primarily and will be re-fetched or not critical for this single transaction flow.
           }
       } else if (values.clientStatus === "existing" && !currentAccountId) {
           const currentAccountsList = await getAccountsFS();
           const existingAccountByName = currentAccountsList.find(acc => acc.name.toLowerCase() === values.clientName.toLowerCase());
-          if (existingAccountByName) {
-              currentAccountId = existingAccountByName.id;
-          }
+          if (existingAccountByName) currentAccountId = existingAccountByName.id;
           accountCreationMessage = currentAccountId ? " (Pedido asociado a cliente existente)." : " (Cliente existente, pero no se pudo encontrar un ID de cuenta para asociar).";
       }
 
-      const orderData: Partial<Order> = {
+      const orderData: Partial<Order> & { // Add address fields to the type for toFirestoreOrder
+            direccionFiscal_street?: string, direccionFiscal_number?: string, direccionFiscal_city?: string, direccionFiscal_province?: string, direccionFiscal_postalCode?: string, direccionFiscal_country?: string,
+            direccionEntrega_street?: string, direccionEntrega_number?: string, direccionEntrega_city?: string, direccionEntrega_province?: string, direccionEntrega_postalCode?: string, direccionEntrega_country?: string,
+        } = {
         clientName: values.clientName,
         visitDate: format(values.visitDate, "yyyy-MM-dd"),
         clavadistaId: finalClavadistaId,
         canalOrigenColocacion: values.canalOrigenColocacion,
+        paymentMethod: values.paymentMethod,
         assignedMaterials: values.assignedMaterials || [],
         notes: values.notes,
         clientStatus: values.clientStatus,
         salesRep: salesRepNameForOrder,
         accountId: currentAccountId,
-        nombreFiscal: undefined,
-        cif: undefined,
-        direccionFiscal: undefined,
-        direccionEntrega: undefined,
-        contactoNombre: undefined,
-        contactoCorreo: undefined,
-        contactoTelefono: undefined,
-        observacionesAlta: undefined,
       };
       
       if (values.clientStatus === "existing" && currentAccountId && currentAccountId !== NEW_CLIENT_ACCOUNT_ID_PLACEHOLDER) {
-        const existingAccount = allAccounts.find(acc => acc.id === currentAccountId);
+        const existingAccount = allAccounts.find(acc => acc.id === currentAccountId); // `allAccounts` should be up-to-date
         if (existingAccount) {
             orderData.clientName = existingAccount.name; 
             orderData.nombreFiscal = existingAccount.legalName || existingAccount.name;
             orderData.cif = existingAccount.cif;
-            orderData.direccionFiscal = existingAccount.addressBilling;
-            orderData.direccionEntrega = existingAccount.addressShipping || existingAccount.addressBilling;
+            orderData.direccionFiscal = existingAccount.addressBilling; // Assign AddressDetails object
+            orderData.direccionEntrega = existingAccount.addressShipping || existingAccount.addressBilling; // Assign AddressDetails object
             orderData.contactoNombre = existingAccount.mainContactName;
             orderData.contactoCorreo = existingAccount.mainContactEmail;
             orderData.contactoTelefono = existingAccount.mainContactPhone;
-            orderData.clientType = values.clientType || existingAccount.type; // Prioritize form if filled, else account's type
+            orderData.clientType = values.clientType || existingAccount.type;
         }
       } else if (values.clientStatus === "new" || (values.clientStatus === "existing" && currentAccountId === NEW_CLIENT_ACCOUNT_ID_PLACEHOLDER)) {
         orderData.nombreFiscal = values.nombreFiscal;
         orderData.cif = values.cif;
-        orderData.direccionFiscal = values.direccionFiscal;
-        orderData.direccionEntrega = values.direccionEntrega;
+        // Pass individual fields for new address to be constructed in toFirestoreOrder
+        orderData.direccionFiscal_street = values.direccionFiscal_street; orderData.direccionFiscal_number = values.direccionFiscal_number; orderData.direccionFiscal_city = values.direccionFiscal_city; orderData.direccionFiscal_province = values.direccionFiscal_province; orderData.direccionFiscal_postalCode = values.direccionFiscal_postalCode; orderData.direccionFiscal_country = values.direccionFiscal_country;
+        orderData.direccionEntrega_street = values.direccionEntrega_street; orderData.direccionEntrega_number = values.direccionEntrega_number; orderData.direccionEntrega_city = values.direccionEntrega_city; orderData.direccionEntrega_province = values.direccionEntrega_province; orderData.direccionEntrega_postalCode = values.direccionEntrega_postalCode; orderData.direccionEntrega_country = values.direccionEntrega_country;
         orderData.contactoNombre = values.contactoNombre;
         orderData.contactoCorreo = values.contactoCorreo;
         orderData.contactoTelefono = values.contactoTelefono;
@@ -521,13 +562,14 @@ export default function OrderFormPage() {
       }
 
       if (values.outcome === "Programar Visita") {
-        delete orderData.clientType; // No clientType for just a programmed visit
-      } else if (!orderData.clientType && values.clientType) { // Ensure clientType is set if not a programmed visit
+        delete orderData.clientType; 
+        delete orderData.paymentMethod;
+      } else if (!orderData.clientType && values.clientType) { 
         orderData.clientType = values.clientType;
       }
 
 
-      if (values.outcome === "successful" && values.clientStatus && values.orderValue && values.clientType && values.numberOfUnits && values.unitPrice) {
+      if (values.outcome === "successful" && values.clientStatus && values.orderValue && values.clientType && values.numberOfUnits && values.unitPrice && values.paymentMethod) {
           orderData.status = 'Confirmado';
           orderData.products = [SINGLE_PRODUCT_NAME];
           orderData.numberOfUnits = values.numberOfUnits;
@@ -570,9 +612,11 @@ export default function OrderFormPage() {
           clientName: "", visitDate: new Date(), clientStatus: undefined, outcome: undefined, 
           clavadistaId: userRole === 'Clavadista' && teamMember ? teamMember.id : NO_CLAVADISTA_VALUE,
           selectedSalesRepId: userRole === 'Admin' ? ADMIN_SELF_REGISTER_VALUE : undefined,
-          canalOrigenColocacion: undefined,
-          notes: "",
-          nombreFiscal: "", cif: "", direccionFiscal: "", direccionEntrega: "", contactoNombre: "", contactoCorreo: "", contactoTelefono: "", observacionesAlta: "",
+          canalOrigenColocacion: undefined, paymentMethod: 'Adelantado',
+          notes: "", nombreFiscal: "", cif: "", 
+          direccionFiscal_street: "", direccionFiscal_number: "", direccionFiscal_city: "", direccionFiscal_province: "", direccionFiscal_postalCode: "", direccionFiscal_country: "España",
+          direccionEntrega_street: "", direccionEntrega_number: "", direccionEntrega_city: "", direccionEntrega_province: "", direccionEntrega_postalCode: "", direccionEntrega_country: "España",
+          contactoNombre: "", contactoCorreo: "", contactoTelefono: "", observacionesAlta: "",
           clientType: undefined, numberOfUnits: undefined, unitPrice: undefined, orderValue: undefined,
           nextActionType: undefined, nextActionCustom: "", nextActionDate: undefined,
           failureReasonType: undefined, failureReasonCustom: "", assignedMaterials: [], accountId: undefined,
@@ -627,7 +671,7 @@ export default function OrderFormPage() {
         <FileText className="h-8 w-8 text-primary" />
         <h1 className="text-3xl font-headline font-semibold">{pageTitle}</h1>
       </header>
-      <Card className="max-w-2xl mx-auto shadow-subtle hover:shadow-md transition-shadow duration-300">
+      <Card className="max-w-3xl mx-auto shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
           <CardTitle>{pageTitle}</CardTitle>
           <CardDescription>{cardDescription}</CardDescription>
@@ -825,6 +869,7 @@ export default function OrderFormPage() {
                   <Separator className="my-6" />
                   <div className="space-y-1"><h3 className="text-lg font-medium">Detalles del Pedido</h3><p className="text-sm text-muted-foreground">Información sobre los productos y valor del pedido.</p></div>
                   <FormField control={form.control} name="clientType" render={({ field }) => (<FormItem className="space-y-3"><FormLabel>Tipo de Cliente (para el Pedido)</FormLabel><FormControl><RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="grid grid-cols-2 gap-4">{clientTypeList.map((type) => (<FormItem key={type} className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value={type} /></FormControl><FormLabel className="font-normal">{type}</FormLabel></FormItem>))}</RadioGroup></FormControl><FormMessage /></FormItem>)}/>
+                  <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel className="flex items-center"><CreditCard className="mr-2 h-4 w-4 text-primary"/>Forma de Pago</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar forma de pago" /></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(method => (<SelectItem key={method} value={method}>{method}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                   <FormItem><FormLabel>Producto</FormLabel><Input value={SINGLE_PRODUCT_NAME} readOnly disabled className="bg-muted/50" /><FormDescription>Actualmente solo se gestiona el producto "{SINGLE_PRODUCT_NAME}".</FormDescription></FormItem>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades ({SINGLE_PRODUCT_NAME})</FormLabel><FormControl><Input type="number" placeholder="p. ej., 100" {...field} onChange={event => { const val = event.target.value; field.onChange(val === "" ? undefined : parseInt(val, 10));}} value={field.value === undefined ? '' : field.value} /></FormControl><FormMessage /></FormItem>)}/>
@@ -848,8 +893,24 @@ export default function OrderFormPage() {
                   </div>
                   <FormField control={form.control} name="nombreFiscal" render={({ field }) => (<FormItem><FormLabel>Nombre Fiscal</FormLabel><FormControl><Input placeholder="Nombre legal completo de la empresa" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                   <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF</FormLabel><FormControl><Input placeholder="Número de Identificación Fiscal" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                  <FormField control={form.control} name="direccionFiscal" render={({ field }) => (<FormItem><FormLabel>Dirección Fiscal</FormLabel><FormControl><Textarea placeholder="Calle, número, piso, ciudad, código postal, provincia" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                  <FormField control={form.control} name="direccionEntrega" render={({ field }) => (<FormItem><FormLabel>Dirección de Entrega</FormLabel><FormControl><Textarea placeholder="Si es diferente a la fiscal: calle, número, piso, ciudad, código postal, provincia" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                  <Separator className="my-4"/><h4 className="text-md font-medium mb-2">Dirección Fiscal (Nueva Cuenta)</h4>
+                  <FormField control={form.control} name="direccionFiscal_street" render={({ field }) => (<FormItem><FormLabel>Calle</FormLabel><FormControl><Input placeholder="Ej: Calle Principal" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <FormField control={form.control} name="direccionFiscal_number" render={({ field }) => (<FormItem><FormLabel>Número</FormLabel><FormControl><Input placeholder="Ej: 123" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="direccionFiscal_postalCode" render={({ field }) => (<FormItem><FormLabel>Cód. Postal</FormLabel><FormControl><Input placeholder="Ej: 28001" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="direccionFiscal_city" render={({ field }) => (<FormItem><FormLabel>Ciudad</FormLabel><FormControl><Input placeholder="Ej: Madrid" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="direccionFiscal_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                  </div>
+                  <FormField control={form.control} name="direccionFiscal_country" render={({ field }) => (<FormItem><FormLabel>País</FormLabel><FormControl><Input placeholder="Ej: España" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <Separator className="my-4"/><h4 className="text-md font-medium mb-2">Dirección de Entrega (Nueva Cuenta, opcional si es igual a fiscal)</h4>
+                  <FormField control={form.control} name="direccionEntrega_street" render={({ field }) => (<FormItem><FormLabel>Calle</FormLabel><FormControl><Input placeholder="Ej: Calle Secundaria" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <FormField control={form.control} name="direccionEntrega_number" render={({ field }) => (<FormItem><FormLabel>Número</FormLabel><FormControl><Input placeholder="Ej: 45" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="direccionEntrega_postalCode" render={({ field }) => (<FormItem><FormLabel>Cód. Postal</FormLabel><FormControl><Input placeholder="Ej: 08001" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="direccionEntrega_city" render={({ field }) => (<FormItem><FormLabel>Ciudad</FormLabel><FormControl><Input placeholder="Ej: Barcelona" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="direccionEntrega_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                  </div>
+                  <FormField control={form.control} name="direccionEntrega_country" render={({ field }) => (<FormItem><FormLabel>País</FormLabel><FormControl><Input placeholder="Ej: España" {...field} /></FormControl><FormMessage /></FormItem>)} />
                   <Separator className="my-4" /><h4 className="text-md font-medium mb-2">Datos de Contacto (Cliente Nuevo - Opcional)</h4>
                   <FormField control={form.control} name="contactoNombre" render={({ field }) => (<FormItem><FormLabel>Nombre de Contacto</FormLabel><FormControl><Input placeholder="Persona de contacto principal" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                   <FormField control={form.control} name="contactoCorreo" render={({ field }) => (<FormItem><FormLabel>Correo Electrónico de Contacto</FormLabel><FormControl><Input type="email" placeholder="ejemplo@empresa.com" {...field} /></FormControl><FormMessage /></FormItem>)}/>
@@ -1026,3 +1087,4 @@ export default function OrderFormPage() {
   );
 }
 
+```

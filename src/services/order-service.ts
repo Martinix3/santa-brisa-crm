@@ -17,12 +17,11 @@ import {
   WriteBatch,
   writeBatch
 } from 'firebase/firestore';
-import type { Order, OrderFormValues, CanalOrigenColocacion } from '@/types'; // Added CanalOrigenColocacion
+import type { Order, OrderFormValues, CanalOrigenColocacion, AddressDetails, PaymentMethod } from '@/types'; 
 import { format, parseISO, isValid } from 'date-fns';
 
 const ORDERS_COLLECTION = 'orders';
 
-// Helper para convertir datos de Firestore a tipo Order (UI)
 const fromFirestoreOrder = (docSnap: any): Order => {
   const data = docSnap.data();
   const order: Order = {
@@ -36,71 +35,129 @@ const fromFirestoreOrder = (docSnap: any): Order => {
     lastUpdated: data.lastUpdated instanceof Timestamp ? format(data.lastUpdated.toDate(), "yyyy-MM-dd") : (typeof data.lastUpdated === 'string' ? data.lastUpdated : format(new Date(), "yyyy-MM-dd")),
     clavadistaId: data.clavadistaId || undefined,
     assignedMaterials: data.assignedMaterials || [],
-    canalOrigenColocacion: data.canalOrigenColocacion || undefined, // Added field
+    canalOrigenColocacion: data.canalOrigenColocacion || undefined,
+    paymentMethod: data.paymentMethod || undefined,
+
     clientType: data.clientType,
     numberOfUnits: data.numberOfUnits,
     unitPrice: data.unitPrice,
     clientStatus: data.clientStatus,
+
     nombreFiscal: data.nombreFiscal || '',
     cif: data.cif || '',
-    direccionFiscal: data.direccionFiscal || '',
-    direccionEntrega: data.direccionEntrega || '',
+    direccionFiscal: data.direccionFiscal, // Se asume que Firestore devuelve AddressDetails o undefined
+    direccionEntrega: data.direccionEntrega, // Se asume que Firestore devuelve AddressDetails o undefined
     contactoNombre: data.contactoNombre || '',
     contactoCorreo: data.contactoCorreo || '',
     contactoTelefono: data.contactoTelefono || '',
-    observacionesAlta: data.observacionesAlta || '',
+    observacionesAlta: data.observacionesAlta || '', 
     notes: data.notes || '',
+
     nextActionType: data.nextActionType,
     nextActionCustom: data.nextActionCustom || '',
     nextActionDate: data.nextActionDate instanceof Timestamp ? format(data.nextActionDate.toDate(), "yyyy-MM-dd") : (typeof data.nextActionDate === 'string' ? data.nextActionDate : undefined),
     failureReasonType: data.failureReasonType,
     failureReasonCustom: data.failureReasonCustom || '',
+    
     accountId: data.accountId || undefined,
     createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : (typeof data.createdAt === 'string' ? data.createdAt : format(new Date(), "yyyy-MM-dd")),
   };
   return order;
 };
 
-// Helper para convertir datos del formulario/UI a lo que se guarda en Firestore
-const toFirestoreOrder = (data: Partial<Order> & { visitDate: Date | string, nextActionDate?: Date | string, accountId?: string }, isNew: boolean): any => {
+const toFirestoreOrder = (data: Partial<Order> & { 
+    visitDate: Date | string, 
+    nextActionDate?: Date | string, 
+    accountId?: string,
+    // Campos desglosados para dirección (si vienen del form de nueva cuenta)
+    direccionFiscal_street?: string, direccionFiscal_number?: string, direccionFiscal_city?: string, direccionFiscal_province?: string, direccionFiscal_postalCode?: string, direccionFiscal_country?: string,
+    direccionEntrega_street?: string, direccionEntrega_number?: string, direccionEntrega_city?: string, direccionEntrega_province?: string, direccionEntrega_postalCode?: string, direccionEntrega_country?: string,
+}, isNew: boolean): any => {
+  
   const firestoreData: { [key: string]: any } = {};
 
-  // Map all known fields from Order type, converting dates to Timestamps
-  for (const key in data) {
-    if (Object.prototype.hasOwnProperty.call(data, key)) {
-      const value = (data as any)[key];
-      if (value === undefined && key !== 'canalOrigenColocacion' && key !== 'clavadistaId' && key !== 'nextActionDate' && key !== 'accountId' && key !== 'products' && key !== 'assignedMaterials' && key !== 'value' && key !== 'clientType' && key !== 'numberOfUnits' && key !== 'unitPrice' && key !== 'clientStatus' && key !== 'nombreFiscal' && key !== 'cif' && key !== 'direccionFiscal' && key !== 'direccionEntrega' && key !== 'contactoNombre' && key !== 'contactoCorreo' && key !== 'contactoTelefono' && key !== 'observacionesAlta' && key !== 'notes' && key !== 'nextActionType' && key !== 'nextActionCustom' && key !== 'failureReasonType' && key !== 'failureReasonCustom' && key !== 'createdAt') continue;
+  // Mapear campos directos de Order a firestoreData
+  const directOrderKeys: (keyof Order)[] = [
+    'clientName', 'products', 'value', 'status', 'salesRep', 'clavadistaId', 
+    'assignedMaterials', 'canalOrigenColocacion', 'paymentMethod', 'clientType', 
+    'numberOfUnits', 'unitPrice', 'clientStatus', 'nombreFiscal', 'cif', 
+    'contactoNombre', 'contactoCorreo', 'contactoTelefono', 'observacionesAlta', 
+    'notes', 'nextActionType', 'nextActionCustom', 'failureReasonType', 
+    'failureReasonCustom', 'accountId'
+  ];
 
-      if ((key === 'visitDate' || key === 'nextActionDate' || key === 'lastUpdated' || key === 'createdAt') && value) {
-        const dateValue = typeof value === 'string' ? parseISO(value) : value;
-        if (dateValue instanceof Date && isValid(dateValue)) {
-          firestoreData[key] = Timestamp.fromDate(dateValue);
-        } else if (value instanceof Timestamp) {
-           firestoreData[key] = value;
-        }
-      } else {
-        firestoreData[key] = value;
+  directOrderKeys.forEach(key => {
+    if (data[key] !== undefined) {
+      firestoreData[key] = data[key];
+    } else {
+      // Asegurar que opcionales sin valor se pongan a null o se omitan si es apropiado
+      if (['clavadistaId', 'canalOrigenColocacion', 'paymentMethod', 'clientType', 'value', 'numberOfUnits', 'unitPrice', 'clientStatus', 'nombreFiscal', 'cif', 'contactoNombre', 'contactoCorreo', 'contactoTelefono', 'observacionesAlta', 'notes', 'nextActionType', 'nextActionCustom', 'failureReasonType', 'failureReasonCustom', 'accountId'].includes(key)) {
+        firestoreData[key] = null;
       }
     }
-  }
+  });
   
-  firestoreData.clavadistaId = data.clavadistaId || null;
-  firestoreData.nextActionDate = data.nextActionDate ? (firestoreData.nextActionDate instanceof Timestamp ? firestoreData.nextActionDate : Timestamp.fromDate(typeof data.nextActionDate === 'string' ? parseISO(data.nextActionDate) : data.nextActionDate)) : null;
-  firestoreData.accountId = data.accountId || null;
-  firestoreData.assignedMaterials = data.assignedMaterials || [];
-  firestoreData.canalOrigenColocacion = data.canalOrigenColocacion || null; // Store null if undefined
+  // Manejar fechas
+  if (data.visitDate) {
+    const dateValue = typeof data.visitDate === 'string' ? parseISO(data.visitDate) : data.visitDate;
+    if (dateValue instanceof Date && isValid(dateValue)) {
+      firestoreData.visitDate = Timestamp.fromDate(dateValue);
+    }
+  }
+  if (data.nextActionDate) {
+    const dateValue = typeof data.nextActionDate === 'string' ? parseISO(data.nextActionDate) : data.nextActionDate;
+    if (dateValue instanceof Date && isValid(dateValue)) {
+      firestoreData.nextActionDate = Timestamp.fromDate(dateValue);
+    } else {
+      firestoreData.nextActionDate = null;
+    }
+  }
+
+  // Construir objetos AddressDetails si se proporcionan campos desglosados
+  if (data.direccionFiscal_street && data.direccionFiscal_city && data.direccionFiscal_province && data.direccionFiscal_postalCode) {
+    firestoreData.direccionFiscal = {
+      street: data.direccionFiscal_street,
+      number: data.direccionFiscal_number || undefined,
+      city: data.direccionFiscal_city,
+      province: data.direccionFiscal_province,
+      postalCode: data.direccionFiscal_postalCode,
+      country: data.direccionFiscal_country || "España",
+    };
+  } else if (data.direccionFiscal && typeof data.direccionFiscal === 'object') { // Si ya es un objeto AddressDetails (ej. desde edición)
+    firestoreData.direccionFiscal = data.direccionFiscal;
+  } else {
+    firestoreData.direccionFiscal = null;
+  }
+
+  if (data.direccionEntrega_street && data.direccionEntrega_city && data.direccionEntrega_province && data.direccionEntrega_postalCode) {
+    firestoreData.direccionEntrega = {
+      street: data.direccionEntrega_street,
+      number: data.direccionEntrega_number || undefined,
+      city: data.direccionEntrega_city,
+      province: data.direccionEntrega_province,
+      postalCode: data.direccionEntrega_postalCode,
+      country: data.direccionEntrega_country || "España",
+    };
+  } else if (data.direccionEntrega && typeof data.direccionEntrega === 'object') {
+    firestoreData.direccionEntrega = data.direccionEntrega;
+  } else {
+    firestoreData.direccionEntrega = null;
+  }
+
 
   if (isNew) {
     firestoreData.createdAt = Timestamp.fromDate(new Date());
   }
   firestoreData.lastUpdated = Timestamp.fromDate(new Date());
 
-  // Clean up any undefined fields that might have slipped through
+  // Limpiar campos que deben ser null si están vacíos o no definidos
   Object.keys(firestoreData).forEach(key => {
     if (firestoreData[key] === undefined) {
-      firestoreData[key] = null; // Ensure undefined becomes null
+      firestoreData[key] = null;
     }
   });
+  if (!firestoreData.assignedMaterials) firestoreData.assignedMaterials = [];
+  if (!firestoreData.products) firestoreData.products = [];
 
   return firestoreData;
 };
@@ -108,7 +165,7 @@ const toFirestoreOrder = (data: Partial<Order> & { visitDate: Date | string, nex
 
 export const getOrdersFS = async (): Promise<Order[]> => {
   const ordersCol = collection(db, ORDERS_COLLECTION);
-  const q = query(ordersCol, orderBy('createdAt', 'desc')); // Order by creation date
+  const q = query(ordersCol, orderBy('createdAt', 'desc')); 
   const orderSnapshot = await getDocs(q);
   const orderList = orderSnapshot.docs.map(docSnap => fromFirestoreOrder(docSnap));
   return orderList;
@@ -129,14 +186,19 @@ export const getOrderByIdFS = async (id: string): Promise<Order | null> => {
   }
 };
 
-// data is expected to be OrderFormValues or a similar structure
-export const addOrderFS = async (data: Partial<Order> & {visitDate: Date | string, accountId?: string}): Promise<string> => {
+export const addOrderFS = async (data: Partial<Order> & {visitDate: Date | string, accountId?: string,
+    direccionFiscal_street?: string, direccionFiscal_number?: string, direccionFiscal_city?: string, direccionFiscal_province?: string, direccionFiscal_postalCode?: string, direccionFiscal_country?: string,
+    direccionEntrega_street?: string, direccionEntrega_number?: string, direccionEntrega_city?: string, direccionEntrega_province?: string, direccionEntrega_postalCode?: string, direccionEntrega_country?: string,
+}): Promise<string> => {
   const firestoreData = toFirestoreOrder(data, true);
   const docRef = await addDoc(collection(db, ORDERS_COLLECTION), firestoreData);
   return docRef.id;
 };
 
-export const updateOrderFS = async (id: string, data: Partial<Order> & {visitDate?: Date | string}): Promise<void> => { // visitDate made optional for updates
+export const updateOrderFS = async (id: string, data: Partial<Order> & {visitDate?: Date | string,
+    direccionFiscal_street?: string, direccionFiscal_number?: string, direccionFiscal_city?: string, direccionFiscal_province?: string, direccionFiscal_postalCode?: string, direccionFiscal_country?: string,
+    direccionEntrega_street?: string, direccionEntrega_number?: string, direccionEntrega_city?: string, direccionEntrega_province?: string, direccionEntrega_postalCode?: string, direccionEntrega_country?: string,
+}): Promise<void> => { 
   const orderDocRef = doc(db, ORDERS_COLLECTION, id);
   const firestoreData = toFirestoreOrder(data, false); 
   await updateDoc(orderDocRef, firestoreData);
@@ -147,15 +209,13 @@ export const deleteOrderFS = async (id: string): Promise<void> => {
   await deleteDoc(orderDocRef);
 };
 
-
-// Optional: Utility to initialize mock data if collection is empty
 export const initializeMockOrdersInFirestore = async (mockOrdersData: Order[]) => {
     const ordersCol = collection(db, ORDERS_COLLECTION);
     const snapshot = await getDocs(query(ordersCol));
     if (snapshot.empty) {
         const batch = writeBatch(db);
         mockOrdersData.forEach(order => {
-            const { id, createdAt, visitDate, lastUpdated, nextActionDate, ...orderData } = order; 
+            const { id, createdAt, visitDate, lastUpdated, nextActionDate, direccionFiscal, direccionEntrega, ...orderData } = order; 
             
             const firestoreReadyData: any = { ...orderData };
 
@@ -169,19 +229,21 @@ export const initializeMockOrdersInFirestore = async (mockOrdersData: Order[]) =
             firestoreReadyData.accountId = order.accountId || null;
             firestoreReadyData.assignedMaterials = order.assignedMaterials || [];
             firestoreReadyData.canalOrigenColocacion = order.canalOrigenColocacion || null;
+            firestoreReadyData.paymentMethod = order.paymentMethod || null;
+
+            firestoreReadyData.direccionFiscal = direccionFiscal || null; // Asume que el mock ya tiene AddressDetails
+            firestoreReadyData.direccionEntrega = direccionEntrega || null; // Asume que el mock ya tiene AddressDetails
             
-            // Clean up undefined or empty strings for optional fields
             Object.keys(firestoreReadyData).forEach(key => {
                 if (firestoreReadyData[key] === undefined) {
-                   firestoreReadyData[key] = null; // Store undefined as null
+                   firestoreReadyData[key] = null; 
                 } else if (typeof firestoreReadyData[key] === 'string' && firestoreReadyData[key].trim() === '' && 
-                           !['salesRep', 'clientName', 'status'].includes(key) ) { // Keep essential strings even if empty for some reason
+                           !['salesRep', 'clientName', 'status'].includes(key) ) { 
                    firestoreReadyData[key] = null;
                 }
             });
 
-
-            const docRef = doc(ordersCol); // Firestore generates ID
+            const docRef = doc(ordersCol); 
             batch.set(docRef, firestoreReadyData);
         });
         await batch.commit();
@@ -190,3 +252,5 @@ export const initializeMockOrdersInFirestore = async (mockOrdersData: Order[]) =
         console.log('Orders collection is not empty. Skipping initialization.');
     }
 };
+
+```

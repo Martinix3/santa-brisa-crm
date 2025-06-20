@@ -35,8 +35,8 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ScrollArea } from "@/components/ui/scroll-area"; // Added import
-import type { Account, VentaDirectaSB, VentaDirectaSBFormValues, CanalVentaDirectaSB, EstadoVentaDirectaSB } from "@/types";
+import { ScrollArea } from "@/components/ui/scroll-area"; 
+import type { Account, VentaDirectaSB, VentaDirectaSBFormValues, CanalVentaDirectaSB, EstadoVentaDirectaSB, AddressDetails } from "@/types";
 import { canalVentaDirectaList, estadoVentaDirectaList } from "@/lib/data";
 import { Loader2, Calendar as CalendarIcon, PlusCircle, Trash2, DollarSign, Percent } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
@@ -45,7 +45,7 @@ import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 
-const IVA_POR_DEFECTO = 21; // 21%
+const IVA_POR_DEFECTO = 21; 
 
 const ventaDirectaSBItemSchema = z.object({
   productoDescripcion: z.string().min(3, "La descripción del producto es obligatoria."),
@@ -79,6 +79,21 @@ interface VentaDirectaDialogProps {
   allAccounts: Account[];
   isReadOnly?: boolean;
 }
+
+// Helper para formatear AddressDetails a un string
+const formatAddressDetailsToString = (address?: AddressDetails): string => {
+  if (!address) return "";
+  const parts = [
+    address.street,
+    address.number,
+    address.postalCode,
+    address.city,
+    address.province,
+    address.country,
+  ].filter(Boolean); // Filtra partes undefined o vacías
+  return parts.join(', ');
+};
+
 
 export default function VentaDirectaDialog({ venta, isOpen, onOpenChange, onSave, allAccounts, isReadOnly = false }: VentaDirectaDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
@@ -165,9 +180,12 @@ export default function VentaDirectaDialog({ venta, isOpen, onOpenChange, onSave
   const onSubmit = async (data: VentaDirectaSBFormValues) => {
     if (isReadOnly) return;
     setIsSaving(true);
+
+    // La función onSave ahora espera el objeto VentaDirectaSBFormValues completo
+    // La lógica de construir el objeto VentaDirectaSB completo (con AddressDetails, etc.)
+    // se ha movido a la page.tsx `handleSaveVenta` para centralizarla.
     await onSave(data, venta?.id);
     setIsSaving(false);
-    // onOpenChange(false); // El padre se encarga de cerrar el dialogo
   };
   
   const relevantAccounts = React.useMemo(() => 
@@ -177,7 +195,7 @@ export default function VentaDirectaDialog({ venta, isOpen, onOpenChange, onSave
         acc.type === 'Gran Superficie' ||
         acc.type === 'Retail Minorista' ||
         acc.type === 'Evento Especial' ||
-        acc.status === 'Activo' // Incluir cualquier cuenta activa por si acaso
+        acc.status === 'Activo' 
     ).sort((a,b) => a.name.localeCompare(b.name)), 
   [allAccounts]);
 
@@ -209,8 +227,8 @@ export default function VentaDirectaDialog({ venta, isOpen, onOpenChange, onSave
               {itemFields.map((item, index) => (
                 <div key={item.id} className="flex flex-col md:flex-row items-start md:items-end gap-2 p-3 border rounded-md bg-secondary/30">
                   <FormField control={form.control} name={`items.${index}.productoDescripcion`} render={({ field }) => (<FormItem className="flex-grow"><FormLabel className="text-xs">Descripción Producto</FormLabel><FormControl><Input placeholder="Ej: Santa Brisa Clásica 750ml" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name={`items.${index}.cantidad`} render={({ field }) => (<FormItem className="w-full md:w-28"><FormLabel className="text-xs">Cantidad</FormLabel><FormControl><Input type="number" placeholder="Cant." {...field} disabled={isReadOnly} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name={`items.${index}.precioUnitarioNetoSB`} render={({ field }) => (<FormItem className="w-full md:w-36"><FormLabel className="text-xs">Precio Unit. Neto (€)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Precio" {...field} disabled={isReadOnly} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name={`items.${index}.cantidad`} render={({ field }) => (<FormItem className="w-full md:w-28"><FormLabel className="text-xs">Cantidad</FormLabel><FormControl><Input type="number" placeholder="Cant." {...field} disabled={isReadOnly} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name={`items.${index}.precioUnitarioNetoSB`} render={({ field }) => (<FormItem className="w-full md:w-36"><FormLabel className="text-xs">Precio Unit. Neto (€)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Precio" {...field} disabled={isReadOnly} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
                   <div className="w-full md:w-32 text-left md:text-right pt-2 md:pt-0 md:self-center">
                     <FormLabel className="text-xs block md:hidden">Subtotal</FormLabel>
                     <span className="font-medium">
@@ -226,7 +244,7 @@ export default function VentaDirectaDialog({ venta, isOpen, onOpenChange, onSave
             <Separator className="my-6" />
             <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4 items-end">
                 <div className="md:col-span-1">
-                    <FormField control={form.control} name="tipoIvaAplicadoSB" render={({ field }) => (<FormItem><FormLabel className="flex items-center"><Percent className="mr-1 h-4 w-4" />Tipo IVA Aplicado (%)</FormLabel><FormControl><Input type="number" placeholder="Ej: 21" {...field} disabled={isReadOnly} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="tipoIvaAplicadoSB" render={({ field }) => (<FormItem><FormLabel className="flex items-center"><Percent className="mr-1 h-4 w-4" />Tipo IVA Aplicado (%)</FormLabel><FormControl><Input type="number" placeholder="Ej: 21" {...field} disabled={isReadOnly} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} value={field.value ?? IVA_POR_DEFECTO} /></FormControl><FormMessage /></FormItem>)} />
                 </div>
                 <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
                     <div className="p-3 bg-muted/50 rounded-md">
@@ -259,3 +277,5 @@ export default function VentaDirectaDialog({ venta, isOpen, onOpenChange, onSave
     </Dialog>
   );
 }
+
+```

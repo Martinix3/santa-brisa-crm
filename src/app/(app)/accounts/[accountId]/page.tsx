@@ -6,9 +6,9 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { Account, Order, UserRole } from "@/types";
+import type { Account, Order, UserRole, AddressDetails } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { Building2, Edit, ArrowLeft, AlertTriangle, UserCircle, Mail, Phone, FileText, ShoppingCart, CalendarDays, ListChecks, Info, Euro, Printer, Loader2 } from "lucide-react";
+import { Building2, Edit, ArrowLeft, AlertTriangle, UserCircle, Mail, Phone, FileText, ShoppingCart, CalendarDays, ListChecks, Info, Euro, Printer, Loader2, MapPin } from "lucide-react";
 import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
@@ -18,9 +18,21 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { getAccountByIdFS, updateAccountFS, getAccountsFS } from "@/services/account-service";
-import { getOrdersFS } from "@/services/order-service"; // Importar servicio de pedidos
+import { getOrdersFS } from "@/services/order-service"; 
 import { mockTeamMembers } from "@/lib/data";
 
+
+const formatAddress = (address?: AddressDetails): string => {
+  if (!address) return 'No especificada';
+  const parts = [
+    `${address.street}${address.number ? `, ${address.number}` : ''}`,
+    address.city,
+    address.province,
+    address.postalCode,
+    address.country || 'España'
+  ].filter(Boolean);
+  return parts.join(',\n');
+};
 
 export default function AccountDetailPage() {
   const params = useParams();
@@ -51,22 +63,12 @@ export default function AccountDetailPage() {
         setAccount(foundAccount);
 
         if (foundAccount) {
-          // Cargar todos los pedidos de Firestore
           const allOrders = await getOrdersFS();
           
           const interactions = allOrders.filter(order => {
-            // Priorizar vinculación por accountId
-            if (order.accountId && order.accountId === foundAccount.id) {
-              return true;
-            }
-            // Fallback a CIF si no hay accountId o no coincide
-            if (!order.accountId && order.cif && foundAccount.cif && order.cif.trim().toLowerCase() === foundAccount.cif.trim().toLowerCase()) {
-              return true;
-            }
-            // Fallback a nombre de cliente si no hay accountId ni CIF coincidente
-            if (!order.accountId && !order.cif && order.clientName && foundAccount.name && order.clientName.trim().toLowerCase() === foundAccount.name.trim().toLowerCase()) {
-              return true;
-            }
+            if (order.accountId && order.accountId === foundAccount.id) return true;
+            if (!order.accountId && order.cif && foundAccount.cif && order.cif.trim().toLowerCase() === foundAccount.cif.trim().toLowerCase()) return true;
+            if (!order.accountId && !order.cif && order.clientName && foundAccount.name && order.clientName.trim().toLowerCase() === foundAccount.name.trim().toLowerCase()) return true;
             return false;
           }).sort((a,b) => parseISO(b.visitDate).getTime() - parseISO(a.visitDate).getTime());
           
@@ -104,7 +106,8 @@ export default function AccountDetailPage() {
     if (!isAdmin || !account) return;
     setIsLoading(true);
     try {
-      await updateAccountFS(account.id, data);
+      // El servicio updateAccountFS ahora espera los campos de dirección desglosados
+      await updateAccountFS(account.id, data); 
       const updatedAccount = await getAccountByIdFS(account.id);
       setAccount(updatedAccount);
       
@@ -145,7 +148,7 @@ export default function AccountDetailPage() {
     );
   }
 
-  const salesRepAssigned = account.salesRepId ? mockTeamMembers.find(tm => tm.id === account.salesRepId) : null;
+  const salesRepAssigned = account.salesRepId ? mockTeamMembers.find(tm => tm.id === account.salesRepId) : null; // TODO: Fetch actual team member name if needed for display
   const creationDate = account.createdAt && isValid(parseISO(account.createdAt)) ? format(parseISO(account.createdAt), "dd/MM/yyyy", { locale: es }) : 'N/D';
   const updateDate = account.updatedAt && isValid(parseISO(account.updatedAt)) ? format(parseISO(account.updatedAt), "dd/MM/yyyy HH:mm", { locale: es }) : 'N/D';
 
@@ -217,13 +220,13 @@ export default function AccountDetailPage() {
                 </CardHeader>
                 <CardContent className="space-y-4 text-sm">
                     <div>
-                        <h4 className="font-medium mb-1">Dirección Fiscal:</h4>
-                        <p className="text-muted-foreground whitespace-pre-line">{account.addressBilling || 'No especificada'}</p>
+                        <h4 className="font-medium mb-1 flex items-center"><MapPin size={16} className="mr-1.5 text-muted-foreground"/>Dirección Fiscal:</h4>
+                        <p className="text-muted-foreground whitespace-pre-line pl-6">{formatAddress(account.addressBilling)}</p>
                     </div>
                     <Separator />
                     <div>
-                        <h4 className="font-medium mb-1">Dirección de Entrega Principal:</h4>
-                        <p className="text-muted-foreground whitespace-pre-line">{account.addressShipping || 'No especificada (usar fiscal si aplica)'}</p>
+                        <h4 className="font-medium mb-1 flex items-center"><MapPin size={16} className="mr-1.5 text-muted-foreground"/>Dirección de Entrega Principal:</h4>
+                        <p className="text-muted-foreground whitespace-pre-line pl-6">{formatAddress(account.addressShipping)}</p>
                     </div>
                 </CardContent>
             </Card>
@@ -286,7 +289,7 @@ export default function AccountDetailPage() {
                                 </Button>
                            ) : (
                                 <Button variant="outline" size="sm" asChild>
-                                    <Link href={`/orders-dashboard`}> {/* Considerar link directo al pedido si existe page específica */}
+                                    <Link href={`/orders-dashboard`}> 
                                         <ShoppingCart className="mr-1 h-3 w-3" /> Ver Pedido
                                     </Link>
                                 </Button>
@@ -319,5 +322,3 @@ export default function AccountDetailPage() {
     </div>
   );
 }
-
-    

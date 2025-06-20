@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox"; 
-import type { Order, OrderStatus, UserRole, TeamMember } from "@/types";
+import type { Order, OrderStatus, UserRole, TeamMember, AddressDetails } from "@/types";
 import { orderStatusesList } from "@/lib/data"; 
 import { MoreHorizontal, Eye, Edit, Trash2, Filter, CalendarDays, ChevronDown, Download, ShoppingCart, Loader2, MapPin, User as UserIcon } from "lucide-react";
 import { DateRange } from "react-day-picker";
@@ -26,8 +26,6 @@ import StatusBadge from "@/components/app/status-badge";
 import { getOrdersFS, updateOrderFS, deleteOrderFS, initializeMockOrdersInFirestore } from "@/services/order-service";
 import { getAccountByIdFS, updateAccountFS as updateAccountInFirestore } from "@/services/account-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
-
-// import { mockOrders as initialMockOrdersForSeeding } from "@/lib/data"; 
 
 
 const relevantOrderStatusesForDashboard: OrderStatus[] = ['Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Cancelado'];
@@ -55,8 +53,6 @@ export default function OrdersDashboardPage() {
     async function loadInitialData() {
       setIsLoading(true);
       try {
-        // await initializeMockOrdersInFirestore(initialMockOrdersForSeeding);
-        
         const firestoreOrders = await getOrdersFS();
         setAllOrders(firestoreOrders.filter(order => 
             order.status !== 'Programada' && order.status !== 'Seguimiento' && order.status !== 'Fallido'
@@ -85,7 +81,6 @@ export default function OrdersDashboardPage() {
     return allOrders
     .filter(order =>
       (order.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       order.id.toLowerCase().includes(searchTerm.toLowerCase()) || // Mantenemos búsqueda por ID aquí aunque no se muestre
        (order.salesRep && order.salesRep.toLowerCase().includes(searchTerm.toLowerCase())))
     )
     .filter(order => statusFilter === "Todos" || order.status === statusFilter)
@@ -100,8 +95,10 @@ export default function OrdersDashboardPage() {
     .filter(order => {
       if (!cityFilter) return true;
       const cityLower = cityFilter.toLowerCase();
-      return (order.direccionEntrega && order.direccionEntrega.toLowerCase().includes(cityLower)) ||
-             (order.direccionFiscal && order.direccionFiscal.toLowerCase().includes(cityLower));
+      const deliveryAddress = order.direccionEntrega;
+      const billingAddress = order.direccionFiscal;
+      return (deliveryAddress && (deliveryAddress.city?.toLowerCase().includes(cityLower) || deliveryAddress.province?.toLowerCase().includes(cityLower))) ||
+             (billingAddress && (billingAddress.city?.toLowerCase().includes(cityLower) || billingAddress.province?.toLowerCase().includes(cityLower)));
     });
   }, [allOrders, searchTerm, statusFilter, dateRange, cityFilter]);
 
@@ -125,36 +122,41 @@ export default function OrdersDashboardPage() {
       const canEditFullOrderDetails = isAdmin;
       const canEditStatusAndNotes = isAdmin || isDistributor;
 
-
       const fullUpdatedOrderData: Partial<Order> = {
-        // Campos editables por Admin
         clientName: canEditFullOrderDetails ? updatedData.clientName : orderToUpdate.clientName,
         products: canEditFullOrderDetails && updatedData.products ? updatedData.products.split(/[,;\n]+/).map(p => p.trim()).filter(p => p.length > 0) : orderToUpdate.products,
         value: canEditFullOrderDetails && updatedData.value !== undefined ? updatedData.value : orderToUpdate.value,
         salesRep: canEditFullOrderDetails ? updatedData.salesRep : orderToUpdate.salesRep,
         clavadistaId: canEditFullOrderDetails ? updatedData.clavadistaId : orderToUpdate.clavadistaId,
+        paymentMethod: canEditFullOrderDetails ? updatedData.paymentMethod : orderToUpdate.paymentMethod,
         assignedMaterials: canEditFullOrderDetails ? updatedData.assignedMaterials : orderToUpdate.assignedMaterials,
         clientType: canEditFullOrderDetails ? updatedData.clientType : orderToUpdate.clientType,
         numberOfUnits: canEditFullOrderDetails && updatedData.numberOfUnits !== undefined ? updatedData.numberOfUnits : orderToUpdate.numberOfUnits,
         unitPrice: canEditFullOrderDetails && updatedData.unitPrice !== undefined ? updatedData.unitPrice : orderToUpdate.unitPrice,
         nombreFiscal: canEditFullOrderDetails ? updatedData.nombreFiscal : orderToUpdate.nombreFiscal,
         cif: canEditFullOrderDetails ? updatedData.cif : orderToUpdate.cif,
-        direccionFiscal: canEditFullOrderDetails ? updatedData.direccionFiscal : orderToUpdate.direccionFiscal,
-        direccionEntrega: canEditFullOrderDetails ? updatedData.direccionEntrega : orderToUpdate.direccionEntrega,
+        
+        direccionFiscal: canEditFullOrderDetails && updatedData.direccionFiscal_street ? {
+            street: updatedData.direccionFiscal_street, city: updatedData.direccionFiscal_city || '', province: updatedData.direccionFiscal_province || '', postalCode: updatedData.direccionFiscal_postalCode || '', 
+            number: updatedData.direccionFiscal_number, country: updatedData.direccionFiscal_country,
+        } : orderToUpdate.direccionFiscal,
+        direccionEntrega: canEditFullOrderDetails && updatedData.direccionEntrega_street ? {
+            street: updatedData.direccionEntrega_street, city: updatedData.direccionEntrega_city || '', province: updatedData.direccionEntrega_province || '', postalCode: updatedData.direccionEntrega_postalCode || '',
+            number: updatedData.direccionEntrega_number, country: updatedData.direccionEntrega_country,
+        } : orderToUpdate.direccionEntrega,
+
         contactoNombre: canEditFullOrderDetails ? updatedData.contactoNombre : orderToUpdate.contactoNombre,
         contactoCorreo: canEditFullOrderDetails ? updatedData.contactoCorreo : orderToUpdate.contactoCorreo,
         contactoTelefono: canEditFullOrderDetails ? updatedData.contactoTelefono : orderToUpdate.contactoTelefono,
         
-        // Campos editables por Admin y Distributor
         status: canEditStatusAndNotes ? updatedData.status : orderToUpdate.status,
         notes: canEditStatusAndNotes ? updatedData.notes : orderToUpdate.notes,
         
-        // Campos que no se editan desde aquí o se preservan
         lastUpdated: format(new Date(), "yyyy-MM-dd"), 
         observacionesAlta: orderToUpdate.observacionesAlta, 
         accountId: orderToUpdate.accountId, 
-        visitDate: orderToUpdate.visitDate, // Fecha de visita original no se cambia aquí
-        createdAt: orderToUpdate.createdAt, // Fecha de creación no se cambia
+        visitDate: orderToUpdate.visitDate, 
+        createdAt: orderToUpdate.createdAt, 
         clientStatus: orderToUpdate.clientStatus,
         nextActionType: orderToUpdate.nextActionType,
         nextActionCustom: orderToUpdate.nextActionCustom,
@@ -280,6 +282,11 @@ export default function OrdersDashboardPage() {
     }
     return stringData;
   };
+
+  const formatAddressDetails = (address?: AddressDetails) => {
+    if (!address) return "";
+    return `${address.street || ''}${address.number ? `, ${address.number}` : ''}, ${address.city || ''}, ${address.province || ''}, ${address.postalCode || ''}${address.country ? `, ${address.country}` : ''}`;
+  };
   
   const handleDownloadCsv = () => {
     if (selectedOrderIds.length === 0) {
@@ -293,7 +300,7 @@ export default function OrdersDashboardPage() {
       "ID Pedido", "Fecha Pedido", "Cliente", "Nombre Fiscal", "CIF",
       "Dirección Entrega", "Dirección Fiscal", "Contacto Nombre", "Contacto Email", "Contacto Teléfono",
       "Tipo Cliente", "Productos (Lista)", "Nº Unidades", "Precio Unitario (€ sin IVA)",
-      "Valor Total Pedido (€ IVA incl.)", "Estado Pedido", "Comercial Asignado", "Notas Pedido", "Observaciones Alta"
+      "Valor Total Pedido (€ IVA incl.)", "Estado Pedido", "Forma de Pago", "Comercial Asignado", "Notas Pedido", "Observaciones Alta"
     ];
   
     const csvRows = [
@@ -304,8 +311,8 @@ export default function OrdersDashboardPage() {
         escapeCsvCell(order.clientName),
         escapeCsvCell(order.nombreFiscal),
         escapeCsvCell(order.cif),
-        escapeCsvCell(order.direccionEntrega),
-        escapeCsvCell(order.direccionFiscal),
+        escapeCsvCell(formatAddressDetails(order.direccionEntrega)),
+        escapeCsvCell(formatAddressDetails(order.direccionFiscal)),
         escapeCsvCell(order.contactoNombre),
         escapeCsvCell(order.contactoCorreo),
         escapeCsvCell(order.contactoTelefono),
@@ -315,6 +322,7 @@ export default function OrdersDashboardPage() {
         escapeCsvCell(order.unitPrice), 
         escapeCsvCell(order.value), 
         escapeCsvCell(order.status),
+        escapeCsvCell(order.paymentMethod),
         escapeCsvCell(order.salesRep),
         escapeCsvCell(order.notes),
         escapeCsvCell(order.observacionesAlta)
@@ -359,13 +367,13 @@ export default function OrdersDashboardPage() {
         <CardContent>
           <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
             <Input
-              placeholder="Buscar pedidos (Cliente, Rep)..." // ID Pedido quitado del placeholder
+              placeholder="Buscar pedidos (Cliente, Rep)..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="max-w-xs"
             />
             <Input
-              placeholder="Filtrar por ciudad..."
+              placeholder="Filtrar por ciudad/provincia..."
               value={cityFilter}
               onChange={(e) => setCityFilter(e.target.value)}
               className="max-w-xs"
@@ -467,7 +475,7 @@ export default function OrdersDashboardPage() {
                     )}
                     <TableHead className="w-[20%]">Cliente</TableHead>
                     <TableHead className="w-[10%]">Fecha</TableHead>
-                    <TableHead className="w-[20%]">Ciudad/Ubicación</TableHead>
+                    <TableHead className="w-[15%]">Ubicación (Prov/Ciudad)</TableHead>
                     <TableHead className="w-[15%]">Comercial Asignado</TableHead>
                     <TableHead className="text-right w-[10%]">Nº Bot.</TableHead>
                     <TableHead className="text-right w-[10%]">Valor</TableHead>
@@ -476,7 +484,9 @@ export default function OrdersDashboardPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredOrders.length > 0 ? filteredOrders.map((order: Order) => (
+                  {filteredOrders.length > 0 ? filteredOrders.map((order: Order) => {
+                    const locationDisplay = order.direccionEntrega?.province || order.direccionEntrega?.city || order.direccionFiscal?.province || order.direccionFiscal?.city || 'N/D';
+                    return (
                     <TableRow 
                       key={order.id}
                       data-state={selectedOrderIds.includes(order.id) ? "selected" : ""}
@@ -492,9 +502,9 @@ export default function OrdersDashboardPage() {
                         )}
                       <TableCell className="font-medium">{order.clientName}</TableCell>
                       <TableCell>{order.visitDate ? format(parseISO(order.visitDate), "dd/MM/yy", { locale: es }) : "N/D"}</TableCell>
-                      <TableCell className="text-xs truncate max-w-[150px]" title={order.direccionEntrega || order.direccionFiscal || 'N/D'}>
+                      <TableCell className="text-xs truncate max-w-[150px]" title={locationDisplay}>
                          <MapPin className="inline-block h-3 w-3 mr-1 text-muted-foreground" />
-                         {order.direccionEntrega || order.direccionFiscal || 'N/D'}
+                         {locationDisplay}
                       </TableCell>
                       <TableCell>
                         <UserIcon className="inline-block h-3 w-3 mr-1 text-muted-foreground" />
@@ -585,7 +595,7 @@ export default function OrdersDashboardPage() {
                         </DropdownMenu>
                       </TableCell>
                     </TableRow>
-                  )) : (
+                  );}) : (
                     <TableRow>
                       <TableCell colSpan={canDownloadCsv ? 9 : 8} className="h-24 text-center">
                         No se encontraron pedidos que coincidan con los filtros seleccionados.
@@ -615,3 +625,5 @@ export default function OrdersDashboardPage() {
     </div>
   );
 }
+
+```

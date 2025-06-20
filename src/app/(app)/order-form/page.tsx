@@ -25,7 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Check, Loader2, Info, Edit3, Send, FileText, Award, Package, PlusCircle, Trash2, Users, Zap } from "lucide-react";
+import { Calendar as CalendarIcon, Check, Loader2, Info, Edit3, Send, FileText, Award, Package, PlusCircle, Trash2, Users, Zap, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { clientTypeList, nextActionTypeList, failureReasonList, accountTypeList, canalOrigenColocacionList } from "@/lib/data";
@@ -37,12 +37,14 @@ import { getAccountByIdFS, addAccountFS, getAccountsFS } from "@/services/accoun
 import { getOrderByIdFS, addOrderFS, updateOrderFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 
 const SINGLE_PRODUCT_NAME = "Santa Brisa 750ml";
 const IVA_RATE = 21; // 21%
 const NO_CLAVADISTA_VALUE = "##NONE##";
 const ADMIN_SELF_REGISTER_VALUE = "##ADMIN_SELF##";
+const NEW_CLIENT_ACCOUNT_ID_PLACEHOLDER = "##NEW_CLIENT##";
 
 
 const assignedMaterialSchema = z.object({
@@ -148,6 +150,7 @@ export default function OrderFormPage() {
   const [clavadistas, setClavadistas] = React.useState<TeamMember[]>([]);
   const [salesRepsList, setSalesRepsList] = React.useState<TeamMember[]>([]);
   const [availableMaterials, setAvailableMaterials] = React.useState<PromotionalMaterial[]>([]);
+  const [allAccounts, setAllAccounts] = React.useState<Account[]>([]);
   const [isLoadingDropdownData, setIsLoadingDropdownData] = React.useState(true);
 
 
@@ -157,16 +160,18 @@ export default function OrderFormPage() {
       try {
         const fetchPromises: Promise<any>[] = [
           getTeamMembersFS(['Clavadista']),
-          getPromotionalMaterialsFS()
+          getPromotionalMaterialsFS(),
+          getAccountsFS() 
         ];
         if (userRole === 'Admin') {
           fetchPromises.push(getTeamMembersFS(['SalesRep']));
         }
 
-        const [fetchedClavadistas, fetchedMaterials, fetchedSalesReps] = await Promise.all(fetchPromises);
+        const [fetchedClavadistas, fetchedMaterials, fetchedAccounts, fetchedSalesReps] = await Promise.all(fetchPromises);
 
         setClavadistas(fetchedClavadistas);
         setAvailableMaterials(fetchedMaterials.filter((m: PromotionalMaterial) => m.latestPurchase && m.latestPurchase.calculatedUnitCost > 0));
+        setAllAccounts(fetchedAccounts);
         if (userRole === 'Admin' && fetchedSalesReps) {
           setSalesRepsList(fetchedSalesReps);
         }
@@ -237,7 +242,10 @@ export default function OrderFormPage() {
         if (visitIdToUpdate) {
           try {
             const existingVisit = await getOrderByIdFS(visitIdToUpdate);
-            if (existingVisit && teamMember && (existingVisit.salesRep === teamMember.name || userRole === 'Admin' || (userRole === 'Clavadista' && existingVisit.clavadistaId === teamMember.id)) &&
+            if (existingVisit && teamMember && 
+                (userRole === 'Admin' || 
+                 (userRole === 'SalesRep' && existingVisit.salesRep === teamMember.name) || 
+                 (userRole === 'Clavadista' && existingVisit.clavadistaId === teamMember.id)) &&
                 (existingVisit.status === 'Programada' || existingVisit.status === 'Seguimiento' || existingVisit.status === 'Fallido')) {
               setEditingVisitId(visitIdToUpdate);
               setOriginalOrderSalesRep(existingVisit.salesRep); 
@@ -332,6 +340,7 @@ export default function OrderFormPage() {
   const nextActionTypeWatched = form.watch("nextActionType");
   const failureReasonTypeWatched = form.watch("failureReasonType");
   const clientNameWatched = form.watch("clientName");
+  const selectedAccountId = form.watch("accountId");
 
   React.useEffect(() => {
     if (outcomeWatched === "successful" && typeof numberOfUnitsWatched === 'number' && typeof unitPriceWatched === 'number' && numberOfUnitsWatched > 0 && unitPriceWatched > 0) {
@@ -349,6 +358,38 @@ export default function OrderFormPage() {
        setIvaAmount(undefined);
     }
   }, [numberOfUnitsWatched, unitPriceWatched, outcomeWatched, form, setSubtotal, setIvaAmount]);
+
+
+  const handleExistingClientSelected = (accountId: string) => {
+    if (accountId === NEW_CLIENT_ACCOUNT_ID_PLACEHOLDER) { // "Cliente Nuevo Manual" seleccionado
+        form.setValue("accountId", undefined);
+        form.setValue("clientName", "");
+        form.setValue("cif", "");
+        form.setValue("nombreFiscal", "");
+        form.setValue("direccionFiscal", "");
+        form.setValue("direccionEntrega", "");
+        form.setValue("contactoNombre", "");
+        form.setValue("contactoCorreo", "");
+        form.setValue("contactoTelefono", "");
+        form.setValue("clientStatus", "new"); // Forzar a nuevo si se vuelve a manual
+        return;
+    }
+
+    const selectedAccount = allAccounts.find(acc => acc.id === accountId);
+    if (selectedAccount) {
+        form.setValue("clientName", selectedAccount.name, { shouldValidate: true });
+        form.setValue("accountId", selectedAccount.id, { shouldValidate: true });
+        form.setValue("cif", selectedAccount.cif, { shouldValidate: true });
+        form.setValue("nombreFiscal", selectedAccount.legalName || selectedAccount.name, { shouldValidate: true });
+        form.setValue("direccionFiscal", selectedAccount.addressBilling || "", { shouldValidate: true });
+        form.setValue("direccionEntrega", selectedAccount.addressShipping || selectedAccount.addressBilling || "", { shouldValidate: true }); // Fallback a billing
+        form.setValue("contactoNombre", selectedAccount.mainContactName || "", { shouldValidate: true });
+        form.setValue("contactoCorreo", selectedAccount.mainContactEmail || "", { shouldValidate: true });
+        form.setValue("contactoTelefono", selectedAccount.mainContactPhone || "", { shouldValidate: true });
+        form.setValue("clientType", selectedAccount.type); // Pre-fill type
+    }
+  };
+
 
   async function onSubmit(values: OrderFormValues) {
     setIsSubmitting(true);
@@ -368,15 +409,11 @@ export default function OrderFormPage() {
             salesRepNameForOrder = selectedRep.name;
             salesRepIdForAccount = selectedRep.id;
         }
-    } else if (userRole === 'Clavadista') {
-        salesRepNameForOrder = teamMember.name; // El Clavadista es el "salesRep" para esta interacción
-        // salesRepIdForAccount podría ser el del clavadista o un admin/supervisor si se quiere un "dueño" de cuenta distinto
-        salesRepIdForAccount = teamMember.id; // Por ahora, el clavadista es el "dueño" si crea la cuenta
-    }
-    
-    if (editingVisitId && originalOrderSalesRep) {
-      salesRepNameForOrder = originalOrderSalesRep; // Mantener el SalesRep original si se está editando una visita
-      // No cambiar salesRepIdForAccount en este caso, ya que la cuenta ya tiene un dueño.
+    } else if (userRole === 'Clavadista' && !editingVisitId) { // Clavadista creando nueva interacción
+        salesRepNameForOrder = teamMember.name; 
+        salesRepIdForAccount = teamMember.id; 
+    } else if (editingVisitId && originalOrderSalesRep) { // Editando visita, mantener SalesRep original
+      salesRepNameForOrder = originalOrderSalesRep; 
       const originalSalesRepMember = salesRepsList.find(sr => sr.name === originalOrderSalesRep) || (teamMember.name === originalOrderSalesRep ? teamMember : null);
       if (originalSalesRepMember) {
           salesRepIdForAccount = originalSalesRepMember.id;
@@ -392,10 +429,10 @@ export default function OrderFormPage() {
     try {
       if (values.clientStatus === "new" && !currentAccountId) { 
           let accountExists = false;
-          const allCurrentAccounts = await getAccountsFS();
+          const currentAccountsList = await getAccountsFS(); // Re-fetch to ensure freshness
 
           if (values.cif) {
-              const existingAccountByCif = allCurrentAccounts.find(acc => acc.cif && acc.cif.toLowerCase() === values.cif!.toLowerCase());
+              const existingAccountByCif = currentAccountsList.find(acc => acc.cif && acc.cif.toLowerCase() === values.cif!.toLowerCase());
               if (existingAccountByCif) {
                   currentAccountId = existingAccountByCif.id;
                   accountCreationMessage = ` (Cliente con CIF ${values.cif} ya existía. Visita/Pedido asociado a cuenta existente: ${existingAccountByCif.name}).`;
@@ -423,14 +460,16 @@ export default function OrderFormPage() {
                   mainContactEmail: values.contactoCorreo,
                   mainContactPhone: values.contactoTelefono,
                   notes: values.observacionesAlta,
-                  salesRepId: salesRepIdForAccount, // Usar el salesRepId determinado arriba
+                  salesRepId: salesRepIdForAccount, 
               };
               currentAccountId = await addAccountFS(newAccountData);
               accountCreationMessage = ` Nueva cuenta "${newAccountData.name}" creada con estado: ${newAccountStatus}.`;
+              setAllAccounts(prev => [...prev, {id: currentAccountId!, ...newAccountData, createdAt: format(new Date(), "yyyy-MM-dd"), updatedAt: format(new Date(), "yyyy-MM-dd")}]); // Optimistically update local list
           }
       } else if (values.clientStatus === "existing" && !currentAccountId) {
-          const allCurrentAccounts = await getAccountsFS();
-          const existingAccountByName = allCurrentAccounts.find(acc => acc.name.toLowerCase() === values.clientName.toLowerCase());
+          // This case should ideally be handled by selecting an existing account from the dropdown
+          const currentAccountsList = await getAccountsFS();
+          const existingAccountByName = currentAccountsList.find(acc => acc.name.toLowerCase() === values.clientName.toLowerCase());
           if (existingAccountByName) {
               currentAccountId = existingAccountByName.id;
           }
@@ -532,8 +571,10 @@ export default function OrderFormPage() {
     }
   }
 
-  const showAccountCreationFields = clientStatusWatched === "new";
+  const showAccountCreationFields = clientStatusWatched === "new" && !selectedAccountId; // Solo mostrar si es "new" Y no se ha seleccionado una cuenta existente del dropdown
   const showClientStatusRadio = outcomeWatched !== "Programar Visita" && (!editingVisitId || (editingVisitId && outcomeWatched && outcomeWatched !== "Programar Visita"));
+  const showExistingClientSelector = clientStatusWatched === 'existing' && !editingVisitId; // Solo para nuevos registros de clientes existentes
+
 
   const outcomeOptionsBase = [
     { value: "Programar Visita", label: "Programar Nueva Visita" },
@@ -570,7 +611,7 @@ export default function OrderFormPage() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              {userRole === 'Admin' && (
+              {userRole === 'Admin' && !editingVisitId && ( // El admin solo elige rep en nuevos registros
                 <FormField
                   control={form.control}
                   name="selectedSalesRepId"
@@ -597,7 +638,87 @@ export default function OrderFormPage() {
                 />
               )}
 
-              <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="p. ej., Café Central" {...field} disabled={!!editingVisitId && clientStatusWatched === 'existing'} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField
+                control={form.control}
+                name="outcome"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{editingVisitId ? "Resultado de la Interacción" : "Acción / Resultado de la Visita"}</FormLabel>
+                    <FormControl>
+                      <RadioGroup onValueChange={field.onChange} value={field.value} className="flex flex-col space-y-1">
+                        {currentOutcomeOptions.map(opt => (
+                            <FormItem key={opt.value} className="flex items-center space-x-3 space-y-0">
+                                <FormControl><RadioGroupItem value={opt.value} /></FormControl>
+                                <FormLabel className="font-normal">{opt.label}</FormLabel>
+                            </FormItem>
+                        ))}
+                      </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {showClientStatusRadio && (
+                 <FormField
+                    control={form.control}
+                    name="clientStatus"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>¿Es un cliente nuevo o existente?</FormLabel>
+                        <FormControl>
+                        <RadioGroup 
+                           onValueChange={(value) => {
+                                field.onChange(value);
+                                if (value === "new") {
+                                    form.setValue("accountId", undefined); // Limpiar accountId si se cambia a nuevo
+                                    form.setValue("clientName", ""); // Y el nombre para que pueda escribir
+                                }
+                            }}
+                            value={field.value} 
+                            className="flex flex-col space-y-1 sm:flex-row sm:space-x-4 sm:space-y-0"
+                        >
+                            <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="new" /></FormControl><FormLabel className="font-normal">Cliente Nuevo</FormLabel></FormItem>
+                            <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="existing" /></FormControl><FormLabel className="font-normal">Cliente Existente</FormLabel></FormItem>
+                        </RadioGroup>
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+              )}
+
+              {showExistingClientSelector ? (
+                <FormField
+                  control={form.control}
+                  name="accountId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Seleccionar Cliente Existente</FormLabel>
+                      <Select onValueChange={(value) => { field.onChange(value); handleExistingClientSelected(value);}} value={field.value || ""}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder={isLoadingDropdownData ? "Cargando cuentas..." : "Buscar o seleccionar cliente..."} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value={NEW_CLIENT_ACCOUNT_ID_PLACEHOLDER}>--- Registrar como Cliente Nuevo Manualmente ---</SelectItem>
+                          <ScrollArea className="h-48">
+                            {allAccounts.map((account) => (
+                              <SelectItem key={account.id} value={account.id}>{account.name} ({account.cif})</SelectItem>
+                            ))}
+                          </ScrollArea>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ): (
+                 <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="p. ej., Café Central" {...field} disabled={!!editingVisitId || (clientStatusWatched === 'existing' && !!selectedAccountId && selectedAccountId !== NEW_CLIENT_ACCOUNT_ID_PLACEHOLDER)} /></FormControl><FormMessage /></FormItem>)} />
+              )}
+
+
               <FormField
                 control={form.control}
                 name="visitDate"
@@ -647,46 +768,6 @@ export default function OrderFormPage() {
 
               <FormField
                 control={form.control}
-                name="outcome"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{editingVisitId ? "Resultado de la Interacción" : "Acción / Resultado de la Visita"}</FormLabel>
-                    <FormControl>
-                      <RadioGroup onValueChange={field.onChange} value={field.value} className="flex flex-col space-y-1">
-                        {currentOutcomeOptions.map(opt => (
-                            <FormItem key={opt.value} className="flex items-center space-x-3 space-y-0">
-                                <FormControl><RadioGroupItem value={opt.value} /></FormControl>
-                                <FormLabel className="font-normal">{opt.label}</FormLabel>
-                            </FormItem>
-                        ))}
-                      </RadioGroup>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {showClientStatusRadio && (
-                 <FormField
-                    control={form.control}
-                    name="clientStatus"
-                    render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>¿Es un cliente nuevo o existente?</FormLabel>
-                        <FormControl>
-                        <RadioGroup onValueChange={field.onChange} value={field.value} className="flex flex-col space-y-1 sm:flex-row sm:space-x-4 sm:space-y-0">
-                            <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="new" /></FormControl><FormLabel className="font-normal">Cliente Nuevo</FormLabel></FormItem>
-                            <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="existing" /></FormControl><FormLabel className="font-normal">Cliente Existente</FormLabel></FormItem>
-                        </RadioGroup>
-                        </FormControl>
-                        <FormMessage />
-                    </FormItem>
-                    )}
-                />
-              )}
-
-              <FormField
-                control={form.control}
                 name="clavadistaId"
                 render={({ field }) => (
                   <FormItem>
@@ -731,7 +812,7 @@ export default function OrderFormPage() {
                 </>
               )}
 
-              {showAccountCreationFields && !editingVisitId && (
+              {showAccountCreationFields && (
                 <>
                   <Separator className="my-6" />
                   <div className="space-y-1">
@@ -753,7 +834,7 @@ export default function OrderFormPage() {
                   <FormField control={form.control} name="observacionesAlta" render={({ field }) => (<FormItem><FormLabel>Observaciones (Alta Cliente)</FormLabel><FormControl><Textarea placeholder="Cualquier detalle adicional para el alta del cliente..." {...field} /></FormControl><FormDescription>Este campo es opcional.</FormDescription><FormMessage /></FormItem>)}/>
                 </>
               )}
-               {clientStatusWatched === "existing" && outcomeWatched === "successful" && (
+               {clientStatusWatched === "existing" && selectedAccountId && selectedAccountId !== NEW_CLIENT_ACCOUNT_ID_PLACEHOLDER && (
                  <div className="my-4 p-3 bg-secondary/30 rounded-md">
                    <p className="text-sm text-muted-foreground">
                      Se registrará el pedido para el cliente existente <strong className="text-foreground">{clientNameWatched}</strong>. Los datos de facturación se tomarán de la cuenta existente.
@@ -921,4 +1002,3 @@ export default function OrderFormPage() {
   );
 }
 
-    

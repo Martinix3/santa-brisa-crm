@@ -33,7 +33,7 @@ export interface TeamMember {
   updatedAt?: string; 
 }
 
-export type OrderStatus = 'Pendiente' | 'Confirmado' | 'Procesando' | 'Enviado' | 'Entregado' | 'Cancelado' | 'Fallido' | 'Seguimiento' | 'Programada';
+export type OrderStatus = 'Pendiente' | 'Confirmado' | 'Procesando' | 'Enviado' | 'Entregado' | 'Cancelado' | 'Fallido' | 'Seguimiento' | 'Programada' | 'Facturado';
 export type ClientType = 'Distribuidor' | 'HORECA' | 'Retail' | 'Cliente Final';
 
 export type NextActionType = 'Llamar al responsable de compras' | 'Mandar información' | 'Visitar de nuevo' | 'Enviar muestra' | 'Esperar decisión' | 'Opción personalizada';
@@ -88,6 +88,8 @@ export interface Order {
   assignedMaterials?: AssignedPromotionalMaterial[]; 
   canalOrigenColocacion?: CanalOrigenColocacion;
   paymentMethod?: PaymentMethod; 
+  invoiceUrl?: string;
+  invoiceFileName?: string;
 
   clientType?: ClientType;
   numberOfUnits?: number; 
@@ -200,7 +202,7 @@ export interface VentaDirectaSB {
   clienteId: string; 
   nombreClienteFactura: string; 
   cifClienteFactura?: string;
-  direccionClienteFactura?: string; // Se mantiene como string, se llenará concatenando AddressDetails de la cuenta
+  direccionClienteFactura?: string; 
   canalVentaDirectaSB: CanalVentaDirectaSB;
   items: VentaDirectaSBItem[];
   subtotalGeneralNetoSB: number;
@@ -232,4 +234,3 @@ export interface VentaDirectaSBFormValues {
   notasInternasSB?: string;
 }
 
-```

@@ -37,7 +37,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { Order, OrderStatus, UserRole, TeamMember, NextActionType, FailureReasonType, ClientType, PromotionalMaterial, Account, CanalOrigenColocacion, AddressDetails, PaymentMethod } from "@/types"; 
 import { orderStatusesList, nextActionTypeList, failureReasonList, clientTypeList, canalOrigenColocacionList, provincesSpainList, paymentMethodList } from "@/lib/data"; 
-import { Loader2, CalendarIcon, Printer, Award, Package, PlusCircle, Trash2, Zap, CreditCard } from "lucide-react"; 
+import { Loader2, CalendarIcon, Printer, Award, Package, PlusCircle, Trash2, Zap, CreditCard, UploadCloud, Link2 } from "lucide-react"; 
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
@@ -47,6 +47,7 @@ import { getTeamMembersFS } from "@/services/team-member-service";
 import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
 import { getAccountByIdFS } from "@/services/account-service"; 
 import { useToast } from "@/hooks/use-toast";
+import Link from "next/link";
 
 
 const NO_CLAVADISTA_VALUE = "##NONE##";
@@ -66,6 +67,8 @@ const editOrderFormSchema = z.object({
   clavadistaId: z.string().optional(),
   canalOrigenColocacion: z.enum(canalOrigenColocacionList as [CanalOrigenColocacion, ...CanalOrigenColocacion[]]).optional(),
   paymentMethod: z.enum(paymentMethodList as [PaymentMethod, ...PaymentMethod[]]).optional(),
+  invoiceUrl: z.string().url("Debe ser una URL válida a la factura.").optional().or(z.literal("")),
+  invoiceFileName: z.string().optional(),
   assignedMaterials: z.array(assignedMaterialSchemaForDialog).optional().default([]),
 
   clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
@@ -100,7 +103,7 @@ const editOrderFormSchema = z.object({
   failureReasonType: z.enum(failureReasonList as [FailureReasonType, ...FailureReasonType[]]).optional(),
   failureReasonCustom: z.string().optional(),
 }).superRefine((data, ctx) => {
-    if (['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Pendiente'].includes(data.status)) {
+    if (['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Pendiente', 'Facturado'].includes(data.status)) {
         if (!data.products || data.products.trim() === "") {
              ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Los productos son obligatorios para este estado.", path: ["products"] });
         }
@@ -113,7 +116,7 @@ const editOrderFormSchema = z.object({
         if (!data.paymentMethod) {
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La forma de pago es obligatoria.", path: ["paymentMethod"] });
         }
-        if (['Confirmado', 'Procesando', 'Enviado', 'Entregado'].includes(data.status)) {
+        if (['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado'].includes(data.status)) {
             if (!data.nombreFiscal || data.nombreFiscal.trim() === "") ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Nombre fiscal es obligatorio.", path: ["nombreFiscal"] });
             if (!data.cif || data.cif.trim() === "") ctx.addIssue({ code: z.ZodIssueCode.custom, message: "CIF es obligatorio.", path: ["cif"] });
              if (!data.direccionFiscal_street || data.direccionFiscal_street.trim() === "" ||
@@ -124,11 +127,13 @@ const editOrderFormSchema = z.object({
              }
         }
     }
+    if (data.status === "Facturado" && data.invoiceUrl && !z.string().url().safeParse(data.invoiceUrl).success) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La URL de la factura no es válida.", path: ["invoiceUrl"]});
+    }
 });
 
 
 export type EditOrderFormValues = z.infer<typeof editOrderFormSchema> & {
-    // Campos de dirección desglosada (opcionales, porque el Zod schema los tiene como opcionales)
     direccionFiscal_street?: string; direccionFiscal_number?: string; direccionFiscal_city?: string; direccionFiscal_province?: string; direccionFiscal_postalCode?: string; direccionFiscal_country?: string;
     direccionEntrega_street?: string; direccionEntrega_number?: string; direccionEntrega_city?: string; direccionEntrega_province?: string; direccionEntrega_postalCode?: string; direccionEntrega_country?: string;
 };
@@ -181,6 +186,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     defaultValues: {
       clientName: "", products: "", value: undefined, status: "Pendiente", salesRep: "",
       clavadistaId: NO_CLAVADISTA_VALUE, canalOrigenColocacion: undefined, paymentMethod: undefined,
+      invoiceUrl: "", invoiceFileName: "",
       assignedMaterials: [], clientType: undefined,
       numberOfUnits: undefined, unitPrice: undefined, nombreFiscal: "", cif: "",
       direccionFiscal_street: "", direccionFiscal_number: "", direccionFiscal_city: "", direccionFiscal_province: "", direccionFiscal_postalCode: "", direccionFiscal_country: "España",
@@ -197,6 +203,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   });
 
   const watchedMaterials = form.watch("assignedMaterials");
+  const watchedInvoiceUrl = form.watch("invoiceUrl");
 
   const totalEstimatedMaterialCostForDialog = React.useMemo(() => {
     return watchedMaterials.reduce((total, current) => {
@@ -216,7 +223,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
       if (!order) {
         form.reset({ 
             clientName: "", products: "", value: undefined, status: "Pendiente", salesRep: (salesReps.length > 0 ? salesReps[0].name : ""),
-            clavadistaId: NO_CLAVADISTA_VALUE, canalOrigenColocacion: undefined, paymentMethod: undefined, assignedMaterials: [],
+            clavadistaId: NO_CLAVADISTA_VALUE, canalOrigenColocacion: undefined, paymentMethod: undefined, invoiceUrl: "", invoiceFileName: "", assignedMaterials: [],
             clientType: undefined, numberOfUnits: undefined, unitPrice: undefined,
             nombreFiscal: "", cif: "", 
             direccionFiscal_street: "", direccionFiscal_number: "", direccionFiscal_city: "", direccionFiscal_province: "", direccionFiscal_postalCode: "", direccionFiscal_country: "España",
@@ -250,6 +257,8 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         clavadistaId: order.clavadistaId || NO_CLAVADISTA_VALUE,
         canalOrigenColocacion: order.canalOrigenColocacion || undefined,
         paymentMethod: order.paymentMethod || undefined,
+        invoiceUrl: order.invoiceUrl || "",
+        invoiceFileName: order.invoiceFileName || "",
         assignedMaterials: order.assignedMaterials || [],
         clientType: order.clientType,
         numberOfUnits: order.numberOfUnits,
@@ -293,8 +302,6 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     if (!order) return;
     setIsSaving(true);
     
-    // No es necesario reconstruir el objeto aquí si onSave espera EditOrderFormValues
-    // El servicio de orden ya se encarga de construir el objeto AddressDetails a partir de los campos desglosados.
     await new Promise(resolve => setTimeout(resolve, 700));
     onSave(data, order.id);
     setIsSaving(false);
@@ -324,8 +331,8 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const isReadOnlyForMostFields = isSalesRep || (!isAdmin && !isDistributor);
 
   const formFieldsGenericDisabled = isReadOnlyForMostFields || isLoadingDropdownData || isLoadingAccountDetails;
-  const productRelatedFieldsDisabled = !canEditOrderDetailsOverall || currentStatus === 'Seguimiento' || currentStatus === 'Fallido' || currentStatus === 'Programada' || isLoadingDropdownData || isLoadingAccountDetails;
-  const billingFieldsDisabled = !isAdmin || currentStatus === 'Seguimiento' || currentStatus === 'Fallido' || currentStatus === 'Programada' || isLoadingDropdownData || isLoadingAccountDetails;
+  const productRelatedFieldsDisabled = !canEditOrderDetailsOverall || ['Seguimiento', 'Fallido', 'Programada'].includes(currentStatus) || isLoadingDropdownData || isLoadingAccountDetails;
+  const billingFieldsDisabled = !isAdmin || ['Seguimiento', 'Fallido', 'Programada'].includes(currentStatus) || isLoadingDropdownData || isLoadingAccountDetails;
   const statusFieldDisabled = !(canEditOrderDetailsOverall || canEditStatusAndNotesOnly) || isLoadingDropdownData || isLoadingAccountDetails;
   const notesFieldDisabled = !(canEditOrderDetailsOverall || canEditStatusAndNotesOnly) || isLoadingDropdownData || isLoadingAccountDetails;
   const salesRepFieldDisabled = !isAdmin || isLoadingDropdownData || isLoadingAccountDetails;
@@ -333,6 +340,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const canalOrigenFieldDisabled = !canEditOrderDetailsOverall || isLoadingDropdownData || isLoadingAccountDetails;
   const paymentMethodFieldDisabled = !canEditOrderDetailsOverall || productRelatedFieldsDisabled;
   const materialsSectionDisabled = !canEditOrderDetailsOverall || currentStatus === 'Programada' || isLoadingDropdownData || isLoadingAccountDetails;
+  const invoiceSectionDisabled = !canEditOrderDetailsOverall || isLoadingDropdownData || isLoadingAccountDetails;
 
 
   return (
@@ -414,7 +422,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
             <Separator className="my-6" />
             <h3 className="text-md font-semibold text-muted-foreground pt-2">Información del Pedido y Productos</h3>
 
-            {(currentStatus === 'Confirmado' || currentStatus === 'Procesando' || currentStatus === 'Enviado' || currentStatus === 'Entregado' || currentStatus === 'Pendiente') ? (
+            {(!['Seguimiento', 'Fallido', 'Programada'].includes(currentStatus)) ? (
               <>
                 <FormField control={form.control} name="clientType" render={({ field }) => (<FormItem><FormLabel>Tipo de Cliente</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={productRelatedFieldsDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione tipo cliente" /></SelectTrigger></FormControl><SelectContent>{clientTypeList.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
                 <FormField control={form.control} name="products" render={({ field }) => (<FormItem><FormLabel>Productos Pedidos</FormLabel><FormControl><Textarea placeholder="Listar productos y cantidades..." className="min-h-[80px]" {...field} disabled={productRelatedFieldsDisabled} /></FormControl><FormDescription>Separe múltiples productos con comas, punto y coma o saltos de línea.</FormDescription><FormMessage /></FormItem>)}/>
@@ -427,10 +435,30 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
             ) : (
                  <p className="text-sm text-muted-foreground">Los detalles de productos y valor no aplican para el estado actual del pedido ({currentStatus}).</p>
             )}
+            
+            {currentStatus === 'Facturado' && (
+              <>
+                <Separator className="my-6" />
+                <h3 className="text-md font-semibold text-muted-foreground">Información de Factura</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                  <FormField control={form.control} name="invoiceUrl" render={({ field }) => (<FormItem><FormLabel>URL de la Factura</FormLabel><FormControl><Input placeholder="https://ejemplo.com/factura.pdf" {...field} disabled={invoiceSectionDisabled} /></FormControl><FormMessage /></FormItem>)} />
+                   <FormField control={form.control} name="invoiceFileName" render={({ field }) => (<FormItem><FormLabel>Nombre Archivo Factura (si subida)</FormLabel><FormControl><Input {...field} disabled={true} /></FormControl><FormDescription>Este campo se llenaría al subir un archivo.</FormDescription><FormMessage /></FormItem>)} />
+                </div>
+                 {watchedInvoiceUrl && isValidUrl(watchedInvoiceUrl) && (
+                    <Button variant="link" asChild className="p-0 h-auto mt-1">
+                        <Link href={watchedInvoiceUrl} target="_blank" rel="noopener noreferrer" className="text-sm">
+                            <Link2 className="mr-1 h-3 w-3" /> Ver Factura Cargada
+                        </Link>
+                    </Button>
+                )}
+                <Button type="button" variant="outline" className="mt-2" onClick={() => toast({ title: "Próximamente", description: "La subida de archivos de factura se implementará en una futura versión."})} disabled={invoiceSectionDisabled}><UploadCloud className="mr-2 h-4 w-4" /> Subir Factura (Próximamente)</Button>
+              </>
+            )}
+
 
             <Separator className="my-6" />
             <h3 className="text-md font-semibold text-muted-foreground">Información de Cliente y Facturación</h3>
-             {(currentStatus === 'Confirmado' || currentStatus === 'Procesando' || currentStatus === 'Enviado' || currentStatus === 'Entregado' || currentStatus === 'Pendiente' || isAdmin) ? (
+             {(!['Seguimiento', 'Fallido', 'Programada'].includes(currentStatus) || isAdmin) ? (
              <>
                 <FormField control={form.control} name="nombreFiscal" render={({ field }) => (<FormItem><FormLabel>Nombre Fiscal</FormLabel><FormControl><Input placeholder="Nombre legal para facturación" {...field} disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
                 <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF/NIF</FormLabel><FormControl><Input placeholder="Identificador fiscal" {...field} disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
@@ -598,3 +626,14 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     </Dialog>
   );
 }
+
+function isValidUrl(urlString: string | undefined): boolean {
+  if (!urlString) return false;
+  try {
+    new URL(urlString);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+

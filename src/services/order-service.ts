@@ -37,6 +37,8 @@ const fromFirestoreOrder = (docSnap: any): Order => {
     assignedMaterials: data.assignedMaterials || [],
     canalOrigenColocacion: data.canalOrigenColocacion || undefined,
     paymentMethod: data.paymentMethod || undefined,
+    invoiceUrl: data.invoiceUrl || undefined,
+    invoiceFileName: data.invoiceFileName || undefined,
 
     clientType: data.clientType,
     numberOfUnits: data.numberOfUnits, 
@@ -45,8 +47,8 @@ const fromFirestoreOrder = (docSnap: any): Order => {
 
     nombreFiscal: data.nombreFiscal || '',
     cif: data.cif || '',
-    direccionFiscal: data.direccionFiscal, // Se asume que Firestore devuelve AddressDetails o undefined
-    direccionEntrega: data.direccionEntrega, // Se asume que Firestore devuelve AddressDetails o undefined
+    direccionFiscal: data.direccionFiscal, 
+    direccionEntrega: data.direccionEntrega, 
     contactoNombre: data.contactoNombre || '',
     contactoCorreo: data.contactoCorreo || '',
     contactoTelefono: data.contactoTelefono || '',
@@ -69,18 +71,16 @@ const toFirestoreOrder = (data: Partial<Order> & {
     visitDate: Date | string, 
     nextActionDate?: Date | string, 
     accountId?: string,
-    // Campos desglosados para dirección (si vienen del form de nueva cuenta)
     direccionFiscal_street?: string, direccionFiscal_number?: string, direccionFiscal_city?: string, direccionFiscal_province?: string, direccionFiscal_postalCode?: string, direccionFiscal_country?: string,
     direccionEntrega_street?: string, direccionEntrega_number?: string, direccionEntrega_city?: string, direccionEntrega_province?: string, direccionEntrega_postalCode?: string, direccionEntrega_country?: string,
 }, isNew: boolean): any => {
   
   const firestoreData: { [key: string]: any } = {};
 
-  // Mapear campos directos de Order a firestoreData
   const directOrderKeys: (keyof Order)[] = [
     'clientName', 'products', 'value', 'status', 'salesRep', 'clavadistaId', 
-    'assignedMaterials', 'canalOrigenColocacion', 'paymentMethod', 'clientType', 
-    'numberOfUnits', 'unitPrice', 'clientStatus', 'nombreFiscal', 'cif', 
+    'assignedMaterials', 'canalOrigenColocacion', 'paymentMethod', 'invoiceUrl', 'invoiceFileName', 
+    'clientType', 'numberOfUnits', 'unitPrice', 'clientStatus', 'nombreFiscal', 'cif', 
     'contactoNombre', 'contactoCorreo', 'contactoTelefono', 'observacionesAlta', 
     'notes', 'nextActionType', 'nextActionCustom', 'failureReasonType', 
     'failureReasonCustom', 'accountId'
@@ -90,14 +90,12 @@ const toFirestoreOrder = (data: Partial<Order> & {
     if (data[key] !== undefined) {
       firestoreData[key] = data[key];
     } else {
-      // Asegurar que opcionales sin valor se pongan a null o se omitan si es apropiado
-      if (['clavadistaId', 'canalOrigenColocacion', 'paymentMethod', 'clientType', 'value', 'numberOfUnits', 'unitPrice', 'clientStatus', 'nombreFiscal', 'cif', 'contactoNombre', 'contactoCorreo', 'contactoTelefono', 'observacionesAlta', 'notes', 'nextActionType', 'nextActionCustom', 'failureReasonType', 'failureReasonCustom', 'accountId'].includes(key)) {
+      if (['clavadistaId', 'canalOrigenColocacion', 'paymentMethod', 'invoiceUrl', 'invoiceFileName', 'clientType', 'value', 'numberOfUnits', 'unitPrice', 'clientStatus', 'nombreFiscal', 'cif', 'contactoNombre', 'contactoCorreo', 'contactoTelefono', 'observacionesAlta', 'notes', 'nextActionType', 'nextActionCustom', 'failureReasonType', 'failureReasonCustom', 'accountId'].includes(key)) {
         firestoreData[key] = null;
       }
     }
   });
   
-  // Manejar fechas
   if (data.visitDate) {
     const dateValue = typeof data.visitDate === 'string' ? parseISO(data.visitDate) : data.visitDate;
     if (dateValue instanceof Date && isValid(dateValue)) {
@@ -113,7 +111,6 @@ const toFirestoreOrder = (data: Partial<Order> & {
     }
   }
 
-  // Construir objetos AddressDetails si se proporcionan campos desglosados
   if (data.direccionFiscal_street && data.direccionFiscal_city && data.direccionFiscal_province && data.direccionFiscal_postalCode) {
     firestoreData.direccionFiscal = {
       street: data.direccionFiscal_street,
@@ -123,7 +120,7 @@ const toFirestoreOrder = (data: Partial<Order> & {
       postalCode: data.direccionFiscal_postalCode,
       country: data.direccionFiscal_country || "España",
     };
-  } else if (data.direccionFiscal && typeof data.direccionFiscal === 'object') { // Si ya es un objeto AddressDetails (ej. desde edición)
+  } else if (data.direccionFiscal && typeof data.direccionFiscal === 'object') { 
     firestoreData.direccionFiscal = data.direccionFiscal;
   } else {
     firestoreData.direccionFiscal = null;
@@ -150,7 +147,6 @@ const toFirestoreOrder = (data: Partial<Order> & {
   }
   firestoreData.lastUpdated = Timestamp.fromDate(new Date());
 
-  // Limpiar campos que deben ser null si están vacíos o no definidos
   Object.keys(firestoreData).forEach(key => {
     if (firestoreData[key] === undefined) {
       firestoreData[key] = null;
@@ -230,9 +226,11 @@ export const initializeMockOrdersInFirestore = async (mockOrdersData: Order[]) =
             firestoreReadyData.assignedMaterials = order.assignedMaterials || [];
             firestoreReadyData.canalOrigenColocacion = order.canalOrigenColocacion || null;
             firestoreReadyData.paymentMethod = order.paymentMethod || null;
+            firestoreReadyData.invoiceUrl = order.invoiceUrl || null;
+            firestoreReadyData.invoiceFileName = order.invoiceFileName || null;
 
-            firestoreReadyData.direccionFiscal = direccionFiscal || null; // Asume que el mock ya tiene AddressDetails
-            firestoreReadyData.direccionEntrega = direccionEntrega || null; // Asume que el mock ya tiene AddressDetails
+            firestoreReadyData.direccionFiscal = direccionFiscal || null; 
+            firestoreReadyData.direccionEntrega = direccionEntrega || null; 
             
             Object.keys(firestoreReadyData).forEach(key => {
                 if (firestoreReadyData[key] === undefined) {

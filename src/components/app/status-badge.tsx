@@ -14,6 +14,7 @@ type StatusBadgeProps =
 const getOrderBadgeColorClass = (status: OrderStatus): string => {
   switch (status) {
     case 'Entregado': return 'bg-green-500 hover:bg-green-600 text-white';
+    case 'Facturado': return 'bg-teal-500 hover:bg-teal-600 text-white'; // Nuevo color para Facturado
     case 'Confirmado': return 'bg-[hsl(var(--brand-turquoise-hsl))] hover:brightness-90 text-white';
     case 'Enviado': return 'bg-purple-500 hover:bg-purple-600 text-white';
     case 'Pendiente': return 'bg-yellow-400 hover:bg-yellow-500 text-black';

@@ -28,7 +28,7 @@ import { getAccountByIdFS, updateAccountFS as updateAccountInFirestore } from "@
 import { getTeamMembersFS } from "@/services/team-member-service";
 
 
-const relevantOrderStatusesForDashboard: OrderStatus[] = ['Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Cancelado'];
+const relevantOrderStatusesForDashboard: OrderStatus[] = ['Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Cancelado'];
 
 
 export default function OrdersDashboardPage() {
@@ -137,6 +137,8 @@ export default function OrdersDashboardPage() {
         salesRep: canEditFullOrderDetails ? updatedData.salesRep : orderToUpdate.salesRep,
         clavadistaId: canEditFullOrderDetails ? updatedData.clavadistaId : orderToUpdate.clavadistaId,
         paymentMethod: canEditFullOrderDetails ? updatedData.paymentMethod : orderToUpdate.paymentMethod,
+        invoiceUrl: canEditFullOrderDetails ? updatedData.invoiceUrl : orderToUpdate.invoiceUrl,
+        invoiceFileName: canEditFullOrderDetails ? updatedData.invoiceFileName : orderToUpdate.invoiceFileName,
         assignedMaterials: canEditFullOrderDetails ? updatedData.assignedMaterials : orderToUpdate.assignedMaterials,
         clientType: canEditFullOrderDetails ? updatedData.clientType : orderToUpdate.clientType,
         numberOfUnits: canEditFullOrderDetails && updatedData.numberOfUnits !== undefined ? updatedData.numberOfUnits : orderToUpdate.numberOfUnits,
@@ -308,7 +310,8 @@ export default function OrdersDashboardPage() {
       "ID Pedido", "Fecha Pedido", "Cliente", "Nombre Fiscal", "CIF",
       "Dirección Entrega", "Dirección Fiscal", "Contacto Nombre", "Contacto Email", "Contacto Teléfono",
       "Tipo Cliente", "Productos (Lista)", "Nº Unidades", "Precio Unitario (€ sin IVA)",
-      "Valor Total Pedido (€ IVA incl.)", "Estado Pedido", "Forma de Pago", "Comercial Asignado", "Notas Pedido", "Observaciones Alta"
+      "Valor Total Pedido (€ IVA incl.)", "Estado Pedido", "Forma de Pago", "URL Factura", "Nombre Archivo Factura", 
+      "Comercial Asignado", "Notas Pedido", "Observaciones Alta"
     ];
   
     const csvRows = [
@@ -331,6 +334,8 @@ export default function OrdersDashboardPage() {
         escapeCsvCell(order.value), 
         escapeCsvCell(order.status),
         escapeCsvCell(order.paymentMethod),
+        escapeCsvCell(order.invoiceUrl),
+        escapeCsvCell(order.invoiceFileName),
         escapeCsvCell(order.salesRep),
         escapeCsvCell(order.notes),
         escapeCsvCell(order.observacionesAlta)

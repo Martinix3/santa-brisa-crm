@@ -63,7 +63,7 @@ interface NavGroup {
 
 const navigationStructure: NavGroup[] = [
   {
-    id: 'principal', // Cambiado ID para agrupar items generales primero
+    id: 'principal',
     label: 'Principal',
     groupRoles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'],
     items: [
@@ -74,17 +74,17 @@ const navigationStructure: NavGroup[] = [
   {
     id: 'crm',
     label: 'CRM y Ventas',
-    groupRoles: ['Admin', 'SalesRep', 'Clavadista'], // Clavadista puede necesitar registrar interacciones
+    groupRoles: ['Admin', 'SalesRep', 'Clavadista'],
     items: [
       { href: '/crm-follow-up', label: 'Tareas de Seguimiento', icon: ClipboardList, roles: ['Admin', 'SalesRep', 'Clavadista'] },
-      { href: '/order-form', label: 'Registrar Visita/Pedido', icon: FileText, roles: ['Admin', 'SalesRep', 'Clavadista'] },
-      { href: '/accounts', label: 'Cuentas', icon: Building2, roles: ['Admin', 'SalesRep'] }, // Distributor también, pero Clavadista quizás no
+      { href: '/order-form', label: 'Registrar Interacción', icon: FileText, roles: ['Admin', 'SalesRep', 'Clavadista'] },
+      { href: '/accounts', label: 'Cuentas', icon: Building2, roles: ['Admin', 'SalesRep'] }, 
       { href: '/orders-dashboard', label: 'Panel de Pedidos', icon: ShoppingCart, roles: ['Admin', 'SalesRep', 'Distributor'] },
       { href: '/team-tracking', label: 'Equipo de Ventas', icon: Users, roles: ['Admin', 'SalesRep'] },
     ],
   },
    {
-    id: 'facturacion_sb', // Nuevo grupo para Facturación SB
+    id: 'facturacion_sb', 
     label: 'Facturación Santa Brisa',
     groupRoles: ['Admin'],
     items: [
@@ -97,7 +97,7 @@ const navigationStructure: NavGroup[] = [
     groupRoles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'],
     items: [
       { href: '/events', label: 'Eventos', icon: PartyPopper, roles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'] },
-      { href: '/clavadistas', label: 'Panel de Clavadistas', icon: Award, roles: ['Admin', 'SalesRep'] }, // Clavadista ve su propio perfil
+      { href: '/clavadistas', label: 'Panel de Clavadistas', icon: Award, roles: ['Admin', 'SalesRep'] }, 
       { href: '/marketing-resources', label: 'Recursos de Marketing', icon: Library, roles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'] },
       { href: '/marketing/ai-assistant', label: 'Asistente IA', icon: Sparkles, roles: ['Admin', 'SalesRep', 'Clavadista'] },
     ],
@@ -114,7 +114,7 @@ const navigationStructure: NavGroup[] = [
 
 
 function DailyTasksMenu() {
-  const { userRole, teamMember } = useAuth();
+  const { userRole, teamMember, loading } = useAuth(); // Added 'loading' here
   const { toast } = useToast();
   const today = startOfDay(new Date());
   const nextSevenDaysEnd = endOfDay(addDays(today, 6));
@@ -124,14 +124,14 @@ function DailyTasksMenu() {
   useEffect(() => {
     async function fetchTasks() {
       setIsLoadingTasks(true);
-      if (userRole === 'Distributor') { // Distributor no tiene tareas en este widget
+      if (userRole === 'Distributor') { 
         setTaskCount(0);
         setIsLoadingTasks(false);
         return;
       }
-      // Si es SalesRep o Clavadista y teamMember no está cargado, esperar.
+      
       if ((userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember) {
-        setIsLoadingTasks(false); // No podemos cargar tareas sin teamMember
+        setIsLoadingTasks(false); 
         return;
       }
 
@@ -163,7 +163,7 @@ function DailyTasksMenu() {
           );
         } else if (userRole === 'Clavadista' && teamMember) {
           relevantOrders = allOrders.filter(order =>
-            order.clavadistaId === teamMember.id && // Clavadistas ven tareas por clavadistaId
+            order.clavadistaId === teamMember.id && 
             (order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') &&
             (order.status === 'Programada' ? order.visitDate : order.nextActionDate) &&
             isValid(parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!))
@@ -211,7 +211,7 @@ function DailyTasksMenu() {
         setIsLoadingTasks(false);
         setTaskCount(0);
     }
-  }, [userRole, teamMember, today, nextSevenDaysEnd, toast, loading]); // Added loading from useAuth
+  }, [userRole, teamMember, today, nextSevenDaysEnd, toast, loading]); 
 
   const canShowWidgetIcon = userRole === 'Admin' || userRole === 'SalesRep' || userRole === 'Clavadista';
 
@@ -552,17 +552,16 @@ function AppNavigation({ navStructure, userRole, teamMember }: AppNavigationProp
 
         let visibleItemsInGroup = group.items.filter(item => item.roles.includes(userRole));
         
-        // Special handling for Clavadista profile link
         if (userRole === 'Clavadista' && group.id === 'marketing') {
           const clavadistaProfileItem: NavItem = {
-            href: teamMember ? `/clavadistas/${teamMember.id}` : '/clavadistas', // Fallback, though teamMember should exist
+            href: teamMember ? `/clavadistas/${teamMember.id}` : '/clavadistas',
             label: 'Mi Perfil Clavadista',
-            icon: Award, // Re-using Award, or UserCircle
+            icon: Award, 
             roles: ['Clavadista']
           };
-          // Replace generic /clavadistas with specific profile link
+          
           visibleItemsInGroup = visibleItemsInGroup.filter(item => item.href !== '/clavadistas');
-          visibleItemsInGroup.unshift(clavadistaProfileItem); // Add to the beginning of marketing group
+          visibleItemsInGroup.unshift(clavadistaProfileItem); 
         }
 
 
@@ -580,7 +579,6 @@ function AppNavigation({ navStructure, userRole, teamMember }: AppNavigationProp
                   if (item.exact) {
                     isActive = pathname === item.href;
                   } else {
-                     // More general active state for nested routes, ensuring dashboard and admin settings are specific
                     if (item.href === '/dashboard') {
                         isActive = pathname === item.href;
                     } else if (item.href === '/admin/settings') {
@@ -590,12 +588,10 @@ function AppNavigation({ navStructure, userRole, teamMember }: AppNavigationProp
                     } else {
                         isActive = pathname.startsWith(item.href) && item.href !== '/dashboard' && item.href !== '/direct-sales-sb';
                     }
-                    // Ensure admin sub-pages correctly activate their parent in "Configuración"
                      if (pathname.startsWith('/admin/') && group.id === 'configuracion') {
                         if (item.href.startsWith('/admin/')) {
                             isActive = pathname.startsWith(item.href);
                         }
-                        // Make "Panel de Configuración" active if any admin sub-page is active
                         if (item.href === '/admin/settings' && pathname.startsWith('/admin/')) isActive = true;
                      }
                   }
@@ -687,5 +683,3 @@ function UserMenu({ userRole, userEmail }: UserMenuProps) {
 }
 
 export default MainAppLayout;
-
-    

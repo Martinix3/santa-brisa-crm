@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox"; 
 import type { Order, OrderStatus, UserRole, TeamMember } from "@/types";
 import { orderStatusesList } from "@/lib/data"; 
-import { MoreHorizontal, Eye, Edit, Trash2, Filter, CalendarDays, ChevronDown, Download, ShoppingCart, Loader2 } from "lucide-react";
+import { MoreHorizontal, Eye, Edit, Trash2, Filter, CalendarDays, ChevronDown, Download, ShoppingCart, Loader2, MapPin, User as UserIcon } from "lucide-react";
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -85,7 +85,7 @@ export default function OrdersDashboardPage() {
     return allOrders
     .filter(order =>
       (order.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+       order.id.toLowerCase().includes(searchTerm.toLowerCase()) || // Mantenemos búsqueda por ID aquí aunque no se muestre
        (order.salesRep && order.salesRep.toLowerCase().includes(searchTerm.toLowerCase())))
     )
     .filter(order => statusFilter === "Todos" || order.status === statusFilter)
@@ -161,6 +161,7 @@ export default function OrdersDashboardPage() {
         nextActionDate: orderToUpdate.nextActionDate,
         failureReasonType: orderToUpdate.failureReasonType,
         failureReasonCustom: orderToUpdate.failureReasonCustom,
+        canalOrigenColocacion: canEditFullOrderDetails ? updatedData.canalOrigenColocacion : orderToUpdate.canalOrigenColocacion,
       };
       
       await updateOrderFS(orderId, fullUpdatedOrderData as Order); 
@@ -244,9 +245,9 @@ export default function OrdersDashboardPage() {
   }
 
   const handleSelectAllChange = (checked: boolean | 'indeterminate') => {
-    if (checked === true) { // Explicitly true
+    if (checked === true) { 
       setSelectedOrderIds(filteredOrders.map(order => order.id));
-    } else { // false or indeterminate (when clicked from indeterminate, it becomes checked, handled above)
+    } else { 
       setSelectedOrderIds([]);
     }
   };
@@ -259,8 +260,14 @@ export default function OrdersDashboardPage() {
     }
   };
   
-  const isAllFilteredSelected = filteredOrders.length > 0 && selectedOrderIds.length === filteredOrders.length && filteredOrders.every(fo => selectedOrderIds.includes(fo.id));
-  const isSomeFilteredSelected = selectedOrderIds.length > 0 && !isAllFilteredSelected;
+  const headerCheckboxState = React.useMemo(() => {
+    if (filteredOrders.length === 0) return false;
+    const isAllFilteredSelected = selectedOrderIds.length === filteredOrders.length && filteredOrders.every(fo => selectedOrderIds.includes(fo.id));
+    if (isAllFilteredSelected) return true;
+    const isSomeFilteredSelected = selectedOrderIds.length > 0 && !isAllFilteredSelected && filteredOrders.some(fo => selectedOrderIds.includes(fo.id));
+    if (isSomeFilteredSelected) return 'indeterminate' as const;
+    return false;
+  }, [selectedOrderIds, filteredOrders]);
 
 
   const escapeCsvCell = (cellData: any): string => {
@@ -337,13 +344,6 @@ export default function OrdersDashboardPage() {
   const canDeleteOrder = currentUserRole === 'Admin';
   const canDownloadCsv = currentUserRole === 'Admin' || currentUserRole === 'Distributor';
 
-  const headerCheckboxState = React.useMemo(() => {
-    if (isAllFilteredSelected) return true;
-    if (isSomeFilteredSelected) return 'indeterminate' as const;
-    return false;
-  }, [isAllFilteredSelected, isSomeFilteredSelected]);
-
-
   return (
     <div className="space-y-6">
       <header className="flex items-center space-x-2">
@@ -359,7 +359,7 @@ export default function OrdersDashboardPage() {
         <CardContent>
           <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
             <Input
-              placeholder="Buscar pedidos (ID, Cliente, Rep)..."
+              placeholder="Buscar pedidos (Cliente, Rep)..." // ID Pedido quitado del placeholder
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="max-w-xs"
@@ -465,11 +465,12 @@ export default function OrdersDashboardPage() {
                         />
                       </TableHead>
                     )}
-                    <TableHead className={cn(canDownloadCsv ? "w-[15%]" : "w-[20%]")}>ID Pedido</TableHead>
                     <TableHead className="w-[20%]">Cliente</TableHead>
-                    <TableHead className="w-[15%]">Fecha</TableHead>
-                    <TableHead className="text-right w-[10%]">Nº Botellas</TableHead>
-                    <TableHead className="text-right w-[15%]">Valor</TableHead>
+                    <TableHead className="w-[10%]">Fecha</TableHead>
+                    <TableHead className="w-[20%]">Ciudad/Ubicación</TableHead>
+                    <TableHead className="w-[15%]">Comercial Asignado</TableHead>
+                    <TableHead className="text-right w-[10%]">Nº Bot.</TableHead>
+                    <TableHead className="text-right w-[10%]">Valor</TableHead>
                     <TableHead className="text-center w-[10%]">Estado</TableHead>
                     <TableHead className="text-right w-[10%]">Acciones</TableHead>
                   </TableRow>
@@ -489,9 +490,16 @@ export default function OrdersDashboardPage() {
                             />
                           </TableCell>
                         )}
-                      <TableCell className="font-medium">{order.id}</TableCell>
-                      <TableCell>{order.clientName}</TableCell>
-                      <TableCell>{order.visitDate ? format(parseISO(order.visitDate), "MMM dd, yyyy", { locale: es }) : "N/D"}</TableCell>
+                      <TableCell className="font-medium">{order.clientName}</TableCell>
+                      <TableCell>{order.visitDate ? format(parseISO(order.visitDate), "dd/MM/yy", { locale: es }) : "N/D"}</TableCell>
+                      <TableCell className="text-xs truncate max-w-[150px]" title={order.direccionEntrega || order.direccionFiscal || 'N/D'}>
+                         <MapPin className="inline-block h-3 w-3 mr-1 text-muted-foreground" />
+                         {order.direccionEntrega || order.direccionFiscal || 'N/D'}
+                      </TableCell>
+                      <TableCell>
+                        <UserIcon className="inline-block h-3 w-3 mr-1 text-muted-foreground" />
+                        {order.salesRep || 'N/A'}
+                      </TableCell>
                       <TableCell className="text-right">
                         <FormattedNumericValue value={order.numberOfUnits} locale="es-ES" placeholder="N/D" />
                       </TableCell>
@@ -559,9 +567,9 @@ export default function OrdersDashboardPage() {
                                           <AlertDialogHeader>
                                           <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                                           <AlertDialogDescription>
-                                              Esta acción no se puede deshacer. Esto eliminará permanentemente el pedido:
+                                              Esta acción no se puede deshacer. Esto eliminará permanentemente el pedido para:
                                               <br />
-                                              <strong className="mt-2 block">{orderToDelete.id} - {orderToDelete.clientName}</strong>
+                                              <strong className="mt-2 block">{orderToDelete.clientName} (ID: {orderToDelete.id})</strong>
                                           </AlertDialogDescription>
                                           </AlertDialogHeader>
                                           <AlertDialogFooter>
@@ -579,7 +587,7 @@ export default function OrdersDashboardPage() {
                     </TableRow>
                   )) : (
                     <TableRow>
-                      <TableCell colSpan={canDownloadCsv ? 8 : 7} className="h-24 text-center">
+                      <TableCell colSpan={canDownloadCsv ? 9 : 8} className="h-24 text-center">
                         No se encontraron pedidos que coincidan con los filtros seleccionados.
                       </TableCell>
                     </TableRow>

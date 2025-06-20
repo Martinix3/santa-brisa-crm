@@ -30,11 +30,11 @@ export default function CrmFollowUpPage() {
   const [searchTerm, setSearchTerm] = React.useState(""); 
   const [cityFilter, setCityFilter] = React.useState("");
   
-  const [salesRepFilter, setSalesRepFilter] = React.useState<string>(() => {
+  const [selectedUserFilter, setSelectedUserFilter] = React.useState<string>(() => {
     if ((userRole === 'SalesRep' || userRole === 'Clavadista') && teamMember) {
-      return teamMember.id; // Filter by teamMember ID for SalesRep and Clavadista
+      return teamMember.id; 
     }
-    return "Todos"; // Admin sees all by default
+    return "Todos"; 
   });
 
   const [actionTypeFilter, setActionTypeFilter] = React.useState<NextActionType | "Todos" | "Visita Programada">("Todos");
@@ -45,16 +45,16 @@ export default function CrmFollowUpPage() {
 
   const [followUps, setFollowUps] = React.useState<Order[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [salesRepsForFilterList, setSalesRepsForFilterList] = React.useState<TeamMember[]>([]);
+  const [teamMembersForFilter, setTeamMembersForFilter] = React.useState<TeamMember[]>([]);
 
 
   React.useEffect(() => {
     async function loadInitialData() {
       setIsLoading(true);
       try {
-        const [fetchedOrders, fetchedSalesReps] = await Promise.all([
+        const [fetchedOrders, fetchedTeamMembers] = await Promise.all([
           getOrdersFS(),
-          userRole === 'Admin' ? getTeamMembersFS(['SalesRep', 'Admin']) : Promise.resolve([])
+          userRole === 'Admin' ? getTeamMembersFS(['SalesRep', 'Admin', 'Clavadista']) : Promise.resolve([]) // Include Clavadistas for Admin filter
         ]);
         
         setFollowUps(
@@ -64,12 +64,12 @@ export default function CrmFollowUpPage() {
           )
         );
         if (userRole === 'Admin') {
-          setSalesRepsForFilterList(fetchedSalesReps);
+          setTeamMembersForFilter(fetchedTeamMembers);
         }
 
       } catch (error) {
-        console.error("Error loading follow-ups or sales reps:", error);
-        toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar las tareas o comerciales.", variant: "destructive" });
+        console.error("Error loading follow-ups or team members:", error);
+        toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar las tareas o miembros del equipo.", variant: "destructive" });
       } finally {
         setIsLoading(false);
       }
@@ -88,10 +88,19 @@ export default function CrmFollowUpPage() {
           return followUp.salesRep === teamMember.name;
         }
         if (userRole === 'Clavadista' && teamMember) {
-          return followUp.clavadistaId === teamMember.id;
+          return followUp.clavadistaId === teamMember.id; // Filter by clavadistaId
         }
         // Admin filter
-        return salesRepFilter === "Todos" || (salesRepsForFilterList.find(rep => rep.id === salesRepFilter)?.name === followUp.salesRep);
+        if (userRole === 'Admin') {
+            if (selectedUserFilter === "Todos") return true;
+            const selectedMember = teamMembersForFilter.find(mem => mem.id === selectedUserFilter);
+            if (selectedMember) {
+                if (selectedMember.role === 'SalesRep' || selectedMember.role === 'Admin') return selectedMember.name === followUp.salesRep;
+                if (selectedMember.role === 'Clavadista') return selectedMember.id === followUp.clavadistaId;
+            }
+            return false; // If selected member not found, show nothing
+        }
+        return false; // Should not happen if roles are handled
       })
       .filter(followUp => {
         if (actionTypeFilter === "Todos") return true;
@@ -119,7 +128,7 @@ export default function CrmFollowUpPage() {
         return (followUp.direccionEntrega && followUp.direccionEntrega.toLowerCase().includes(cityLower)) ||
                (followUp.direccionFiscal && followUp.direccionFiscal.toLowerCase().includes(cityLower));
       });
-  }, [followUps, userRole, teamMember, salesRepFilter, salesRepsForFilterList, actionTypeFilter, dateRange, searchTerm, cityFilter]);
+  }, [followUps, userRole, teamMember, selectedUserFilter, teamMembersForFilter, actionTypeFilter, dateRange, searchTerm, cityFilter]);
 
   const handleSaveNewDate = async (followUpId: string) => {
     if (!selectedNewDate) return;
@@ -172,7 +181,7 @@ export default function CrmFollowUpPage() {
     : "Revisa y gestiona tus visitas y seguimientos planificados. Puedes editar la fecha de próxima acción/visita y ver tareas vencidas.";
 
   const today = startOfDay(new Date());
-  const canFilterBySalesRep = userRole === 'Admin';
+  const canFilterByUserForAdmin = userRole === 'Admin';
 
   return (
     <div className="space-y-6">
@@ -200,29 +209,29 @@ export default function CrmFollowUpPage() {
               onChange={(e) => setCityFilter(e.target.value)}
               className="max-w-xs"
             />
-            {canFilterBySalesRep && (
+            {canFilterByUserForAdmin && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="w-full sm:w-auto" disabled={isLoading || salesRepsForFilterList.length === 0}>
+                  <Button variant="outline" className="w-full sm:w-auto" disabled={isLoading || teamMembersForFilter.length === 0}>
                     <Filter className="mr-2 h-4 w-4" />
-                    Comercial: {salesRepsForFilterList.find(rep => rep.id === salesRepFilter)?.name || salesRepFilter} <ChevronDown className="ml-2 h-4 w-4" />
+                    Usuario: {teamMembersForFilter.find(rep => rep.id === selectedUserFilter)?.name || selectedUserFilter} <ChevronDown className="ml-2 h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
                    <DropdownMenuCheckboxItem
                       key="Todos"
-                      checked={salesRepFilter === "Todos"}
-                      onCheckedChange={() => setSalesRepFilter("Todos")}
+                      checked={selectedUserFilter === "Todos"}
+                      onCheckedChange={() => setSelectedUserFilter("Todos")}
                     >
                       Todos
                     </DropdownMenuCheckboxItem>
-                  {salesRepsForFilterList.map(rep => (
+                  {teamMembersForFilter.map(rep => (
                     <DropdownMenuCheckboxItem
                       key={rep.id}
-                      checked={salesRepFilter === rep.id}
-                      onCheckedChange={() => setSalesRepFilter(rep.id)}
+                      checked={selectedUserFilter === rep.id}
+                      onCheckedChange={() => setSelectedUserFilter(rep.id)}
                     >
-                      {rep.name}
+                      {rep.name} ({rep.role === 'SalesRep' ? 'Rep. Ventas' : rep.role})
                     </DropdownMenuCheckboxItem>
                   ))}
                 </DropdownMenuContent>
@@ -299,7 +308,7 @@ export default function CrmFollowUpPage() {
                     <TableHead className="w-[20%]">Cliente</TableHead>
                     <TableHead className="w-[15%]">Próxima Acción / Tipo Visita</TableHead>
                     <TableHead className="w-[15%]">Fecha Próx. Acción / Visita</TableHead>
-                    {canFilterBySalesRep && <TableHead className="w-[15%]">Comercial</TableHead>}
+                    {canFilterByUserForAdmin && <TableHead className="w-[15%]">Comercial/Clavadista</TableHead>}
                     <TableHead className="w-[10%] text-center">Estado Tarea</TableHead>
                     <TableHead className="w-[15%]">Notas / Obj. Visita Original</TableHead>
                     <TableHead className="text-right w-[10%]">Acciones</TableHead> 
@@ -307,14 +316,22 @@ export default function CrmFollowUpPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredFollowUps.length > 0 ? filteredFollowUps.map((item: Order) => {
-                    const canEditDate = userRole === 'Admin' || (userRole === 'SalesRep' && teamMember?.name === item.salesRep);
-                    const canRegisterResult = canEditDate || (userRole === 'Clavadista' && item.clavadistaId === teamMember?.id);
+                    const canEditDate = userRole === 'Admin' || (userRole === 'SalesRep' && teamMember?.name === item.salesRep) || (userRole === 'Clavadista' && item.clavadistaId === teamMember?.id);
+                    const canRegisterResult = userRole === 'Admin' || (userRole === 'SalesRep' && teamMember?.name === item.salesRep) || (userRole === 'Clavadista' && item.clavadistaId === teamMember?.id);
                     
                     const isProgrammedItem = item.status === 'Programada';
                     const relevantActionDateString = isProgrammedItem ? item.visitDate : item.nextActionDate;
                     const relevantActionDateParsed = relevantActionDateString && isValid(parseISO(relevantActionDateString)) ? parseISO(relevantActionDateString) : null;
                     
                     const isOverdue = relevantActionDateParsed && isBefore(relevantActionDateParsed, today) && (item.status === 'Seguimiento' || item.status === 'Programada');
+                    
+                    let responsibleMemberName = item.salesRep;
+                    if (item.clavadistaId) {
+                        const clava = teamMembersForFilter.find(tm => tm.id === item.clavadistaId);
+                        if (clava) {
+                            responsibleMemberName = item.salesRep ? `${item.salesRep} + ${clava.name}` : clava.name;
+                        }
+                    }
 
                     return (
                     <TableRow key={item.id} className={cn(isOverdue && "bg-yellow-100 dark:bg-yellow-800/30")}>
@@ -367,7 +384,7 @@ export default function CrmFollowUpPage() {
                           </Popover>
                         )}
                       </TableCell>
-                      {canFilterBySalesRep && <TableCell>{item.salesRep}</TableCell>}
+                      {canFilterByUserForAdmin && <TableCell>{responsibleMemberName}</TableCell>}
                       <TableCell className="text-center">
                         <StatusBadge type="order" status={item.status} />
                       </TableCell>
@@ -383,14 +400,14 @@ export default function CrmFollowUpPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            {canRegisterResult && (userRole === 'Admin' || userRole === 'SalesRep') && (
+                            {canRegisterResult && (
                               <DropdownMenuItem asChild>
                                 <Link href={`/order-form?updateVisitId=${item.id}`}>
                                   <Send className="mr-2 h-4 w-4" /> Registrar Interacción / Resultado
                                 </Link>
                               </DropdownMenuItem>
                             )}
-                             {canRegisterResult && (userRole === 'Admin' || userRole === 'SalesRep') && <DropdownMenuSeparator />}
+                             {canRegisterResult && <DropdownMenuSeparator />}
                             <DropdownMenuItem asChild>
                               <Link href="/my-agenda">
                                   <CalendarDays className="mr-2 h-4 w-4" /> Ver en Agenda Completa
@@ -402,7 +419,7 @@ export default function CrmFollowUpPage() {
                     </TableRow>
                   )}) : (
                     <TableRow>
-                      <TableCell colSpan={canFilterBySalesRep ? 7 : 6} className="h-24 text-center">
+                      <TableCell colSpan={canFilterByUserForAdmin ? 7 : 6} className="h-24 text-center">
                         No se encontraron tareas de seguimiento o visitas que coincidan con los filtros seleccionados.
                       </TableCell>
                     </TableRow>
@@ -421,3 +438,5 @@ export default function CrmFollowUpPage() {
     </div>
   );
 }
+
+    

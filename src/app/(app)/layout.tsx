@@ -51,6 +51,7 @@ interface NavItem {
   label: string;
   icon: React.ElementType;
   roles: UserRole[];
+  exact?: boolean; // Para coincidencias exactas de ruta
 }
 
 interface NavGroup {
@@ -62,22 +63,29 @@ interface NavGroup {
 
 const navigationStructure: NavGroup[] = [
   {
-    id: 'ventas',
-    label: 'Ventas y CRM',
+    id: 'principal', // Cambiado ID para agrupar items generales primero
+    label: 'Principal',
     groupRoles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'],
     items: [
-      { href: '/dashboard', label: 'Panel', icon: LayoutDashboard, roles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'] },
-      { href: '/my-agenda', label: 'Agenda', icon: CalendarCheck, roles: ['Admin', 'SalesRep', 'Clavadista'] },
+      { href: '/dashboard', label: 'Panel Principal', icon: LayoutDashboard, roles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'], exact: true },
+      { href: '/my-agenda', label: 'Mi Agenda', icon: CalendarCheck, roles: ['Admin', 'SalesRep', 'Clavadista'] },
+    ],
+  },
+  {
+    id: 'crm',
+    label: 'CRM y Ventas',
+    groupRoles: ['Admin', 'SalesRep', 'Clavadista'], // Clavadista puede necesitar registrar interacciones
+    items: [
       { href: '/crm-follow-up', label: 'Tareas de Seguimiento', icon: ClipboardList, roles: ['Admin', 'SalesRep', 'Clavadista'] },
-      { href: '/order-form', label: 'Registrar Visita', icon: FileText, roles: ['Admin', 'SalesRep'] },
-      { href: '/accounts', label: 'Cuentas', icon: Building2, roles: ['Admin', 'SalesRep', 'Distributor'] },
+      { href: '/order-form', label: 'Registrar Visita/Pedido', icon: FileText, roles: ['Admin', 'SalesRep', 'Clavadista'] },
+      { href: '/accounts', label: 'Cuentas', icon: Building2, roles: ['Admin', 'SalesRep'] }, // Distributor también, pero Clavadista quizás no
       { href: '/orders-dashboard', label: 'Panel de Pedidos', icon: ShoppingCart, roles: ['Admin', 'SalesRep', 'Distributor'] },
       { href: '/team-tracking', label: 'Equipo de Ventas', icon: Users, roles: ['Admin', 'SalesRep'] },
     ],
   },
-  {
-    id: 'facturacion',
-    label: 'Facturación SB',
+   {
+    id: 'facturacion_sb', // Nuevo grupo para Facturación SB
+    label: 'Facturación Santa Brisa',
     groupRoles: ['Admin'],
     items: [
       { href: '/direct-sales-sb', label: 'Ventas Directas SB', icon: Receipt, roles: ['Admin'] },
@@ -85,21 +93,21 @@ const navigationStructure: NavGroup[] = [
   },
   {
     id: 'marketing',
-    label: 'Marketing',
+    label: 'Marketing y Soporte',
     groupRoles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'],
     items: [
       { href: '/events', label: 'Eventos', icon: PartyPopper, roles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'] },
-      { href: '/clavadistas', label: 'Clavadistas', icon: Award, roles: ['Admin', 'SalesRep', 'Clavadista'] },
+      { href: '/clavadistas', label: 'Panel de Clavadistas', icon: Award, roles: ['Admin', 'SalesRep'] }, // Clavadista ve su propio perfil
       { href: '/marketing-resources', label: 'Recursos de Marketing', icon: Library, roles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'] },
       { href: '/marketing/ai-assistant', label: 'Asistente IA', icon: Sparkles, roles: ['Admin', 'SalesRep', 'Clavadista'] },
     ],
   },
   {
     id: 'configuracion',
-    label: 'Configuración',
+    label: 'Configuración General',
     groupRoles: ['Admin'], 
     items: [
-      { href: '/admin/settings', label: 'Configuración', icon: Settings, roles: ['Admin'] }, 
+      { href: '/admin/settings', label: 'Panel de Configuración', icon: Settings, roles: ['Admin'], exact: true }, 
     ],
   },
 ];
@@ -116,12 +124,14 @@ function DailyTasksMenu() {
   useEffect(() => {
     async function fetchTasks() {
       setIsLoadingTasks(true);
-      // If user is SalesRep or Clavadista but teamMember isn't loaded yet,
-      // or if user is Distributor, set loading to false and return.
-      // Task fetching will proceed if Admin, or if SalesRep/Clavadista with loaded teamMember.
-      if (userRole === 'Distributor' || ((userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember)) {
+      if (userRole === 'Distributor') { // Distributor no tiene tareas en este widget
         setTaskCount(0);
         setIsLoadingTasks(false);
+        return;
+      }
+      // Si es SalesRep o Clavadista y teamMember no está cargado, esperar.
+      if ((userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember) {
+        setIsLoadingTasks(false); // No podemos cargar tareas sin teamMember
         return;
       }
 
@@ -153,7 +163,7 @@ function DailyTasksMenu() {
           );
         } else if (userRole === 'Clavadista' && teamMember) {
           relevantOrders = allOrders.filter(order =>
-            order.clavadistaId === teamMember.id &&
+            order.clavadistaId === teamMember.id && // Clavadistas ven tareas por clavadistaId
             (order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') &&
             (order.status === 'Programada' ? order.visitDate : order.nextActionDate) &&
             isValid(parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!))
@@ -195,15 +205,13 @@ function DailyTasksMenu() {
       setIsLoadingTasks(false);
     }
 
-    // Only run fetchTasks if Admin, or if SalesRep/Clavadista and teamMember is loaded.
     if (userRole === 'Admin' || ((userRole === 'SalesRep' || userRole === 'Clavadista') && teamMember)) {
         fetchTasks();
-    } else if (userRole === 'Distributor' || ((userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember)) {
-        // If Distributor or SalesRep/Clavadista without teamMember, set loading to false directly.
+    } else if (userRole === 'Distributor' || ((userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember && !loading)) {
         setIsLoadingTasks(false);
         setTaskCount(0);
     }
-  }, [userRole, teamMember, today, nextSevenDaysEnd, toast]);
+  }, [userRole, teamMember, today, nextSevenDaysEnd, toast, loading]); // Added loading from useAuth
 
   const canShowWidgetIcon = userRole === 'Admin' || userRole === 'SalesRep' || userRole === 'Clavadista';
 
@@ -211,9 +219,6 @@ function DailyTasksMenu() {
     return null; 
   }
   
-  // Determine if a subtle loading indicator should be shown on the icon itself
-  // This happens if tasks are loading AND (it's Admin OR (it's SalesRep/Clavadista AND teamMember is available))
-  // It avoids showing the loader if teamMember is still loading for SalesRep/Clavadista, as fetchTasks wouldn't run yet.
   const showIconLoader = isLoadingTasks && (userRole === 'Admin' || ((userRole === 'SalesRep' || userRole === 'Clavadista') && teamMember));
 
   return (
@@ -221,7 +226,7 @@ function DailyTasksMenu() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-9 w-9 rounded-full p-0">
           <ListChecks className="h-5 w-5" />
-          {!isLoadingTasks && taskCount > 0 && (
+          {!showIconLoader && taskCount > 0 && (
             <Badge
               variant="destructive"
               className="absolute -top-1 -right-1 h-4 min-w-[1rem] p-0.5 text-xs flex items-center justify-center rounded-full"
@@ -236,7 +241,7 @@ function DailyTasksMenu() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-auto p-0 mr-2" align="end" forceMount>
-        {isLoadingTasks && !(userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember ? ( // Show loader only if tasks are actively being fetched
+        {isLoadingTasks && (userRole === 'Admin' || ((userRole === 'SalesRep' || userRole === 'Clavadista') && teamMember)) ? (
           <div className="p-4 flex justify-center items-center h-[100px]">
              <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
@@ -277,8 +282,8 @@ function MonthlyProgressIndicator({ type, teamMember, userRole, allTeamMembers, 
   const unitLabel = type === 'visits' ? 'visitas' : 'cuentas';
 
   useEffect(() => {
-    const currentMonthValue = getMonth(currentDate);
-    const currentYearValue = getYear(currentDate);
+    // const currentMonthValue = getMonth(currentDate); // Not used
+    // const currentYearValue = getYear(currentDate); // Not used
 
     if (userRole === 'Admin') {
       const salesReps = allTeamMembers.filter(m => m.role === 'SalesRep');
@@ -341,7 +346,7 @@ function MonthlyProgressIndicator({ type, teamMember, userRole, allTeamMembers, 
     }
   }, [teamMember, userRole, type, currentDate, allTeamMembers, allOrders, allAccounts]);
 
-  if (!target && achieved === 0 && userRole !== 'Admin') return null;
+  if (!target && achieved === 0 && userRole !== 'Admin' && userRole !== 'SalesRep') return null; // Hide if not SalesRep or Admin without target/achieved
   if (userRole === 'Admin' && target === 0 && achieved === 0) {
     return (
         <Tooltip>
@@ -483,7 +488,7 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
           </Link>
         </SidebarHeader>
         <SidebarContent>
-          <AppNavigation navStructure={navigationStructure} userRole={userRole} />
+          <AppNavigation navStructure={navigationStructure} userRole={userRole} teamMember={teamMember} />
         </SidebarContent>
         <SidebarFooter className="p-2">
           <SidebarMenu>
@@ -526,9 +531,10 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
 interface AppNavigationProps {
   navStructure: NavGroup[];
   userRole: UserRole | null;
+  teamMember: TeamMember | null; 
 }
 
-function AppNavigation({ navStructure, userRole }: AppNavigationProps) {
+function AppNavigation({ navStructure, userRole, teamMember }: AppNavigationProps) {
   const pathname = usePathname();
 
   if (!userRole) {
@@ -544,7 +550,21 @@ function AppNavigation({ navStructure, userRole }: AppNavigationProps) {
           return null; 
         }
 
-        const visibleItemsInGroup = group.items.filter(item => item.roles.includes(userRole));
+        let visibleItemsInGroup = group.items.filter(item => item.roles.includes(userRole));
+        
+        // Special handling for Clavadista profile link
+        if (userRole === 'Clavadista' && group.id === 'marketing') {
+          const clavadistaProfileItem: NavItem = {
+            href: teamMember ? `/clavadistas/${teamMember.id}` : '/clavadistas', // Fallback, though teamMember should exist
+            label: 'Mi Perfil Clavadista',
+            icon: Award, // Re-using Award, or UserCircle
+            roles: ['Clavadista']
+          };
+          // Replace generic /clavadistas with specific profile link
+          visibleItemsInGroup = visibleItemsInGroup.filter(item => item.href !== '/clavadistas');
+          visibleItemsInGroup.unshift(clavadistaProfileItem); // Add to the beginning of marketing group
+        }
+
 
         if (visibleItemsInGroup.length === 0) {
           return null; 
@@ -557,24 +577,29 @@ function AppNavigation({ navStructure, userRole }: AppNavigationProps) {
               <SidebarMenu>
                 {visibleItemsInGroup.map((item) => {
                   let isActive = false;
-                  if (item.href === '/admin/settings') {
-                    isActive = pathname === item.href || (pathname.startsWith('/admin/') && !pathname.startsWith('/admin/user-management') && !pathname.startsWith('/admin/objectives-management') && !pathname.startsWith('/admin/kpi-launch-targets') && !pathname.startsWith('/admin/promotional-materials'));
-                  } else if (item.href === '/dashboard') {
-                     isActive = pathname === item.href;
-                  } else if (item.href === '/direct-sales-sb') {
-                     isActive = pathname === item.href;
+                  if (item.exact) {
+                    isActive = pathname === item.href;
                   } else {
-                    isActive = pathname.startsWith(item.href) && item.href !== '/dashboard' && item.href !== '/direct-sales-sb';
+                     // More general active state for nested routes, ensuring dashboard and admin settings are specific
+                    if (item.href === '/dashboard') {
+                        isActive = pathname === item.href;
+                    } else if (item.href === '/admin/settings') {
+                        isActive = pathname === item.href || (pathname.startsWith('/admin/') && !pathname.startsWith('/admin/user-management') && !pathname.startsWith('/admin/objectives-management') && !pathname.startsWith('/admin/kpi-launch-targets') && !pathname.startsWith('/admin/promotional-materials'));
+                    } else if (item.href === '/direct-sales-sb') {
+                        isActive = pathname === item.href;
+                    } else {
+                        isActive = pathname.startsWith(item.href) && item.href !== '/dashboard' && item.href !== '/direct-sales-sb';
+                    }
+                    // Ensure admin sub-pages correctly activate their parent in "Configuración"
+                     if (pathname.startsWith('/admin/') && group.id === 'configuracion') {
+                        if (item.href.startsWith('/admin/')) {
+                            isActive = pathname.startsWith(item.href);
+                        }
+                        // Make "Panel de Configuración" active if any admin sub-page is active
+                        if (item.href === '/admin/settings' && pathname.startsWith('/admin/')) isActive = true;
+                     }
                   }
                   
-                  if (pathname.startsWith('/admin/') && group.id === 'configuracion') {
-                     if (item.href.startsWith('/admin/')) {
-                        isActive = pathname.startsWith(item.href);
-                     }
-                     if (item.href === '/admin/settings' && pathname.startsWith('/admin/')) isActive = true;
-                  }
-
-
                   return (
                     <SidebarMenuItem key={item.label}>
                       <SidebarMenuButton asChild isActive={isActive} tooltip={{ children: item.label, side: "right" }}>
@@ -638,7 +663,15 @@ function UserMenu({ userRole, userEmail }: UserMenuProps) {
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem disabled>
+           {userRole === 'Clavadista' && teamMember && (
+            <DropdownMenuItem asChild>
+              <Link href={`/clavadistas/${teamMember.id}`}>
+                <UserCircle className="mr-2 h-4 w-4" />
+                <span>Mi Perfil Clavadista</span>
+              </Link>
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem disabled={userRole !== 'Clavadista' && teamMember?.role !== 'Clavadista'}>
             <UserCircle className="mr-2 h-4 w-4" />
             <span>Perfil (Próximamente)</span>
           </DropdownMenuItem>

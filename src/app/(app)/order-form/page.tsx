@@ -25,11 +25,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Check, Loader2, Info, Edit3, Send, FileText, Award, Package, PlusCircle, Trash2, Users, Zap } from "lucide-react"; // Added Zap for CanalOrigenColocacion
+import { Calendar as CalendarIcon, Check, Loader2, Info, Edit3, Send, FileText, Award, Package, PlusCircle, Trash2, Users, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { clientTypeList, nextActionTypeList, failureReasonList, accountTypeList, canalOrigenColocacionList } from "@/lib/data"; // Added canalOrigenColocacionList
-import type { Order, ClientType, NextActionType, FailureReasonType, Account, AccountType, AccountStatus, TeamMember, PromotionalMaterial, UserRole, CanalOrigenColocacion } from "@/types"; // Added CanalOrigenColocacion
+import { clientTypeList, nextActionTypeList, failureReasonList, accountTypeList, canalOrigenColocacionList } from "@/lib/data";
+import type { Order, ClientType, NextActionType, FailureReasonType, Account, AccountType, AccountStatus, TeamMember, PromotionalMaterial, UserRole, CanalOrigenColocacion } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { useSearchParams, useRouter } from "next/navigation";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
@@ -57,7 +57,7 @@ const orderFormSchemaBase = z.object({
   outcome: z.enum(["Programar Visita", "successful", "failed", "follow-up"], { required_error: "Por favor, seleccione un resultado." }),
   clavadistaId: z.string().optional(),
   selectedSalesRepId: z.string().optional(), 
-  canalOrigenColocacion: z.enum(canalOrigenColocacionList as [CanalOrigenColocacion, ...CanalOrigenColocacion[]]).optional(), // Added
+  canalOrigenColocacion: z.enum(canalOrigenColocacionList as [CanalOrigenColocacion, ...CanalOrigenColocacion[]]).optional(),
 
   clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
   numberOfUnits: z.coerce.number().positive("El número de unidades debe ser un número positivo.").optional(),
@@ -136,6 +136,7 @@ export default function OrderFormPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [editingVisitId, setEditingVisitId] = React.useState<string | null>(null);
+  const [originalOrderSalesRep, setOriginalOrderSalesRep] = React.useState<string | undefined>(undefined);
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isLoadingForm, setIsLoadingForm] = React.useState(true);
@@ -187,9 +188,9 @@ export default function OrderFormPage() {
       visitDate: new Date(),
       clientStatus: undefined,
       outcome: undefined,
-      clavadistaId: NO_CLAVADISTA_VALUE,
+      clavadistaId: userRole === 'Clavadista' && teamMember ? teamMember.id : NO_CLAVADISTA_VALUE,
       selectedSalesRepId: userRole === 'Admin' ? ADMIN_SELF_REGISTER_VALUE : undefined,
-      canalOrigenColocacion: undefined, // Added
+      canalOrigenColocacion: undefined,
       clientType: undefined,
       numberOfUnits: undefined,
       unitPrice: undefined,
@@ -236,9 +237,10 @@ export default function OrderFormPage() {
         if (visitIdToUpdate) {
           try {
             const existingVisit = await getOrderByIdFS(visitIdToUpdate);
-            if (existingVisit && teamMember && (existingVisit.salesRep === teamMember.name || userRole === 'Admin') &&
+            if (existingVisit && teamMember && (existingVisit.salesRep === teamMember.name || userRole === 'Admin' || (userRole === 'Clavadista' && existingVisit.clavadistaId === teamMember.id)) &&
                 (existingVisit.status === 'Programada' || existingVisit.status === 'Seguimiento' || existingVisit.status === 'Fallido')) {
               setEditingVisitId(visitIdToUpdate);
+              setOriginalOrderSalesRep(existingVisit.salesRep); 
 
               let visitDateParsed = parseISO(existingVisit.visitDate);
               if (!isValid(visitDateParsed)) visitDateParsed = new Date();
@@ -257,15 +259,14 @@ export default function OrderFormPage() {
                   }
               }
 
-
               form.reset({
                 clientName: existingVisit.clientName,
                 visitDate: visitDateParsed,
                 clientStatus: existingVisit.clientStatus || undefined,
                 outcome: undefined, 
-                clavadistaId: existingVisit.clavadistaId || NO_CLAVADISTA_VALUE,
+                clavadistaId: userRole === 'Clavadista' && teamMember ? teamMember.id : (existingVisit.clavadistaId || NO_CLAVADISTA_VALUE),
                 selectedSalesRepId: userRole === 'Admin' ? preselectedSalesRepId : undefined,
-                canalOrigenColocacion: existingVisit.canalOrigenColocacion || undefined, // Added
+                canalOrigenColocacion: existingVisit.canalOrigenColocacion || undefined,
                 notes: existingVisit.notes || "",
                 clientType: existingVisit.clientType,
                 numberOfUnits: existingVisit.numberOfUnits,
@@ -301,12 +302,14 @@ export default function OrderFormPage() {
           }
         } else {
             setEditingVisitId(null);
+            setOriginalOrderSalesRep(undefined);
             setPageTitle("Registrar Visita / Pedido de Cliente");
             setCardDescription("Complete los detalles para registrar o programar una nueva interacción con un cliente.");
             form.reset({
-                clientName: "", visitDate: new Date(), clientStatus: undefined, outcome: undefined, clavadistaId: NO_CLAVADISTA_VALUE,
+                clientName: "", visitDate: new Date(), clientStatus: undefined, outcome: undefined, 
+                clavadistaId: userRole === 'Clavadista' && teamMember ? teamMember.id : NO_CLAVADISTA_VALUE,
                 selectedSalesRepId: userRole === 'Admin' ? ADMIN_SELF_REGISTER_VALUE : undefined,
-                canalOrigenColocacion: undefined, // Added
+                canalOrigenColocacion: undefined,
                 notes: "",
                 nombreFiscal: "", cif: "", direccionFiscal: "", direccionEntrega: "", contactoNombre: "", contactoCorreo: "", contactoTelefono: "", observacionesAlta: "",
                 clientType: undefined, numberOfUnits: undefined, unitPrice: undefined, orderValue: undefined,
@@ -365,6 +368,19 @@ export default function OrderFormPage() {
             salesRepNameForOrder = selectedRep.name;
             salesRepIdForAccount = selectedRep.id;
         }
+    } else if (userRole === 'Clavadista') {
+        salesRepNameForOrder = teamMember.name; // El Clavadista es el "salesRep" para esta interacción
+        // salesRepIdForAccount podría ser el del clavadista o un admin/supervisor si se quiere un "dueño" de cuenta distinto
+        salesRepIdForAccount = teamMember.id; // Por ahora, el clavadista es el "dueño" si crea la cuenta
+    }
+    
+    if (editingVisitId && originalOrderSalesRep) {
+      salesRepNameForOrder = originalOrderSalesRep; // Mantener el SalesRep original si se está editando una visita
+      // No cambiar salesRepIdForAccount en este caso, ya que la cuenta ya tiene un dueño.
+      const originalSalesRepMember = salesRepsList.find(sr => sr.name === originalOrderSalesRep) || (teamMember.name === originalOrderSalesRep ? teamMember : null);
+      if (originalSalesRepMember) {
+          salesRepIdForAccount = originalSalesRepMember.id;
+      }
     }
 
 
@@ -407,7 +423,7 @@ export default function OrderFormPage() {
                   mainContactEmail: values.contactoCorreo,
                   mainContactPhone: values.contactoTelefono,
                   notes: values.observacionesAlta,
-                  salesRepId: salesRepIdForAccount,
+                  salesRepId: salesRepIdForAccount, // Usar el salesRepId determinado arriba
               };
               currentAccountId = await addAccountFS(newAccountData);
               accountCreationMessage = ` Nueva cuenta "${newAccountData.name}" creada con estado: ${newAccountStatus}.`;
@@ -426,10 +442,10 @@ export default function OrderFormPage() {
         clientName: values.clientName,
         visitDate: format(values.visitDate, "yyyy-MM-dd"),
         clavadistaId: finalClavadistaId,
-        canalOrigenColocacion: values.canalOrigenColocacion, // Added
+        canalOrigenColocacion: values.canalOrigenColocacion,
         assignedMaterials: values.assignedMaterials || [],
         notes: values.notes,
-        clientStatus: values.clientStatus, // This will be undefined if outcome is "Programar Visita"
+        clientStatus: values.clientStatus,
         salesRep: salesRepNameForOrder,
         accountId: currentAccountId, 
         nombreFiscal: values.nombreFiscal,
@@ -488,9 +504,10 @@ export default function OrderFormPage() {
       refreshDataSignature(); 
 
       form.reset({
-          clientName: "", visitDate: new Date(), clientStatus: undefined, outcome: undefined, clavadistaId: NO_CLAVADISTA_VALUE,
+          clientName: "", visitDate: new Date(), clientStatus: undefined, outcome: undefined, 
+          clavadistaId: userRole === 'Clavadista' && teamMember ? teamMember.id : NO_CLAVADISTA_VALUE,
           selectedSalesRepId: userRole === 'Admin' ? ADMIN_SELF_REGISTER_VALUE : undefined,
-          canalOrigenColocacion: undefined, // Added
+          canalOrigenColocacion: undefined,
           notes: "",
           nombreFiscal: "", cif: "", direccionFiscal: "", direccionEntrega: "", contactoNombre: "", contactoCorreo: "", contactoTelefono: "", observacionesAlta: "",
           clientType: undefined, numberOfUnits: undefined, unitPrice: undefined, orderValue: undefined,
@@ -503,6 +520,7 @@ export default function OrderFormPage() {
           router.push('/my-agenda'); 
       }
       setEditingVisitId(null);
+      setOriginalOrderSalesRep(undefined);
       setPageTitle("Registrar Visita / Pedido de Cliente");
       setCardDescription("Complete los detalles para registrar o programar una nueva interacción con un cliente.");
 
@@ -673,7 +691,11 @@ export default function OrderFormPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="flex items-center"><Award className="mr-2 h-4 w-4 text-primary" />Clavadista (Brand Ambassador)</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || NO_CLAVADISTA_VALUE} disabled={isLoadingDropdownData}>
+                    <Select 
+                        onValueChange={field.onChange} 
+                        value={field.value || NO_CLAVADISTA_VALUE} 
+                        disabled={isLoadingDropdownData || (userRole === 'Clavadista' && !!teamMember)}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder={isLoadingDropdownData ? "Cargando..." : "Seleccionar clavadista (opcional)"} />
@@ -898,3 +920,5 @@ export default function OrderFormPage() {
     </div>
   );
 }
+
+    

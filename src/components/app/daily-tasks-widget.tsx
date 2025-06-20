@@ -36,21 +36,30 @@ interface AgendaCrmEventItem extends AgendaItemBase {
 type AgendaItem = AgendaOrderItem | AgendaCrmEventItem;
 
 export default function DailyTasksWidget() {
-  const { userRole, teamMember } = useAuth();
+  const { userRole, teamMember, loading: authLoading } = useAuth(); // Renamed loading to authLoading
   const { toast } = useToast();
   const today = startOfDay(new Date());
   const nextSevenDaysEnd = endOfDay(addDays(today, 6));
   const [dailyItems, setDailyItems] = React.useState<AgendaItem[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
+  const [isLoading, setIsLoading] = React.useState(true); // Local loading state for this widget
 
   React.useEffect(() => {
     async function loadTasks() {
-      setIsLoading(true);
-      if ((!teamMember && userRole === 'SalesRep') || userRole === 'Distributor') {
+      setIsLoading(true); // Set local loading to true when starting to load tasks
+
+      if (userRole === 'Distributor') {
           setDailyItems([]);
           setIsLoading(false);
           return;
       }
+      
+      // If SalesRep or Clavadista, but teamMember is not yet available (even after authLoading is false), treat as no tasks.
+      if ((userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember) {
+          setDailyItems([]);
+          setIsLoading(false);
+          return;
+      }
+
 
       let relevantOrdersFromFS: Order[] = [];
       let relevantEventsFromFS: CrmEvent[] = [];
@@ -88,7 +97,18 @@ export default function DailyTasksWidget() {
         filteredEvents = relevantEventsFromFS.filter(event =>
           event.assignedTeamMemberIds.includes(teamMember.id) && isValid(parseISO(event.startDate))
         );
+      } else if (userRole === 'Clavadista' && teamMember) {
+        filteredOrders = relevantOrdersFromFS.filter(order =>
+          order.clavadistaId === teamMember.id &&
+          (order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') &&
+          (order.status === 'Programada' ? order.visitDate : order.nextActionDate) &&
+          isValid(parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!))
+        );
+        filteredEvents = relevantEventsFromFS.filter(event =>
+          event.assignedTeamMemberIds.includes(teamMember.id) && isValid(parseISO(event.startDate))
+        );
       }
+
 
       const orderAgendaItems: AgendaOrderItem[] = filteredOrders
         .map(order => ({
@@ -131,8 +151,15 @@ export default function DailyTasksWidget() {
         }));
       setIsLoading(false);
     }
+
+    if (authLoading) {
+      setIsLoading(true); // Keep local loading true if auth is still loading
+      return;
+    }
+    // Auth is done, proceed to load tasks based on resolved userRole and teamMember
     loadTasks();
-  }, [userRole, teamMember, today, nextSevenDaysEnd, toast]);
+
+  }, [userRole, teamMember, today, nextSevenDaysEnd, toast, authLoading]); // Added authLoading to dependencies
 
   if (isLoading) {
     return (

@@ -186,49 +186,66 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
 
   React.useEffect(() => {
     async function initializeFormWithOrderAndAccountData() {
-      if (order && isOpen && !isLoadingDropdownData) {
-        let accountData: Account | null = null;
-        if (order.accountId) {
-          setIsLoadingAccountDetails(true);
-          try {
-            accountData = await getAccountByIdFS(order.accountId);
-          } catch (err) {
-            console.error("Error fetching account details for order dialog:", err);
-            toast({ title: "Error Cuenta", description: "No se pudieron cargar los detalles de la cuenta asociada.", variant: "destructive"});
-          } finally {
-            setIsLoadingAccountDetails(false);
-          }
-        }
-
-        form.reset({
-          clientName: order.clientName,
-          products: order.products?.join(",\n") || "",
-          value: order.value,
-          status: order.status,
-          salesRep: order.salesRep || (salesReps.length > 0 ? salesReps[0].name : ""),
-          clavadistaId: order.clavadistaId || NO_CLAVADISTA_VALUE,
-          canalOrigenColocacion: order.canalOrigenColocacion || undefined, // Added
-          assignedMaterials: order.assignedMaterials || [],
-          clientType: order.clientType,
-          numberOfUnits: order.numberOfUnits,
-          unitPrice: order.unitPrice,
-          nombreFiscal: accountData?.legalName || order.nombreFiscal || "",
-          cif: accountData?.cif || order.cif || "",
-          direccionFiscal: accountData?.addressBilling || order.direccionFiscal || "",
-          direccionEntrega: accountData?.addressShipping || order.direccionEntrega || "",
-          contactoNombre: accountData?.mainContactName || order.contactoNombre || "",
-          contactoCorreo: accountData?.mainContactEmail || order.contactoCorreo || "",
-          contactoTelefono: accountData?.mainContactPhone || order.contactoTelefono || "",
-          observacionesAlta: order.observacionesAlta || "", 
-          notes: order.notes || "",
-          nextActionType: order.nextActionType,
-          nextActionCustom: order.nextActionCustom || "",
-          nextActionDate: order.nextActionDate && isValid(parseISO(order.nextActionDate)) ? parseISO(order.nextActionDate) : undefined,
-          failureReasonType: order.failureReasonType,
-          failureReasonCustom: order.failureReasonCustom || "",
+      if (!order) {
+        form.reset({ // Reset to truly empty/default values if no order
+            clientName: "", products: "", value: undefined, status: "Pendiente", salesRep: (salesReps.length > 0 ? salesReps[0].name : ""),
+            clavadistaId: NO_CLAVADISTA_VALUE, canalOrigenColocacion: undefined, assignedMaterials: [],
+            clientType: undefined, numberOfUnits: undefined, unitPrice: undefined,
+            nombreFiscal: "", cif: "", direccionFiscal: "", direccionEntrega: "",
+            contactoNombre: "", contactoCorreo: "", contactoTelefono: "",
+            observacionesAlta: "", notes: "", nextActionType: undefined,
+            nextActionCustom: "", nextActionDate: undefined,
+            failureReasonType: undefined, failureReasonCustom: "",
         });
+        setIsLoadingAccountDetails(false); // Ensure loader is off if no order
+        return;
       }
+
+      let accountData: Account | null = null;
+      if (order.accountId) {
+        setIsLoadingAccountDetails(true); // Set loading true before fetching account
+        try {
+          accountData = await getAccountByIdFS(order.accountId);
+        } catch (err) {
+          console.error("Error fetching account details for order dialog:", err);
+          toast({ title: "Error Cuenta", description: "No se pudieron cargar los detalles de la cuenta asociada.", variant: "destructive"});
+          // accountData remains null
+        }
+        // Do not set isLoadingAccountDetails(false) here, do it after form.reset
+      }
+
+      // Reset the form after accountData has been fetched (or attempt failed)
+      form.reset({
+        clientName: order.clientName,
+        products: order.products?.join(",\n") || "",
+        value: order.value,
+        status: order.status,
+        salesRep: order.salesRep || (salesReps.length > 0 ? salesReps[0].name : ""),
+        clavadistaId: order.clavadistaId || NO_CLAVADISTA_VALUE,
+        canalOrigenColocacion: order.canalOrigenColocacion || undefined,
+        assignedMaterials: order.assignedMaterials || [],
+        clientType: order.clientType,
+        numberOfUnits: order.numberOfUnits,
+        unitPrice: order.unitPrice,
+        nombreFiscal: accountData?.legalName || order.nombreFiscal || "",
+        cif: accountData?.cif || order.cif || "",
+        direccionFiscal: accountData?.addressBilling || order.direccionFiscal || "",
+        direccionEntrega: accountData?.addressShipping || order.direccionEntrega || "",
+        contactoNombre: accountData?.mainContactName || order.contactoNombre || "",
+        contactoCorreo: accountData?.mainContactEmail || order.contactoCorreo || "",
+        contactoTelefono: accountData?.mainContactPhone || order.contactoTelefono || "",
+        observacionesAlta: order.observacionesAlta || "", 
+        notes: order.notes || "",
+        nextActionType: order.nextActionType,
+        nextActionCustom: order.nextActionCustom || "",
+        nextActionDate: order.nextActionDate && isValid(parseISO(order.nextActionDate)) ? parseISO(order.nextActionDate) : undefined,
+        failureReasonType: order.failureReasonType,
+        failureReasonCustom: order.failureReasonCustom || "",
+      });
+
+      setIsLoadingAccountDetails(false); // Set loading false *after* form reset
     }
+
     if (isOpen && !isLoadingDropdownData) { 
         initializeFormWithOrderAndAccountData();
     }
@@ -279,12 +296,24 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     window.print();
   };
 
-  if (!order) return null;
+  if (!order && isOpen) { // If isOpen but no order, show loading or error, but dialog wrapper might handle this.
+    // This case should be rare if orders-dashboard correctly sets order before opening.
+    return (
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader><DialogTitle>Error</DialogTitle></DialogHeader>
+                <p>No se ha proporcionado información del pedido.</p>
+                <DialogFooter><DialogClose asChild><Button>Cerrar</Button></DialogClose></DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+  }
+
 
   const isSalesRep = currentUserRole === 'SalesRep';
   
   const canEditOrderDetailsOverall = isAdmin;
-  const canEditStatusAndNotesOnly = isDistributor && !isAdmin; // For distributor, only status and notes
+  const canEditStatusAndNotesOnly = isDistributor && !isAdmin; 
   const isReadOnlyForMostFields = isSalesRep || (!isAdmin && !isDistributor);
 
   const formFieldsGenericDisabled = isReadOnlyForMostFields || isLoadingDropdownData || isLoadingAccountDetails;
@@ -303,7 +332,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
       <DialogContent className="sm:max-w-md md:max-w-lg lg:max-w-2xl xl:max-w-3xl max-h-[90vh] overflow-y-auto print-dialog-content">
         <DialogHeader className="print-hide">
           <DialogTitle>
-            {(isReadOnlyForMostFields && !canEditStatusAndNotesOnly) ? "Detalles Pedido:" : "Editar Pedido:"} {order.id} ({order.status})
+            {(isReadOnlyForMostFields && !canEditStatusAndNotesOnly) ? "Detalles Pedido:" : "Editar Pedido:"} {order?.id} ({order?.status})
           </DialogTitle>
           <DialogDescription>
             {(isReadOnlyForMostFields && !canEditStatusAndNotesOnly)
@@ -412,12 +441,12 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
              )}
 
 
-            {(order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') && (
+            {(order?.status === 'Seguimiento' || order?.status === 'Fallido' || order?.status === 'Programada') && (
                 <>
                   <Separator className="my-6" />
                   <h3 className="text-md font-semibold text-muted-foreground">Información de Seguimiento/Programación Original</h3>
                   <FormField control={form.control} name="nextActionType" render={({ field }) => (<FormItem><FormLabel>Próxima Acción (Original)</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={true}><FormControl><SelectTrigger><SelectValue placeholder="N/A" /></SelectTrigger></FormControl><SelectContent>{nextActionTypeList.map(action => (<SelectItem key={action} value={action}>{action}</SelectItem>))}</SelectContent></Select></FormItem>)}/>
-                  {order.nextActionType === "Opción personalizada" && (<FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Detalle Próx. Acción Personalizada (Original)</FormLabel><FormControl><Input {...field} disabled={true} /></FormControl></FormItem>)} />)}
+                  {order?.nextActionType === "Opción personalizada" && (<FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Detalle Próx. Acción Personalizada (Original)</FormLabel><FormControl><Input {...field} disabled={true} /></FormControl></FormItem>)} />)}
                   <FormField
                     control={form.control}
                     name="nextActionDate"
@@ -434,10 +463,10 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                       </FormItem>
                     )}
                   />
-                   {order.status === 'Fallido' && (
+                   {order?.status === 'Fallido' && (
                      <>
                       <FormField control={form.control} name="failureReasonType" render={({ field }) => (<FormItem><FormLabel>Motivo Fallo (Original)</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={true}><FormControl><SelectTrigger><SelectValue placeholder="N/A" /></SelectTrigger></FormControl><SelectContent>{failureReasonList.map(reason => (<SelectItem key={reason} value={reason}>{reason}</SelectItem>))}</SelectContent></Select></FormItem>)}/>
-                      {order.failureReasonType === "Otro (especificar)" && (<FormField control={form.control} name="failureReasonCustom" render={({ field }) => (<FormItem><FormLabel>Detalle Motivo Fallo Personalizado (Original)</FormLabel><FormControl><Textarea {...field} disabled={true} /></FormControl></FormItem>)} />)}
+                      {order?.failureReasonType === "Otro (especificar)" && (<FormField control={form.control} name="failureReasonCustom" render={({ field }) => (<FormItem><FormLabel>Detalle Motivo Fallo Personalizado (Original)</FormLabel><FormControl><Textarea {...field} disabled={true} /></FormControl></FormItem>)} />)}
                      </>
                    )}
                 </>

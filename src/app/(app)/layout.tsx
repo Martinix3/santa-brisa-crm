@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button';
 import Logo from '@/components/icons/Logo';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2, Building2, ClipboardList, CalendarCheck, PartyPopper, ListChecks, Footprints, Briefcase, Target, Award, Sparkles, Receipt } from 'lucide-react'; // Added Receipt
+import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2, Building2, ClipboardList, CalendarCheck, PartyPopper, ListChecks, Footprints, Briefcase, Target, Award, Sparkles, Receipt } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -76,7 +76,7 @@ const navigationStructure: NavGroup[] = [
     ],
   },
   {
-    id: 'facturacion', // New group for Direct Sales
+    id: 'facturacion',
     label: 'Facturación SB',
     groupRoles: ['Admin'],
     items: [
@@ -113,11 +113,13 @@ function DailyTasksMenu() {
   const [taskCount, setTaskCount] = useState(0);
   const [isLoadingTasks, setIsLoadingTasks] = useState(true);
 
-
   useEffect(() => {
     async function fetchTasks() {
       setIsLoadingTasks(true);
-      if ((!teamMember && (userRole === 'SalesRep' || userRole === 'Clavadista')) || userRole === 'Distributor') {
+      // If user is SalesRep or Clavadista but teamMember isn't loaded yet,
+      // or if user is Distributor, set loading to false and return.
+      // Task fetching will proceed if Admin, or if SalesRep/Clavadista with loaded teamMember.
+      if (userRole === 'Distributor' || ((userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember)) {
         setTaskCount(0);
         setIsLoadingTasks(false);
         return;
@@ -150,7 +152,6 @@ function DailyTasksMenu() {
             event.assignedTeamMemberIds.includes(teamMember.id) && isValid(parseISO(event.startDate))
           );
         } else if (userRole === 'Clavadista' && teamMember) {
-          // Clavadistas ven eventos asignados y órdenes donde participaron
           relevantOrders = allOrders.filter(order =>
             order.clavadistaId === teamMember.id &&
             (order.status === 'Seguimiento' || order.status === 'Fallido' || order.status === 'Programada') &&
@@ -165,7 +166,6 @@ function DailyTasksMenu() {
           console.error("Error fetching data for daily tasks menu:", error);
           toast({ title: "Error Tareas", description: "No se pudieron cargar las tareas del menú.", variant: "destructive"});
       }
-
 
       const orderAgendaItems = relevantOrders
         .map(order => ({
@@ -195,23 +195,33 @@ function DailyTasksMenu() {
       setIsLoadingTasks(false);
     }
 
-    if(userRole && (userRole === 'Admin' || ((userRole === 'SalesRep' || userRole === 'Clavadista') && teamMember))) {
+    // Only run fetchTasks if Admin, or if SalesRep/Clavadista and teamMember is loaded.
+    if (userRole === 'Admin' || ((userRole === 'SalesRep' || userRole === 'Clavadista') && teamMember)) {
         fetchTasks();
-    } else if (userRole === 'Distributor') {
+    } else if (userRole === 'Distributor' || ((userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember)) {
+        // If Distributor or SalesRep/Clavadista without teamMember, set loading to false directly.
         setIsLoadingTasks(false);
         setTaskCount(0);
     }
   }, [userRole, teamMember, today, nextSevenDaysEnd, toast]);
 
+  const canShowWidgetIcon = userRole === 'Admin' || userRole === 'SalesRep' || userRole === 'Clavadista';
 
-  if (userRole === 'Distributor' || isLoadingTasks || !teamMember && (userRole === 'SalesRep' || userRole === 'Clavadista')) return null; 
+  if (!canShowWidgetIcon) {
+    return null; 
+  }
+  
+  // Determine if a subtle loading indicator should be shown on the icon itself
+  // This happens if tasks are loading AND (it's Admin OR (it's SalesRep/Clavadista AND teamMember is available))
+  // It avoids showing the loader if teamMember is still loading for SalesRep/Clavadista, as fetchTasks wouldn't run yet.
+  const showIconLoader = isLoadingTasks && (userRole === 'Admin' || ((userRole === 'SalesRep' || userRole === 'Clavadista') && teamMember));
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-9 w-9 rounded-full p-0">
           <ListChecks className="h-5 w-5" />
-          {taskCount > 0 && (
+          {!isLoadingTasks && taskCount > 0 && (
             <Badge
               variant="destructive"
               className="absolute -top-1 -right-1 h-4 min-w-[1rem] p-0.5 text-xs flex items-center justify-center rounded-full"
@@ -219,22 +229,34 @@ function DailyTasksMenu() {
               {taskCount > 9 ? '9+' : taskCount}
             </Badge>
           )}
+          {showIconLoader && (
+             <Loader2 className="absolute h-3 w-3 animate-spin text-muted-foreground opacity-70" style={{top: '2px', right: '2px'}}/>
+          )}
           <span className="sr-only">Próximas Tareas</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-auto p-0 mr-2" align="end" forceMount>
-          <DropdownMenuLabel className="font-normal text-center py-2">
-            <p className="text-sm font-medium leading-none">Próximas Tareas</p>
-            <p className="text-xs leading-none text-muted-foreground">
-              Hasta el {format(nextSevenDaysEnd, "dd 'de' MMMM", { locale: es })}
-            </p>
-          </DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DailyTasksWidget />
+        {isLoadingTasks && !(userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember ? ( // Show loader only if tasks are actively being fetched
+          <div className="p-4 flex justify-center items-center h-[100px]">
+             <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        ) : (
+          <>
+            <DropdownMenuLabel className="font-normal text-center py-2">
+              <p className="text-sm font-medium leading-none">Próximas Tareas</p>
+              <p className="text-xs leading-none text-muted-foreground">
+                Hasta el {format(nextSevenDaysEnd, "dd 'de' MMMM", { locale: es })}
+              </p>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DailyTasksWidget /> 
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
+
 
 interface MonthlyProgressIndicatorProps {
   type: 'visits' | 'accounts';
@@ -436,7 +458,7 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  if (!user || !userRole) return null; // Added !userRole check
+  if (!user || !userRole) return null; 
 
   const handleLogout = async () => {
     await logout();
@@ -632,3 +654,5 @@ function UserMenu({ userRole, userEmail }: UserMenuProps) {
 }
 
 export default MainAppLayout;
+
+    

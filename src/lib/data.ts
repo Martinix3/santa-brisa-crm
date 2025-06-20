@@ -1,5 +1,5 @@
 
-import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType, Account, AccountType, AccountStatus, NextActionType, FailureReasonType, CrmEvent, CrmEventType, CrmEventStatus, PromotionalMaterial, PromotionalMaterialType, AssignedPromotionalMaterial, CanalOrigenColocacion, CanalVentaDirectaSB, EstadoVentaDirectaSB } from '@/types';
+import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType, Account, AccountType, AccountStatus, NextActionType, FailureReasonType, CrmEvent, CrmEventType, CrmEventStatus, PromotionalMaterial, PromotionalMaterialType, AssignedPromotionalMaterial, CanalOrigenColocacion, CanalVentaDirectaSB, EstadoVentaDirectaSB, VentaDirectaSB, VentaDirectaSBItem } from '@/types';
 import { Package, Users, ShoppingBag, BarChart3 } from 'lucide-react';
 import { format, addDays, subDays, isEqual, parseISO } from 'date-fns';
 import { TrendingUp, Briefcase, CalendarPlus, Repeat } from "lucide-react";
@@ -17,6 +17,7 @@ export const mockOrders: Order[] = [];
 export const mockAccounts: Account[] = [];
 export const mockCrmEvents: CrmEvent[] = [];
 export const mockPromotionalMaterials: PromotionalMaterial[] = [];
+export const mockVentasDirectasSB: VentaDirectaSB[] = []; // Array para mock de ventas directas
 
 
 export const orderStatusesList: OrderStatus[] = ['Programada', 'Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Cancelado', 'Fallido', 'Seguimiento'];
@@ -75,3 +76,4 @@ export const crmEventStatusList: CrmEventStatus[] = ['Planificado', 'Confirmado'
 export const canalVentaDirectaList: CanalVentaDirectaSB[] = ['Importador', 'Online', 'Estratégica', 'Otro Directo'];
 export const estadoVentaDirectaList: EstadoVentaDirectaSB[] = ['Borrador', 'Confirmada', 'Facturada', 'Pagada', 'Cancelada'];
 export const canalOrigenColocacionList: CanalOrigenColocacion[] = ['Equipo Santa Brisa', 'Iniciativa Importador', 'Marketing Digital', 'Referido', 'Otro'];
+

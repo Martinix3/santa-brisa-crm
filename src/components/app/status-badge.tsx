@@ -3,12 +3,13 @@
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { OrderStatus, AccountStatus, CrmEventStatus } from "@/types";
+import type { OrderStatus, AccountStatus, CrmEventStatus, EstadoVentaDirectaSB } from "@/types";
 
 type StatusBadgeProps = 
   | { type: 'order'; status: OrderStatus; className?: string; }
   | { type: 'account'; status: AccountStatus; className?: string; }
-  | { type: 'event'; status: CrmEventStatus; className?: string; };
+  | { type: 'event'; status: CrmEventStatus; className?: string; }
+  | { type: 'ventaDirectaSB'; status: EstadoVentaDirectaSB; className?: string; };
 
 const getOrderBadgeColorClass = (status: OrderStatus): string => {
   switch (status) {
@@ -47,6 +48,17 @@ const getEventBadgeColorClass = (status: CrmEventStatus): string => {
   }
 };
 
+const getVentaDirectaSBBadgeColorClass = (status: EstadoVentaDirectaSB): string => {
+  switch (status) {
+    case 'Pagada': return 'bg-green-500 hover:bg-green-600 text-white';
+    case 'Facturada': return 'bg-blue-500 hover:bg-blue-600 text-white';
+    case 'Confirmada': return 'bg-[hsl(var(--brand-turquoise-hsl))] hover:brightness-90 text-white';
+    case 'Borrador': return 'bg-yellow-400 hover:bg-yellow-500 text-black';
+    case 'Cancelada': return 'bg-red-500 hover:bg-red-600 text-white';
+    default: return 'bg-gray-400 hover:bg-gray-500 text-white';
+  }
+};
+
 
 export default function StatusBadge(props: StatusBadgeProps) {
   let badgeColorClass = "";
@@ -61,7 +73,11 @@ export default function StatusBadge(props: StatusBadgeProps) {
   } else if (props.type === 'event') {
     badgeColorClass = getEventBadgeColorClass(props.status);
     statusText = props.status;
+  } else if (props.type === 'ventaDirectaSB') {
+    badgeColorClass = getVentaDirectaSBBadgeColorClass(props.status);
+    statusText = props.status;
   }
+
 
   return (
     <Badge className={cn(badgeColorClass, "text-xs", props.className)}>

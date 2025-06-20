@@ -8,19 +8,21 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import type { VentaDirectaSB, EstadoVentaDirectaSB, UserRole, Account } from "@/types";
+import type { VentaDirectaSB, EstadoVentaDirectaSB, UserRole, Account, VentaDirectaSBFormValues } from "@/types";
 import { estadoVentaDirectaList } from "@/lib/data";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, MoreHorizontal, Filter, ChevronDown, Eye, Edit, Trash2, Receipt, Loader2 } from "lucide-react";
-// import VentaDirectaDialog, { type VentaDirectaFormValues } from "@/components/app/venta-directa-dialog"; // Futuro
+import VentaDirectaDialog from "@/components/app/venta-directa-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
-import StatusBadge from "@/components/app/status-badge"; // Asumimos que se adaptará o creará uno para VentaDirectaSB
+import StatusBadge from "@/components/app/status-badge";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-import Link from "next/link";
-import { getVentasDirectasSB_FS, deleteVentaDirectaSB_FS } from "@/services/venta-directa-sb-service";
-import { getAccountsFS } from "@/services/account-service"; // Para obtener nombres de clientes
+// import Link from "next/link"; // No se usa Link directo por ahora
+import { getVentasDirectasSB_FS, addVentaDirectaSB_FS, updateVentaDirectaSB_FS, deleteVentaDirectaSB_FS, initializeMockVentasDirectasSBInFirestore } from "@/services/venta-directa-sb-service";
+import { getAccountsFS } from "@/services/account-service"; 
+import { mockVentasDirectasSB as initialMockVentasForSeeding } from "@/lib/data";
+
 
 export default function DirectSalesSBPage() {
   const { toast } = useToast();
@@ -28,8 +30,8 @@ export default function DirectSalesSBPage() {
   const [ventas, setVentas] = React.useState<VentaDirectaSB[]>([]);
   const [accounts, setAccounts] = React.useState<Account[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
-  // const [editingVenta, setEditingVenta] = React.useState<VentaDirectaSB | null>(null); // Futuro
-  // const [isVentaDialogOpen, setIsVentaDialogOpen] = React.useState(false); // Futuro
+  const [editingVenta, setEditingVenta] = React.useState<VentaDirectaSB | null>(null);
+  const [isVentaDialogOpen, setIsVentaDialogOpen] = React.useState(false);
   const [ventaToDelete, setVentaToDelete] = React.useState<VentaDirectaSB | null>(null);
 
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -41,9 +43,10 @@ export default function DirectSalesSBPage() {
     async function loadInitialData() {
         setIsLoading(true);
         try {
+            // await initializeMockVentasDirectasSBInFirestore(initialMockVentasForSeeding); // Seed if needed
             const [fetchedVentas, fetchedAccounts] = await Promise.all([
                 getVentasDirectasSB_FS(),
-                getAccountsFS() // Para mapear clienteId a nombre si es necesario
+                getAccountsFS() 
             ]);
             setVentas(fetchedVentas);
             setAccounts(fetchedAccounts);
@@ -57,32 +60,91 @@ export default function DirectSalesSBPage() {
     if (isAdmin) {
         loadInitialData();
     } else {
-        setIsLoading(false); // No cargar si no es admin
+        setIsLoading(false); 
     }
   }, [toast, isAdmin]);
 
   const getClientNameById = (clientId: string): string => {
     const account = accounts.find(acc => acc.id === clientId);
-    return account?.name || clientId; // Devuelve ID si no se encuentra nombre
+    return account?.name || clientId; 
   };
 
   const handleAddNewVenta = () => {
     if (!isAdmin) return;
-    // setEditingVenta(null); // Futuro
-    // setIsVentaDialogOpen(true); // Futuro
-    toast({ title: "Próximamente", description: "El formulario para añadir ventas directas estará disponible pronto."});
+    setEditingVenta(null); 
+    setIsVentaDialogOpen(true); 
   };
 
   const handleEditVenta = (venta: VentaDirectaSB) => {
     if (!isAdmin) return;
-    // setEditingVenta(venta); // Futuro
-    // setIsVentaDialogOpen(true); // Futuro
-    toast({ title: "Próximamente", description: `La edición de la venta ${venta.id} estará disponible pronto.`});
+    setEditingVenta(venta); 
+    setIsVentaDialogOpen(true); 
   };
   
-  // const handleSaveVenta = async (data: VentaDirectaFormValues, ventaId?: string) => { // Futuro
-  //   // Lógica de guardado
-  // };
+  const handleSaveVenta = async (data: VentaDirectaSBFormValues, ventaId?: string) => {
+    if (!isAdmin) return;
+    setIsLoading(true);
+
+    const selectedAccount = accounts.find(acc => acc.id === data.clienteId);
+    if (!selectedAccount) {
+        toast({ title: "Error", description: "Cliente seleccionado no encontrado.", variant: "destructive"});
+        setIsLoading(false);
+        return;
+    }
+
+    // Calcular items con subtotales y el total general
+    const itemsConSubtotal = data.items.map(item => ({
+        ...item,
+        cantidad: Number(item.cantidad) || 0,
+        precioUnitarioNetoSB: Number(item.precioUnitarioNetoSB) || 0,
+        subtotalNetoSB: (Number(item.cantidad) || 0) * (Number(item.precioUnitarioNetoSB) || 0)
+    }));
+    const subtotalGeneralNetoSB = itemsConSubtotal.reduce((sum, item) => sum + item.subtotalNetoSB, 0);
+    const tipoIva = Number(data.tipoIvaAplicadoSB);
+    const importeIvaSB = !isNaN(tipoIva) && tipoIva >= 0 ? subtotalGeneralNetoSB * (tipoIva / 100) : 0;
+    const totalFacturaSB = subtotalGeneralNetoSB + importeIvaSB;
+
+
+    const ventaDataToSave: Partial<VentaDirectaSB> = {
+        fechaEmision: format(data.fechaEmision, "yyyy-MM-dd"),
+        numeroFacturaSB: data.numeroFacturaSB,
+        clienteId: data.clienteId,
+        nombreClienteFactura: selectedAccount.legalName || selectedAccount.name, // Usar legalName si existe
+        cifClienteFactura: selectedAccount.cif,
+        direccionClienteFactura: selectedAccount.addressBilling || selectedAccount.addressShipping,
+        canalVentaDirectaSB: data.canalVentaDirectaSB,
+        items: itemsConSubtotal,
+        subtotalGeneralNetoSB: subtotalGeneralNetoSB,
+        tipoIvaAplicadoSB: !isNaN(tipoIva) && tipoIva >=0 ? tipoIva : undefined,
+        importeIvaSB: importeIvaSB,
+        totalFacturaSB: totalFacturaSB,
+        estadoVentaDirectaSB: data.estadoVentaDirectaSB,
+        fechaVencimientoPago: data.fechaVencimientoPago ? format(data.fechaVencimientoPago, "yyyy-MM-dd") : undefined,
+        referenciasOrdenesColocacion: data.referenciasOrdenesColocacion?.split(/[,;\s]+/).map(ref => ref.trim()).filter(ref => ref) || [],
+        notasInternasSB: data.notasInternasSB,
+    };
+    
+    try {
+      let successMessage = "";
+      if (ventaId) { 
+        await updateVentaDirectaSB_FS(ventaId, ventaDataToSave);
+        successMessage = `La venta directa a "${selectedAccount.name}" ha sido actualizada.`;
+      } else { 
+        await addVentaDirectaSB_FS(ventaDataToSave);
+        successMessage = `La venta directa a "${selectedAccount.name}" ha sido añadida.`;
+      }
+      const updatedVentas = await getVentasDirectasSB_FS();
+      setVentas(updatedVentas);
+      toast({ title: "¡Operación Exitosa!", description: successMessage });
+    } catch (error) {
+        console.error("Error saving direct sale:", error);
+        toast({ title: "Error al Guardar", description: "No se pudo guardar la venta directa en Firestore.", variant: "destructive"});
+    } finally {
+        setIsLoading(false);
+        setIsVentaDialogOpen(false);
+        setEditingVenta(null);
+    }
+  };
 
   const handleDeleteVenta = (venta: VentaDirectaSB) => {
     if (!isAdmin) return;
@@ -137,8 +199,9 @@ export default function DirectSalesSBPage() {
             <Receipt className="h-8 w-8 text-primary" />
             <h1 className="text-3xl font-headline font-semibold">Gestión de Ventas Directas Santa Brisa</h1>
         </div>
-        <Button onClick={handleAddNewVenta} disabled={isLoading}>
+        <Button onClick={handleAddNewVenta} disabled={isLoading || accounts.length === 0}>
           <PlusCircle className="mr-2 h-4 w-4" /> Añadir Nueva Venta Directa
+          {accounts.length === 0 && !isLoading && <span className="ml-2 text-xs">(Necesita cuentas)</span>}
         </Button>
       </header>
 
@@ -204,8 +267,7 @@ export default function DirectSalesSBPage() {
                         <FormattedNumericValue value={venta.totalFacturaSB} options={{ style: 'currency', currency: 'EUR' }} />
                       </TableCell>
                       <TableCell className="text-center">
-                        {/* Adaptar StatusBadge o crear uno nuevo para VentaDirectaSBStatus */}
-                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-700">{venta.estadoVentaDirectaSB}</span>
+                        <StatusBadge type="ventaDirectaSB" status={venta.estadoVentaDirectaSB} />
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
@@ -269,14 +331,18 @@ export default function DirectSalesSBPage() {
         )}
       </Card>
 
-      {/* Futuro: Diálogo para añadir/editar ventas directas */}
-      {/* <VentaDirectaDialog
-        venta={editingVenta}
-        isOpen={isVentaDialogOpen}
-        onOpenChange={setIsVentaDialogOpen}
-        onSave={handleSaveVenta}
-        allAccounts={accounts} // Pasar accounts para el selector de cliente
-      /> */}
+      {isAdmin && (
+        <VentaDirectaDialog
+            venta={editingVenta}
+            isOpen={isVentaDialogOpen}
+            onOpenChange={(open) => {
+                setIsVentaDialogOpen(open);
+                if (!open) setEditingVenta(null);
+            }}
+            onSave={handleSaveVenta}
+            allAccounts={accounts}
+        />
+      )}
     </div>
   );
 }

@@ -76,7 +76,7 @@ export interface Order {
   lastUpdated: string; // YYYY-MM-DD
   clavadistaId?: string; 
   assignedMaterials?: AssignedPromotionalMaterial[]; 
-  canalOrigenColocacion?: CanalOrigenColocacion; // Nuevo campo
+  canalOrigenColocacion?: CanalOrigenColocacion;
 
   clientType?: ClientType;
   numberOfUnits?: number; 
@@ -177,31 +177,51 @@ export type CanalVentaDirectaSB = 'Importador' | 'Online' | 'Estratégica' | 'Ot
 export type EstadoVentaDirectaSB = 'Borrador' | 'Confirmada' | 'Facturada' | 'Pagada' | 'Cancelada';
 
 export interface VentaDirectaSBItem {
-  // Considerar un productId si tienes un catálogo de productos más formal
-  productoDescripcion: string; // Ej: "Santa Brisa Margarita Clásica 750ml"
+  productoDescripcion: string; 
   cantidad: number;
-  precioUnitarioNetoSB: number; // Precio al que Santa Brisa vende este item (sin IVA)
-  subtotalNetoSB: number; // cantidad * precioUnitarioNetoSB
+  precioUnitarioNetoSB: number; 
+  subtotalNetoSB: number; 
 }
 
 export interface VentaDirectaSB {
-  id: string; // Firestore document ID
-  fechaEmision: string; // YYYY-MM-DD
-  numeroFacturaSB?: string; // Número de factura de Santa Brisa (opcional si es pedido interno)
-  clienteId: string; // ID de la Account (Importador, Cliente Estratégico, etc.)
-  nombreClienteFactura: string; // Nombre para la factura
+  id: string; 
+  fechaEmision: string; 
+  numeroFacturaSB?: string; 
+  clienteId: string; 
+  nombreClienteFactura: string; 
   cifClienteFactura?: string;
   direccionClienteFactura?: string;
   canalVentaDirectaSB: CanalVentaDirectaSB;
   items: VentaDirectaSBItem[];
   subtotalGeneralNetoSB: number;
-  tipoIvaAplicadoSB?: number; // Ej: 21 (para 21%)
+  tipoIvaAplicadoSB?: number; 
   importeIvaSB?: number;
-  totalFacturaSB: number; // Este es el importe que Santa Brisa factura
+  totalFacturaSB: number; 
   estadoVentaDirectaSB: EstadoVentaDirectaSB;
-  fechaVencimientoPago?: string; // YYYY-MM-DD
-  referenciasOrdenesColocacion?: string[]; // IDs de Orders (colocación) que esta venta cubre
+  fechaVencimientoPago?: string; 
+  referenciasOrdenesColocacion?: string[]; 
   notasInternasSB?: string;
-  createdAt: string; // YYYY-MM-DD
-  updatedAt: string; // YYYY-MM-DD
+  createdAt: string; 
+  updatedAt: string; 
+}
+
+// Form values for VentaDirectaSB
+export interface VentaDirectaSBFormValues {
+  fechaEmision: Date;
+  numeroFacturaSB?: string;
+  clienteId: string;
+  // nombreClienteFactura: string; // No se necesita aquí, se tomará de la Account
+  // cifClienteFactura?: string;    // No se necesita aquí
+  // direccionClienteFactura?: string; // No se necesita aquí
+  canalVentaDirectaSB: CanalVentaDirectaSB;
+  items: {
+    productoDescripcion: string;
+    cantidad?: number;
+    precioUnitarioNetoSB?: number;
+  }[];
+  tipoIvaAplicadoSB?: number;
+  estadoVentaDirectaSB: EstadoVentaDirectaSB;
+  fechaVencimientoPago?: Date;
+  referenciasOrdenesColocacion?: string; // Usar string para entrada simple de IDs separados por coma
+  notasInternasSB?: string;
 }

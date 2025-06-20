@@ -13,12 +13,11 @@ import {
   Timestamp,
   query,
   orderBy,
-  // where, // Placeholder for future filtering
-  // WriteBatch, // Placeholder for future batch operations
-  // writeBatch // Placeholder for future batch operations
+  writeBatch
 } from 'firebase/firestore';
-import type { VentaDirectaSB, VentaDirectaSBItem } from '@/types';
+import type { VentaDirectaSB, VentaDirectaSBItem, VentaDirectaSBFormValues } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
+import { mockVentasDirectasSB } from '@/lib/data'; // Para seeding
 
 const VENTAS_DIRECTAS_SB_COLLECTION = 'ventasDirectasSB';
 
@@ -36,8 +35,8 @@ const fromFirestoreVentaDirectaSB = (docSnap: any): VentaDirectaSB => {
     canalVentaDirectaSB: data.canalVentaDirectaSB,
     items: data.items || [],
     subtotalGeneralNetoSB: data.subtotalGeneralNetoSB || 0,
-    tipoIvaAplicadoSB: data.tipoIvaAplicadoSB || undefined,
-    importeIvaSB: data.importeIvaSB || undefined,
+    tipoIvaAplicadoSB: data.tipoIvaAplicadoSB, // Puede ser undefined o null
+    importeIvaSB: data.importeIvaSB, // Puede ser undefined o null
     totalFacturaSB: data.totalFacturaSB || 0,
     estadoVentaDirectaSB: data.estadoVentaDirectaSB || 'Borrador',
     fechaVencimientoPago: data.fechaVencimientoPago instanceof Timestamp ? format(data.fechaVencimientoPago.toDate(), "yyyy-MM-dd") : (typeof data.fechaVencimientoPago === 'string' ? data.fechaVencimientoPago : undefined),
@@ -49,54 +48,9 @@ const fromFirestoreVentaDirectaSB = (docSnap: any): VentaDirectaSB => {
 };
 
 // Helper para convertir datos del formulario/UI a lo que se guarda en Firestore
-const toFirestoreVentaDirectaSB = (data: Partial<VentaDirectaSB>, isNew: boolean): any => {
-  const firestoreData: { [key: string]: any } = {};
-
-  // Map all known fields from VentaDirectaSB type
-  for (const key in data) {
-    if (Object.prototype.hasOwnProperty.call(data, key)) {
-      const value = (data as any)[key];
-      if (value === undefined && key !== 'numeroFacturaSB' && key !== 'cifClienteFactura' && key !== 'direccionClienteFactura' && key !== 'tipoIvaAplicadoSB' && key !== 'importeIvaSB' && key !== 'fechaVencimientoPago' && key !== 'notasInternasSB') continue; 
-
-      if ((key === 'fechaEmision' || key === 'fechaVencimientoPago') && value) {
-        const dateValue = typeof value === 'string' ? parseISO(value) : value;
-        firestoreData[key] = dateValue instanceof Date && isValid(dateValue) ? Timestamp.fromDate(dateValue) : null;
-      } else if (key === 'items' || key === 'referenciasOrdenesColocacion') {
-        firestoreData[key] = Array.isArray(value) ? value : [];
-      } else {
-        firestoreData[key] = value;
-      }
-    }
-  }
-
-  // Ensure optional fields that should be null if empty string
-  ['numeroFacturaSB', 'cifClienteFactura', 'direccionClienteFactura', 'notasInternasSB'].forEach(key => {
-    if (firestoreData[key] === '') firestoreData[key] = null;
-  });
-  
-  // Ensure numeric optional fields are numbers or null
-  ['tipoIvaAplicadoSB', 'importeIvaSB'].forEach(key => {
-      if (firestoreData[key] === '' || firestoreData[key] === undefined) firestoreData[key] = null;
-      else if (typeof firestoreData[key] === 'string') firestoreData[key] = parseFloat(firestoreData[key]);
-  });
-
-
-  if (isNew) {
-    firestoreData.createdAt = Timestamp.fromDate(new Date());
-    if (!firestoreData.estadoVentaDirectaSB) firestoreData.estadoVentaDirectaSB = 'Borrador';
-  }
-  firestoreData.updatedAt = Timestamp.fromDate(new Date());
-  
-  // Clean up any specifically undefined fields before sending
-  Object.keys(firestoreData).forEach(key => {
-    if (firestoreData[key] === undefined) {
-      firestoreData[key] = null; // Store undefined as null
-    }
-  });
-
-  return firestoreData;
-};
-
+// NOTA: Este helper ya no se usará directamente aquí, sino que la lógica estará en la página o diálogo.
+// Se mantiene por si se decide centralizar de nuevo.
+// La función `handleSaveVenta` en la page.tsx ahora construye el `Partial<VentaDirectaSB>` directamente.
 
 export const getVentasDirectasSB_FS = async (): Promise<VentaDirectaSB[]> => {
   const ventasCol = collection(db, VENTAS_DIRECTAS_SB_COLLECTION);
@@ -115,19 +69,67 @@ export const getVentaDirectaSBByIdFS = async (id: string): Promise<VentaDirectaS
   return docSnap.exists() ? fromFirestoreVentaDirectaSB(docSnap) : null;
 };
 
+// data es Partial<VentaDirectaSB> porque ya viene procesada de handleSaveVenta
 export const addVentaDirectaSB_FS = async (data: Partial<VentaDirectaSB>): Promise<string> => {
-  const firestoreData = toFirestoreVentaDirectaSB(data, true);
-  const docRef = await addDoc(collection(db, VENTAS_DIRECTAS_SB_COLLECTION), firestoreData);
+  const dataWithTimestamps = {
+    ...data,
+    createdAt: Timestamp.fromDate(new Date()),
+    updatedAt: Timestamp.fromDate(new Date()),
+    fechaEmision: data.fechaEmision ? Timestamp.fromDate(parseISO(data.fechaEmision)) : Timestamp.fromDate(new Date()),
+    fechaVencimientoPago: data.fechaVencimientoPago ? Timestamp.fromDate(parseISO(data.fechaVencimientoPago)) : null,
+  };
+  const docRef = await addDoc(collection(db, VENTAS_DIRECTAS_SB_COLLECTION), dataWithTimestamps);
   return docRef.id;
 };
 
 export const updateVentaDirectaSB_FS = async (id: string, data: Partial<VentaDirectaSB>): Promise<void> => {
   const ventaDocRef = doc(db, VENTAS_DIRECTAS_SB_COLLECTION, id);
-  const firestoreData = toFirestoreVentaDirectaSB(data, false);
-  await updateDoc(ventaDocRef, firestoreData);
+  const dataWithTimestamps = {
+    ...data,
+    updatedAt: Timestamp.fromDate(new Date()),
+    // Solo actualiza fechaEmision si se provee, de lo contrario mantiene la existente (si existe)
+    ...(data.fechaEmision && { fechaEmision: Timestamp.fromDate(parseISO(data.fechaEmision)) }),
+    fechaVencimientoPago: data.fechaVencimientoPago ? Timestamp.fromDate(parseISO(data.fechaVencimientoPago)) : null,
+  };
+  await updateDoc(ventaDocRef, dataWithTimestamps);
 };
 
 export const deleteVentaDirectaSB_FS = async (id: string): Promise<void> => {
   const ventaDocRef = doc(db, VENTAS_DIRECTAS_SB_COLLECTION, id);
   await deleteDoc(ventaDocRef);
+};
+
+
+export const initializeMockVentasDirectasSBInFirestore = async (mockData: VentaDirectaSB[]) => {
+    const ventasCol = collection(db, VENTAS_DIRECTAS_SB_COLLECTION);
+    const snapshot = await getDocs(query(ventasCol));
+    if (snapshot.empty && mockData.length > 0) {
+        const batch = writeBatch(db);
+        mockData.forEach(venta => {
+            const { id, createdAt, updatedAt, fechaEmision, fechaVencimientoPago, ...ventaData } = venta;
+            
+            const firestoreReadyData: any = { ...ventaData };
+            firestoreReadyData.fechaEmision = fechaEmision ? Timestamp.fromDate(parseISO(fechaEmision)) : Timestamp.fromDate(new Date());
+            firestoreReadyData.fechaVencimientoPago = fechaVencimientoPago ? Timestamp.fromDate(parseISO(fechaVencimientoPago)) : null;
+            firestoreReadyData.createdAt = createdAt ? Timestamp.fromDate(parseISO(createdAt)) : Timestamp.fromDate(new Date());
+            firestoreReadyData.updatedAt = updatedAt ? Timestamp.fromDate(parseISO(updatedAt)) : Timestamp.fromDate(new Date());
+            
+            // Limpiar campos opcionales que podrían ser string vacíos
+            ['numeroFacturaSB', 'cifClienteFactura', 'direccionClienteFactura', 'notasInternasSB'].forEach(key => {
+                if (firestoreReadyData[key] === '') firestoreReadyData[key] = null;
+            });
+            if (firestoreReadyData.tipoIvaAplicadoSB === undefined) firestoreReadyData.tipoIvaAplicadoSB = null;
+            if (firestoreReadyData.importeIvaSB === undefined) firestoreReadyData.importeIvaSB = null;
+
+
+            const docRef = doc(ventasCol); // Firestore generará el ID
+            batch.set(docRef, firestoreReadyData);
+        });
+        await batch.commit();
+        console.log('Mock ventas directas SB initialized in Firestore.');
+    } else if (mockData.length === 0) {
+        console.log('No mock ventas directas SB to seed.');
+    } else {
+        console.log('VentasDirectasSB collection is not empty. Skipping initialization.');
+    }
 };

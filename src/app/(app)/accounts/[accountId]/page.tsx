@@ -60,11 +60,11 @@ export default function AccountDetailPage() {
               return true;
             }
             // Fallback a CIF si no hay accountId o no coincide
-            if (!order.accountId && order.cif && order.cif.toLowerCase() === foundAccount.cif.toLowerCase()) {
+            if (!order.accountId && order.cif && foundAccount.cif && order.cif.trim().toLowerCase() === foundAccount.cif.trim().toLowerCase()) {
               return true;
             }
             // Fallback a nombre de cliente si no hay accountId ni CIF coincidente
-            if (!order.accountId && !order.cif && order.clientName.toLowerCase() === foundAccount.name.toLowerCase()) {
+            if (!order.accountId && !order.cif && order.clientName && foundAccount.name && order.clientName.trim().toLowerCase() === foundAccount.name.trim().toLowerCase()) {
               return true;
             }
             return false;

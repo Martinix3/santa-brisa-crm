@@ -63,6 +63,8 @@ export interface AssignedPromotionalMaterial {
   quantity: number;
 }
 
+export type CanalOrigenColocacion = 'Equipo Santa Brisa' | 'Iniciativa Importador' | 'Marketing Digital' | 'Referido' | 'Otro';
+
 export interface Order {
   id: string;
   clientName: string;
@@ -74,6 +76,7 @@ export interface Order {
   lastUpdated: string; // YYYY-MM-DD
   clavadistaId?: string; 
   assignedMaterials?: AssignedPromotionalMaterial[]; 
+  canalOrigenColocacion?: CanalOrigenColocacion; // Nuevo campo
 
   clientType?: ClientType;
   numberOfUnits?: number; 
@@ -116,7 +119,7 @@ export interface MarketingResourceCategory {
   resources: MarketingResource[];
 }
 
-export type AccountType = 'HORECA' | 'Distribuidor' | 'Retail Minorista' | 'Gran Superficie' | 'Evento Especial' | 'Otro';
+export type AccountType = 'HORECA' | 'Distribuidor' | 'Retail Minorista' | 'Gran Superficie' | 'Evento Especial' | 'Cliente Final Directo' | 'Importador' | 'Otro';
 export type AccountStatus = 'Activo' | 'Inactivo' | 'Potencial' | 'Bloqueado';
 
 export interface Account {
@@ -166,4 +169,39 @@ export interface TeamMemberFormValues {
   monthlyTargetVisits?: number;
   avatarUrl?: string;
   authUid?: string; // Store Firebase Auth UID
+}
+
+
+// Tipos para Ventas Directas de Santa Brisa
+export type CanalVentaDirectaSB = 'Importador' | 'Online' | 'Estratégica' | 'Otro Directo';
+export type EstadoVentaDirectaSB = 'Borrador' | 'Confirmada' | 'Facturada' | 'Pagada' | 'Cancelada';
+
+export interface VentaDirectaSBItem {
+  // Considerar un productId si tienes un catálogo de productos más formal
+  productoDescripcion: string; // Ej: "Santa Brisa Margarita Clásica 750ml"
+  cantidad: number;
+  precioUnitarioNetoSB: number; // Precio al que Santa Brisa vende este item (sin IVA)
+  subtotalNetoSB: number; // cantidad * precioUnitarioNetoSB
+}
+
+export interface VentaDirectaSB {
+  id: string; // Firestore document ID
+  fechaEmision: string; // YYYY-MM-DD
+  numeroFacturaSB?: string; // Número de factura de Santa Brisa (opcional si es pedido interno)
+  clienteId: string; // ID de la Account (Importador, Cliente Estratégico, etc.)
+  nombreClienteFactura: string; // Nombre para la factura
+  cifClienteFactura?: string;
+  direccionClienteFactura?: string;
+  canalVentaDirectaSB: CanalVentaDirectaSB;
+  items: VentaDirectaSBItem[];
+  subtotalGeneralNetoSB: number;
+  tipoIvaAplicadoSB?: number; // Ej: 21 (para 21%)
+  importeIvaSB?: number;
+  totalFacturaSB: number; // Este es el importe que Santa Brisa factura
+  estadoVentaDirectaSB: EstadoVentaDirectaSB;
+  fechaVencimientoPago?: string; // YYYY-MM-DD
+  referenciasOrdenesColocacion?: string[]; // IDs de Orders (colocación) que esta venta cubre
+  notasInternasSB?: string;
+  createdAt: string; // YYYY-MM-DD
+  updatedAt: string; // YYYY-MM-DD
 }

@@ -1,5 +1,5 @@
 
-import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType, Account, AccountType, AccountStatus, NextActionType, FailureReasonType, CrmEvent, CrmEventType, CrmEventStatus, PromotionalMaterial, PromotionalMaterialType, AssignedPromotionalMaterial } from '@/types';
+import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType, Account, AccountType, AccountStatus, NextActionType, FailureReasonType, CrmEvent, CrmEventType, CrmEventStatus, PromotionalMaterial, PromotionalMaterialType, AssignedPromotionalMaterial, CanalOrigenColocacion, CanalVentaDirectaSB, EstadoVentaDirectaSB } from '@/types';
 import { Package, Users, ShoppingBag, BarChart3 } from 'lucide-react';
 import { format, addDays, subDays, isEqual, parseISO } from 'date-fns';
 import { TrendingUp, Briefcase, CalendarPlus, Repeat } from "lucide-react";
@@ -59,7 +59,7 @@ export const mockMarketingResources: MarketingResourceCategory[] = [
 
 export const userRolesList: UserRole[] = ['Admin', 'SalesRep', 'Distributor', 'Clavadista'];
 
-export const accountTypeList: AccountType[] = ['HORECA', 'Distribuidor', 'Retail Minorista', 'Gran Superficie', 'Evento Especial', 'Otro'];
+export const accountTypeList: AccountType[] = ['HORECA', 'Distribuidor', 'Retail Minorista', 'Gran Superficie', 'Evento Especial', 'Cliente Final Directo', 'Importador', 'Otro'];
 export const accountStatusList: AccountStatus[] = ['Activo', 'Inactivo', 'Potencial', 'Bloqueado'];
 
 
@@ -70,3 +70,8 @@ export const promotionalMaterialTypeList: PromotionalMaterialType[] = ['Merchand
 
 export const crmEventTypeList: CrmEventType[] = ['Activación en Tienda', 'Feria Comercial', 'Evento Corporativo', 'Degustación', 'Patrocinio', 'Activación', 'Otro'];
 export const crmEventStatusList: CrmEventStatus[] = ['Planificado', 'Confirmado', 'En Curso', 'Completado', 'Cancelado', 'Pospuesto'];
+
+// Nuevas listas para Ventas Directas SB
+export const canalVentaDirectaList: CanalVentaDirectaSB[] = ['Importador', 'Online', 'Estratégica', 'Otro Directo'];
+export const estadoVentaDirectaList: EstadoVentaDirectaSB[] = ['Borrador', 'Confirmada', 'Facturada', 'Pagada', 'Cancelada'];
+export const canalOrigenColocacionList: CanalOrigenColocacion[] = ['Equipo Santa Brisa', 'Iniciativa Importador', 'Marketing Digital', 'Referido', 'Otro'];

@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area"; // Added import
 import type { Account, VentaDirectaSB, VentaDirectaSBFormValues, CanalVentaDirectaSB, EstadoVentaDirectaSB } from "@/types";
 import { canalVentaDirectaList, estadoVentaDirectaList } from "@/lib/data";
 import { Loader2, Calendar as CalendarIcon, PlusCircle, Trash2, DollarSign, Percent } from "lucide-react";

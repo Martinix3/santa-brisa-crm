@@ -13,7 +13,7 @@ import StatusBadge from '@/components/app/status-badge';
 import { CalendarCheck, ClipboardList, PartyPopper, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { getOrdersFS } from '@/services/order-service';
-import { getEventsFS } from '@/services/event-service'; // Import event service
+import { getEventsFS } from '@/services/event-service'; 
 import { useToast } from '@/hooks/use-toast';
 
 interface AgendaItemBase {
@@ -36,30 +36,17 @@ interface AgendaCrmEventItem extends AgendaItemBase {
 type AgendaItem = AgendaOrderItem | AgendaCrmEventItem;
 
 export default function DailyTasksWidget() {
-  const { userRole, teamMember, loading: authLoading } = useAuth(); // Renamed loading to authLoading
+  const { userRole, teamMember, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const today = startOfDay(new Date());
   const nextSevenDaysEnd = endOfDay(addDays(today, 6));
   const [dailyItems, setDailyItems] = React.useState<AgendaItem[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true); // Local loading state for this widget
+  const [isLoading, setIsLoading] = React.useState(true);
 
   React.useEffect(() => {
     async function loadTasks() {
-      setIsLoading(true); // Set local loading to true when starting to load tasks
-
-      if (userRole === 'Distributor') {
-          setDailyItems([]);
-          setIsLoading(false);
-          return;
-      }
-      
-      // If SalesRep or Clavadista, but teamMember is not yet available (even after authLoading is false), treat as no tasks.
-      if ((userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember) {
-          setDailyItems([]);
-          setIsLoading(false);
-          return;
-      }
-
+      // Esta función interna ahora solo se llama cuando estamos seguros de que podemos proceder.
+      setIsLoading(true);
 
       let relevantOrdersFromFS: Order[] = [];
       let relevantEventsFromFS: CrmEvent[] = [];
@@ -75,6 +62,9 @@ export default function DailyTasksWidget() {
       } catch (error) {
         console.error("Error fetching data for daily tasks:", error);
         toast({title: "Error al Cargar Tareas", description: "No se pudieron cargar todas las tareas.", variant: "destructive"})
+        setDailyItems([]); // Limpiar en caso de error
+        setIsLoading(false); // Asegurar que isLoading se actualice
+        return;
       }
 
       let filteredOrders: Order[] = [];
@@ -153,13 +143,28 @@ export default function DailyTasksWidget() {
     }
 
     if (authLoading) {
-      setIsLoading(true); // Keep local loading true if auth is still loading
+      setIsLoading(true); // Si la autenticación general está cargando, el widget también debe mostrar carga.
       return;
     }
-    // Auth is done, proceed to load tasks based on resolved userRole and teamMember
-    loadTasks();
 
-  }, [userRole, teamMember, today, nextSevenDaysEnd, toast, authLoading]); // Added authLoading to dependencies
+    // La autenticación ha terminado (authLoading es false).
+    // Ahora verificamos si el rol del usuario es uno que depende de teamMember y si teamMember ya está disponible.
+    if ((userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember && userRole !== null) {
+      // El rol requiere teamMember, pero teamMember aún no está listo (y userRole ya está definido).
+      // Mantenemos el estado de carga y esperamos que el efecto se vuelva a ejecutar cuando teamMember cambie.
+      setIsLoading(true);
+      return;
+    }
+
+    // Si es Distributor, o si es Admin, o si es SalesRep/Clavadista y teamMember está listo, procedemos a cargar tareas.
+    if (userRole === 'Distributor') {
+      setDailyItems([]);
+      setIsLoading(false); // No hay tareas para Distributor, terminamos la carga.
+    } else {
+      loadTasks(); // Llama a la función que realmente carga y procesa las tareas.
+    }
+
+  }, [authLoading, userRole, teamMember, today, nextSevenDaysEnd, toast]);
 
   if (isLoading) {
     return (
@@ -186,7 +191,7 @@ export default function DailyTasksWidget() {
       return `/crm-follow-up`;
     }
     if (item.sourceType === 'event') {
-       return `/events?viewEventId=${item.id}`; // Link to events page with a query param to highlight/view
+       return `/events?viewEventId=${item.id}`;
     }
     return '/my-agenda';
   };

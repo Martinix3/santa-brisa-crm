@@ -70,6 +70,7 @@ const navigationStructure: NavGroup[] = [
       { href: '/dashboard', label: 'Panel Principal', icon: LayoutDashboard, roles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'], exact: true },
       { href: '/my-agenda', label: 'Mi Agenda', icon: CalendarCheck, roles: ['Admin', 'SalesRep', 'Clavadista'] },
       { href: '/orders-dashboard', label: 'Panel de Pedidos', icon: ShoppingCart, roles: ['Admin', 'SalesRep', 'Distributor'] },
+      { href: '/accounts', label: 'Cuentas', icon: Building2, roles: ['Admin', 'SalesRep', 'Distributor'] }, 
     ],
   },
   {
@@ -79,7 +80,6 @@ const navigationStructure: NavGroup[] = [
     items: [
       { href: '/crm-follow-up', label: 'Tareas de Seguimiento', icon: ClipboardList, roles: ['Admin', 'SalesRep', 'Clavadista'] },
       { href: '/order-form', label: 'Registrar Interacción', icon: FileText, roles: ['Admin', 'SalesRep', 'Clavadista'] },
-      { href: '/accounts', label: 'Cuentas', icon: Building2, roles: ['Admin', 'SalesRep'] }, 
       { href: '/team-tracking', label: 'Equipo de Ventas', icon: Users, roles: ['Admin', 'SalesRep'] },
     ],
   },
@@ -199,24 +199,26 @@ function DailyTasksMenu() {
       return;
     }
 
-    if (!userRole) {
-        setIsLoadingTasks(true); 
+    if (!userRole) { // userRole es null mientras teamMember se está cargando
+        setIsLoadingTasks(true); // Mantener la carga si el rol aún no está definido después de authLoading
         setTaskCount(0);
         return;
     }
     
     if ((userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember) {
-      setIsLoadingTasks(true);
+      setIsLoadingTasks(true); // Si es SalesRep/Clavadista pero teamMember no está listo, seguir cargando
       setTaskCount(0);
       return;
     }
 
+    // Si es Admin, o es SalesRep/Clavadista y teamMember está listo, o es Distributor (sin tareas)
     if (userRole === 'Admin' || (teamMember && (userRole === 'SalesRep' || userRole === 'Clavadista'))) {
         fetchTasks();
     } else if (userRole === 'Distributor') {
         setTaskCount(0);
         setIsLoadingTasks(false);
     } else {
+        // Para otros casos o si userRole es null por alguna razón inesperada
         setTaskCount(0);
         setIsLoadingTasks(false);
     }

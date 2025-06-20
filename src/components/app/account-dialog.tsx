@@ -261,5 +261,3 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
     </Dialog>
   );
 }
-
-```

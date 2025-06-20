@@ -179,5 +179,3 @@ export const initializeMockAccountsInFirestore = async (mockAccounts: Account[])
         console.log('Accounts collection is not empty. Skipping initialization.');
     }
 };
-
-```

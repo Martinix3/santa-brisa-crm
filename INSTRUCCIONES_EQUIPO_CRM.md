@@ -125,7 +125,16 @@ Ambos roles son cruciales para generar demanda y registrar la actividad en el pu
 *   **Calidad de los Datos:** La precisión y la actualización constante de los datos son fundamentales para que el CRM sea útil. **Recuerda: REGISTRA TODO, bueno y malo.**
 *   **Notas:** Utiliza los campos de notas para añadir contexto e información relevante que pueda ser útil para ti o para otros miembros del equipo.
 
-## 4. Soporte
+## 4. Próximas Mejoras (Roadmap)
+
+El CRM está en constante evolución. Algunas de las funcionalidades que se planean implementar en futuras versiones incluyen:
+
+*   **Perfil de Usuario Personalizado:** Posibilidad de ver y (según permisos) editar detalles básicos de tu perfil de usuario directamente en la aplicación.
+*   **Cambio de Contraseña:** Funcionalidad para que los usuarios puedan cambiar su propia contraseña de acceso al CRM.
+*   **Subida de Facturas:** Permitir adjuntar archivos de factura (PDFs, imágenes) directamente a los pedidos (para Admin y Distributor) o a las Ventas Directas SB (para Admin).
+*   *(Otras mejoras se irán comunicando)*
+
+## 5. Soporte
 
 Si tienes alguna duda, problema técnico o sugerencia (¡especialmente importante en esta fase de pruebas!), por favor, contacta con el administrador del CRM.
 

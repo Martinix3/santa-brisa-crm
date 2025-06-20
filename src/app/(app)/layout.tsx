@@ -69,6 +69,7 @@ const navigationStructure: NavGroup[] = [
     items: [
       { href: '/dashboard', label: 'Panel Principal', icon: LayoutDashboard, roles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'], exact: true },
       { href: '/my-agenda', label: 'Mi Agenda', icon: CalendarCheck, roles: ['Admin', 'SalesRep', 'Clavadista'] },
+      { href: '/orders-dashboard', label: 'Panel de Pedidos', icon: ShoppingCart, roles: ['Admin', 'SalesRep', 'Distributor'] },
     ],
   },
   {
@@ -79,7 +80,6 @@ const navigationStructure: NavGroup[] = [
       { href: '/crm-follow-up', label: 'Tareas de Seguimiento', icon: ClipboardList, roles: ['Admin', 'SalesRep', 'Clavadista'] },
       { href: '/order-form', label: 'Registrar Interacción', icon: FileText, roles: ['Admin', 'SalesRep', 'Clavadista'] },
       { href: '/accounts', label: 'Cuentas', icon: Building2, roles: ['Admin', 'SalesRep'] }, 
-      { href: '/orders-dashboard', label: 'Panel de Pedidos', icon: ShoppingCart, roles: ['Admin', 'SalesRep', 'Distributor'] },
       { href: '/team-tracking', label: 'Equipo de Ventas', icon: Users, roles: ['Admin', 'SalesRep'] },
     ],
   },
@@ -123,12 +123,7 @@ function DailyTasksMenu() {
 
   useEffect(() => {
     async function fetchTasks() {
-      setIsLoadingTasks(true); // Set loading true at the start of actual data fetching
-      if (!userRole) { // Should not happen if logic below is correct, but as a safeguard
-          setIsLoadingTasks(false);
-          setTaskCount(0);
-          return;
-      }
+      setIsLoadingTasks(true);
       let relevantOrders: Order[] = [];
       let relevantEvents: CrmEvent[] = [];
 
@@ -198,36 +193,30 @@ function DailyTasksMenu() {
           setIsLoadingTasks(false);
       }
     }
-
+    
     if (authContextLoading) {
       setIsLoadingTasks(true);
       return;
     }
 
-    // If auth is NOT loading, but userRole isn't defined yet, keep loading.
-    // This prevents the flicker by not setting isLoadingTasks to false prematurely.
     if (!userRole) {
-        setIsLoadingTasks(true);
-        setTaskCount(0); // Reset count
+        setIsLoadingTasks(true); 
+        setTaskCount(0);
         return;
     }
-
-    // UserRole is defined, authContextLoading is false.
-    // Now check for teamMember dependency for SalesRep/Clavadista.
+    
     if ((userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember) {
-      setIsLoadingTasks(true); // Still loading if teamMember is needed but not yet available.
+      setIsLoadingTasks(true);
       setTaskCount(0);
       return;
     }
 
-    // Proceed to fetch tasks if Admin, or SalesRep/Clavadista with teamMember.
     if (userRole === 'Admin' || (teamMember && (userRole === 'SalesRep' || userRole === 'Clavadista'))) {
         fetchTasks();
-    } else if (userRole === 'Distributor') { // Distributor has no tasks shown here.
+    } else if (userRole === 'Distributor') {
         setTaskCount(0);
         setIsLoadingTasks(false);
     } else {
-        // Fallback for any other unhandled userRole state after loading.
         setTaskCount(0);
         setIsLoadingTasks(false);
     }
@@ -262,7 +251,7 @@ function DailyTasksMenu() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-auto p-0 mr-2" align="end" forceMount>
-        {showIconLoader ? ( // Use showIconLoader for the dropdown content as well
+        {showIconLoader ? ( 
           <div className="p-4 flex justify-center items-center h-[100px]">
              <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
@@ -303,9 +292,6 @@ function MonthlyProgressIndicator({ type, teamMember, userRole, allTeamMembers, 
   const unitLabel = type === 'visits' ? 'visitas' : 'cuentas';
 
   useEffect(() => {
-    // const currentMonthValue = getMonth(currentDate); // Not used
-    // const currentYearValue = getYear(currentDate); // Not used
-
     if (userRole === 'Admin') {
       const salesReps = allTeamMembers.filter(m => m.role === 'SalesRep');
       let teamTarget = 0;
@@ -367,7 +353,7 @@ function MonthlyProgressIndicator({ type, teamMember, userRole, allTeamMembers, 
     }
   }, [teamMember, userRole, type, currentDate, allTeamMembers, allOrders, allAccounts]);
 
-  if (!target && achieved === 0 && userRole !== 'Admin' && userRole !== 'SalesRep') return null; // Hide if not SalesRep or Admin without target/achieved
+  if (!target && achieved === 0 && userRole !== 'Admin' && userRole !== 'SalesRep') return null; 
   if (userRole === 'Admin' && target === 0 && achieved === 0) {
     return (
         <Tooltip>
@@ -581,16 +567,12 @@ function AppNavigation({ navStructure, userRole, teamMember }: AppNavigationProp
             roles: ['Clavadista']
           };
           
-          // Evitar duplicar el enlace si ya existe uno general a /clavadistas (panel general)
-          // Si el clavadista tiene un enlace específico a su perfil, se prioriza.
           const generalClavadistasLinkIndex = visibleItemsInGroup.findIndex(item => item.href === '/clavadistas');
           if (generalClavadistasLinkIndex !== -1) {
-            // Si el teamMember existe y tiene ID, se reemplaza el general por el específico.
-            // Si no, se mantiene el general (aunque para Clavadista, teamMember debería existir).
             if (teamMember && teamMember.id) {
               visibleItemsInGroup.splice(generalClavadistasLinkIndex, 1, clavadistaProfileItem);
             }
-          } else if (teamMember && teamMember.id) { // Si no había enlace general pero sí hay teamMember, se añade el específico.
+          } else if (teamMember && teamMember.id) {
              visibleItemsInGroup.unshift(clavadistaProfileItem);
           }
         }
@@ -714,4 +696,3 @@ function UserMenu({ userRole, userEmail }: UserMenuProps) {
 }
 
 export default MainAppLayout;
-

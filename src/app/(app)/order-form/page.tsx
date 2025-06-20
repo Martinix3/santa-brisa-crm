@@ -361,7 +361,7 @@ export default function OrderFormPage() {
 
 
   const handleExistingClientSelected = (accountId: string) => {
-    if (accountId === NEW_CLIENT_ACCOUNT_ID_PLACEHOLDER) { // "Cliente Nuevo Manual" seleccionado
+    if (accountId === NEW_CLIENT_ACCOUNT_ID_PLACEHOLDER) { 
         form.setValue("accountId", undefined);
         form.setValue("clientName", "");
         form.setValue("cif", "");
@@ -371,7 +371,7 @@ export default function OrderFormPage() {
         form.setValue("contactoNombre", "");
         form.setValue("contactoCorreo", "");
         form.setValue("contactoTelefono", "");
-        form.setValue("clientStatus", "new"); // Forzar a nuevo si se vuelve a manual
+        form.setValue("clientStatus", "new"); 
         return;
     }
 
@@ -382,11 +382,11 @@ export default function OrderFormPage() {
         form.setValue("cif", selectedAccount.cif, { shouldValidate: true });
         form.setValue("nombreFiscal", selectedAccount.legalName || selectedAccount.name, { shouldValidate: true });
         form.setValue("direccionFiscal", selectedAccount.addressBilling || "", { shouldValidate: true });
-        form.setValue("direccionEntrega", selectedAccount.addressShipping || selectedAccount.addressBilling || "", { shouldValidate: true }); // Fallback a billing
+        form.setValue("direccionEntrega", selectedAccount.addressShipping || selectedAccount.addressBilling || "", { shouldValidate: true }); 
         form.setValue("contactoNombre", selectedAccount.mainContactName || "", { shouldValidate: true });
         form.setValue("contactoCorreo", selectedAccount.mainContactEmail || "", { shouldValidate: true });
         form.setValue("contactoTelefono", selectedAccount.mainContactPhone || "", { shouldValidate: true });
-        form.setValue("clientType", selectedAccount.type); // Pre-fill type
+        form.setValue("clientType", selectedAccount.type); 
     }
   };
 
@@ -409,10 +409,10 @@ export default function OrderFormPage() {
             salesRepNameForOrder = selectedRep.name;
             salesRepIdForAccount = selectedRep.id;
         }
-    } else if (userRole === 'Clavadista' && !editingVisitId) { // Clavadista creando nueva interacción
+    } else if (userRole === 'Clavadista' && !editingVisitId) { 
         salesRepNameForOrder = teamMember.name; 
         salesRepIdForAccount = teamMember.id; 
-    } else if (editingVisitId && originalOrderSalesRep) { // Editando visita, mantener SalesRep original
+    } else if (editingVisitId && originalOrderSalesRep) { 
       salesRepNameForOrder = originalOrderSalesRep; 
       const originalSalesRepMember = salesRepsList.find(sr => sr.name === originalOrderSalesRep) || (teamMember.name === originalOrderSalesRep ? teamMember : null);
       if (originalSalesRepMember) {
@@ -429,7 +429,7 @@ export default function OrderFormPage() {
     try {
       if (values.clientStatus === "new" && !currentAccountId) { 
           let accountExists = false;
-          const currentAccountsList = await getAccountsFS(); // Re-fetch to ensure freshness
+          const currentAccountsList = await getAccountsFS(); 
 
           if (values.cif) {
               const existingAccountByCif = currentAccountsList.find(acc => acc.cif && acc.cif.toLowerCase() === values.cif!.toLowerCase());
@@ -464,10 +464,9 @@ export default function OrderFormPage() {
               };
               currentAccountId = await addAccountFS(newAccountData);
               accountCreationMessage = ` Nueva cuenta "${newAccountData.name}" creada con estado: ${newAccountStatus}.`;
-              setAllAccounts(prev => [...prev, {id: currentAccountId!, ...newAccountData, createdAt: format(new Date(), "yyyy-MM-dd"), updatedAt: format(new Date(), "yyyy-MM-dd")}]); // Optimistically update local list
+              setAllAccounts(prev => [...prev, {id: currentAccountId!, ...newAccountData, createdAt: format(new Date(), "yyyy-MM-dd"), updatedAt: format(new Date(), "yyyy-MM-dd")}]);
           }
       } else if (values.clientStatus === "existing" && !currentAccountId) {
-          // This case should ideally be handled by selecting an existing account from the dropdown
           const currentAccountsList = await getAccountsFS();
           const existingAccountByName = currentAccountsList.find(acc => acc.name.toLowerCase() === values.clientName.toLowerCase());
           if (existingAccountByName) {
@@ -475,7 +474,6 @@ export default function OrderFormPage() {
           }
           accountCreationMessage = currentAccountId ? " (Pedido asociado a cliente existente)." : " (Cliente existente, pero no se pudo encontrar un ID de cuenta para asociar).";
       }
-
 
       const orderData: Partial<Order> = {
         clientName: values.clientName,
@@ -486,25 +484,51 @@ export default function OrderFormPage() {
         notes: values.notes,
         clientStatus: values.clientStatus,
         salesRep: salesRepNameForOrder,
-        accountId: currentAccountId, 
-        nombreFiscal: values.nombreFiscal,
-        cif: values.cif,
-        direccionFiscal: values.direccionFiscal,
-        direccionEntrega: values.direccionEntrega,
-        contactoNombre: values.contactoNombre,
-        contactoCorreo: values.contactoCorreo,
-        contactoTelefono: values.contactoTelefono,
-        observacionesAlta: values.observacionesAlta,
+        accountId: currentAccountId,
+        nombreFiscal: undefined,
+        cif: undefined,
+        direccionFiscal: undefined,
+        direccionEntrega: undefined,
+        contactoNombre: undefined,
+        contactoCorreo: undefined,
+        contactoTelefono: undefined,
+        observacionesAlta: undefined,
       };
       
-      if (values.clientStatus) {
-          orderData.clientStatus = values.clientStatus;
+      if (values.clientStatus === "existing" && currentAccountId && currentAccountId !== NEW_CLIENT_ACCOUNT_ID_PLACEHOLDER) {
+        const existingAccount = allAccounts.find(acc => acc.id === currentAccountId);
+        if (existingAccount) {
+            orderData.clientName = existingAccount.name; 
+            orderData.nombreFiscal = existingAccount.legalName || existingAccount.name;
+            orderData.cif = existingAccount.cif;
+            orderData.direccionFiscal = existingAccount.addressBilling;
+            orderData.direccionEntrega = existingAccount.addressShipping || existingAccount.addressBilling;
+            orderData.contactoNombre = existingAccount.mainContactName;
+            orderData.contactoCorreo = existingAccount.mainContactEmail;
+            orderData.contactoTelefono = existingAccount.mainContactPhone;
+            orderData.clientType = values.clientType || existingAccount.type; // Prioritize form if filled, else account's type
+        }
+      } else if (values.clientStatus === "new" || (values.clientStatus === "existing" && currentAccountId === NEW_CLIENT_ACCOUNT_ID_PLACEHOLDER)) {
+        orderData.nombreFiscal = values.nombreFiscal;
+        orderData.cif = values.cif;
+        orderData.direccionFiscal = values.direccionFiscal;
+        orderData.direccionEntrega = values.direccionEntrega;
+        orderData.contactoNombre = values.contactoNombre;
+        orderData.contactoCorreo = values.contactoCorreo;
+        orderData.contactoTelefono = values.contactoTelefono;
+        orderData.observacionesAlta = values.observacionesAlta;
+        orderData.clientType = values.clientType;
+      }
+
+      if (values.outcome === "Programar Visita") {
+        delete orderData.clientType; // No clientType for just a programmed visit
+      } else if (!orderData.clientType && values.clientType) { // Ensure clientType is set if not a programmed visit
+        orderData.clientType = values.clientType;
       }
 
 
       if (values.outcome === "successful" && values.clientStatus && values.orderValue && values.clientType && values.numberOfUnits && values.unitPrice) {
           orderData.status = 'Confirmado';
-          orderData.clientType = values.clientType;
           orderData.products = [SINGLE_PRODUCT_NAME];
           orderData.numberOfUnits = values.numberOfUnits;
           orderData.unitPrice = values.unitPrice;
@@ -571,9 +595,9 @@ export default function OrderFormPage() {
     }
   }
 
-  const showAccountCreationFields = clientStatusWatched === "new" && !selectedAccountId; // Solo mostrar si es "new" Y no se ha seleccionado una cuenta existente del dropdown
+  const showAccountCreationFields = clientStatusWatched === "new" && !selectedAccountId; 
   const showClientStatusRadio = outcomeWatched !== "Programar Visita" && (!editingVisitId || (editingVisitId && outcomeWatched && outcomeWatched !== "Programar Visita"));
-  const showExistingClientSelector = clientStatusWatched === 'existing' && !editingVisitId; // Solo para nuevos registros de clientes existentes
+  const showExistingClientSelector = clientStatusWatched === 'existing' && !editingVisitId; 
 
 
   const outcomeOptionsBase = [
@@ -611,7 +635,7 @@ export default function OrderFormPage() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              {userRole === 'Admin' && !editingVisitId && ( // El admin solo elige rep en nuevos registros
+              {userRole === 'Admin' && !editingVisitId && ( 
                 <FormField
                   control={form.control}
                   name="selectedSalesRepId"
@@ -671,8 +695,8 @@ export default function OrderFormPage() {
                            onValueChange={(value) => {
                                 field.onChange(value);
                                 if (value === "new") {
-                                    form.setValue("accountId", undefined); // Limpiar accountId si se cambia a nuevo
-                                    form.setValue("clientName", ""); // Y el nombre para que pueda escribir
+                                    form.setValue("accountId", undefined); 
+                                    form.setValue("clientName", ""); 
                                 }
                             }}
                             value={field.value} 

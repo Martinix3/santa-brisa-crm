@@ -97,7 +97,7 @@ const navigationStructure: NavGroup[] = [
     groupRoles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'],
     items: [
       { href: '/events', label: 'Eventos', icon: PartyPopper, roles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'] },
-      { href: '/clavadistas', label: 'Panel de Clavadistas', icon: Award, roles: ['Admin', 'SalesRep'] }, 
+      { href: '/clavadistas', label: 'Panel de Clavadistas', icon: Award, roles: ['Admin', 'SalesRep', 'Clavadista'] }, 
       { href: '/marketing-resources', label: 'Recursos de Marketing', icon: Library, roles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'] },
       { href: '/marketing/ai-assistant', label: 'Asistente IA', icon: Sparkles, roles: ['Admin', 'SalesRep', 'Clavadista'] },
     ],
@@ -114,7 +114,7 @@ const navigationStructure: NavGroup[] = [
 
 
 function DailyTasksMenu() {
-  const { userRole, teamMember, loading } = useAuth(); // Added 'loading' here
+  const { userRole, teamMember, loading: authContextLoading } = useAuth();
   const { toast } = useToast();
   const today = startOfDay(new Date());
   const nextSevenDaysEnd = endOfDay(addDays(today, 6));
@@ -123,18 +123,12 @@ function DailyTasksMenu() {
 
   useEffect(() => {
     async function fetchTasks() {
-      setIsLoadingTasks(true);
-      if (userRole === 'Distributor') { 
-        setTaskCount(0);
-        setIsLoadingTasks(false);
-        return;
+      setIsLoadingTasks(true); // Set loading true at the start of actual data fetching
+      if (!userRole) { // Should not happen if logic below is correct, but as a safeguard
+          setIsLoadingTasks(false);
+          setTaskCount(0);
+          return;
       }
-      
-      if ((userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember) {
-        setIsLoadingTasks(false); 
-        return;
-      }
-
       let relevantOrders: Order[] = [];
       let relevantEvents: CrmEvent[] = [];
 
@@ -175,43 +169,70 @@ function DailyTasksMenu() {
       } catch (error) {
           console.error("Error fetching data for daily tasks menu:", error);
           toast({ title: "Error Tareas", description: "No se pudieron cargar las tareas del menú.", variant: "destructive"});
+      } finally {
+          const orderAgendaItems = relevantOrders
+            .map(order => ({
+              itemDate: parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!),
+              sourceType: 'order' as 'order',
+              rawItem: order,
+            }));
+
+          const eventAgendaItems = relevantEvents
+            .map(event => ({
+              itemDate: parseISO(event.startDate),
+              sourceType: 'event' as 'event',
+              rawItem: event,
+            }));
+
+          const allItems = [...orderAgendaItems, ...eventAgendaItems];
+          const count = allItems
+            .filter(item => {
+              const itemStartDate = startOfDay(item.itemDate);
+              if (item.sourceType === 'event' && (item.rawItem as CrmEvent).endDate) {
+                const itemEndDate = startOfDay(parseISO((item.rawItem as CrmEvent).endDate!));
+                return (itemStartDate <= nextSevenDaysEnd && itemEndDate >= today);
+              }
+              return isWithinInterval(itemStartDate, { start: today, end: nextSevenDaysEnd });
+            }).length;
+          setTaskCount(count);
+          setIsLoadingTasks(false);
       }
-
-      const orderAgendaItems = relevantOrders
-        .map(order => ({
-          itemDate: parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!),
-          sourceType: 'order' as 'order',
-          rawItem: order,
-        }));
-
-      const eventAgendaItems = relevantEvents
-        .map(event => ({
-          itemDate: parseISO(event.startDate),
-          sourceType: 'event' as 'event',
-          rawItem: event,
-        }));
-
-      const allItems = [...orderAgendaItems, ...eventAgendaItems];
-      const count = allItems
-        .filter(item => {
-          const itemStartDate = startOfDay(item.itemDate);
-          if (item.sourceType === 'event' && (item.rawItem as CrmEvent).endDate) {
-            const itemEndDate = startOfDay(parseISO((item.rawItem as CrmEvent).endDate!));
-            return (itemStartDate <= nextSevenDaysEnd && itemEndDate >= today);
-          }
-          return isWithinInterval(itemStartDate, { start: today, end: nextSevenDaysEnd });
-        }).length;
-      setTaskCount(count);
-      setIsLoadingTasks(false);
     }
 
-    if (userRole === 'Admin' || ((userRole === 'SalesRep' || userRole === 'Clavadista') && teamMember)) {
+    if (authContextLoading) {
+      setIsLoadingTasks(true);
+      return;
+    }
+
+    // If auth is NOT loading, but userRole isn't defined yet, keep loading.
+    // This prevents the flicker by not setting isLoadingTasks to false prematurely.
+    if (!userRole) {
+        setIsLoadingTasks(true);
+        setTaskCount(0); // Reset count
+        return;
+    }
+
+    // UserRole is defined, authContextLoading is false.
+    // Now check for teamMember dependency for SalesRep/Clavadista.
+    if ((userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember) {
+      setIsLoadingTasks(true); // Still loading if teamMember is needed but not yet available.
+      setTaskCount(0);
+      return;
+    }
+
+    // Proceed to fetch tasks if Admin, or SalesRep/Clavadista with teamMember.
+    if (userRole === 'Admin' || (teamMember && (userRole === 'SalesRep' || userRole === 'Clavadista'))) {
         fetchTasks();
-    } else if (userRole === 'Distributor' || ((userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember && !loading)) {
-        setIsLoadingTasks(false);
+    } else if (userRole === 'Distributor') { // Distributor has no tasks shown here.
         setTaskCount(0);
+        setIsLoadingTasks(false);
+    } else {
+        // Fallback for any other unhandled userRole state after loading.
+        setTaskCount(0);
+        setIsLoadingTasks(false);
     }
-  }, [userRole, teamMember, today, nextSevenDaysEnd, toast, loading]); 
+  }, [userRole, teamMember, authContextLoading, toast, today, nextSevenDaysEnd]);
+
 
   const canShowWidgetIcon = userRole === 'Admin' || userRole === 'SalesRep' || userRole === 'Clavadista';
 
@@ -219,7 +240,7 @@ function DailyTasksMenu() {
     return null; 
   }
   
-  const showIconLoader = isLoadingTasks && (userRole === 'Admin' || ((userRole === 'SalesRep' || userRole === 'Clavadista') && teamMember));
+  const showIconLoader = isLoadingTasks;
 
   return (
     <DropdownMenu>
@@ -241,7 +262,7 @@ function DailyTasksMenu() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-auto p-0 mr-2" align="end" forceMount>
-        {isLoadingTasks && (userRole === 'Admin' || ((userRole === 'SalesRep' || userRole === 'Clavadista') && teamMember)) ? (
+        {showIconLoader ? ( // Use showIconLoader for the dropdown content as well
           <div className="p-4 flex justify-center items-center h-[100px]">
              <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
@@ -560,8 +581,18 @@ function AppNavigation({ navStructure, userRole, teamMember }: AppNavigationProp
             roles: ['Clavadista']
           };
           
-          visibleItemsInGroup = visibleItemsInGroup.filter(item => item.href !== '/clavadistas');
-          visibleItemsInGroup.unshift(clavadistaProfileItem); 
+          // Evitar duplicar el enlace si ya existe uno general a /clavadistas (panel general)
+          // Si el clavadista tiene un enlace específico a su perfil, se prioriza.
+          const generalClavadistasLinkIndex = visibleItemsInGroup.findIndex(item => item.href === '/clavadistas');
+          if (generalClavadistasLinkIndex !== -1) {
+            // Si el teamMember existe y tiene ID, se reemplaza el general por el específico.
+            // Si no, se mantiene el general (aunque para Clavadista, teamMember debería existir).
+            if (teamMember && teamMember.id) {
+              visibleItemsInGroup.splice(generalClavadistasLinkIndex, 1, clavadistaProfileItem);
+            }
+          } else if (teamMember && teamMember.id) { // Si no había enlace general pero sí hay teamMember, se añade el específico.
+             visibleItemsInGroup.unshift(clavadistaProfileItem);
+          }
         }
 
 
@@ -683,3 +714,4 @@ function UserMenu({ userRole, userEmail }: UserMenuProps) {
 }
 
 export default MainAppLayout;
+

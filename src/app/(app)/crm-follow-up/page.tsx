@@ -47,6 +47,16 @@ export default function CrmFollowUpPage() {
 
   React.useEffect(() => {
     async function loadInitialData() {
+      if (authContextLoading) {
+        setIsLoading(true);
+        return;
+      }
+      if ((userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember) {
+        setIsLoading(false);
+        setFollowUps([]);
+        return;
+      }
+    
       setIsLoading(true);
       try {
         const [fetchedOrders, fetchedTeamMembers, fetchedAccounts] = await Promise.all([
@@ -73,17 +83,6 @@ export default function CrmFollowUpPage() {
         setIsLoading(false);
       }
     }
-    
-    if (authContextLoading) {
-        setIsLoading(true);
-        return;
-    }
-    if ((userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember) {
-        setIsLoading(false);
-        setFollowUps([]);
-        return;
-    }
-
     loadInitialData();
   }, [toast, userRole, teamMember, authContextLoading]);
 
@@ -190,11 +189,20 @@ export default function CrmFollowUpPage() {
     }
   };
 
-  if (!userRole || (userRole !== 'Admin' && userRole !== 'SalesRep' && userRole !== 'Clavadista')) {
+  if (authContextLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-8">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Cargando autenticación...</p>
+      </div>
+    );
+  }
+
+  if (!userRole || (userRole === 'Distributor')) { 
      return (
       <Card>
         <CardHeader><CardTitle>Acceso Denegado</CardTitle></CardHeader>
-        <CardContent><p>No tienes permisos para ver esta sección.</p></CardContent>
+        <CardContent><p>No tienes permisos para ver esta sección o la agenda no aplica a tu rol.</p></CardContent>
       </Card>
     );
   }
@@ -360,7 +368,13 @@ export default function CrmFollowUpPage() {
                     <TableRow key={item.id} className={cn(isOverdue && "bg-yellow-100 dark:bg-yellow-800/30")}>
                       <TableCell className="font-medium">
                           {isOverdue && <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 inline-block mr-1" />}
-                          {item.clientName}
+                          {item.accountId ? (
+                            <Link href={`/accounts/${item.accountId}`} className="hover:underline text-primary">
+                                {item.clientName}
+                            </Link>
+                           ) : (
+                                item.clientName
+                           )}
                       </TableCell>
                       <TableCell>
                           {isProgrammedItem ? "Visita Programada" : item.nextActionType}

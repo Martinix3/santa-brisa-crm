@@ -44,13 +44,7 @@ const fromFirestoreOrder = (docSnap: any): Order => {
     numberOfUnits: data.numberOfUnits, 
     unitPrice: data.unitPrice, 
     clientStatus: data.clientStatus,
-
-    nombreFiscal: data.nombreFiscal || '',
-    cif: data.cif || '',
-    contactoNombre: data.contactoNombre || '',
-    contactoCorreo: data.contactoCorreo || '',
-    contactoTelefono: data.contactoTelefono || '',
-    observacionesAlta: data.observacionesAlta || '', 
+    
     notes: data.notes || '',
 
     nextActionType: data.nextActionType,
@@ -72,8 +66,7 @@ const toFirestoreOrder = (data: Partial<Order> & { visitDate: Date | string, nex
   const directOrderKeys: (keyof Order)[] = [
     'clientName', 'products', 'value', 'status', 'salesRep', 'clavadistaId', 
     'assignedMaterials', 'canalOrigenColocacion', 'paymentMethod', 'invoiceUrl', 'invoiceFileName', 
-    'clientType', 'numberOfUnits', 'unitPrice', 'clientStatus', 'nombreFiscal', 'cif', 
-    'contactoNombre', 'contactoCorreo', 'contactoTelefono', 'observacionesAlta', 
+    'clientType', 'numberOfUnits', 'unitPrice', 'clientStatus', 
     'notes', 'nextActionType', 'nextActionCustom', 'failureReasonType', 
     'failureReasonCustom', 'accountId'
   ];
@@ -82,7 +75,7 @@ const toFirestoreOrder = (data: Partial<Order> & { visitDate: Date | string, nex
     if (data[key] !== undefined) {
       firestoreData[key] = data[key];
     } else {
-      if (['clavadistaId', 'canalOrigenColocacion', 'paymentMethod', 'invoiceUrl', 'invoiceFileName', 'clientType', 'value', 'numberOfUnits', 'unitPrice', 'clientStatus', 'nombreFiscal', 'cif', 'contactoNombre', 'contactoCorreo', 'contactoTelefono', 'observacionesAlta', 'notes', 'nextActionType', 'nextActionCustom', 'failureReasonType', 'failureReasonCustom', 'accountId'].includes(key)) {
+      if (['clavadistaId', 'canalOrigenColocacion', 'paymentMethod', 'invoiceUrl', 'invoiceFileName', 'clientType', 'value', 'numberOfUnits', 'unitPrice', 'clientStatus', 'notes', 'nextActionType', 'nextActionCustom', 'failureReasonType', 'failureReasonCustom', 'accountId'].includes(key)) {
         firestoreData[key] = null;
       }
     }

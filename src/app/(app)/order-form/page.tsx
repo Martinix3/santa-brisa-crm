@@ -124,6 +124,14 @@ const orderFormSchema = orderFormSchemaBase.superRefine((data, ctx) => {
   if (data.outcome !== "Programar Visita" && !data.clientStatus) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Debe indicar si es cliente nuevo o existente.", path: ["clientStatus"] });
   }
+  
+  if (data.outcome !== "Programar Visita" && data.clientStatus === 'existing' && !data.accountId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Debe seleccionar un cliente existente de la lista.",
+      path: ["accountId"],
+    });
+  }
 
   if (data.outcome === "failed" || data.outcome === "follow-up") {
     if (!data.nextActionType) {
@@ -308,12 +316,6 @@ export default function OrderFormPage() {
                 numberOfUnits: existingVisit.numberOfUnits,
                 unitPrice: existingVisit.unitPrice,
                 orderValue: existingVisit.value,
-                nombreFiscal: existingVisit.nombreFiscal || "",
-                cif: existingVisit.cif || "",
-                contactoNombre: existingVisit.contactoNombre || "",
-                contactoCorreo: existingVisit.contactoCorreo || "",
-                contactoTelefono: existingVisit.contactoTelefono || "",
-                observacionesAlta: existingVisit.observacionesAlta || "",
                 nextActionType: existingVisit.nextActionType,
                 nextActionCustom: existingVisit.nextActionCustom || "",
                 nextActionDate: existingVisit.nextActionDate && isValid(parseISO(existingVisit.nextActionDate)) ? parseISO(existingVisit.nextActionDate) : undefined,
@@ -546,19 +548,8 @@ export default function OrderFormPage() {
       const existingAccount = allAccounts.find(acc => acc.id === currentAccountId);
       if (existingAccount) {
           orderData.clientName = existingAccount.name;
-          orderData.nombreFiscal = existingAccount.legalName || existingAccount.name;
-          orderData.cif = existingAccount.cif;
-          orderData.contactoNombre = existingAccount.mainContactName;
-          orderData.contactoCorreo = existingAccount.mainContactEmail;
-          orderData.contactoTelefono = existingAccount.mainContactPhone;
           orderData.clientType = values.clientType || existingAccount.type;
       } else if (values.clientStatus === "new") {
-          orderData.nombreFiscal = values.nombreFiscal;
-          orderData.cif = values.cif;
-          orderData.contactoNombre = values.contactoNombre;
-          orderData.contactoCorreo = values.contactoCorreo;
-          orderData.contactoTelefono = values.contactoTelefono;
-          orderData.observacionesAlta = values.observacionesAlta;
           orderData.clientType = values.clientType;
       }
 

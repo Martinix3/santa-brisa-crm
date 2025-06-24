@@ -26,6 +26,7 @@ import StatusBadge from "@/components/app/status-badge";
 import { getOrdersFS, updateOrderFS, deleteOrderFS, initializeMockOrdersInFirestore } from "@/services/order-service";
 import { getAccountByIdFS, updateAccountFS as updateAccountInFirestore, getAccountsFS } from "@/services/account-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
+import Link from "next/link";
 
 
 const relevantOrderStatusesForDashboard: OrderStatus[] = ['Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Cancelado'];
@@ -153,18 +154,11 @@ export default function OrdersDashboardPage() {
         clientType: canEditFullOrderDetails ? updatedData.clientType : orderToUpdate.clientType,
         numberOfUnits: canEditFullOrderDetails && updatedData.numberOfUnits !== undefined ? updatedData.numberOfUnits : orderToUpdate.numberOfUnits,
         unitPrice: canEditFullOrderDetails && updatedData.unitPrice !== undefined ? updatedData.unitPrice : orderToUpdate.unitPrice,
-        nombreFiscal: canEditFullOrderDetails ? updatedData.nombreFiscal : orderToUpdate.nombreFiscal,
-        cif: canEditFullOrderDetails ? updatedData.cif : orderToUpdate.cif,
-        
-        contactoNombre: canEditFullOrderDetails ? updatedData.contactoNombre : orderToUpdate.contactoNombre,
-        contactoCorreo: canEditFullOrderDetails ? updatedData.contactoCorreo : orderToUpdate.contactoCorreo,
-        contactoTelefono: canEditFullOrderDetails ? updatedData.contactoTelefono : orderToUpdate.contactoTelefono,
         
         status: canEditStatusAndNotes ? updatedData.status : orderToUpdate.status,
         notes: canEditStatusAndNotes ? updatedData.notes : orderToUpdate.notes,
         
         lastUpdated: format(new Date(), "yyyy-MM-dd"), 
-        observacionesAlta: orderToUpdate.observacionesAlta, 
         accountId: orderToUpdate.accountId, 
         visitDate: orderToUpdate.visitDate, 
         createdAt: orderToUpdate.createdAt, 
@@ -313,7 +307,7 @@ export default function OrdersDashboardPage() {
       "Dirección Entrega", "Dirección Fiscal", "Contacto Nombre", "Contacto Email", "Contacto Teléfono",
       "Tipo Cliente", "Productos (Lista)", "Nº Unidades", "Precio Unitario (€ sin IVA)",
       "Valor Total Pedido (€ IVA incl.)", "Estado Pedido", "Forma de Pago", "URL Factura", "Nombre Archivo Factura", 
-      "Comercial Asignado", "Notas Pedido", "Observaciones Alta"
+      "Comercial Asignado", "Notas Pedido"
     ];
   
     const csvRows = [
@@ -324,13 +318,13 @@ export default function OrdersDashboardPage() {
           escapeCsvCell(order.id),
           escapeCsvCell(order.visitDate ? format(parseISO(order.visitDate), "dd/MM/yyyy") : ''),
           escapeCsvCell(order.clientName),
-          escapeCsvCell(order.nombreFiscal),
-          escapeCsvCell(order.cif),
+          escapeCsvCell(account?.legalName),
+          escapeCsvCell(account?.cif),
           escapeCsvCell(formatAddressDetails(account?.addressShipping)),
           escapeCsvCell(formatAddressDetails(account?.addressBilling)),
-          escapeCsvCell(order.contactoNombre),
-          escapeCsvCell(order.contactoCorreo),
-          escapeCsvCell(order.contactoTelefono),
+          escapeCsvCell(account?.mainContactName),
+          escapeCsvCell(account?.mainContactEmail),
+          escapeCsvCell(account?.mainContactPhone),
           escapeCsvCell(order.clientType),
           escapeCsvCell(order.products?.join('; ')), 
           escapeCsvCell(order.numberOfUnits),
@@ -341,8 +335,7 @@ export default function OrdersDashboardPage() {
           escapeCsvCell(order.invoiceUrl),
           escapeCsvCell(order.invoiceFileName),
           escapeCsvCell(order.salesRep),
-          escapeCsvCell(order.notes),
-          escapeCsvCell(order.observacionesAlta)
+          escapeCsvCell(order.notes)
         ].join(',')
       })
     ];
@@ -521,7 +514,15 @@ export default function OrdersDashboardPage() {
                             />
                           </TableCell>
                         )}
-                      <TableCell className="font-medium">{order.clientName}</TableCell>
+                      <TableCell className="font-medium">
+                        {order.accountId ? (
+                            <Link href={`/accounts/${order.accountId}`} className="hover:underline text-primary">
+                                {order.clientName}
+                            </Link>
+                        ) : (
+                            order.clientName
+                        )}
+                      </TableCell>
                       <TableCell>{order.visitDate ? format(parseISO(order.visitDate), "dd/MM/yy", { locale: es }) : "N/D"}</TableCell>
                       <TableCell className="text-xs truncate max-w-[150px]" title={locationDisplay}>
                          <MapPin className="inline-block h-3 w-3 mr-1 text-muted-foreground" />

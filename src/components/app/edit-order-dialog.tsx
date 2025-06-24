@@ -75,13 +75,6 @@ const editOrderFormSchema = z.object({
   numberOfUnits: z.coerce.number().positive("El número de unidades debe ser positivo.").optional(),
   unitPrice: z.coerce.number().positive("El precio unitario debe ser positivo.").optional(),
 
-  nombreFiscal: z.string().optional(),
-  cif: z.string().optional(),
-  
-  contactoNombre: z.string().optional(),
-  contactoCorreo: z.string().email("El formato del correo no es válido.").optional().or(z.literal('')),
-  contactoTelefono: z.string().optional(),
-  observacionesAlta: z.string().optional(), 
   notes: z.string().optional(),
 
   nextActionType: z.enum(nextActionTypeList as [NextActionType, ...NextActionType[]]).optional(),
@@ -102,10 +95,6 @@ const editOrderFormSchema = z.object({
         }
         if (!data.paymentMethod) {
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La forma de pago es obligatoria.", path: ["paymentMethod"] });
-        }
-        if (['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado'].includes(data.status)) {
-            if (!data.nombreFiscal || data.nombreFiscal.trim() === "") ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Nombre fiscal es obligatorio.", path: ["nombreFiscal"] });
-            if (!data.cif || data.cif.trim() === "") ctx.addIssue({ code: z.ZodIssueCode.custom, message: "CIF es obligatorio.", path: ["cif"] });
         }
     }
     if (data.status === "Facturado" && data.invoiceUrl && !z.string().url().safeParse(data.invoiceUrl).success) {
@@ -181,9 +170,8 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
       clavadistaId: NO_CLAVADISTA_VALUE, canalOrigenColocacion: undefined, paymentMethod: undefined,
       invoiceUrl: "", invoiceFileName: "",
       assignedMaterials: [], clientType: undefined,
-      numberOfUnits: undefined, unitPrice: undefined, nombreFiscal: "", cif: "",
-      contactoNombre: "", contactoCorreo: "", contactoTelefono: "",
-      observacionesAlta: "", notes: "", nextActionType: undefined,
+      numberOfUnits: undefined, unitPrice: undefined,
+      notes: "", nextActionType: undefined,
       nextActionCustom: "", nextActionDate: undefined,
       failureReasonType: undefined, failureReasonCustom: "",
     },
@@ -247,12 +235,6 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         clientType: order.clientType,
         numberOfUnits: order.numberOfUnits,
         unitPrice: order.unitPrice,
-        nombreFiscal: order.nombreFiscal || "",
-        cif: order.cif || "",
-        contactoNombre: order.contactoNombre || "",
-        contactoCorreo: order.contactoCorreo || "",
-        contactoTelefono: order.contactoTelefono || "",
-        observacionesAlta: order.observacionesAlta || "", 
         notes: order.notes || "",
         nextActionType: order.nextActionType,
         nextActionCustom: order.nextActionCustom || "",
@@ -303,7 +285,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
 
   const formFieldsGenericDisabled = isReadOnlyForMostFields || isLoadingDropdownData || isLoadingAccountDetails;
   const productRelatedFieldsDisabled = !canEditOrderDetailsOverall || ['Seguimiento', 'Fallido', 'Programada'].includes(currentStatus) || isLoadingDropdownData || isLoadingAccountDetails;
-  const billingFieldsDisabled = !isAdmin || ['Seguimiento', 'Fallido', 'Programada'].includes(currentStatus) || isLoadingDropdownData || isLoadingAccountDetails;
+  const billingFieldsDisabled = true; // Siempre deshabilitado, la info viene de la cuenta
   const statusFieldDisabled = !(canEditOrderDetailsOverall || canEditStatusAndNotesOnly) || isLoadingDropdownData || isLoadingAccountDetails;
   const notesFieldDisabled = !(canEditOrderDetailsOverall || canEditStatusAndNotesOnly) || isLoadingDropdownData || isLoadingAccountDetails;
   const salesRepFieldDisabled = !isAdmin || isLoadingDropdownData || isLoadingAccountDetails;
@@ -427,41 +409,38 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
 
             <Separator className="my-6" />
             <h3 className="text-md font-semibold text-muted-foreground">Información de Cliente y Facturación</h3>
-             {(!['Seguimiento', 'Fallido', 'Programada'].includes(currentStatus) || isAdmin) ? (
-             <>
-                <FormField control={form.control} name="nombreFiscal" render={({ field }) => (<FormItem><FormLabel>Nombre Fiscal</FormLabel><FormControl><Input placeholder="Nombre legal para facturación" {...field} disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF/NIF</FormLabel><FormControl><Input placeholder="Identificador fiscal" {...field} disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
-                
-                {associatedAccount && (
-                    <Card className="mt-4 bg-muted/30">
-                        <CardHeader className="pb-2"><CardTitle className="text-base flex items-center"><Building2 className="mr-2 h-5 w-5 text-primary"/>Dirección Registrada en Cuenta</CardTitle></CardHeader>
-                        <CardContent className="text-sm space-y-2">
-                           <div>
-                                <h4 className="font-semibold">Dirección Fiscal:</h4>
-                                <p className="text-muted-foreground">{formatAddressForDisplay(associatedAccount.addressBilling)}</p>
-                           </div>
-                           <div>
-                                <h4 className="font-semibold">Dirección de Entrega:</h4>
-                                <p className="text-muted-foreground">{formatAddressForDisplay(associatedAccount.addressShipping)}</p>
-                           </div>
-                           {isAdmin && (
-                            <Button variant="link" asChild className="p-0 h-auto text-xs mt-2"><Link href={`/accounts/${associatedAccount.id}?edit=true`} target="_blank"><ExternalLink className="mr-1 h-3 w-3"/>Editar dirección en la cuenta</Link></Button>
-                           )}
-                        </CardContent>
-                    </Card>
-                )}
-
-                <h4 className="text-sm font-medium text-muted-foreground pt-2">Datos de Contacto para este Pedido</h4>
-                <FormField control={form.control} name="contactoNombre" render={({ field }) => (<FormItem><FormLabel>Nombre de Contacto</FormLabel><FormControl><Input placeholder="Persona de contacto para el pedido" {...field} disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField control={form.control} name="contactoCorreo" render={({ field }) => (<FormItem><FormLabel>Correo de Contacto</FormLabel><FormControl><Input type="email" placeholder="email@ejemplo.com" {...field} disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
-                    <FormField control={form.control} name="contactoTelefono" render={({ field }) => (<FormItem><FormLabel>Teléfono de Contacto</FormLabel><FormControl><Input type="tel" placeholder="Número de teléfono" {...field} disabled={billingFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
-                </div>
-                <FormField control={form.control} name="observacionesAlta" render={({ field }) => (<FormItem><FormLabel>Observaciones (Originales del Alta Cliente)</FormLabel><FormControl><Textarea placeholder="Notas originales del alta" {...field} className="min-h-[60px]" disabled={true}/></FormControl><FormDescription>Este campo es informativo del alta original y no se edita aquí.</FormDescription><FormMessage /></FormItem>)}/>
-             </>
-             ) : (
-                <p className="text-sm text-muted-foreground">La información de facturación completa se muestra para pedidos confirmados o en proceso, o para administradores.</p>
-             )}
+             
+            <Card className="mt-4 bg-muted/30">
+                <CardHeader className="pb-2"><CardTitle className="text-base flex items-center"><Building2 className="mr-2 h-5 w-5 text-primary"/>Datos de la Cuenta Asociada</CardTitle></CardHeader>
+                <CardContent className="text-sm space-y-3 pt-2">
+                    {associatedAccount ? (
+                        <>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+                            <div><span className="font-semibold">Nombre Fiscal:</span> {associatedAccount.legalName || 'N/D'}</div>
+                            <div><span className="font-semibold">CIF:</span> {associatedAccount.cif}</div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+                            <div><span className="font-semibold">Contacto:</span> {associatedAccount.mainContactName || 'N/D'}</div>
+                            <div><span className="font-semibold">Email:</span> {associatedAccount.mainContactEmail || 'N/D'}</div>
+                            <div><span className="font-semibold">Teléfono:</span> {associatedAccount.mainContactPhone || 'N/D'}</div>
+                        </div>
+                        <div>
+                            <h4 className="font-semibold mt-2">Dirección Fiscal:</h4>
+                            <p className="text-muted-foreground">{formatAddressForDisplay(associatedAccount.addressBilling)}</p>
+                        </div>
+                        <div>
+                            <h4 className="font-semibold mt-2">Dirección de Entrega:</h4>
+                            <p className="text-muted-foreground">{formatAddressForDisplay(associatedAccount.addressShipping)}</p>
+                        </div>
+                        {isAdmin && (
+                        <Button variant="link" asChild className="p-0 h-auto text-xs mt-2"><Link href={`/accounts/${associatedAccount.id}?edit=true`} target="_blank"><ExternalLink className="mr-1 h-3 w-3"/>Editar datos en la ficha de la cuenta</Link></Button>
+                        )}
+                        </>
+                    ) : (
+                        <p className="text-muted-foreground">Este pedido no está asociado a una cuenta o no se pudo cargar la información.</p>
+                    )}
+                </CardContent>
+            </Card>
 
 
             {(order?.status === 'Seguimiento' || order?.status === 'Fallido' || order?.status === 'Programada') && (

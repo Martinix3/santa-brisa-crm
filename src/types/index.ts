@@ -95,13 +95,7 @@ export interface Order {
   numberOfUnits?: number; 
   unitPrice?: number; 
   clientStatus?: "new" | "existing"; 
-
-  nombreFiscal?: string;
-  cif?: string;
-  contactoNombre?: string;
-  contactoCorreo?: string;
-  contactoTelefono?: string;
-  observacionesAlta?: string; 
+  
   notes?: string; 
 
   nextActionType?: NextActionType;

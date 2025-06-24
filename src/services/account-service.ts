@@ -51,7 +51,7 @@ const toFirestore = (data: AccountFormValues & { // Tipado extendido para inclui
   const firestoreData: { [key: string]: any } = {
     name: data.name,
     legalName: data.legalName || null,
-    cif: data.cif,
+    cif: data.cif || null,
     type: data.type,
     status: data.status,
     mainContactName: data.mainContactName || null,
@@ -91,7 +91,6 @@ const toFirestore = (data: AccountFormValues & { // Tipado extendido para inclui
   if (isNew) {
     firestoreData.createdAt = Timestamp.fromDate(new Date());
     if (!firestoreData.name) firestoreData.name = "Nombre no especificado";
-    if (!firestoreData.cif) firestoreData.cif = `AUTOGEN_${Date.now()}`;
     if (!firestoreData.type) firestoreData.type = "Otro";
     if (!firestoreData.status) firestoreData.status = "Potencial";
   }

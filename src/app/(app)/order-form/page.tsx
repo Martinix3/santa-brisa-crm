@@ -502,7 +502,7 @@ export default function OrderFormPage() {
               } = {
                   name: values.clientName,
                   legalName: values.nombreFiscal || values.clientName,
-                  cif: values.cif || `AUTOGEN_${Date.now()}`,
+                  cif: values.cif || "",
                   type: newAccountType,
                   status: newAccountStatus,
                   addressBilling_street: values.direccionFiscal_street, addressBilling_number: values.direccionFiscal_number, addressBilling_city: values.direccionFiscal_city, addressBilling_province: values.direccionFiscal_province, addressBilling_postalCode: values.direccionFiscal_postalCode, addressBilling_country: values.direccionFiscal_country,
@@ -1099,5 +1099,3 @@ export default function OrderFormPage() {
     </div>
   );
 }
-
-    

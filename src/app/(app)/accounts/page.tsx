@@ -99,7 +99,7 @@ export default function AccountsPage() {
   const filteredAccounts = accounts
     .filter(account =>
       (account.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       account.cif.toLowerCase().includes(searchTerm.toLowerCase()) ||
+       (account.cif && account.cif.toLowerCase().includes(searchTerm.toLowerCase())) ||
        (account.legalName && account.legalName.toLowerCase().includes(searchTerm.toLowerCase())) ||
        (account.mainContactName && account.mainContactName.toLowerCase().includes(searchTerm.toLowerCase())))
     )
@@ -192,7 +192,7 @@ export default function AccountsPage() {
                   {filteredAccounts.length > 0 ? filteredAccounts.map((account) => (
                     <TableRow key={account.id}>
                       <TableCell className="font-medium">{account.name}</TableCell>
-                      <TableCell>{account.cif}</TableCell>
+                      <TableCell>{account.cif || 'No especificado'}</TableCell>
                       <TableCell>
                           {account.addressShipping?.city || account.addressBilling?.city ? (
                             <div className="flex items-center text-xs">

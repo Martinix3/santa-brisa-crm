@@ -40,6 +40,23 @@ const formatAddress = (address?: AddressDetails): string => {
   return parts.join(',\n');
 };
 
+const getInteractionType = (interaction: Order): string => {
+    const { status, nextActionType, failureReasonType } = interaction;
+    if (status === 'Programada') return "Visita Programada";
+    if (status === 'Seguimiento') return `Seguimiento (${nextActionType || 'N/D'})`;
+    if (status === 'Fallido') return `Visita Fallida (${failureReasonType || 'N/D'})`;
+    
+    if (status === 'Completado') {
+        if (nextActionType || failureReasonType) {
+            return `Tarea Completada`;
+        }
+        return `Interacción Completada`;
+    }
+    
+    return `Pedido (${status})`;
+}
+
+
 export default function AccountDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -194,7 +211,7 @@ export default function AccountDetailPage() {
               <CardTitle className="text-lg">Información General</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
-              <div className="flex justify-between"><span>CIF/NIF:</span> <strong className="font-medium">{account.cif}</strong></div>
+              <div className="flex justify-between"><span>CIF/NIF:</span> <strong className="font-medium">{account.cif || 'No especificado'}</strong></div>
               <Separator />
               <div className="flex justify-between"><span>Tipo:</span> <strong className="font-medium">{account.type}</strong></div>
               <Separator />
@@ -278,15 +295,13 @@ export default function AccountDetailPage() {
                     <TableHead className="w-[10%] text-right">Valor</TableHead>
                     <TableHead className="w-[15%] text-center">Estado</TableHead>
                     <TableHead className="w-[15%]">Comercial</TableHead>
-                    <TableHead className="w-[15%]">ID / Origen</TableHead>
+                    <TableHead className="w-[15%]">Notas / Objetivo Visita</TableHead>
                     <TableHead className="w-[10%] text-right print-hide">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {relatedInteractions.map(interaction => {
-                    const interactionType = interaction.status === 'Programada' ? "Visita Programada"
-                                            : (interaction.status === 'Seguimiento' || interaction.status === 'Fallido') ? `Seguimiento (${interaction.nextActionType || 'N/D'})`
-                                            : "Pedido";
+                    const interactionType = getInteractionType(interaction);
                     return (
                       <TableRow key={interaction.id} className={interaction.status === 'Completado' ? 'bg-muted/40' : ''}>
                         <TableCell>{interaction.createdAt && isValid(parseISO(interaction.createdAt)) ? format(parseISO(interaction.createdAt), "dd/MM/yy HH:mm", { locale: es }) : 'N/D'}</TableCell>
@@ -300,14 +315,8 @@ export default function AccountDetailPage() {
                           <StatusBadge type="order" status={interaction.status} />
                         </TableCell>
                         <TableCell>{interaction.salesRep}</TableCell>
-                        <TableCell className="text-xs">
-                          {interaction.id}
-                          {interaction.originatingTaskId && (
-                            <Link href={`#${interaction.originatingTaskId}`} className="flex items-center text-muted-foreground hover:text-primary">
-                              <LinkIcon size={12} className="mr-1"/> 
-                              {interaction.originatingTaskId.substring(0,5)}...
-                            </Link>
-                          )}
+                        <TableCell className="text-xs max-w-[200px] truncate" title={interaction.notes}>
+                          {interaction.notes || 'N/D'}
                         </TableCell>
                         <TableCell className="text-right print-hide">
                            {isOpenTask(interaction.status) ? (

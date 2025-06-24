@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input"; 
-import type { Order, NextActionType, TeamMember, UserRole, OrderStatus, Account } from "@/types";
+import type { Order, NextActionType, TeamMember, UserRole, OrderStatus, Account, FollowUpResultFormValues } from "@/types";
 import { nextActionTypeList } from "@/lib/data"; 
 import { Filter, CalendarDays, ClipboardList, ChevronDown, Edit2, AlertTriangle, MoreHorizontal, Send, Loader2 } from "lucide-react";
 import { DateRange } from "react-day-picker";
@@ -20,10 +20,13 @@ import { useAuth } from "@/contexts/auth-context";
 import StatusBadge from "@/components/app/status-badge";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
-import { getOrdersFS, updateOrderFS } from "@/services/order-service";
+import { getOrdersFS, updateOrderFS, addOrderFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service"; 
 import { getAccountsFS } from "@/services/account-service";
+import FollowUpResultDialog from "@/components/app/follow-up-result-dialog";
 
+
+const IVA_RATE = 21;
 
 export default function CrmFollowUpPage() {
   const { userRole, teamMember, loading: authContextLoading, refreshDataSignature } = useAuth();
@@ -44,6 +47,8 @@ export default function CrmFollowUpPage() {
   const [teamMembersForFilter, setTeamMembersForFilter] = React.useState<TeamMember[]>([]);
   const [allAccounts, setAllAccounts] = React.useState<Account[]>([]);
   
+  const [editingFollowUp, setEditingFollowUp] = React.useState<Order | null>(null);
+
 
   React.useEffect(() => {
     async function loadInitialData() {
@@ -58,7 +63,7 @@ export default function CrmFollowUpPage() {
       try {
         const [fetchedOrders, fetchedTeamMembers, fetchedAccounts] = await Promise.all([
           getOrdersFS(),
-          userRole === 'Admin' ? getTeamMembersFS(['SalesRep', 'Admin', 'Clavadista']) : Promise.resolve([]),
+          getTeamMembersFS(['SalesRep', 'Admin', 'Clavadista']),
           getAccountsFS()
         ]);
         
@@ -68,9 +73,7 @@ export default function CrmFollowUpPage() {
             (order.status === 'Programada') 
           )
         );
-        if (userRole === 'Admin') {
-          setTeamMembersForFilter(fetchedTeamMembers);
-        }
+        setTeamMembersForFilter(fetchedTeamMembers);
         setAllAccounts(fetchedAccounts);
 
       } catch (error) {
@@ -170,9 +173,7 @@ export default function CrmFollowUpPage() {
       const updatePayload: Partial<Order> = { [dateFieldToUpdateKey]: newDateString, lastUpdated: format(new Date(), "yyyy-MM-dd") };
       await updateOrderFS(followUpId, updatePayload);
 
-      setFollowUps(prev => prev.map(item => 
-        item.id === followUpId ? { ...item, ...updatePayload } : item
-      ));
+      refreshDataSignature();
       
       toast({
         title: "Fecha Actualizada",
@@ -187,6 +188,63 @@ export default function CrmFollowUpPage() {
       setSelectedNewDate(undefined);
     }
   };
+
+  const handleSaveFollowUpResult = async (data: FollowUpResultFormValues, originalOrder: Order) => {
+    const { outcome, ...formData } = data;
+    let newOrderData: Partial<Order> = {
+      clientName: originalOrder.clientName,
+      visitDate: format(new Date(), 'yyyy-MM-dd'),
+      accountId: originalOrder.accountId,
+      clientType: originalOrder.clientType,
+      clientStatus: originalOrder.accountId ? 'existing' : 'new',
+      originatingTaskId: originalOrder.id,
+      notes: formData.notes,
+      clavadistaId: originalOrder.clavadistaId,
+    };
+
+    if (outcome === 'successful') {
+      const subtotal = (formData.numberOfUnits || 0) * (formData.unitPrice || 0);
+      newOrderData = {
+        ...newOrderData,
+        status: 'Confirmado',
+        paymentMethod: formData.paymentMethod,
+        numberOfUnits: formData.numberOfUnits,
+        unitPrice: formData.unitPrice,
+        value: subtotal + (subtotal * (IVA_RATE / 100)),
+        salesRep: originalOrder.salesRep,
+      };
+    } else if (outcome === 'follow-up') {
+      const assignedRep = allTeamMembers.find(m => m.id === formData.assignedSalesRepId);
+      newOrderData = {
+        ...newOrderData,
+        status: 'Seguimiento',
+        nextActionType: formData.nextActionType,
+        nextActionCustom: formData.nextActionType === 'Opción personalizada' ? formData.nextActionCustom : undefined,
+        nextActionDate: formData.nextActionDate ? format(formData.nextActionDate, 'yyyy-MM-dd') : undefined,
+        salesRep: assignedRep ? assignedRep.name : (teamMember?.name || 'No asignado'),
+      };
+    } else if (outcome === 'failed') {
+      newOrderData = {
+        ...newOrderData,
+        status: 'Fallido',
+        failureReasonType: formData.failureReasonType,
+        failureReasonCustom: formData.failureReasonType === 'Otro (especificar)' ? formData.failureReasonCustom : undefined,
+        salesRep: originalOrder.salesRep,
+      };
+    }
+
+    try {
+      await addOrderFS(newOrderData as Order);
+      await updateOrderFS(originalOrder.id, { status: 'Completado' });
+      toast({ title: "Acción Registrada", description: "El resultado del seguimiento se ha guardado correctamente." });
+      refreshDataSignature();
+      setEditingFollowUp(null);
+    } catch (error) {
+      console.error("Error saving follow-up result:", error);
+      toast({ title: "Error al Guardar", description: "No se pudo guardar el resultado del seguimiento.", variant: "destructive"});
+    }
+  };
+
 
   if (authContextLoading) {
     return (
@@ -430,10 +488,8 @@ export default function CrmFollowUpPage() {
                         </TableCell>
                         <TableCell className="text-right">
                            {canRegisterResult && (
-                             <Button asChild variant="outline" size="sm">
-                               <Link href={`/order-form?originatingTaskId=${item.id}`}>
-                                 <Send className="mr-2 h-4 w-4" /> Registrar Resultado
-                               </Link>
+                             <Button variant="outline" size="sm" onClick={() => setEditingFollowUp(item)}>
+                               <Send className="mr-2 h-4 w-4" /> Registrar Resultado
                              </Button>
                            )}
                         </TableCell>
@@ -457,8 +513,16 @@ export default function CrmFollowUpPage() {
           )}
         </Card>
       </div>
+
+      <FollowUpResultDialog
+        isOpen={!!editingFollowUp}
+        onOpenChange={(open) => !open && setEditingFollowUp(null)}
+        order={editingFollowUp}
+        onSave={handleSaveFollowUpResult}
+        allTeamMembers={teamMembersForFilter}
+        currentUser={teamMember}
+        currentUserRole={userRole}
+      />
     </>
   );
 }
-
-    

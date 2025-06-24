@@ -1,4 +1,5 @@
 
+
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
 
 export interface Kpi {
@@ -227,7 +228,7 @@ export interface VentaDirectaSBFormValues {
 }
 
 export interface FollowUpResultFormValues {
-  outcome: "successful" | "failed" | "follow-up";
+  outcome?: "successful" | "failed" | "follow-up";
   paymentMethod?: PaymentMethod;
   numberOfUnits?: number;
   unitPrice?: number;
@@ -237,4 +238,5 @@ export interface FollowUpResultFormValues {
   failureReasonType?: FailureReasonType;
   failureReasonCustom?: string;
   notes?: string;
+  assignedSalesRepId?: string;
 }

@@ -5,7 +5,7 @@ import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input"; 
 import type { Order, NextActionType, TeamMember, UserRole, OrderStatus, Account, FollowUpResultFormValues } from "@/types";
 import { nextActionTypeList } from "@/lib/data"; 
@@ -214,7 +214,7 @@ export default function CrmFollowUpPage() {
         salesRep: originalOrder.salesRep,
       };
     } else if (outcome === 'follow-up') {
-      const assignedRep = allTeamMembers.find(m => m.id === formData.assignedSalesRepId);
+      const assignedRep = teamMembersForFilter.find(m => m.id === formData.assignedSalesRepId);
       newOrderData = {
         ...newOrderData,
         status: 'Seguimiento',

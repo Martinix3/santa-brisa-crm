@@ -5,7 +5,7 @@ import React, { useMemo, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { TeamMember, Order, OrderStatus } from "@/types";
+import type { TeamMember, Order, OrderStatus, Account } from "@/types";
 import { Package, Briefcase, Footprints, Users, Eye, Loader2 } from 'lucide-react';
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 import { Progress } from "@/components/ui/progress";
@@ -92,8 +92,10 @@ export default function TeamTrackingPage() {
     async function loadTeamData() {
       setIsLoadingStats(true);
       try {
-        // Only fetch orders here as accounts are not needed for metrics anymore
-        const fetchedOrders = await getOrdersFS();
+        const [fetchedOrders, fetchedAccounts] = await Promise.all([
+          getOrdersFS(),
+          getAccountsFS(),
+        ]);
         const currentDate = new Date();
         const visitStatuses: OrderStatus[] = ['Programada', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Fallido', 'Seguimiento', 'Cancelado'];
         const saleStatuses: OrderStatus[] = ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado'];
@@ -102,24 +104,22 @@ export default function TeamTrackingPage() {
           let bottlesSold = 0;
           let ordersCount = 0;
           let visitsCount = 0;
-          let monthlyAccountsAchieved = 0;
           let monthlyVisitsAchieved = 0;
+
+          const monthlyAccountsAchieved = fetchedAccounts.filter(acc =>
+            acc.salesRepId === member.id &&
+            isValid(parseISO(acc.createdAt)) &&
+            isSameMonth(parseISO(acc.createdAt), currentDate) &&
+            isSameYear(parseISO(acc.createdAt), currentDate)
+          ).length;
 
           fetchedOrders.forEach(order => {
             if (order.salesRep === member.name) {
               if (saleStatuses.includes(order.status)) {
                 if(order.numberOfUnits) bottlesSold += order.numberOfUnits;
                 ordersCount++;
-
-                // Count as a new account for metrics only if it's a new client sale
-                if (order.clientStatus === 'new' && isValid(parseISO(order.visitDate))) {
-                    if (isSameMonth(parseISO(order.visitDate), currentDate) && isSameYear(parseISO(order.visitDate), currentDate)) {
-                        monthlyAccountsAchieved++;
-                    }
-                }
               }
 
-              // Count as a visit for any interaction
               if (visitStatuses.includes(order.status) && isValid(parseISO(order.visitDate))) {
                  visitsCount++;
                  if (isSameMonth(parseISO(order.visitDate), currentDate) && isSameYear(parseISO(order.visitDate), currentDate)) {
@@ -147,7 +147,7 @@ export default function TeamTrackingPage() {
       }
     }
     loadTeamData();
-  }, [salesTeamMembersBase, isLoadingBaseMembers, toast, dataSignature]); // Add dataSignature here too
+  }, [salesTeamMembersBase, isLoadingBaseMembers, toast, dataSignature]); 
 
   const teamTotalBottlesValue = useMemo(() => teamStats.reduce((sum, m) => sum + (m.bottlesSold || 0), 0), [teamStats]);
   const teamTotalOrdersValue = useMemo(() => teamStats.reduce((sum, m) => sum + (m.orders || 0), 0), [teamStats]);

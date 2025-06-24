@@ -24,8 +24,14 @@ Aquí tenéis un resumen de los cambios más importantes:
 ### 3. Panel de Pedidos: ¡Más control!
 
 - **Nuevo estado "Facturado":** Ya podéis marcar los pedidos como "Facturado" en el Panel de Pedidos para llevar un mejor control del ciclo de venta completo.
+- **Subida de facturas en PDF**: Ahora los administradores pueden subir el archivo de la factura directamente en la ficha de edición del pedido cuando está en estado "Facturado".
 
-### 4. Correcciones "invisibles" pero importantes
+### 4. Métricas de Equipo más Precisas: ¡Lo que se mide, mejora!
+
+- **Conteo de Cuentas Nuevas Corregido:** Hemos ajustado cómo se cuentan las "cuentas nuevas" del equipo. Ahora se basa en la fecha real de creación de la cuenta en el sistema, no en la fecha del primer pedido. Esto da una visión mucho más fiel del trabajo de captación.
+- **Conteo de Visitas Unificado:** El número de "visitas" ahora incluye todas las interacciones registradas (ya sean pedidos, seguimientos o visitas fallidas), reflejando toda la actividad del equipo en la calle.
+
+### 5. Correcciones "invisibles" pero importantes
 
 - Se ha solucionado un problema que a veces impedía que el servidor de la aplicación arrancara.
 - Hemos corregido varios pequeños bugs que iban saliendo.

@@ -6,9 +6,9 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { Account, Order, UserRole, AddressDetails, OrderStatus } from "@/types";
+import type { Account, Order, UserRole, AddressDetails, OrderStatus, FollowUpResultFormValues, TeamMember } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { Building2, Edit, ArrowLeft, AlertTriangle, UserCircle, Mail, Phone, FileText, ShoppingCart, CalendarDays, ListChecks, Info, Euro, Printer, Loader2, MapPin, Link as LinkIcon, CheckCircle } from "lucide-react";
+import { Building2, Edit, ArrowLeft, AlertTriangle, UserCircle, Mail, Phone, FileText, ShoppingCart, CalendarDays, Send, Info, Euro, Printer, Loader2, MapPin, Link as LinkIcon, CheckCircle } from "lucide-react";
 import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
@@ -18,9 +18,12 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { getAccountByIdFS, updateAccountFS, getAccountsFS } from "@/services/account-service";
-import { getOrdersFS } from "@/services/order-service"; 
-import { mockTeamMembers } from "@/lib/data";
+import { getOrdersFS, addOrderFS, updateOrderFS } from "@/services/order-service"; 
+import { getTeamMembersFS } from "@/services/team-member-service";
+import FollowUpResultDialog from "@/components/app/follow-up-result-dialog";
 
+
+const IVA_RATE = 21;
 
 const formatAddress = (address?: AddressDetails): string => {
   if (!address) return 'No especificada';
@@ -61,14 +64,16 @@ export default function AccountDetailPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { userRole, refreshDataSignature } = useAuth();
+  const { userRole, teamMember, refreshDataSignature } = useAuth();
   const { toast } = useToast();
 
   const [account, setAccount] = React.useState<Account | null>(null);
   const [allAccountsForValidation, setAllAccountsForValidation] = React.useState<Account[]>([]);
+  const [allTeamMembers, setAllTeamMembers] = React.useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [relatedInteractions, setRelatedInteractions] = React.useState<Order[]>([]);
   const [isAccountDialogOpen, setIsAccountDialogOpen] = React.useState(false);
+  const [editingFollowUp, setEditingFollowUp] = React.useState<Order | null>(null);
   
   const accountId = params.accountId as string;
   const canEditAccount = userRole === 'Admin' || userRole === 'SalesRep';
@@ -84,12 +89,17 @@ export default function AccountDetailPage() {
       }
       setIsLoading(true);
       try {
-        const foundAccount = await getAccountByIdFS(accountId);
+        const [foundAccount, allOrders, allFsAccounts, allMembers] = await Promise.all([
+          getAccountByIdFS(accountId),
+          getOrdersFS(),
+          getAccountsFS(),
+          getTeamMembersFS()
+        ]);
+        
         setAccount(foundAccount);
+        setAllTeamMembers(allMembers);
 
         if (foundAccount) {
-          const allOrders = await getOrdersFS();
-          
           const interactions = allOrders.filter(order => {
             if (order.accountId && order.accountId === foundAccount.id) return true;
             if (!order.accountId && order.cif && foundAccount.cif && order.cif.trim().toLowerCase() === foundAccount.cif.trim().toLowerCase()) return true;
@@ -98,14 +108,14 @@ export default function AccountDetailPage() {
           }).sort((a,b) => parseISO(b.createdAt || b.visitDate).getTime() - parseISO(a.createdAt || a.visitDate).getTime());
           
           setRelatedInteractions(interactions);
-
-          if (canEditAccount) {
-            const allFsAccounts = await getAccountsFS();
-            setAllAccountsForValidation(allFsAccounts);
-          }
         }
+
+        if (canEditAccount) {
+          setAllAccountsForValidation(allFsAccounts);
+        }
+
       } catch (error) {
-        console.error("Error fetching account details or orders:", error);
+        console.error("Error fetching account details or related data:", error);
         toast({ title: "Error al Cargar Datos", description: "No se pudo cargar la información de la cuenta o su historial.", variant: "destructive" });
         setAccount(null);
       } finally {
@@ -132,13 +142,10 @@ export default function AccountDetailPage() {
     setIsLoading(true);
     try {
       await updateAccountFS(account.id, data); 
-      const updatedAccount = await getAccountByIdFS(account.id);
-      setAccount(updatedAccount);
-      
+      refreshDataSignature(); // This will trigger a full data reload via useEffect
       toast({ title: "¡Cuenta Actualizada!", description: `La cuenta "${data.name}" ha sido actualizada.` });
       setIsAccountDialogOpen(false);
       router.replace(`/accounts/${accountId}`, undefined); 
-      refreshDataSignature();
     } catch (error) {
       console.error("Error updating account:", error);
       toast({ title: "Error al Actualizar", description: "No se pudo actualizar la cuenta.", variant: "destructive" });
@@ -146,6 +153,63 @@ export default function AccountDetailPage() {
       setIsLoading(false);
     }
   };
+
+  const handleSaveFollowUpResult = async (data: FollowUpResultFormValues, originalOrder: Order) => {
+    const { outcome, ...formData } = data;
+    let newOrderData: Partial<Order> = {
+      clientName: originalOrder.clientName,
+      visitDate: format(new Date(), 'yyyy-MM-dd'),
+      accountId: originalOrder.accountId,
+      clientType: originalOrder.clientType,
+      clientStatus: originalOrder.accountId ? 'existing' : 'new',
+      originatingTaskId: originalOrder.id,
+      notes: formData.notes,
+      clavadistaId: originalOrder.clavadistaId,
+    };
+
+    if (outcome === 'successful') {
+      const subtotal = (formData.numberOfUnits || 0) * (formData.unitPrice || 0);
+      newOrderData = {
+        ...newOrderData,
+        status: 'Confirmado',
+        paymentMethod: formData.paymentMethod,
+        numberOfUnits: formData.numberOfUnits,
+        unitPrice: formData.unitPrice,
+        value: subtotal + (subtotal * (IVA_RATE / 100)),
+        salesRep: originalOrder.salesRep,
+      };
+    } else if (outcome === 'follow-up') {
+      const assignedRep = allTeamMembers.find(m => m.id === formData.assignedSalesRepId);
+      newOrderData = {
+        ...newOrderData,
+        status: 'Seguimiento',
+        nextActionType: formData.nextActionType,
+        nextActionCustom: formData.nextActionType === 'Opción personalizada' ? formData.nextActionCustom : undefined,
+        nextActionDate: formData.nextActionDate ? format(formData.nextActionDate, 'yyyy-MM-dd') : undefined,
+        salesRep: assignedRep ? assignedRep.name : (teamMember?.name || 'No asignado'),
+      };
+    } else if (outcome === 'failed') {
+      newOrderData = {
+        ...newOrderData,
+        status: 'Fallido',
+        failureReasonType: formData.failureReasonType,
+        failureReasonCustom: formData.failureReasonType === 'Otro (especificar)' ? formData.failureReasonCustom : undefined,
+        salesRep: originalOrder.salesRep,
+      };
+    }
+
+    try {
+      await addOrderFS(newOrderData as Order);
+      await updateOrderFS(originalOrder.id, { status: 'Completado' });
+      toast({ title: "Acción Registrada", description: "El resultado del seguimiento se ha guardado correctamente." });
+      refreshDataSignature();
+      setEditingFollowUp(null);
+    } catch (error) {
+      console.error("Error saving follow-up result:", error);
+      toast({ title: "Error al Guardar", description: "No se pudo guardar el resultado del seguimiento.", variant: "destructive"});
+    }
+  };
+
 
   const handlePrint = () => {
     window.print();
@@ -173,7 +237,7 @@ export default function AccountDetailPage() {
     );
   }
 
-  const salesRepAssigned = account.salesRepId ? mockTeamMembers.find(tm => tm.id === account.salesRepId) : null;
+  const salesRepAssigned = account.salesRepId ? allTeamMembers.find(tm => tm.id === account.salesRepId) : null;
   const creationDate = account.createdAt && isValid(parseISO(account.createdAt)) ? format(parseISO(account.createdAt), "dd/MM/yyyy", { locale: es }) : 'N/D';
   const updateDate = account.updatedAt && isValid(parseISO(account.updatedAt)) ? format(parseISO(account.updatedAt), "dd/MM/yyyy HH:mm", { locale: es }) : 'N/D';
 
@@ -302,6 +366,7 @@ export default function AccountDetailPage() {
                 <TableBody>
                   {relatedInteractions.map(interaction => {
                     const interactionType = getInteractionType(interaction);
+                    const canRegisterResult = userRole === 'Admin' || (userRole === 'SalesRep' && teamMember?.name === interaction.salesRep) || (userRole === 'Clavadista' && interaction.clavadistaId === teamMember?.id);
                     return (
                       <TableRow key={interaction.id} className={interaction.status === 'Completado' ? 'bg-muted/40' : ''}>
                         <TableCell>{interaction.createdAt && isValid(parseISO(interaction.createdAt)) ? format(parseISO(interaction.createdAt), "dd/MM/yy HH:mm", { locale: es }) : 'N/D'}</TableCell>
@@ -319,11 +384,9 @@ export default function AccountDetailPage() {
                           {interaction.notes || 'N/D'}
                         </TableCell>
                         <TableCell className="text-right print-hide">
-                           {isOpenTask(interaction.status) ? (
-                                <Button variant="outline" size="sm" asChild>
-                                    <Link href={`/order-form?originatingTaskId=${interaction.id}`}>
-                                        <ListChecks className="mr-1 h-3 w-3" /> Registrar Resultado
-                                    </Link>
+                           {isOpenTask(interaction.status) && canRegisterResult ? (
+                                <Button variant="outline" size="sm" onClick={() => setEditingFollowUp(interaction)}>
+                                    <Send className="mr-1 h-3 w-3" /> Registrar Resultado
                                 </Button>
                            ) : (
                                 <Button variant="ghost" size="sm" disabled>
@@ -353,6 +416,18 @@ export default function AccountDetailPage() {
           }}
           onSave={handleSaveAccountDetails}
           allAccounts={allAccountsForValidation}
+        />
+      )}
+
+      {account && (
+        <FollowUpResultDialog
+          isOpen={!!editingFollowUp}
+          onOpenChange={(open) => !open && setEditingFollowUp(null)}
+          order={editingFollowUp}
+          onSave={handleSaveFollowUpResult}
+          allTeamMembers={allTeamMembers}
+          currentUser={teamMember}
+          currentUserRole={userRole}
         />
       )}
     </div>

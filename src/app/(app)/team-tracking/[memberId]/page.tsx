@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 // mockTeamMembers removed
-import type { TeamMember, Order, Account } from "@/types";
+import type { TeamMember, Order, Account, OrderStatus } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { ArrowLeft, Mail, Package, Briefcase, Footprints, AlertTriangle, ShoppingCart, Loader2 } from "lucide-react";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
@@ -95,7 +95,7 @@ export default function TeamMemberProfilePage() {
         const monthlySales: Record<string, number> = {}; 
 
         ordersByMember.forEach(order => {
-          if (['Confirmado', 'Procesando', 'Enviado', 'Entregado'].includes(order.status) && order.numberOfUnits) {
+          if (['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado'].includes(order.status) && order.numberOfUnits) {
             bottles += order.numberOfUnits;
             orderCount++;
 
@@ -105,7 +105,8 @@ export default function TeamMemberProfilePage() {
               monthlySales[yearMonth] = (monthlySales[yearMonth] || 0) + order.numberOfUnits;
             }
           }
-          if (order.status !== 'Programada') {
+          const visitStatuses: OrderStatus[] = ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Fallido', 'Seguimiento', 'Cancelado'];
+          if (visitStatuses.includes(order.status)) {
             visitCount++;
           }
         });

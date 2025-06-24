@@ -3,7 +3,7 @@
 
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import type { Kpi, StrategicObjective, Order, Account, TeamMember, UserRole } from "@/types";
+import type { Kpi, StrategicObjective, Order, Account, TeamMember, UserRole, OrderStatus } from "@/types";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, LabelList, PieChart, Pie, Cell, Legend } from "recharts";
 import { Progress } from "@/components/ui/progress";
@@ -58,7 +58,7 @@ export default function DashboardPage() {
         setAccounts(fetchedAccounts);
         setAllTeamMembers(fetchedTeamMembers); 
 
-        const validOrderStatusesForSales = ['Confirmado', 'Procesando', 'Enviado', 'Entregado'];
+        const validOrderStatusesForSales = ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado'];
         
         const salesTeamMemberIds = fetchedTeamMembers 
             .filter(m => m.role === 'SalesRep')
@@ -143,12 +143,13 @@ export default function DashboardPage() {
   const currentMonthVisitsByRep = React.useMemo(() => {
     if (!teamMember || userRole !== 'SalesRep' || orders.length === 0) return 0; 
     const currentDate = new Date();
+    const visitStatuses: OrderStatus[] = ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Fallido', 'Seguimiento', 'Cancelado'];
     return orders.filter(order =>
       order.salesRep === teamMember.name &&
       isValid(parseISO(order.visitDate)) &&
       isSameMonth(parseISO(order.visitDate), currentDate) &&
       isSameYear(parseISO(order.visitDate), currentDate) &&
-      order.status !== 'Programada' 
+      visitStatuses.includes(order.status)
     ).length;
   }, [teamMember, userRole, orders]);
 
@@ -180,12 +181,13 @@ export default function DashboardPage() {
     if (userRole !== 'Admin' || orders.length === 0 || salesRepsForTeamProgress.length === 0) return 0;
     const currentDate = new Date();
     const salesRepNames = salesRepsForTeamProgress.map(rep => rep.name);
+    const visitStatuses: OrderStatus[] = ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Fallido', 'Seguimiento', 'Cancelado'];
     return orders.filter(order =>
       salesRepNames.includes(order.salesRep) &&
       isValid(parseISO(order.visitDate)) &&
       isSameMonth(parseISO(order.visitDate), currentDate) &&
       isSameYear(parseISO(order.visitDate), currentDate) &&
-      order.status !== 'Programada'
+      visitStatuses.includes(order.status)
     ).length;
   }, [userRole, salesRepsForTeamProgress, orders]);
 

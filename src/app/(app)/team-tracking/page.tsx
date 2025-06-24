@@ -5,7 +5,7 @@ import React, { useMemo, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { TeamMember, Order } from "@/types";
+import type { TeamMember, Order, OrderStatus } from "@/types";
 import { Package, Briefcase, Footprints, Users, Eye, Loader2 } from 'lucide-react';
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 import { Progress } from "@/components/ui/progress";
@@ -107,11 +107,12 @@ export default function TeamTrackingPage() {
 
           fetchedOrders.forEach(order => {
             if (order.salesRep === member.name) {
-              if (['Confirmado', 'Procesando', 'Enviado', 'Entregado'].includes(order.status) && order.numberOfUnits) {
+              if (['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado'].includes(order.status) && order.numberOfUnits) {
                 bottlesSold += order.numberOfUnits;
                 ordersCount++;
               }
-              if (order.status !== 'Programada' && isValid(parseISO(order.visitDate))) {
+              const visitStatuses: OrderStatus[] = ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Fallido', 'Seguimiento', 'Cancelado'];
+              if (visitStatuses.includes(order.status) && isValid(parseISO(order.visitDate))) {
                  visitsCount++;
                  if (isSameMonth(parseISO(order.visitDate), currentDate) && isSameYear(parseISO(order.visitDate), currentDate)) {
                     monthlyVisitsAchieved++;

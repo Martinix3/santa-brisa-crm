@@ -24,13 +24,20 @@ import { mockTeamMembers } from "@/lib/data";
 
 const formatAddress = (address?: AddressDetails): string => {
   if (!address) return 'No especificada';
+
   const parts = [
-    `${address.street}${address.number ? `, ${address.number}` : ''}`,
+    (address.street ? `${address.street}${address.number ? `, ${address.number}` : ''}` : null),
     address.city,
     address.province,
     address.postalCode,
-    address.country || 'España'
-  ].filter(Boolean);
+    // Solo añade el país por defecto si hay alguna otra parte de la dirección presente
+    (address.street || address.city || address.postalCode || address.province) && (address.country || 'España')
+  ].filter(Boolean); // Filtra valores null, undefined, o strings vacíos
+
+  if (parts.length === 0) {
+      return 'No especificada';
+  }
+
   return parts.join(',\n');
 };
 

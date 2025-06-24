@@ -49,6 +49,9 @@ import { getPromotionalMaterialsFS } from "@/services/promotional-material-servi
 import { getAccountByIdFS } from "@/services/account-service"; 
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
+import { storage } from "@/lib/firebase";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { Label } from "@/components/ui/label";
 
 
 const NO_CLAVADISTA_VALUE = "##NONE##";
@@ -137,6 +140,9 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const [associatedAccount, setAssociatedAccount] = React.useState<Account | null>(null);
   const [isLoadingAccountDetails, setIsLoadingAccountDetails] = React.useState(false); 
   const { toast } = useToast();
+
+  const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
+  const [isUploading, setIsUploading] = React.useState(false);
 
 
   React.useEffect(() => {
@@ -252,14 +258,50 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     }
   }, [order, isOpen, form, isLoadingDropdownData, salesReps, toast]);
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+        const file = e.target.files[0];
+        if (file.type !== "application/pdf") {
+            toast({ title: "Archivo no válido", description: "Por favor, seleccione un archivo PDF.", variant: "destructive" });
+            e.target.value = ''; // Limpiar el input
+            return;
+        }
+        setSelectedFile(file);
+        form.setValue("invoiceFileName", file.name, { shouldDirty: true });
+        form.setValue("invoiceUrl", "", { shouldDirty: true });
+    }
+  };
 
   const onSubmit = async (data: EditOrderFormValues) => {
     if (!order) return;
     setIsSaving(true);
+    let finalData = { ...data };
+
+    if (selectedFile) {
+        setIsUploading(true);
+        try {
+            const storageRef = ref(storage, `invoices/${order.id}/${selectedFile.name}`);
+            const uploadResult = await uploadBytes(storageRef, selectedFile);
+            const downloadURL = await getDownloadURL(uploadResult.ref);
+            
+            finalData.invoiceUrl = downloadURL;
+            finalData.invoiceFileName = selectedFile.name;
+
+            toast({ title: "Subida Exitosa", description: `Factura "${selectedFile.name}" subida correctamente.` });
+
+        } catch (uploadError) {
+            console.error("Error uploading file:", uploadError);
+            toast({ title: "Error de Subida", description: "No se pudo subir el archivo de la factura.", variant: "destructive" });
+            setIsSaving(false);
+            setIsUploading(false);
+            return; 
+        }
+        setIsUploading(false);
+    }
     
-    await new Promise(resolve => setTimeout(resolve, 700));
-    onSave(data, order.id);
+    await onSave(finalData, order.id);
     setIsSaving(false);
+    setSelectedFile(null); 
   };
 
   const handlePrint = () => {
@@ -394,17 +436,21 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 <Separator className="my-6" />
                 <h3 className="text-md font-semibold text-muted-foreground">Información de Factura</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                  <FormField control={form.control} name="invoiceUrl" render={({ field }) => (<FormItem><FormLabel>URL de la Factura</FormLabel><FormControl><Input placeholder="https://ejemplo.com/factura.pdf" {...field} disabled={invoiceSectionDisabled} /></FormControl><FormMessage /></FormItem>)} />
-                   <FormField control={form.control} name="invoiceFileName" render={({ field }) => (<FormItem><FormLabel>Nombre Archivo Factura (si subida)</FormLabel><FormControl><Input {...field} disabled={true} /></FormControl><FormDescription>Este campo se llenaría al subir un archivo.</FormDescription><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="invoiceUrl" render={({ field }) => (<FormItem><FormLabel>URL de la Factura</FormLabel><FormControl><Input placeholder="https://ejemplo.com/factura.pdf" {...field} disabled={invoiceSectionDisabled || !!selectedFile} /></FormControl><FormMessage /></FormItem>)} />
+                   <div className="space-y-2">
+                    <Label htmlFor="invoice-upload">Subir Factura PDF</Label>
+                    <Input id="invoice-upload" type="file" accept=".pdf" onChange={handleFileChange} disabled={invoiceSectionDisabled || isUploading} className="pt-2 text-sm file:mr-2 file:text-primary file:font-medium" />
+                    {isUploading && <div className="flex items-center text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Subiendo...</div>}
+                  </div>
                 </div>
-                 {watchedInvoiceUrl && isValidUrl(watchedInvoiceUrl) && (
+                <FormField control={form.control} name="invoiceFileName" render={({ field }) => (<FormItem><FormLabel>Nombre Archivo Factura</FormLabel><FormControl><Input {...field} disabled={true} /></FormControl><FormDescription>Se rellena al subir un archivo o si la URL ya contiene uno.</FormDescription><FormMessage /></FormItem>)} />
+                 {watchedInvoiceUrl && !selectedFile && isValidUrl(watchedInvoiceUrl) && (
                     <Button variant="link" asChild className="p-0 h-auto mt-1">
                         <Link href={watchedInvoiceUrl} target="_blank" rel="noopener noreferrer" className="text-sm">
                             <Link2 className="mr-1 h-3 w-3" /> Ver Factura Cargada
                         </Link>
                     </Button>
                 )}
-                <Button type="button" variant="outline" className="mt-2" onClick={() => toast({ title: "Próximamente", description: "La subida de archivos de factura se implementará en una futura versión."})} disabled={invoiceSectionDisabled}><UploadCloud className="mr-2 h-4 w-4" /> Subir Factura (Próximamente)</Button>
               </>
             )}
 
@@ -562,8 +608,8 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
               </Button>
               <DialogClose asChild><Button type="button" variant="outline" disabled={isSaving}>Cancelar</Button></DialogClose>
               {!(isReadOnlyForMostFields && !canEditStatusAndNotesOnly) && (
-                <Button type="submit" disabled={isSaving || isLoadingDropdownData || isLoadingAccountDetails || (!form.formState.isDirty && !(isAdmin || isDistributor)) }>
-                  {isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>) : ("Guardar Cambios")}
+                <Button type="submit" disabled={isSaving || isUploading || isLoadingDropdownData || isLoadingAccountDetails || (!form.formState.isDirty && !(isAdmin || isDistributor)) }>
+                  {isSaving || isUploading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>) : ("Guardar Cambios")}
                 </Button>
               )}
             </DialogFooter>

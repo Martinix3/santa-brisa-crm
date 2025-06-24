@@ -23,8 +23,6 @@ import Link from "next/link";
 import { getOrdersFS, updateOrderFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service"; 
 import { getAccountsFS } from "@/services/account-service";
-import FollowUpResultDialog, { type FollowUpResultFormValues } from "@/components/app/follow-up-result-dialog";
-import { addOrderFS } from "@/services/order-service";
 
 
 export default function CrmFollowUpPage() {
@@ -46,9 +44,6 @@ export default function CrmFollowUpPage() {
   const [teamMembersForFilter, setTeamMembersForFilter] = React.useState<TeamMember[]>([]);
   const [allAccounts, setAllAccounts] = React.useState<Account[]>([]);
   
-  const [isResultDialogOpen, setIsResultDialogOpen] = React.useState(false);
-  const [selectedTask, setSelectedTask] = React.useState<Order | null>(null);
-
 
   React.useEffect(() => {
     async function loadInitialData() {
@@ -192,69 +187,6 @@ export default function CrmFollowUpPage() {
       setSelectedNewDate(undefined);
     }
   };
-
-  const handleOpenResultDialog = (task: Order) => {
-    setSelectedTask(task);
-    setIsResultDialogOpen(true);
-  };
-
-  const handleSaveResult = async (data: FollowUpResultFormValues, originatingTask: Order) => {
-    setIsLoading(true);
-
-    const newOrderData: Partial<Order> = {
-      clientName: originatingTask.clientName,
-      accountId: originatingTask.accountId,
-      visitDate: format(new Date(), "yyyy-MM-dd"), // La nueva interacción ocurre "hoy"
-      salesRep: originatingTask.salesRep,
-      clavadistaId: originatingTask.clavadistaId,
-      canalOrigenColocacion: originatingTask.canalOrigenColocacion,
-      clientStatus: originatingTask.clientStatus || "existing", // Asumir existente si no está claro
-      clientType: originatingTask.clientType,
-      originatingTaskId: originatingTask.id,
-      notes: data.notes
-    };
-
-    if (data.outcome === "successful") {
-      newOrderData.status = 'Confirmado';
-      newOrderData.products = ["Santa Brisa 750ml"];
-      newOrderData.numberOfUnits = data.numberOfUnits;
-      newOrderData.unitPrice = data.unitPrice;
-      const subtotal = (data.numberOfUnits || 0) * (data.unitPrice || 0);
-      newOrderData.value = subtotal * 1.21; // IVA del 21%
-      newOrderData.paymentMethod = data.paymentMethod;
-    } else if (data.outcome === "follow-up") {
-      newOrderData.status = 'Seguimiento';
-      newOrderData.nextActionType = data.nextActionType;
-      newOrderData.nextActionCustom = data.nextActionCustom;
-      newOrderData.nextActionDate = data.nextActionDate ? format(data.nextActionDate, "yyyy-MM-dd") : undefined;
-    } else { // Failed
-      newOrderData.status = 'Fallido';
-      newOrderData.failureReasonType = data.failureReasonType;
-      newOrderData.failureReasonCustom = data.failureReasonCustom;
-      newOrderData.nextActionType = data.nextActionType;
-      newOrderData.nextActionCustom = data.nextActionCustom;
-      newOrderData.nextActionDate = data.nextActionDate ? format(data.nextActionDate, "yyyy-MM-dd") : undefined;
-    }
-
-    try {
-      await addOrderFS(newOrderData as Order);
-      await updateOrderFS(originatingTask.id, { status: "Completado" });
-
-      toast({
-        title: "¡Resultado Registrado!",
-        description: `La tarea para "${originatingTask.clientName}" ha sido actualizada y completada.`,
-      });
-      refreshDataSignature(); // This will trigger a re-fetch of all data
-    } catch (error) {
-      console.error("Error saving follow-up result:", error);
-      toast({ title: "Error al Guardar", description: "No se pudo registrar el resultado de la interacción.", variant: "destructive"});
-    } finally {
-      setIsLoading(false);
-      setIsResultDialogOpen(false);
-      setSelectedTask(null);
-    }
-  };
-
 
   if (authContextLoading) {
     return (
@@ -497,27 +429,13 @@ export default function CrmFollowUpPage() {
                             {item.notes || 'N/D'}
                         </TableCell>
                         <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" className="h-8 w-8 p-0">
-                                <span className="sr-only">Abrir menú</span>
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              {canRegisterResult && (
-                                <DropdownMenuItem onSelect={() => handleOpenResultDialog(item)}>
-                                  <Send className="mr-2 h-4 w-4" /> Registrar Interacción / Resultado
-                                </DropdownMenuItem>
-                              )}
-                              {canRegisterResult && <DropdownMenuSeparator />}
-                              <DropdownMenuItem asChild>
-                                <Link href="/my-agenda">
-                                    <CalendarDays className="mr-2 h-4 w-4" /> Ver en Agenda Completa
-                                </Link>
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                           {canRegisterResult && (
+                             <Button asChild variant="outline" size="sm">
+                               <Link href={`/order-form?originatingTaskId=${item.id}`}>
+                                 <Send className="mr-2 h-4 w-4" /> Registrar Resultado
+                               </Link>
+                             </Button>
+                           )}
                         </TableCell>
                       </TableRow>
                     )}) : (
@@ -539,18 +457,8 @@ export default function CrmFollowUpPage() {
           )}
         </Card>
       </div>
-
-      {selectedTask && (
-        <FollowUpResultDialog
-          task={selectedTask}
-          isOpen={isResultDialogOpen}
-          onOpenChange={(isOpen) => {
-            if (!isOpen) setSelectedTask(null);
-            setIsResultDialogOpen(isOpen);
-          }}
-          onSave={handleSaveResult}
-        />
-      )}
     </>
   );
 }
+
+    

@@ -182,8 +182,7 @@ export default function OrderFormPage() {
   const { teamMember, userRole, refreshDataSignature } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [editingVisitId, setEditingVisitId] = React.useState<string | null>(null);
-  const [originalOrderSalesRep, setOriginalOrderSalesRep] = React.useState<string | undefined>(undefined);
+  const [originalOrderForNewInteraction, setOriginalOrderForNewInteraction] = React.useState<Order | null>(null);
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isLoadingForm, setIsLoadingForm] = React.useState(true);
@@ -273,72 +272,64 @@ export default function OrderFormPage() {
 
 
   React.useEffect(() => {
-    const visitIdToUpdate = searchParams.get('updateVisitId');
+    const originatingTaskId = searchParams.get('originatingTaskId');
     async function initializeForm() {
         setIsLoadingForm(true);
-        if (visitIdToUpdate) {
+        if (originatingTaskId) {
           try {
-            const existingVisit = await getOrderByIdFS(visitIdToUpdate);
-            if (existingVisit && teamMember &&
+            const existingTask = await getOrderByIdFS(originatingTaskId);
+            if (existingTask && teamMember &&
                 (userRole === 'Admin' ||
-                 (userRole === 'SalesRep' && existingVisit.salesRep === teamMember.name) ||
-                 (userRole === 'Clavadista' && existingVisit.clavadistaId === teamMember.id)) &&
-                (existingVisit.status === 'Programada' || existingVisit.status === 'Seguimiento' || existingVisit.status === 'Fallido')) {
-              setEditingVisitId(visitIdToUpdate);
-              setOriginalOrderSalesRep(existingVisit.salesRep);
-
-              let visitDateParsed = parseISO(existingVisit.visitDate);
+                 (userRole === 'SalesRep' && existingTask.salesRep === teamMember.name) ||
+                 (userRole === 'Clavadista' && existingTask.clavadistaId === teamMember.id)) &&
+                (existingTask.status === 'Programada' || existingTask.status === 'Seguimiento' || existingTask.status === 'Fallido')) {
+              
+              setOriginalOrderForNewInteraction(existingTask);
+              
+              let visitDateParsed = parseISO(existingTask.visitDate);
               if (!isValid(visitDateParsed)) visitDateParsed = new Date();
 
-              const title = `Registrar Resultado: ${existingVisit.clientName} (${format(visitDateParsed, "dd/MM/yy", {locale: es})})`;
+              const title = `Registrar Resultado: ${existingTask.clientName}`;
               setPageTitle(title);
-              setCardDescription("Actualice el resultado de la visita o tarea de seguimiento programada.");
+              setCardDescription("Actualice el resultado de la visita o tarea de seguimiento programada. Se creará una nueva interacción.");
 
               let preselectedSalesRepId = ADMIN_SELF_REGISTER_VALUE;
-              if (userRole === 'Admin' && existingVisit.salesRep) {
-                  const assignedRep = salesRepsList.find(sr => sr.name === existingVisit.salesRep);
+              if (userRole === 'Admin' && existingTask.salesRep) {
+                  const assignedRep = salesRepsList.find(sr => sr.name === existingTask.salesRep);
                   if (assignedRep) preselectedSalesRepId = assignedRep.id;
-                  else if (teamMember && existingVisit.salesRep === teamMember.name) preselectedSalesRepId = ADMIN_SELF_REGISTER_VALUE;
+                  else if (teamMember && existingTask.salesRep === teamMember.name) preselectedSalesRepId = ADMIN_SELF_REGISTER_VALUE;
               }
 
               form.reset({
-                clientName: existingVisit.clientName,
-                visitDate: visitDateParsed,
-                clientStatus: existingVisit.clientStatus || undefined,
+                clientName: existingTask.clientName,
+                visitDate: new Date(), // New interaction happens now
+                clientStatus: existingTask.accountId ? 'existing' : (existingTask.clientStatus || 'new'),
                 outcome: undefined,
-                clavadistaId: userRole === 'Clavadista' && teamMember ? teamMember.id : (existingVisit.clavadistaId || NO_CLAVADISTA_VALUE),
+                clavadistaId: userRole === 'Clavadista' && teamMember ? teamMember.id : (existingTask.clavadistaId || NO_CLAVADISTA_VALUE),
                 selectedSalesRepId: userRole === 'Admin' ? preselectedSalesRepId : undefined,
-                clavadistaSelectedSalesRepId: undefined, // Clavadista no edita salesrep aquí
-                canalOrigenColocacion: existingVisit.canalOrigenColocacion || undefined,
-                paymentMethod: existingVisit.paymentMethod || 'Adelantado',
-                notes: existingVisit.notes || "",
-                clientType: existingVisit.clientType,
-                numberOfUnits: existingVisit.numberOfUnits,
-                unitPrice: existingVisit.unitPrice,
-                orderValue: existingVisit.value,
-                nextActionType: existingVisit.nextActionType,
-                nextActionCustom: existingVisit.nextActionCustom || "",
-                nextActionDate: existingVisit.nextActionDate && isValid(parseISO(existingVisit.nextActionDate)) ? parseISO(existingVisit.nextActionDate) : undefined,
-                failureReasonType: existingVisit.failureReasonType,
-                failureReasonCustom: existingVisit.failureReasonCustom || "",
-                assignedMaterials: existingVisit.assignedMaterials || [],
-                accountId: existingVisit.accountId,
+                clavadistaSelectedSalesRepId: undefined, // Clavadista does not edit salesrep here
+                canalOrigenColocacion: existingTask.canalOrigenColocacion || undefined,
+                paymentMethod: 'Adelantado',
+                notes: existingTask.notes || "",
+                clientType: existingTask.clientType,
+                assignedMaterials: [],
+                accountId: existingTask.accountId,
               });
-            } else if (existingVisit) {
-               toast({ title: "Acceso Denegado", description: "No tienes permiso para actualizar esta visita o ya ha sido procesada de otra forma.", variant: "destructive"});
+
+            } else if (existingTask) {
+               toast({ title: "Acceso Denegado", description: "No tienes permiso para actualizar esta tarea o ya ha sido procesada.", variant: "destructive"});
                router.push("/dashboard");
             } else {
               toast({ title: "Error", description: "Tarea no encontrada o ya procesada.", variant: "destructive"});
               router.push("/my-agenda");
             }
           } catch (error) {
-            console.error("Error fetching visit to update:", error);
-            toast({ title: "Error al Cargar Tarea", description: "No se pudo cargar la tarea para actualizar.", variant: "destructive"});
+            console.error("Error fetching originating task:", error);
+            toast({ title: "Error al Cargar Tarea", description: "No se pudo cargar la tarea de origen.", variant: "destructive"});
             router.push("/my-agenda");
           }
         } else {
-            setEditingVisitId(null);
-            setOriginalOrderSalesRep(undefined);
+            setOriginalOrderForNewInteraction(null);
             setPageTitle("Registrar Visita / Pedido de Cliente");
             setCardDescription("Complete los detalles para registrar o programar una nueva interacción con un cliente.");
             form.reset({
@@ -454,7 +445,7 @@ export default function OrderFormPage() {
             salesRepNameForOrder = selectedRep.name;
             salesRepIdForAccount = selectedRep.id;
         }
-    } else if (userRole === 'Clavadista' && !editingVisitId) {
+    } else if (userRole === 'Clavadista' && !originalOrderForNewInteraction) { // Clavadista en nueva interacción
         if (!values.clavadistaSelectedSalesRepId) {
             toast({ title: "Campo Obligatorio", description: "Como Clavadista, debes seleccionar un comercial para asignar esta nueva interacción.", variant: "destructive" });
             setIsSubmitting(false);
@@ -469,9 +460,9 @@ export default function OrderFormPage() {
             setIsSubmitting(false);
             return;
         }
-    } else if (editingVisitId && originalOrderSalesRep) {
-      salesRepNameForOrder = originalOrderSalesRep;
-      const originalSalesRepMember = salesRepsList.find(sr => sr.name === originalOrderSalesRep) || (teamMember.name === originalOrderSalesRep ? teamMember : null);
+    } else if (originalOrderForNewInteraction) {
+      salesRepNameForOrder = originalOrderForNewInteraction.salesRep;
+      const originalSalesRepMember = allAccounts.find(sr => sr.name === originalOrderForNewInteraction.salesRep) || (teamMember.name === originalOrderForNewInteraction.salesRep ? teamMember : null);
       if (originalSalesRepMember) {
           salesRepIdForAccount = originalSalesRepMember.id;
       }
@@ -543,6 +534,7 @@ export default function OrderFormPage() {
         clientStatus: values.clientStatus,
         salesRep: salesRepNameForOrder,
         accountId: currentAccountId,
+        originatingTaskId: originalOrderForNewInteraction?.id,
       };
       
       const existingAccount = allAccounts.find(acc => acc.id === currentAccountId);
@@ -592,10 +584,10 @@ export default function OrderFormPage() {
           return;
       }
 
-      if (editingVisitId) {
-        await updateOrderFS(editingVisitId, orderData as Order);
-      } else {
-        await addOrderFS(orderData as Order);
+      await addOrderFS(orderData as Order);
+
+      if (originalOrderForNewInteraction) {
+        await updateOrderFS(originalOrderForNewInteraction.id, { status: "Completado" });
       }
 
       refreshDataSignature();
@@ -616,11 +608,10 @@ export default function OrderFormPage() {
       });
       setSubtotal(undefined);
       setIvaAmount(undefined);
-      if (editingVisitId) {
+      if (originalOrderForNewInteraction) {
           router.push('/my-agenda');
       }
-      setEditingVisitId(null);
-      setOriginalOrderSalesRep(undefined);
+      setOriginalOrderForNewInteraction(null);
       setPageTitle("Registrar Visita / Pedido de Cliente");
       setCardDescription("Complete los detalles para registrar o programar una nueva interacción con un cliente.");
 
@@ -633,8 +624,10 @@ export default function OrderFormPage() {
   }
 
   const showAccountCreationFields = clientStatusWatched === "new" && !selectedAccountId;
-  const showClientStatusRadio = outcomeWatched !== "Programar Visita" && (!editingVisitId || (editingVisitId && outcomeWatched && outcomeWatched !== "Programar Visita"));
-  const showExistingClientSelector = clientStatusWatched === 'existing' && !editingVisitId;
+  const isEditingFromTask = !!originalOrderForNewInteraction;
+
+  const showClientStatusRadio = outcomeWatched !== "Programar Visita" && (!isEditingFromTask || (isEditingFromTask && outcomeWatched && outcomeWatched !== "Programar Visita"));
+  const showExistingClientSelector = clientStatusWatched === 'existing' && !isEditingFromTask;
 
 
   const outcomeOptionsBase = [
@@ -644,7 +637,7 @@ export default function OrderFormPage() {
     { value: "follow-up", label: "Requiere Seguimiento" },
   ];
 
-  const currentOutcomeOptions = editingVisitId
+  const currentOutcomeOptions = isEditingFromTask
     ? outcomeOptionsBase.filter(opt => opt.value !== "Programar Visita")
     : outcomeOptionsBase;
 
@@ -672,7 +665,7 @@ export default function OrderFormPage() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              {userRole === 'Admin' && !editingVisitId && (
+              {userRole === 'Admin' && !isEditingFromTask && (
                 <FormField
                   control={form.control}
                   name="selectedSalesRepId"
@@ -704,7 +697,7 @@ export default function OrderFormPage() {
                 name="outcome"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{editingVisitId ? "Resultado de la Interacción" : "Acción / Resultado de la Visita"}</FormLabel>
+                    <FormLabel>{isEditingFromTask ? "Resultado de la Interacción" : "Acción / Resultado de la Visita"}</FormLabel>
                     <FormControl>
                       <RadioGroup onValueChange={field.onChange} value={field.value} className="flex flex-col space-y-1">
                         {currentOutcomeOptions.map(opt => (
@@ -720,7 +713,7 @@ export default function OrderFormPage() {
                 )}
               />
 
-              {userRole === 'Clavadista' && !editingVisitId && outcomeWatched && outcomeWatched !== "Programar Visita" && (
+              {userRole === 'Clavadista' && !isEditingFromTask && outcomeWatched && outcomeWatched !== "Programar Visita" && (
                 <FormField
                   control={form.control}
                   name="clavadistaSelectedSalesRepId"
@@ -764,6 +757,7 @@ export default function OrderFormPage() {
                             }}
                             value={field.value}
                             className="flex flex-col space-y-1 sm:flex-row sm:space-x-4 sm:space-y-0"
+                            disabled={isEditingFromTask}
                         >
                             <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="new" /></FormControl><FormLabel className="font-normal">Cliente Nuevo</FormLabel></FormItem>
                             <FormItem className="flex items-center space-x-3 space-y-0"><FormControl><RadioGroupItem value="existing" /></FormControl><FormLabel className="font-normal">Cliente Existente</FormLabel></FormItem>
@@ -802,7 +796,7 @@ export default function OrderFormPage() {
                   )}
                 />
               ): (
-                 <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="p. ej., Café Central" {...field} disabled={!!editingVisitId || (clientStatusWatched === 'existing' && !!selectedAccountId && selectedAccountId !== NEW_CLIENT_ACCOUNT_ID_PLACEHOLDER)} /></FormControl><FormMessage /></FormItem>)} />
+                 <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="p. ej., Café Central" {...field} disabled={isEditingFromTask || (clientStatusWatched === 'existing' && !!selectedAccountId && selectedAccountId !== NEW_CLIENT_ACCOUNT_ID_PLACEHOLDER)} /></FormControl><FormMessage /></FormItem>)} />
               )}
 
 
@@ -815,14 +809,14 @@ export default function OrderFormPage() {
                     <Popover>
                       <PopoverTrigger asChild>
                         <FormControl>
-                          <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")} disabled={!!editingVisitId}>
+                          <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")} disabled={isEditingFromTask}>
                             {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione una fecha</span>}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                           </Button>
                         </FormControl>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={!!editingVisitId || ((date: Date) => date < new Date("2000-01-01"))} initialFocus locale={es}/>
+                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={isEditingFromTask || ((date: Date) => date < new Date("2000-01-01"))} initialFocus locale={es}/>
                       </PopoverContent>
                     </Popover>
                     <FormMessage />
@@ -1095,7 +1089,7 @@ export default function OrderFormPage() {
               <FormField control={form.control} name="notes" render={({ field }) => (<FormItem><FormLabel>{outcomeWatched === "Programar Visita" ? "Objetivo de la Visita / Comentarios de Programación (Opcional)" : "Notas Adicionales Generales"}</FormLabel><FormControl><Textarea placeholder={outcomeWatched === "Programar Visita" ? "Detalles sobre el propósito de la visita programada..." : "Cualquier otra información relevante sobre la visita o pedido..."} {...field} /></FormControl><FormMessage /></FormItem>)}/>
               <CardFooter className="p-0 pt-4">
                 <Button type="submit" className="w-full" disabled={isSubmitting || !teamMember || isLoadingDropdownData}>
-                  {isSubmitting ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Enviando...</>) : (editingVisitId ? "Guardar Resultado de Interacción" : "Enviar Registro")}
+                  {isSubmitting ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Enviando...</>) : (originalOrderForNewInteraction ? "Guardar Resultado de Interacción" : "Enviar Registro")}
                 </Button>
               </CardFooter>
             </form>
@@ -1105,3 +1099,5 @@ export default function OrderFormPage() {
     </div>
   );
 }
+
+    

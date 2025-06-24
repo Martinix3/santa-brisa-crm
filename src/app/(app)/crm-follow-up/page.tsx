@@ -75,7 +75,7 @@ export default function CrmFollowUpPage() {
       }
     }
     loadInitialData();
-  }, [toast, userRole]);
+  }, [toast, userRole, teamMember]); // Added teamMember to dependency array
 
 
   const uniqueActionTypesForFilter = ["Todos", ...nextActionTypeList, "Visita Programada"] as (NextActionType | "Todos" | "Visita Programada")[];

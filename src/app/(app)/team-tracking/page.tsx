@@ -92,12 +92,11 @@ export default function TeamTrackingPage() {
     async function loadTeamData() {
       setIsLoadingStats(true);
       try {
-        const [fetchedOrders, fetchedAccounts] = await Promise.all([
-            getOrdersFS(),
-            getAccountsFS()
-        ]);
+        // Only fetch orders here as accounts are not needed for metrics anymore
+        const fetchedOrders = await getOrdersFS();
         const currentDate = new Date();
         const visitStatuses: OrderStatus[] = ['Programada', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Fallido', 'Seguimiento', 'Cancelado'];
+        const saleStatuses: OrderStatus[] = ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado'];
 
         const stats = salesTeamMembersBase.map(member => {
           let bottlesSold = 0;
@@ -108,24 +107,25 @@ export default function TeamTrackingPage() {
 
           fetchedOrders.forEach(order => {
             if (order.salesRep === member.name) {
-              if (['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado'].includes(order.status) && order.numberOfUnits) {
-                bottlesSold += order.numberOfUnits;
+              if (saleStatuses.includes(order.status)) {
+                if(order.numberOfUnits) bottlesSold += order.numberOfUnits;
                 ordersCount++;
+
+                // Count as a new account for metrics only if it's a new client sale
+                if (order.clientStatus === 'new' && isValid(parseISO(order.visitDate))) {
+                    if (isSameMonth(parseISO(order.visitDate), currentDate) && isSameYear(parseISO(order.visitDate), currentDate)) {
+                        monthlyAccountsAchieved++;
+                    }
+                }
               }
+
+              // Count as a visit for any interaction
               if (visitStatuses.includes(order.status) && isValid(parseISO(order.visitDate))) {
                  visitsCount++;
                  if (isSameMonth(parseISO(order.visitDate), currentDate) && isSameYear(parseISO(order.visitDate), currentDate)) {
                     monthlyVisitsAchieved++;
                  }
               }
-            }
-          });
-          
-          fetchedAccounts.forEach(account => {
-            if (account.salesRepId === member.id && isValid(parseISO(account.createdAt))) {
-                if (isSameMonth(parseISO(account.createdAt), currentDate) && isSameYear(parseISO(account.createdAt), currentDate)) {
-                    monthlyAccountsAchieved++;
-                }
             }
           });
 

@@ -58,11 +58,11 @@ export default function DashboardPage() {
         setAccounts(fetchedAccounts);
         setAllTeamMembers(fetchedTeamMembers); 
 
-        const validOrderStatusesForSales = ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado'];
+        const validSaleStatuses: OrderStatus[] = ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado'];
         
-        const salesTeamMemberIds = fetchedTeamMembers 
+        const salesRepNames = fetchedTeamMembers
             .filter(m => m.role === 'SalesRep')
-            .map(m => m.id);
+            .map(m => m.name);
         
         let totalBottlesSoldOverall = 0;
         let teamBottlesSoldOverall = 0;
@@ -70,13 +70,14 @@ export default function DashboardPage() {
         let accountsCreatedByTeamThisMonth = 0;
         let ordersFromExistingCustomersCount = 0;
         let totalValidOrdersCount = 0;
+        const currentDate = new Date();
+
 
         fetchedOrders.forEach(order => {
-          if (validOrderStatusesForSales.includes(order.status)) {
+          if (validSaleStatuses.includes(order.status)) {
             if (order.numberOfUnits) {
               totalBottlesSoldOverall += order.numberOfUnits;
-              const orderSalesRepDetails = fetchedTeamMembers.find(m => m.name === order.salesRep); 
-              if (orderSalesRepDetails && orderSalesRepDetails.role === 'SalesRep') {
+              if (salesRepNames.includes(order.salesRep)) {
                 teamBottlesSoldOverall += order.numberOfUnits;
               }
             }
@@ -84,23 +85,21 @@ export default function DashboardPage() {
             if (order.clientStatus === 'existing') {
               ordersFromExistingCustomersCount++;
             }
-          }
-        });
-
-        const currentDate = new Date();
-        fetchedAccounts.forEach(account => {
-          if (account.salesRepId && salesTeamMemberIds.includes(account.salesRepId)) {
-            const accountCreationDate = parseISO(account.createdAt);
-             if (isValid(accountCreationDate)) {
-                if (isSameYear(accountCreationDate, currentDate)) {
-                  accountsCreatedByTeamThisYear++;
-                }
-                if (isSameMonth(accountCreationDate, currentDate) && isSameYear(accountCreationDate, currentDate)) {
-                  accountsCreatedByTeamThisMonth++;
+            // Logic for New Accounts KPI based on successful orders of new clients
+            if (order.clientStatus === 'new') {
+                const orderDate = parseISO(order.visitDate);
+                if(isValid(orderDate)) {
+                    if(isSameYear(orderDate, currentDate)) {
+                        accountsCreatedByTeamThisYear++;
+                    }
+                    if(isSameMonth(orderDate, currentDate)) {
+                        accountsCreatedByTeamThisMonth++;
+                    }
                 }
             }
           }
         });
+
 
         const updatedKpis = initialKpiDataLaunch.map(kpi => {
           let newCurrentValue = 0;
@@ -130,15 +129,18 @@ export default function DashboardPage() {
   }, [dataSignature]); // Add dataSignature to dependencies
 
   const currentMonthNewAccountsByRep = React.useMemo(() => {
-    if (!teamMember || userRole !== 'SalesRep' || accounts.length === 0) return 0; 
+    if (!teamMember || userRole !== 'SalesRep' || orders.length === 0) return 0;
     const currentDate = new Date();
-    return accounts.filter(acc => 
-      acc.salesRepId === teamMember.id &&
-      isValid(parseISO(acc.createdAt)) &&
-      isSameMonth(parseISO(acc.createdAt), currentDate) &&
-      isSameYear(parseISO(acc.createdAt), currentDate)
+    const validSaleStatuses: OrderStatus[] = ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado'];
+    return orders.filter(order =>
+      order.salesRep === teamMember.name &&
+      validSaleStatuses.includes(order.status) &&
+      order.clientStatus === 'new' &&
+      isValid(parseISO(order.visitDate)) &&
+      isSameMonth(parseISO(order.visitDate), currentDate) &&
+      isSameYear(parseISO(order.visitDate), currentDate)
     ).length;
-  }, [teamMember, userRole, accounts]);
+  }, [teamMember, userRole, orders]);
 
   const currentMonthVisitsByRep = React.useMemo(() => {
     if (!teamMember || userRole !== 'SalesRep' || orders.length === 0) return 0; 
@@ -161,16 +163,19 @@ export default function DashboardPage() {
   }, [userRole, salesRepsForTeamProgress]);
 
   const teamMonthlyAchievedAccounts = React.useMemo(() => {
-    if (userRole !== 'Admin' || accounts.length === 0 || salesRepsForTeamProgress.length === 0) return 0;
+    if (userRole !== 'Admin' || orders.length === 0 || salesRepsForTeamProgress.length === 0) return 0;
     const currentDate = new Date();
-    const salesRepIds = salesRepsForTeamProgress.map(rep => rep.id);
-    return accounts.filter(acc => 
-      acc.salesRepId && salesRepIds.includes(acc.salesRepId) &&
-      isValid(parseISO(acc.createdAt)) &&
-      isSameMonth(parseISO(acc.createdAt), currentDate) &&
-      isSameYear(parseISO(acc.createdAt), currentDate)
+    const salesRepNames = salesRepsForTeamProgress.map(rep => rep.name);
+    const validSaleStatuses: OrderStatus[] = ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado'];
+    return orders.filter(order => 
+      salesRepNames.includes(order.salesRep) &&
+      validSaleStatuses.includes(order.status) &&
+      order.clientStatus === 'new' &&
+      isValid(parseISO(order.visitDate)) &&
+      isSameMonth(parseISO(order.visitDate), currentDate) &&
+      isSameYear(parseISO(order.visitDate), currentDate)
     ).length;
-  }, [userRole, salesRepsForTeamProgress, accounts]);
+  }, [userRole, salesRepsForTeamProgress, orders]);
 
   const teamMonthlyTargetVisits = React.useMemo(() => {
     if (userRole !== 'Admin') return 0;

@@ -177,7 +177,6 @@ export interface TeamMemberFormValues {
   authUid?: string; 
 }
 
-
 export type CanalVentaDirectaSB = 'Importador' | 'Online' | 'Estratégica' | 'Otro Directo';
 export type EstadoVentaDirectaSB = 'Borrador' | 'Confirmada' | 'Facturada' | 'Pagada' | 'Cancelada';
 
@@ -225,4 +224,17 @@ export interface VentaDirectaSBFormValues {
   fechaVencimientoPago?: Date;
   referenciasOrdenesColocacion?: string; 
   notasInternasSB?: string;
+}
+
+export interface FollowUpResultFormValues {
+  outcome: "successful" | "failed" | "follow-up";
+  paymentMethod?: PaymentMethod;
+  numberOfUnits?: number;
+  unitPrice?: number;
+  nextActionType?: NextActionType;
+  nextActionCustom?: string;
+  nextActionDate?: Date;
+  failureReasonType?: FailureReasonType;
+  failureReasonCustom?: string;
+  notes?: string;
 }

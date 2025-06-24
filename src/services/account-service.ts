@@ -35,6 +35,7 @@ const fromFirestore = (docSnap: any): Account => {
     mainContactEmail: data.mainContactEmail || '',
     mainContactPhone: data.mainContactPhone || '',
     notes: data.notes || '',
+    internalNotes: data.internalNotes || undefined,
     salesRepId: data.salesRepId || undefined, 
     createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : (typeof data.createdAt === 'string' ? data.createdAt : format(new Date(), "yyyy-MM-dd")),
     updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : (typeof data.updatedAt === 'string' ? data.updatedAt : format(new Date(), "yyyy-MM-dd")),
@@ -57,6 +58,7 @@ const toFirestore = (data: AccountFormValues & { // Tipado extendido para inclui
     mainContactEmail: data.mainContactEmail || null,
     mainContactPhone: data.mainContactPhone || null,
     notes: data.notes || null,
+    internalNotes: data.internalNotes || null,
     salesRepId: data.salesRepId || null,
   };
 
@@ -164,7 +166,7 @@ export const initializeMockAccountsInFirestore = async (mockAccounts: Account[])
             };
             
             Object.keys(firestoreReadyData).forEach(key => {
-              if (firestoreReadyData[key] === undefined && key !== 'salesRepId' && key !== 'notes' && key !== 'legalName' && key !== 'mainContactName' && key !== 'mainContactEmail' && key !== 'mainContactPhone' && key !== 'addressBilling' && key !== 'addressShipping') {
+              if (firestoreReadyData[key] === undefined && key !== 'salesRepId' && key !== 'notes' && key !== 'internalNotes' && key !== 'legalName' && key !== 'mainContactName' && key !== 'mainContactEmail' && key !== 'mainContactPhone' && key !== 'addressBilling' && key !== 'addressShipping') {
                   delete firestoreReadyData[key];
               } else if (firestoreReadyData[key] === undefined) {
                   firestoreReadyData[key] = null; 

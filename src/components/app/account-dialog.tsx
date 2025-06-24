@@ -68,6 +68,7 @@ const accountFormSchemaBase = z.object({
   mainContactEmail: z.string().email("Formato de correo inválido.").optional().or(z.literal("")),
   mainContactPhone: z.string().optional(),
   notes: z.string().optional(),
+  internalNotes: z.string().optional(),
   salesRepId: z.string().optional(),
 }).superRefine((data, ctx) => {
   // Validación para dirección de facturación si algún campo está relleno
@@ -130,7 +131,7 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
       name: "", legalName: "", cif: "", type: undefined, status: "Potencial",
       addressBilling_street: "", addressBilling_number: "", addressBilling_city: "", addressBilling_province: "", addressBilling_postalCode: "", addressBilling_country: "España",
       addressShipping_street: "", addressShipping_number: "", addressShipping_city: "", addressShipping_province: "", addressShipping_postalCode: "", addressShipping_country: "España",
-      mainContactName: "", mainContactEmail: "", mainContactPhone: "", notes: "", salesRepId: NO_SALES_REP_VALUE,
+      mainContactName: "", mainContactEmail: "", mainContactPhone: "", notes: "", internalNotes: "", salesRepId: NO_SALES_REP_VALUE,
     },
   });
 
@@ -168,6 +169,7 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
           mainContactEmail: account.mainContactEmail || "",
           mainContactPhone: account.mainContactPhone || "", 
           notes: account.notes || "",
+          internalNotes: account.internalNotes || "",
           salesRepId: account.salesRepId || NO_SALES_REP_VALUE,
         });
       } else {
@@ -176,7 +178,7 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
           addressBilling_street: "", addressBilling_number: "", addressBilling_city: "", addressBilling_province: "", addressBilling_postalCode: "", addressBilling_country: "España",
           addressShipping_street: "", addressShipping_number: "", addressShipping_city: "", addressShipping_province: "", addressShipping_postalCode: "", addressShipping_country: "España",
           mainContactName: "", mainContactEmail: "", mainContactPhone: "", 
-          notes: "", salesRepId: NO_SALES_REP_VALUE,
+          notes: "", internalNotes: "", salesRepId: NO_SALES_REP_VALUE,
         });
       }
     }
@@ -251,6 +253,8 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
             <Separator className="my-4"/>
              <FormField control={form.control} name="salesRepId" render={({ field }) => (<FormItem><FormLabel>Representante Asignado (Opcional)</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly || salesRepList.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={salesRepList.length === 0 ? "Cargando..." : "Seleccionar representante"} /></SelectTrigger></FormControl><SelectContent><SelectItem value={NO_SALES_REP_VALUE}>Sin asignar</SelectItem>{salesRepList.map(rep => (<SelectItem key={rep.id} value={rep.id}>{rep.name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
             <FormField control={form.control} name="notes" render={({ field }) => (<FormItem><FormLabel>Notas Adicionales (Opcional)</FormLabel><FormControl><Textarea placeholder="Cualquier información relevante sobre la cuenta..." {...field} disabled={isReadOnly} className="min-h-[80px]" /></FormControl><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="internalNotes" render={({ field }) => (<FormItem><FormLabel>Notas Internas (Equipo)</FormLabel><FormControl><Textarea placeholder="Información adicional visible solo para el equipo..." {...field} disabled={isReadOnly} className="min-h-[80px]" /></FormControl><FormMessage /></FormItem>)} />
+
             <DialogFooter className="pt-6">
               <DialogClose asChild><Button type="button" variant="outline" disabled={isSaving && !isReadOnly}>{isReadOnly ? "Cerrar" : "Cancelar"}</Button></DialogClose>
               {!isReadOnly && (<Button type="submit" disabled={isSaving || (!form.formState.isDirty && !!account )}>{isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>) : (account ? "Guardar Cambios" : "Añadir Cuenta")}</Button>)}

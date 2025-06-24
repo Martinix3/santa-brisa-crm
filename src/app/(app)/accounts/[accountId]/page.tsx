@@ -55,7 +55,9 @@ export default function AccountDetailPage() {
   const [isAccountDialogOpen, setIsAccountDialogOpen] = React.useState(false);
   
   const accountId = params.accountId as string;
+  const canEditAccount = userRole === 'Admin' || userRole === 'SalesRep';
   const isAdmin = userRole === 'Admin';
+
 
   React.useEffect(() => {
     async function loadAccountData() {
@@ -81,7 +83,7 @@ export default function AccountDetailPage() {
           
           setRelatedInteractions(interactions);
 
-          if (isAdmin) {
+          if (canEditAccount) {
             const allFsAccounts = await getAccountsFS();
             setAllAccountsForValidation(allFsAccounts);
           }
@@ -95,22 +97,22 @@ export default function AccountDetailPage() {
       }
     }
     loadAccountData();
-  }, [accountId, toast, isAdmin]);
+  }, [accountId, toast, canEditAccount]);
 
   React.useEffect(() => {
-    if (isAdmin && searchParams.get('edit') === 'true' && account && !isLoading) {
+    if (canEditAccount && searchParams.get('edit') === 'true' && account && !isLoading) {
       setIsAccountDialogOpen(true);
     }
-  }, [searchParams, account, isAdmin, isLoading]);
+  }, [searchParams, account, canEditAccount, isLoading]);
 
 
   const handleEditAccount = () => {
-    if (!isAdmin || !account) return;
+    if (!canEditAccount || !account) return;
     setIsAccountDialogOpen(true);
   };
 
   const handleSaveAccountDetails = async (data: AccountFormValues) => {
-    if (!isAdmin || !account) return;
+    if (!canEditAccount || !account) return;
     setIsLoading(true);
     try {
       // El servicio updateAccountFS ahora espera los campos de dirección desglosados
@@ -173,7 +175,7 @@ export default function AccountDetailPage() {
           </div>
         </div>
         <div className="flex space-x-2">
-          {isAdmin && (
+          {canEditAccount && (
             <Button onClick={handleEditAccount} disabled={isLoading}>
               <Edit className="mr-2 h-4 w-4" /> Editar Cuenta
             </Button>
@@ -245,6 +247,17 @@ export default function AccountDetailPage() {
                 <p className="text-muted-foreground whitespace-pre-line">{account.notes || 'No hay notas para esta cuenta.'}</p>
                 </CardContent>
             </Card>
+            {(userRole === 'Admin' || userRole === 'SalesRep') && account.internalNotes && (
+              <Card className="shadow-subtle bg-amber-50 border-amber-200 dark:bg-amber-950 dark:border-amber-800">
+                  <CardHeader>
+                  <CardTitle className="text-lg flex items-center"><Info className="mr-2 h-5 w-5 text-amber-600"/>Notas Internas</CardTitle>
+                  <CardDescription>Esta información solo es visible para el equipo de ventas y administradores.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="text-sm">
+                  <p className="text-amber-800 dark:text-amber-200 whitespace-pre-line">{account.internalNotes}</p>
+                  </CardContent>
+              </Card>
+            )}
         </div>
       </div>
 
@@ -314,7 +327,7 @@ export default function AccountDetailPage() {
         </CardContent>
       </Card>
 
-      {isAdmin && account && (
+      {canEditAccount && account && (
         <AccountDialog
           account={account} 
           isOpen={isAccountDialogOpen}

@@ -140,6 +140,7 @@ export interface Account {
   mainContactEmail?: string;
   mainContactPhone?: string;
   notes?: string; 
+  internalNotes?: string;
   salesRepId?: string; 
   createdAt: string; 
   updatedAt: string; 

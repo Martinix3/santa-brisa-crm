@@ -32,6 +32,8 @@ export default function AccountsPage() {
   const [cityFilter, setCityFilter] = React.useState("");
 
   const isAdmin = userRole === 'Admin';
+  const canEditAccounts = userRole === 'Admin' || userRole === 'SalesRep';
+
 
   React.useEffect(() => {
     async function loadAccounts() {
@@ -217,13 +219,15 @@ export default function AccountsPage() {
                                 <Eye className="mr-2 h-4 w-4" /> Ver Detalles
                               </Link>
                             </DropdownMenuItem>
+                            {canEditAccounts && (
+                              <DropdownMenuItem asChild>
+                                <Link href={`/accounts/${account.id}?edit=true`}>
+                                  <Edit className="mr-2 h-4 w-4" /> Editar
+                                </Link>
+                              </DropdownMenuItem>
+                            )}
                             {isAdmin && (
                               <>
-                                <DropdownMenuItem asChild>
-                                  <Link href={`/accounts/${account.id}?edit=true`}>
-                                    <Edit className="mr-2 h-4 w-4" /> Editar
-                                  </Link>
-                                </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                  <AlertDialog>
                                   <AlertDialogTrigger asChild>

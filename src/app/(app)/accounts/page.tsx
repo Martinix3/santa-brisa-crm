@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { accountStatusList } from "@/lib/data"; 
 import type { Account, AccountStatus, UserRole } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { PlusCircle, Edit, Trash2, MoreHorizontal, Building2, Filter, ChevronDown, Eye, Loader2 } from "lucide-react";
+import { PlusCircle, Edit, Trash2, MoreHorizontal, Building2, Filter, ChevronDown, Eye, Loader2, MapPin } from "lucide-react";
 import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
@@ -105,8 +105,15 @@ export default function AccountsPage() {
     .filter(account => {
       if (!cityFilter) return true;
       const cityLower = cityFilter.toLowerCase();
-      return (account.addressShipping && account.addressShipping.toLowerCase().includes(cityLower)) ||
-             (account.addressBilling && account.addressBilling.toLowerCase().includes(cityLower));
+      const shippingCity = account.addressShipping?.city?.toLowerCase() || '';
+      const shippingProvince = account.addressShipping?.province?.toLowerCase() || '';
+      const billingCity = account.addressBilling?.city?.toLowerCase() || '';
+      const billingProvince = account.addressBilling?.province?.toLowerCase() || '';
+
+      return shippingCity.includes(cityLower) || 
+             shippingProvince.includes(cityLower) ||
+             billingCity.includes(cityLower) || 
+             billingProvince.includes(cityLower);
     });
   
   const uniqueAccountStatuses = ["Todos", ...accountStatusList] as (AccountStatus | "Todos")[];
@@ -140,7 +147,7 @@ export default function AccountsPage() {
               className="max-w-sm"
             />
              <Input
-              placeholder="Filtrar por ciudad..."
+              placeholder="Filtrar por ciudad/provincia..."
               value={cityFilter}
               onChange={(e) => setCityFilter(e.target.value)}
               className="max-w-xs"
@@ -173,8 +180,8 @@ export default function AccountsPage() {
                   <TableRow>
                     <TableHead className="w-[25%]">Nombre Comercial</TableHead>
                     <TableHead className="w-[15%]">CIF</TableHead>
+                    <TableHead className="w-[15%]">Ubicación</TableHead>
                     <TableHead className="w-[15%]">Tipo</TableHead>
-                    <TableHead className="w-[15%]">Contacto Principal</TableHead>
                     <TableHead className="text-center w-[10%]">Estado</TableHead>
                     <TableHead className="text-right w-[20%]">Acciones</TableHead>
                   </TableRow>
@@ -184,17 +191,15 @@ export default function AccountsPage() {
                     <TableRow key={account.id}>
                       <TableCell className="font-medium">{account.name}</TableCell>
                       <TableCell>{account.cif}</TableCell>
-                      <TableCell>{account.type}</TableCell>
                       <TableCell>
-                          {account.mainContactName && (
-                              <div>
-                                  {account.mainContactName}
-                                  {account.mainContactEmail && <div className="text-xs text-muted-foreground">{account.mainContactEmail}</div>}
-                                  {account.mainContactPhone && <div className="text-xs text-muted-foreground">{account.mainContactPhone}</div>}
-                              </div>
-                          )}
-                           {!account.mainContactName && "N/D"}
+                          {account.addressShipping?.city || account.addressBilling?.city ? (
+                            <div className="flex items-center text-xs">
+                                <MapPin size={14} className="mr-1 text-muted-foreground" />
+                                {account.addressShipping?.city || account.addressBilling?.city}
+                            </div>
+                          ) : "N/D"}
                       </TableCell>
+                      <TableCell>{account.type}</TableCell>
                       <TableCell className="text-center">
                         <StatusBadge type="account" status={account.status} />
                       </TableCell>

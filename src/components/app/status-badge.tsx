@@ -14,7 +14,8 @@ type StatusBadgeProps =
 const getOrderBadgeColorClass = (status: OrderStatus): string => {
   switch (status) {
     case 'Entregado': return 'bg-green-500 hover:bg-green-600 text-white';
-    case 'Facturado': return 'bg-teal-500 hover:bg-teal-600 text-white'; // Nuevo color para Facturado
+    case 'Completado': return 'bg-green-100 text-green-800 border border-green-300';
+    case 'Facturado': return 'bg-teal-500 hover:bg-teal-600 text-white';
     case 'Confirmado': return 'bg-[hsl(var(--brand-turquoise-hsl))] hover:brightness-90 text-white';
     case 'Enviado': return 'bg-purple-500 hover:bg-purple-600 text-white';
     case 'Pendiente': return 'bg-yellow-400 hover:bg-yellow-500 text-black';
@@ -40,7 +41,7 @@ const getAccountBadgeColorClass = (status: AccountStatus): string => {
 const getEventBadgeColorClass = (status: CrmEventStatus): string => {
   switch (status) {
     case 'Completado': return 'bg-green-500 hover:bg-green-600 text-white';
-    case 'Confirmado': return 'bg-blue-500 hover:bg-blue-600 text-white'; // Note: Event 'Confirmado' is blue
+    case 'Confirmado': return 'bg-blue-500 hover:bg-blue-600 text-white';
     case 'En Curso': return 'bg-purple-500 hover:bg-purple-600 text-white';
     case 'Planificado': return 'bg-yellow-400 hover:bg-yellow-500 text-black';
     case 'Pospuesto': return 'bg-orange-400 hover:bg-orange-500 text-black';

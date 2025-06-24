@@ -54,12 +54,13 @@ const fromFirestoreOrder = (docSnap: any): Order => {
     failureReasonCustom: data.failureReasonCustom || '',
     
     accountId: data.accountId || undefined,
-    createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : (typeof data.createdAt === 'string' ? data.createdAt : format(new Date(), "yyyy-MM-dd")),
+    createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd HH:mm:ss") : (typeof data.createdAt === 'string' ? data.createdAt : format(new Date(), "yyyy-MM-dd HH:mm:ss")),
+    originatingTaskId: data.originatingTaskId || undefined,
   };
   return order;
 };
 
-const toFirestoreOrder = (data: Partial<Order> & { visitDate: Date | string, nextActionDate?: Date | string, accountId?: string }, isNew: boolean): any => {
+const toFirestoreOrder = (data: Partial<Order> & { visitDate?: Date | string, nextActionDate?: Date | string, accountId?: string }, isNew: boolean): any => {
   
   const firestoreData: { [key: string]: any } = {};
 
@@ -68,14 +69,14 @@ const toFirestoreOrder = (data: Partial<Order> & { visitDate: Date | string, nex
     'assignedMaterials', 'canalOrigenColocacion', 'paymentMethod', 'invoiceUrl', 'invoiceFileName', 
     'clientType', 'numberOfUnits', 'unitPrice', 'clientStatus', 
     'notes', 'nextActionType', 'nextActionCustom', 'failureReasonType', 
-    'failureReasonCustom', 'accountId'
+    'failureReasonCustom', 'accountId', 'originatingTaskId'
   ];
 
   directOrderKeys.forEach(key => {
     if (data[key] !== undefined) {
       firestoreData[key] = data[key];
     } else {
-      if (['clavadistaId', 'canalOrigenColocacion', 'paymentMethod', 'invoiceUrl', 'invoiceFileName', 'clientType', 'value', 'numberOfUnits', 'unitPrice', 'clientStatus', 'notes', 'nextActionType', 'nextActionCustom', 'failureReasonType', 'failureReasonCustom', 'accountId'].includes(key)) {
+      if (['clavadistaId', 'canalOrigenColocacion', 'paymentMethod', 'invoiceUrl', 'invoiceFileName', 'clientType', 'value', 'numberOfUnits', 'unitPrice', 'clientStatus', 'notes', 'nextActionType', 'nextActionCustom', 'failureReasonType', 'failureReasonCustom', 'accountId', 'originatingTaskId'].includes(key)) {
         firestoreData[key] = null;
       }
     }
@@ -176,6 +177,7 @@ export const initializeMockOrdersInFirestore = async (mockOrdersData: Order[]) =
             firestoreReadyData.paymentMethod = order.paymentMethod || null;
             firestoreReadyData.invoiceUrl = order.invoiceUrl || null;
             firestoreReadyData.invoiceFileName = order.invoiceFileName || null;
+            firestoreReadyData.originatingTaskId = order.originatingTaskId || null;
             
             Object.keys(firestoreReadyData).forEach(key => {
                 if (firestoreReadyData[key] === undefined) {

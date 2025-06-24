@@ -33,7 +33,7 @@ export interface TeamMember {
   updatedAt?: string; 
 }
 
-export type OrderStatus = 'Pendiente' | 'Confirmado' | 'Procesando' | 'Enviado' | 'Entregado' | 'Cancelado' | 'Fallido' | 'Seguimiento' | 'Programada' | 'Facturado';
+export type OrderStatus = 'Pendiente' | 'Confirmado' | 'Procesando' | 'Enviado' | 'Entregado' | 'Cancelado' | 'Fallido' | 'Seguimiento' | 'Programada' | 'Facturado' | 'Completado';
 export type ClientType = 'Distribuidor' | 'HORECA' | 'Retail' | 'Cliente Final';
 
 export type NextActionType = 'Llamar al responsable de compras' | 'Mandar información' | 'Visitar de nuevo' | 'Enviar muestra' | 'Esperar decisión' | 'Opción personalizada';
@@ -70,7 +70,7 @@ export interface AddressDetails {
   city: string;
   province: string;
   postalCode: string;
-  country?: string; // Default a "España" si no se especifica
+  country?: string; 
 }
 
 export type PaymentMethod = 'Adelantado' | 'Contado' | 'Transferencia 30 días';
@@ -105,7 +105,8 @@ export interface Order {
   failureReasonCustom?: string;
 
   accountId?: string; 
-  createdAt?: string; 
+  createdAt: string; 
+  originatingTaskId?: string;
 }
 
 export type MarketingResourceType = 'Folleto' | 'Presentación' | 'Imagen' | 'Guía';

@@ -6,9 +6,9 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { Account, Order, UserRole, AddressDetails } from "@/types";
+import type { Account, Order, UserRole, AddressDetails, OrderStatus } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { Building2, Edit, ArrowLeft, AlertTriangle, UserCircle, Mail, Phone, FileText, ShoppingCart, CalendarDays, ListChecks, Info, Euro, Printer, Loader2, MapPin } from "lucide-react";
+import { Building2, Edit, ArrowLeft, AlertTriangle, UserCircle, Mail, Phone, FileText, ShoppingCart, CalendarDays, ListChecks, Info, Euro, Printer, Loader2, MapPin, Link as LinkIcon, CheckCircle } from "lucide-react";
 import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
@@ -30,9 +30,8 @@ const formatAddress = (address?: AddressDetails): string => {
     address.city,
     address.province,
     address.postalCode,
-    // Solo añade el país por defecto si hay alguna otra parte de la dirección presente
     (address.street || address.city || address.postalCode || address.province) && (address.country || 'España')
-  ].filter(Boolean); // Filtra valores null, undefined, o strings vacíos
+  ].filter(Boolean); 
 
   if (parts.length === 0) {
       return 'No especificada';
@@ -45,7 +44,7 @@ export default function AccountDetailPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { userRole } = useAuth();
+  const { userRole, refreshDataSignature } = useAuth();
   const { toast } = useToast();
 
   const [account, setAccount] = React.useState<Account | null>(null);
@@ -79,7 +78,7 @@ export default function AccountDetailPage() {
             if (!order.accountId && order.cif && foundAccount.cif && order.cif.trim().toLowerCase() === foundAccount.cif.trim().toLowerCase()) return true;
             if (!order.accountId && !order.cif && order.clientName && foundAccount.name && order.clientName.trim().toLowerCase() === foundAccount.name.trim().toLowerCase()) return true;
             return false;
-          }).sort((a,b) => parseISO(b.visitDate).getTime() - parseISO(a.visitDate).getTime());
+          }).sort((a,b) => parseISO(b.createdAt || b.visitDate).getTime() - parseISO(a.createdAt || a.visitDate).getTime());
           
           setRelatedInteractions(interactions);
 
@@ -97,7 +96,7 @@ export default function AccountDetailPage() {
       }
     }
     loadAccountData();
-  }, [accountId, toast, canEditAccount]);
+  }, [accountId, toast, canEditAccount, refreshDataSignature]);
 
   React.useEffect(() => {
     if (canEditAccount && searchParams.get('edit') === 'true' && account && !isLoading) {
@@ -115,7 +114,6 @@ export default function AccountDetailPage() {
     if (!canEditAccount || !account) return;
     setIsLoading(true);
     try {
-      // El servicio updateAccountFS ahora espera los campos de dirección desglosados
       await updateAccountFS(account.id, data); 
       const updatedAccount = await getAccountByIdFS(account.id);
       setAccount(updatedAccount);
@@ -123,6 +121,7 @@ export default function AccountDetailPage() {
       toast({ title: "¡Cuenta Actualizada!", description: `La cuenta "${data.name}" ha sido actualizada.` });
       setIsAccountDialogOpen(false);
       router.replace(`/accounts/${accountId}`, undefined); 
+      refreshDataSignature();
     } catch (error) {
       console.error("Error updating account:", error);
       toast({ title: "Error al Actualizar", description: "No se pudo actualizar la cuenta.", variant: "destructive" });
@@ -157,9 +156,11 @@ export default function AccountDetailPage() {
     );
   }
 
-  const salesRepAssigned = account.salesRepId ? mockTeamMembers.find(tm => tm.id === account.salesRepId) : null; // TODO: Fetch actual team member name if needed for display
+  const salesRepAssigned = account.salesRepId ? mockTeamMembers.find(tm => tm.id === account.salesRepId) : null;
   const creationDate = account.createdAt && isValid(parseISO(account.createdAt)) ? format(parseISO(account.createdAt), "dd/MM/yyyy", { locale: es }) : 'N/D';
   const updateDate = account.updatedAt && isValid(parseISO(account.updatedAt)) ? format(parseISO(account.updatedAt), "dd/MM/yyyy HH:mm", { locale: es }) : 'N/D';
+
+  const isOpenTask = (status: OrderStatus) => ['Programada', 'Seguimiento', 'Fallido'].includes(status);
 
   return (
     <div className="space-y-6" id="printable-account-details">
@@ -272,12 +273,12 @@ export default function AccountDetailPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[15%]">ID / Referencia</TableHead>
-                    <TableHead className="w-[15%]">Fecha Interacción</TableHead>
+                    <TableHead className="w-[15%]">Fecha</TableHead>
                     <TableHead className="w-[20%]">Tipo / Próxima Acción</TableHead>
                     <TableHead className="w-[10%] text-right">Valor</TableHead>
                     <TableHead className="w-[15%] text-center">Estado</TableHead>
                     <TableHead className="w-[15%]">Comercial</TableHead>
+                    <TableHead className="w-[15%]">ID / Origen</TableHead>
                     <TableHead className="w-[10%] text-right print-hide">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -287,12 +288,11 @@ export default function AccountDetailPage() {
                                             : (interaction.status === 'Seguimiento' || interaction.status === 'Fallido') ? `Seguimiento (${interaction.nextActionType || 'N/D'})`
                                             : "Pedido";
                     return (
-                      <TableRow key={interaction.id}>
-                        <TableCell className="font-medium">{interaction.id}</TableCell>
-                        <TableCell>{interaction.visitDate && isValid(parseISO(interaction.visitDate)) ? format(parseISO(interaction.visitDate), "dd/MM/yy", { locale: es }) : 'N/D'}</TableCell>
+                      <TableRow key={interaction.id} className={interaction.status === 'Completado' ? 'bg-muted/40' : ''}>
+                        <TableCell>{interaction.createdAt && isValid(parseISO(interaction.createdAt)) ? format(parseISO(interaction.createdAt), "dd/MM/yy HH:mm", { locale: es }) : 'N/D'}</TableCell>
                         <TableCell>{interactionType}</TableCell>
                         <TableCell className="text-right">
-                          {interaction.status !== 'Programada' && interaction.status !== 'Seguimiento' && interaction.status !== 'Fallido' && interaction.value !== undefined ? (
+                          {interaction.value !== undefined ? (
                              <FormattedNumericValue value={interaction.value} locale="es-ES" options={{ style: 'currency', currency: 'EUR' }} />
                           ) : "—"}
                         </TableCell>
@@ -300,18 +300,25 @@ export default function AccountDetailPage() {
                           <StatusBadge type="order" status={interaction.status} />
                         </TableCell>
                         <TableCell>{interaction.salesRep}</TableCell>
+                        <TableCell className="text-xs">
+                          {interaction.id}
+                          {interaction.originatingTaskId && (
+                            <Link href={`#${interaction.originatingTaskId}`} className="flex items-center text-muted-foreground hover:text-primary">
+                              <LinkIcon size={12} className="mr-1"/> 
+                              {interaction.originatingTaskId.substring(0,5)}...
+                            </Link>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right print-hide">
-                           {interaction.status === 'Programada' || interaction.status === 'Seguimiento' || interaction.status === 'Fallido' ? (
+                           {isOpenTask(interaction.status) ? (
                                 <Button variant="outline" size="sm" asChild>
-                                    <Link href={`/order-form?updateVisitId=${interaction.id}`}>
+                                    <Link href={`/order-form?originatingTaskId=${interaction.id}`}>
                                         <ListChecks className="mr-1 h-3 w-3" /> Registrar Resultado
                                     </Link>
                                 </Button>
                            ) : (
-                                <Button variant="outline" size="sm" asChild>
-                                    <Link href={`/orders-dashboard`}> 
-                                        <ShoppingCart className="mr-1 h-3 w-3" /> Ver Pedido
-                                    </Link>
+                                <Button variant="ghost" size="sm" disabled>
+                                    <CheckCircle className="mr-1 h-3 w-3 text-green-500" /> Gestionado
                                 </Button>
                            )}
                         </TableCell>

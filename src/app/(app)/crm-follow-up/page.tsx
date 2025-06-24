@@ -26,7 +26,7 @@ import { getAccountsFS } from "@/services/account-service";
 
 
 export default function CrmFollowUpPage() {
-  const { userRole, teamMember, loading: authContextLoading } = useAuth();
+  const { userRole, teamMember, loading: authContextLoading, dataSignature } = useAuth();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = React.useState(""); 
   const [cityFilter, setCityFilter] = React.useState("");
@@ -47,10 +47,7 @@ export default function CrmFollowUpPage() {
 
   React.useEffect(() => {
     async function loadInitialData() {
-      if (authContextLoading) {
-        setIsLoading(true);
-        return;
-      }
+      if (authContextLoading) return;
       if ((userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember) {
         setIsLoading(false);
         setFollowUps([]);
@@ -84,7 +81,7 @@ export default function CrmFollowUpPage() {
       }
     }
     loadInitialData();
-  }, [toast, userRole, teamMember, authContextLoading]);
+  }, [toast, userRole, teamMember, authContextLoading, dataSignature]);
 
 
   const uniqueActionTypesForFilter = ["Todos", ...nextActionTypeList, "Visita Programada"] as (NextActionType | "Todos" | "Visita Programada")[];
@@ -99,9 +96,8 @@ export default function CrmFollowUpPage() {
           return followUp.salesRep === teamMember.name;
         }
         if (userRole === 'Clavadista' && teamMember) {
-          return followUp.clavadistaId === teamMember.id; // Filter by clavadistaId
+          return followUp.clavadistaId === teamMember.id;
         }
-        // Admin filter
         if (userRole === 'Admin') {
             if (selectedUserFilter === "Todos") return true;
             const selectedMember = teamMembersForFilter.find(mem => mem.id === selectedUserFilter);
@@ -109,9 +105,9 @@ export default function CrmFollowUpPage() {
                 if (selectedMember.role === 'SalesRep' || selectedMember.role === 'Admin') return selectedMember.name === followUp.salesRep;
                 if (selectedMember.role === 'Clavadista') return selectedMember.id === followUp.clavadistaId;
             }
-            return false; // If selected member not found, show nothing
+            return false; 
         }
-        return false; // Should not happen if roles are handled
+        return false; 
       })
       .filter(followUp => {
         if (actionTypeFilter === "Todos") return true;
@@ -439,7 +435,7 @@ export default function CrmFollowUpPage() {
                           <DropdownMenuContent align="end">
                             {canRegisterResult && (
                               <DropdownMenuItem asChild>
-                                <Link href={`/order-form?updateVisitId=${item.id}`}>
+                                <Link href={`/order-form?originatingTaskId=${item.id}`}>
                                   <Send className="mr-2 h-4 w-4" /> Registrar Interacción / Resultado
                                 </Link>
                               </DropdownMenuItem>

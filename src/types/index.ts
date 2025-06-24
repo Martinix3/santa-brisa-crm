@@ -98,9 +98,6 @@ export interface Order {
 
   nombreFiscal?: string;
   cif?: string;
-  // Campos de dirección desglosada para el pedido (copiados de la cuenta o introducidos si es nueva)
-  direccionFiscal?: AddressDetails; 
-  direccionEntrega?: AddressDetails;
   contactoNombre?: string;
   contactoCorreo?: string;
   contactoTelefono?: string;
@@ -202,7 +199,7 @@ export interface VentaDirectaSB {
   clienteId: string; 
   nombreClienteFactura: string; 
   cifClienteFactura?: string;
-  direccionClienteFactura?: string; 
+  direccionClienteFactura?: AddressDetails; 
   canalVentaDirectaSB: CanalVentaDirectaSB;
   items: VentaDirectaSBItem[];
   subtotalGeneralNetoSB: number;
@@ -233,4 +230,3 @@ export interface VentaDirectaSBFormValues {
   referenciasOrdenesColocacion?: string; 
   notasInternasSB?: string;
 }
-

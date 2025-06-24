@@ -47,8 +47,6 @@ const fromFirestoreOrder = (docSnap: any): Order => {
 
     nombreFiscal: data.nombreFiscal || '',
     cif: data.cif || '',
-    direccionFiscal: data.direccionFiscal, 
-    direccionEntrega: data.direccionEntrega, 
     contactoNombre: data.contactoNombre || '',
     contactoCorreo: data.contactoCorreo || '',
     contactoTelefono: data.contactoTelefono || '',
@@ -67,13 +65,7 @@ const fromFirestoreOrder = (docSnap: any): Order => {
   return order;
 };
 
-const toFirestoreOrder = (data: Partial<Order> & { 
-    visitDate: Date | string, 
-    nextActionDate?: Date | string, 
-    accountId?: string,
-    direccionFiscal_street?: string, direccionFiscal_number?: string, direccionFiscal_city?: string, direccionFiscal_province?: string, direccionFiscal_postalCode?: string, direccionFiscal_country?: string,
-    direccionEntrega_street?: string, direccionEntrega_number?: string, direccionEntrega_city?: string, direccionEntrega_province?: string, direccionEntrega_postalCode?: string, direccionEntrega_country?: string,
-}, isNew: boolean): any => {
+const toFirestoreOrder = (data: Partial<Order> & { visitDate: Date | string, nextActionDate?: Date | string, accountId?: string }, isNew: boolean): any => {
   
   const firestoreData: { [key: string]: any } = {};
 
@@ -110,37 +102,6 @@ const toFirestoreOrder = (data: Partial<Order> & {
       firestoreData.nextActionDate = null;
     }
   }
-
-  if (data.direccionFiscal_street && data.direccionFiscal_city && data.direccionFiscal_province && data.direccionFiscal_postalCode) {
-    firestoreData.direccionFiscal = {
-      street: data.direccionFiscal_street,
-      number: data.direccionFiscal_number || undefined,
-      city: data.direccionFiscal_city,
-      province: data.direccionFiscal_province,
-      postalCode: data.direccionFiscal_postalCode,
-      country: data.direccionFiscal_country || "España",
-    };
-  } else if (data.direccionFiscal && typeof data.direccionFiscal === 'object') { 
-    firestoreData.direccionFiscal = data.direccionFiscal;
-  } else {
-    firestoreData.direccionFiscal = null;
-  }
-
-  if (data.direccionEntrega_street && data.direccionEntrega_city && data.direccionEntrega_province && data.direccionEntrega_postalCode) {
-    firestoreData.direccionEntrega = {
-      street: data.direccionEntrega_street,
-      number: data.direccionEntrega_number || undefined,
-      city: data.direccionEntrega_city,
-      province: data.direccionEntrega_province,
-      postalCode: data.direccionEntrega_postalCode,
-      country: data.direccionEntrega_country || "España",
-    };
-  } else if (data.direccionEntrega && typeof data.direccionEntrega === 'object') {
-    firestoreData.direccionEntrega = data.direccionEntrega;
-  } else {
-    firestoreData.direccionEntrega = null;
-  }
-
 
   if (isNew) {
     firestoreData.createdAt = Timestamp.fromDate(new Date());
@@ -182,19 +143,13 @@ export const getOrderByIdFS = async (id: string): Promise<Order | null> => {
   }
 };
 
-export const addOrderFS = async (data: Partial<Order> & {visitDate: Date | string, accountId?: string,
-    direccionFiscal_street?: string, direccionFiscal_number?: string, direccionFiscal_city?: string, direccionFiscal_province?: string, direccionFiscal_postalCode?: string, direccionFiscal_country?: string,
-    direccionEntrega_street?: string, direccionEntrega_number?: string, direccionEntrega_city?: string, direccionEntrega_province?: string, direccionEntrega_postalCode?: string, direccionEntrega_country?: string,
-}): Promise<string> => {
+export const addOrderFS = async (data: Partial<Order> & {visitDate: Date | string, accountId?: string}): Promise<string> => {
   const firestoreData = toFirestoreOrder(data, true);
   const docRef = await addDoc(collection(db, ORDERS_COLLECTION), firestoreData);
   return docRef.id;
 };
 
-export const updateOrderFS = async (id: string, data: Partial<Order> & {visitDate?: Date | string,
-    direccionFiscal_street?: string, direccionFiscal_number?: string, direccionFiscal_city?: string, direccionFiscal_province?: string, direccionFiscal_postalCode?: string, direccionFiscal_country?: string,
-    direccionEntrega_street?: string, direccionEntrega_number?: string, direccionEntrega_city?: string, direccionEntrega_province?: string, direccionEntrega_postalCode?: string, direccionEntrega_country?: string,
-}): Promise<void> => { 
+export const updateOrderFS = async (id: string, data: Partial<Order> & {visitDate?: Date | string}): Promise<void> => { 
   const orderDocRef = doc(db, ORDERS_COLLECTION, id);
   const firestoreData = toFirestoreOrder(data, false); 
   await updateDoc(orderDocRef, firestoreData);
@@ -211,7 +166,7 @@ export const initializeMockOrdersInFirestore = async (mockOrdersData: Order[]) =
     if (snapshot.empty) {
         const batch = writeBatch(db);
         mockOrdersData.forEach(order => {
-            const { id, createdAt, visitDate, lastUpdated, nextActionDate, direccionFiscal, direccionEntrega, ...orderData } = order; 
+            const { id, createdAt, visitDate, lastUpdated, nextActionDate, ...orderData } = order; 
             
             const firestoreReadyData: any = { ...orderData };
 
@@ -228,9 +183,6 @@ export const initializeMockOrdersInFirestore = async (mockOrdersData: Order[]) =
             firestoreReadyData.paymentMethod = order.paymentMethod || null;
             firestoreReadyData.invoiceUrl = order.invoiceUrl || null;
             firestoreReadyData.invoiceFileName = order.invoiceFileName || null;
-
-            firestoreReadyData.direccionFiscal = direccionFiscal || null; 
-            firestoreReadyData.direccionEntrega = direccionEntrega || null; 
             
             Object.keys(firestoreReadyData).forEach(key => {
                 if (firestoreReadyData[key] === undefined) {

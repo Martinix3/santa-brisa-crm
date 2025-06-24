@@ -310,18 +310,6 @@ export default function OrderFormPage() {
                 orderValue: existingVisit.value,
                 nombreFiscal: existingVisit.nombreFiscal || "",
                 cif: existingVisit.cif || "",
-                direccionFiscal_street: existingVisit.direccionFiscal?.street || "",
-                direccionFiscal_number: existingVisit.direccionFiscal?.number || "",
-                direccionFiscal_city: existingVisit.direccionFiscal?.city || "",
-                direccionFiscal_province: existingVisit.direccionFiscal?.province || "",
-                direccionFiscal_postalCode: existingVisit.direccionFiscal?.postalCode || "",
-                direccionFiscal_country: existingVisit.direccionFiscal?.country || "España",
-                direccionEntrega_street: existingVisit.direccionEntrega?.street || "",
-                direccionEntrega_number: existingVisit.direccionEntrega?.number || "",
-                direccionEntrega_city: existingVisit.direccionEntrega?.city || "",
-                direccionEntrega_province: existingVisit.direccionEntrega?.province || "",
-                direccionEntrega_postalCode: existingVisit.direccionEntrega?.postalCode || "",
-                direccionEntrega_country: existingVisit.direccionEntrega?.country || "España",
                 contactoNombre: existingVisit.contactoNombre || "",
                 contactoCorreo: existingVisit.contactoCorreo || "",
                 contactoTelefono: existingVisit.contactoTelefono || "",
@@ -542,10 +530,7 @@ export default function OrderFormPage() {
           accountCreationMessage = currentAccountId ? " (Pedido asociado a cliente existente)." : " (Cliente existente, pero no se pudo encontrar un ID de cuenta para asociar).";
       }
 
-      const orderData: Partial<Order> & {
-            direccionFiscal_street?: string, direccionFiscal_number?: string, direccionFiscal_city?: string, direccionFiscal_province?: string, direccionFiscal_postalCode?: string, direccionFiscal_country?: string,
-            direccionEntrega_street?: string, direccionEntrega_number?: string, direccionEntrega_city?: string, direccionEntrega_province?: string, direccionEntrega_postalCode?: string, direccionEntrega_country?: string,
-        } = {
+      const orderData: Partial<Order> = {
         clientName: values.clientName,
         visitDate: format(values.visitDate, "yyyy-MM-dd"),
         clavadistaId: finalClavadistaId,
@@ -557,30 +542,24 @@ export default function OrderFormPage() {
         salesRep: salesRepNameForOrder,
         accountId: currentAccountId,
       };
-
-      if (values.clientStatus === "existing" && currentAccountId && currentAccountId !== NEW_CLIENT_ACCOUNT_ID_PLACEHOLDER) {
-        const existingAccount = allAccounts.find(acc => acc.id === currentAccountId);
-        if (existingAccount) {
-            orderData.clientName = existingAccount.name;
-            orderData.nombreFiscal = existingAccount.legalName || existingAccount.name;
-            orderData.cif = existingAccount.cif;
-            orderData.direccionFiscal = existingAccount.addressBilling;
-            orderData.direccionEntrega = existingAccount.addressShipping || existingAccount.addressBilling;
-            orderData.contactoNombre = existingAccount.mainContactName;
-            orderData.contactoCorreo = existingAccount.mainContactEmail;
-            orderData.contactoTelefono = existingAccount.mainContactPhone;
-            orderData.clientType = values.clientType || existingAccount.type;
-        }
-      } else if (values.clientStatus === "new" || (values.clientStatus === "existing" && currentAccountId === NEW_CLIENT_ACCOUNT_ID_PLACEHOLDER)) {
-        orderData.nombreFiscal = values.nombreFiscal;
-        orderData.cif = values.cif;
-        orderData.direccionFiscal_street = values.direccionFiscal_street; orderData.direccionFiscal_number = values.direccionFiscal_number; orderData.direccionFiscal_city = values.direccionFiscal_city; orderData.direccionFiscal_province = values.direccionFiscal_province; orderData.direccionFiscal_postalCode = values.direccionFiscal_postalCode; orderData.direccionFiscal_country = values.direccionFiscal_country;
-        orderData.direccionEntrega_street = values.direccionEntrega_street; orderData.direccionEntrega_number = values.direccionEntrega_number; orderData.direccionEntrega_city = values.direccionEntrega_city; orderData.direccionEntrega_province = values.direccionEntrega_province; orderData.direccionEntrega_postalCode = values.direccionEntrega_postalCode; orderData.direccionEntrega_country = values.direccionEntrega_country;
-        orderData.contactoNombre = values.contactoNombre;
-        orderData.contactoCorreo = values.contactoCorreo;
-        orderData.contactoTelefono = values.contactoTelefono;
-        orderData.observacionesAlta = values.observacionesAlta;
-        orderData.clientType = values.clientType;
+      
+      const existingAccount = allAccounts.find(acc => acc.id === currentAccountId);
+      if (existingAccount) {
+          orderData.clientName = existingAccount.name;
+          orderData.nombreFiscal = existingAccount.legalName || existingAccount.name;
+          orderData.cif = existingAccount.cif;
+          orderData.contactoNombre = existingAccount.mainContactName;
+          orderData.contactoCorreo = existingAccount.mainContactEmail;
+          orderData.contactoTelefono = existingAccount.mainContactPhone;
+          orderData.clientType = values.clientType || existingAccount.type;
+      } else if (values.clientStatus === "new") {
+          orderData.nombreFiscal = values.nombreFiscal;
+          orderData.cif = values.cif;
+          orderData.contactoNombre = values.contactoNombre;
+          orderData.contactoCorreo = values.contactoCorreo;
+          orderData.contactoTelefono = values.contactoTelefono;
+          orderData.observacionesAlta = values.observacionesAlta;
+          orderData.clientType = values.clientType;
       }
 
       if (values.outcome === "Programar Visita") {

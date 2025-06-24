@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox"; 
-import type { Order, OrderStatus, UserRole, TeamMember, AddressDetails } from "@/types";
+import type { Order, OrderStatus, UserRole, TeamMember, AddressDetails, Account } from "@/types";
 import { orderStatusesList } from "@/lib/data"; 
 import { MoreHorizontal, Eye, Edit, Trash2, Filter, CalendarDays, ChevronDown, Download, ShoppingCart, Loader2, MapPin, User as UserIcon } from "lucide-react";
 import { DateRange } from "react-day-picker";
@@ -24,7 +24,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import StatusBadge from "@/components/app/status-badge";
 import { getOrdersFS, updateOrderFS, deleteOrderFS, initializeMockOrdersInFirestore } from "@/services/order-service";
-import { getAccountByIdFS, updateAccountFS as updateAccountInFirestore } from "@/services/account-service";
+import { getAccountByIdFS, updateAccountFS as updateAccountInFirestore, getAccountsFS } from "@/services/account-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 
 
@@ -38,6 +38,7 @@ export default function OrdersDashboardPage() {
   const [allOrders, setAllOrders] = React.useState<Order[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [allTeamMembers, setAllTeamMembers] = React.useState<TeamMember[]>([]);
+  const [allAccounts, setAllAccounts] = React.useState<Account[]>([]);
 
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<OrderStatus | "Todos">("Todos");
@@ -53,10 +54,15 @@ export default function OrdersDashboardPage() {
     async function loadInitialData() {
       setIsLoading(true);
       try {
-        const firestoreOrders = await getOrdersFS();
+        const [firestoreOrders, firestoreAccounts] = await Promise.all([
+          getOrdersFS(),
+          getAccountsFS()
+        ]);
+        
         setAllOrders(firestoreOrders.filter(order => 
             order.status !== 'Programada' && order.status !== 'Seguimiento' && order.status !== 'Fallido'
         ));
+        setAllAccounts(firestoreAccounts);
 
         if (currentUserRole === 'Admin') {
           const members = await getTeamMembersFS(['SalesRep', 'Admin']);
@@ -76,8 +82,8 @@ export default function OrdersDashboardPage() {
 
   const uniqueStatusesForFilter = ["Todos", ...relevantOrderStatusesForDashboard] as (OrderStatus | "Todos")[];
 
-
   const filteredOrders = React.useMemo(() => {
+    const accountsMap = new Map(allAccounts.map(acc => [acc.id, acc]));
     return allOrders
     .filter(order =>
       (order.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -94,9 +100,13 @@ export default function OrdersDashboardPage() {
     })
     .filter(order => {
       if (!cityFilter) return true;
+      if (!order.accountId) return false;
+      const account = accountsMap.get(order.accountId);
+      if (!account) return false;
+      
       const cityLower = cityFilter.toLowerCase();
-      const deliveryAddress = order.direccionEntrega;
-      const billingAddress = order.direccionFiscal;
+      const deliveryAddress = account.addressShipping;
+      const billingAddress = account.addressBilling;
 
       const deliveryProvince = deliveryAddress?.province?.toLowerCase();
       const deliveryCity = deliveryAddress?.city?.toLowerCase();
@@ -108,7 +118,7 @@ export default function OrdersDashboardPage() {
              (billingProvince && billingProvince.includes(cityLower)) ||
              (billingCity && billingCity.includes(cityLower));
     });
-  }, [allOrders, searchTerm, statusFilter, dateRange, cityFilter]);
+  }, [allOrders, allAccounts, searchTerm, statusFilter, dateRange, cityFilter]);
 
   const handleViewOrEditClick = (order: Order) => {
     setEditingOrder(order);
@@ -146,15 +156,6 @@ export default function OrdersDashboardPage() {
         nombreFiscal: canEditFullOrderDetails ? updatedData.nombreFiscal : orderToUpdate.nombreFiscal,
         cif: canEditFullOrderDetails ? updatedData.cif : orderToUpdate.cif,
         
-        direccionFiscal: canEditFullOrderDetails && updatedData.direccionFiscal_street ? {
-            street: updatedData.direccionFiscal_street, city: updatedData.direccionFiscal_city || '', province: updatedData.direccionFiscal_province || '', postalCode: updatedData.direccionFiscal_postalCode || '', 
-            number: updatedData.direccionFiscal_number, country: updatedData.direccionFiscal_country,
-        } : orderToUpdate.direccionFiscal,
-        direccionEntrega: canEditFullOrderDetails && updatedData.direccionEntrega_street ? {
-            street: updatedData.direccionEntrega_street, city: updatedData.direccionEntrega_city || '', province: updatedData.direccionEntrega_province || '', postalCode: updatedData.direccionEntrega_postalCode || '',
-            number: updatedData.direccionEntrega_number, country: updatedData.direccionEntrega_country,
-        } : orderToUpdate.direccionEntrega,
-
         contactoNombre: canEditFullOrderDetails ? updatedData.contactoNombre : orderToUpdate.contactoNombre,
         contactoCorreo: canEditFullOrderDetails ? updatedData.contactoCorreo : orderToUpdate.contactoCorreo,
         contactoTelefono: canEditFullOrderDetails ? updatedData.contactoTelefono : orderToUpdate.contactoTelefono,
@@ -304,6 +305,7 @@ export default function OrdersDashboardPage() {
       return;
     }
   
+    const accountsMap = new Map(allAccounts.map(acc => [acc.id, acc]));
     const ordersToExport = allOrders.filter(order => selectedOrderIds.includes(order.id));
   
     const headers = [
@@ -316,30 +318,33 @@ export default function OrdersDashboardPage() {
   
     const csvRows = [
       headers.join(','),
-      ...ordersToExport.map(order => [
-        escapeCsvCell(order.id),
-        escapeCsvCell(order.visitDate ? format(parseISO(order.visitDate), "dd/MM/yyyy") : ''),
-        escapeCsvCell(order.clientName),
-        escapeCsvCell(order.nombreFiscal),
-        escapeCsvCell(order.cif),
-        escapeCsvCell(formatAddressDetails(order.direccionEntrega)),
-        escapeCsvCell(formatAddressDetails(order.direccionFiscal)),
-        escapeCsvCell(order.contactoNombre),
-        escapeCsvCell(order.contactoCorreo),
-        escapeCsvCell(order.contactoTelefono),
-        escapeCsvCell(order.clientType),
-        escapeCsvCell(order.products?.join('; ')), 
-        escapeCsvCell(order.numberOfUnits),
-        escapeCsvCell(order.unitPrice), 
-        escapeCsvCell(order.value), 
-        escapeCsvCell(order.status),
-        escapeCsvCell(order.paymentMethod),
-        escapeCsvCell(order.invoiceUrl),
-        escapeCsvCell(order.invoiceFileName),
-        escapeCsvCell(order.salesRep),
-        escapeCsvCell(order.notes),
-        escapeCsvCell(order.observacionesAlta)
-      ].join(','))
+      ...ordersToExport.map(order => {
+        const account = order.accountId ? accountsMap.get(order.accountId) : null;
+        return [
+          escapeCsvCell(order.id),
+          escapeCsvCell(order.visitDate ? format(parseISO(order.visitDate), "dd/MM/yyyy") : ''),
+          escapeCsvCell(order.clientName),
+          escapeCsvCell(order.nombreFiscal),
+          escapeCsvCell(order.cif),
+          escapeCsvCell(formatAddressDetails(account?.addressShipping)),
+          escapeCsvCell(formatAddressDetails(account?.addressBilling)),
+          escapeCsvCell(order.contactoNombre),
+          escapeCsvCell(order.contactoCorreo),
+          escapeCsvCell(order.contactoTelefono),
+          escapeCsvCell(order.clientType),
+          escapeCsvCell(order.products?.join('; ')), 
+          escapeCsvCell(order.numberOfUnits),
+          escapeCsvCell(order.unitPrice), 
+          escapeCsvCell(order.value), 
+          escapeCsvCell(order.status),
+          escapeCsvCell(order.paymentMethod),
+          escapeCsvCell(order.invoiceUrl),
+          escapeCsvCell(order.invoiceFileName),
+          escapeCsvCell(order.salesRep),
+          escapeCsvCell(order.notes),
+          escapeCsvCell(order.observacionesAlta)
+        ].join(',')
+      })
     ];
   
     const csvString = csvRows.join('\n');
@@ -364,6 +369,7 @@ export default function OrdersDashboardPage() {
   const canEditOrderStatus = currentUserRole === 'Admin' || currentUserRole === 'Distributor';
   const canDeleteOrder = currentUserRole === 'Admin';
   const canDownloadCsv = currentUserRole === 'Admin' || currentUserRole === 'Distributor';
+  const accountsMapForRender = new Map(allAccounts.map(acc => [acc.id, acc]));
 
   return (
     <div className="space-y-6">
@@ -498,7 +504,9 @@ export default function OrdersDashboardPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredOrders.length > 0 ? filteredOrders.map((order: Order) => {
-                    const locationDisplay = order.direccionEntrega?.province || order.direccionEntrega?.city || order.direccionFiscal?.province || order.direccionFiscal?.city || 'N/D';
+                    const account = order.accountId ? accountsMapForRender.get(order.accountId) : null;
+                    const locationDisplay = account?.addressShipping?.city || account?.addressBilling?.city || 'N/D';
+                    
                     return (
                     <TableRow 
                       key={order.id}

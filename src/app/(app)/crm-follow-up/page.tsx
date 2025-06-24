@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input"; 
-import type { Order, NextActionType, TeamMember, UserRole, OrderStatus } from "@/types";
+import type { Order, NextActionType, TeamMember, UserRole, OrderStatus, Account } from "@/types";
 import { nextActionTypeList } from "@/lib/data"; 
 import { Filter, CalendarDays, ClipboardList, ChevronDown, Edit2, AlertTriangle, MoreHorizontal, Send, Loader2 } from "lucide-react";
 import { DateRange } from "react-day-picker";
@@ -22,6 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { getOrdersFS, updateOrderFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service"; 
+import { getAccountsFS } from "@/services/account-service";
 
 
 export default function CrmFollowUpPage() {
@@ -41,15 +42,17 @@ export default function CrmFollowUpPage() {
   const [followUps, setFollowUps] = React.useState<Order[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [teamMembersForFilter, setTeamMembersForFilter] = React.useState<TeamMember[]>([]);
+  const [allAccounts, setAllAccounts] = React.useState<Account[]>([]);
 
 
   React.useEffect(() => {
     async function loadInitialData() {
       setIsLoading(true);
       try {
-        const [fetchedOrders, fetchedTeamMembers] = await Promise.all([
+        const [fetchedOrders, fetchedTeamMembers, fetchedAccounts] = await Promise.all([
           getOrdersFS(),
-          userRole === 'Admin' ? getTeamMembersFS(['SalesRep', 'Admin', 'Clavadista']) : Promise.resolve([])
+          userRole === 'Admin' ? getTeamMembersFS(['SalesRep', 'Admin', 'Clavadista']) : Promise.resolve([]),
+          getAccountsFS()
         ]);
         
         setFollowUps(
@@ -61,6 +64,7 @@ export default function CrmFollowUpPage() {
         if (userRole === 'Admin') {
           setTeamMembersForFilter(fetchedTeamMembers);
         }
+        setAllAccounts(fetchedAccounts);
 
       } catch (error) {
         console.error("Error loading follow-ups or team members:", error);
@@ -88,6 +92,8 @@ export default function CrmFollowUpPage() {
 
   const filteredFollowUps = React.useMemo(() => {
     const todayForFilter = startOfDay(new Date());
+    const accountsMap = new Map(allAccounts.map(acc => [acc.id, acc]));
+
     return followUps
       .filter(followUp => {
         if (userRole === 'SalesRep' && teamMember) {
@@ -130,11 +136,22 @@ export default function CrmFollowUpPage() {
       )
       .filter(followUp => {
         if (!cityFilter) return true;
+        if (!followUp.accountId) return false;
+        const account = accountsMap.get(followUp.accountId);
+        if (!account) return false;
+        
         const cityLower = cityFilter.toLowerCase();
-        return (followUp.direccionEntrega && followUp.direccionEntrega.toLowerCase().includes(cityLower)) ||
-               (followUp.direccionFiscal && followUp.direccionFiscal.toLowerCase().includes(cityLower));
+        const shippingCity = account.addressShipping?.city?.toLowerCase() || '';
+        const shippingProvince = account.addressShipping?.province?.toLowerCase() || '';
+        const billingCity = account.addressBilling?.city?.toLowerCase() || '';
+        const billingProvince = account.addressBilling?.province?.toLowerCase() || '';
+
+        return shippingCity.includes(cityLower) || 
+               shippingProvince.includes(cityLower) ||
+               billingCity.includes(cityLower) || 
+               billingProvince.includes(cityLower);
       });
-  }, [followUps, userRole, teamMember, selectedUserFilter, teamMembersForFilter, actionTypeFilter, dateRange, searchTerm, cityFilter]);
+  }, [followUps, userRole, teamMember, selectedUserFilter, teamMembersForFilter, actionTypeFilter, dateRange, searchTerm, cityFilter, allAccounts]);
 
   const handleSaveNewDate = async (followUpId: string) => {
     if (!selectedNewDate) return;
@@ -444,5 +461,3 @@ export default function CrmFollowUpPage() {
     </div>
   );
 }
-
-    

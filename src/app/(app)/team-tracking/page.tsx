@@ -97,43 +97,66 @@ export default function TeamTrackingPage() {
           getAccountsFS(),
         ]);
         const currentDate = new Date();
-        const visitStatuses: OrderStatus[] = ['Programada', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Fallido', 'Seguimiento', 'Cancelado'];
         const saleStatuses: OrderStatus[] = ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado'];
+        
+        // Pre-calculate first successful order date for every account to optimize "new account" calculation
+        const firstOrderDateByAccount = new Map<string, Date>();
+        const successfulOrders = fetchedOrders
+          .filter(o => saleStatuses.includes(o.status) && o.accountId && isValid(parseISO(o.createdAt)))
+          .sort((a, b) => parseISO(a.createdAt!).getTime() - parseISO(b.createdAt!).getTime());
 
+        for (const order of successfulOrders) {
+          if (order.accountId && !firstOrderDateByAccount.has(order.accountId)) {
+            firstOrderDateByAccount.set(order.accountId, parseISO(order.createdAt!));
+          }
+        }
+        
         const stats = salesTeamMembersBase.map(member => {
           let bottlesSold = 0;
           let ordersCount = 0;
-          let visitsCount = 0;
-          let monthlyVisitsAchieved = 0;
+          let totalVisitsCount = 0;
 
-          const monthlyAccountsAchieved = fetchedAccounts.filter(acc =>
-            acc.salesRepId === member.id &&
-            isValid(parseISO(acc.createdAt)) &&
-            isSameMonth(parseISO(acc.createdAt), currentDate) &&
-            isSameYear(parseISO(acc.createdAt), currentDate)
-          ).length;
+          const memberInteractions = fetchedOrders.filter(o => o.salesRep === member.name);
 
-          fetchedOrders.forEach(order => {
-            if (order.salesRep === member.name) {
-              if (saleStatuses.includes(order.status)) {
-                if(order.numberOfUnits) bottlesSold += order.numberOfUnits;
-                ordersCount++;
-              }
-
-              if (visitStatuses.includes(order.status) && isValid(parseISO(order.visitDate))) {
-                 visitsCount++;
-                 if (isSameMonth(parseISO(order.visitDate), currentDate) && isSameYear(parseISO(order.visitDate), currentDate)) {
-                    monthlyVisitsAchieved++;
-                 }
-              }
+          // Calculate total stats
+          memberInteractions.forEach(order => {
+            totalVisitsCount++; // Every interaction is a visit
+            if (saleStatuses.includes(order.status)) {
+              if (order.numberOfUnits) bottlesSold += order.numberOfUnits;
+              ordersCount++;
             }
           });
+          
+          // Calculate Monthly Visits: all interactions created this month
+          const monthlyVisitsAchieved = memberInteractions.filter(order =>
+            isValid(parseISO(order.createdAt)) &&
+            isSameMonth(parseISO(order.createdAt), currentDate) &&
+            isSameYear(parseISO(order.createdAt), currentDate)
+          ).length;
+
+          // Calculate Monthly New Accounts: clients whose first order was this month
+          const accountIdsOpenedThisMonth = new Set<string>();
+          const memberSuccessfulOrdersThisMonth = memberInteractions.filter(order =>
+            saleStatuses.includes(order.status) &&
+            order.accountId &&
+            isValid(parseISO(order.createdAt)) &&
+            isSameMonth(parseISO(order.createdAt), currentDate) &&
+            isSameYear(parseISO(order.createdAt), currentDate)
+          );
+          
+          for (const order of memberSuccessfulOrdersThisMonth) {
+            const firstOrderDate = firstOrderDateByAccount.get(order.accountId!);
+            if (firstOrderDate && isSameMonth(firstOrderDate, currentDate) && isSameYear(firstOrderDate, currentDate)) {
+              accountIdsOpenedThisMonth.add(order.accountId!);
+            }
+          }
+          const monthlyAccountsAchieved = accountIdsOpenedThisMonth.size;
 
           return {
             ...member,
             bottlesSold,
             orders: ordersCount, 
-            visits: visitsCount, 
+            visits: totalVisitsCount, 
             monthlyAccountsAchieved, 
             monthlyVisitsAchieved,   
           };

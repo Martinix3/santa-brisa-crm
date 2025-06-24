@@ -83,8 +83,19 @@ export default function OrdersDashboardPage() {
 
   const uniqueStatusesForFilter = ["Todos", ...relevantOrderStatusesForDashboard] as (OrderStatus | "Todos")[];
 
+  const accountsMapById = React.useMemo(() => new Map(allAccounts.map(acc => [acc.id, acc])), [allAccounts]);
+  const accountsMapByName = React.useMemo(() => {
+    const map = new Map<string, Account>();
+    allAccounts.forEach(acc => {
+      // Don't overwrite if a key already exists. First one wins.
+      if (!map.has(acc.name.toLowerCase().trim())) {
+        map.set(acc.name.toLowerCase().trim(), acc);
+      }
+    });
+    return map;
+  }, [allAccounts]);
+
   const filteredOrders = React.useMemo(() => {
-    const accountsMap = new Map(allAccounts.map(acc => [acc.id, acc]));
     return allOrders
     .filter(order =>
       (order.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -101,8 +112,7 @@ export default function OrdersDashboardPage() {
     })
     .filter(order => {
       if (!cityFilter) return true;
-      if (!order.accountId) return false;
-      const account = accountsMap.get(order.accountId);
+      const account = order.accountId ? accountsMapById.get(order.accountId) : accountsMapByName.get(order.clientName.toLowerCase().trim());
       if (!account) return false;
       
       const cityLower = cityFilter.toLowerCase();
@@ -116,10 +126,10 @@ export default function OrdersDashboardPage() {
 
       return (deliveryProvince && deliveryProvince.includes(cityLower)) ||
              (deliveryCity && deliveryCity.includes(cityLower)) ||
-             (billingProvince && billingProvince.includes(cityLower)) ||
+             (billingProvince && billingProvince.includes(cityLower)) || 
              (billingCity && billingCity.includes(cityLower));
     });
-  }, [allOrders, allAccounts, searchTerm, statusFilter, dateRange, cityFilter]);
+  }, [allOrders, accountsMapById, accountsMapByName, searchTerm, statusFilter, dateRange, cityFilter]);
 
   const handleViewOrEditClick = (order: Order) => {
     setEditingOrder(order);
@@ -362,7 +372,6 @@ export default function OrdersDashboardPage() {
   const canEditOrderStatus = currentUserRole === 'Admin' || currentUserRole === 'Distributor';
   const canDeleteOrder = currentUserRole === 'Admin';
   const canDownloadCsv = currentUserRole === 'Admin' || currentUserRole === 'Distributor';
-  const accountsMapForRender = new Map(allAccounts.map(acc => [acc.id, acc]));
 
   return (
     <div className="space-y-6">
@@ -497,7 +506,7 @@ export default function OrdersDashboardPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredOrders.length > 0 ? filteredOrders.map((order: Order) => {
-                    const account = order.accountId ? accountsMapForRender.get(order.accountId) : null;
+                    const account = order.accountId ? accountsMapById.get(order.accountId) : accountsMapByName.get(order.clientName.toLowerCase().trim());
                     const locationDisplay = account?.addressShipping?.city || account?.addressBilling?.city || 'N/D';
                     
                     return (
@@ -515,8 +524,8 @@ export default function OrdersDashboardPage() {
                           </TableCell>
                         )}
                       <TableCell className="font-medium">
-                        {order.accountId ? (
-                            <Link href={`/accounts/${order.accountId}`} className="hover:underline text-primary">
+                        {account ? (
+                            <Link href={`/accounts/${account.id}`} className="hover:underline text-primary">
                                 {order.clientName}
                             </Link>
                         ) : (

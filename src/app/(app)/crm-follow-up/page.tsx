@@ -89,9 +89,19 @@ export default function CrmFollowUpPage() {
 
   const uniqueActionTypesForFilter = ["Todos", ...nextActionTypeList, "Visita Programada"] as (NextActionType | "Todos" | "Visita Programada")[];
 
+  const accountsMapById = React.useMemo(() => new Map(allAccounts.map(acc => [acc.id, acc])), [allAccounts]);
+  const accountsMapByName = React.useMemo(() => {
+    const map = new Map<string, Account>();
+    allAccounts.forEach(acc => {
+      if (!map.has(acc.name.toLowerCase().trim())) {
+        map.set(acc.name.toLowerCase().trim(), acc);
+      }
+    });
+    return map;
+  }, [allAccounts]);
+
   const filteredFollowUps = React.useMemo(() => {
     const todayForFilter = startOfDay(new Date());
-    const accountsMap = new Map(allAccounts.map(acc => [acc.id, acc]));
 
     return followUps
       .filter(followUp => {
@@ -134,8 +144,7 @@ export default function CrmFollowUpPage() {
       )
       .filter(followUp => {
         if (!cityFilter) return true;
-        if (!followUp.accountId) return false;
-        const account = accountsMap.get(followUp.accountId);
+        const account = followUp.accountId ? accountsMapById.get(followUp.accountId) : accountsMapByName.get(followUp.clientName.toLowerCase().trim());
         if (!account) return false;
         
         const cityLower = cityFilter.toLowerCase();
@@ -152,7 +161,7 @@ export default function CrmFollowUpPage() {
               (billingProvince && billingProvince.includes(cityLower)) || 
               (billingCity && billingCity.includes(cityLower));
       });
-  }, [followUps, userRole, teamMember, selectedUserFilter, teamMembersForFilter, actionTypeFilter, dateRange, searchTerm, cityFilter, allAccounts]);
+  }, [followUps, userRole, teamMember, selectedUserFilter, teamMembersForFilter, actionTypeFilter, dateRange, searchTerm, cityFilter, accountsMapById, accountsMapByName]);
 
   const handleSaveNewDate = async (followUpId: string) => {
     if (!selectedNewDate) return;
@@ -421,13 +430,15 @@ export default function CrmFollowUpPage() {
                               responsibleMemberName = item.salesRep ? `${item.salesRep} + ${clava.name}` : clava.name;
                           }
                       }
+                      
+                      const account = item.accountId ? accountsMapById.get(item.accountId) : accountsMapByName.get(item.clientName.toLowerCase().trim());
 
                       return (
                       <TableRow key={item.id} className={cn(isOverdue && "bg-yellow-100 dark:bg-yellow-800/30")}>
                         <TableCell className="font-medium">
                             {isOverdue && <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 inline-block mr-1" />}
-                            {item.accountId ? (
-                              <Link href={`/accounts/${item.accountId}`} className="hover:underline text-primary">
+                            {account ? (
+                              <Link href={`/accounts/${account.id}`} className="hover:underline text-primary">
                                   {item.clientName}
                               </Link>
                             ) : (

@@ -191,7 +191,11 @@ export default function AccountsPage() {
                 <TableBody>
                   {filteredAccounts.length > 0 ? filteredAccounts.map((account) => (
                     <TableRow key={account.id}>
-                      <TableCell className="font-medium">{account.name}</TableCell>
+                      <TableCell className="font-medium">
+                        <Link href={`/accounts/${account.id}`} className="hover:underline text-primary">
+                          {account.name}
+                        </Link>
+                      </TableCell>
                       <TableCell>{account.cif || 'No especificado'}</TableCell>
                       <TableCell>
                           {account.addressShipping?.city || account.addressBilling?.city ? (

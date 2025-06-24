@@ -93,6 +93,7 @@ export default function TeamMemberProfilePage() {
         let orderCount = 0;
         let visitCount = 0;
         const monthlySales: Record<string, number> = {}; 
+        const visitStatuses: OrderStatus[] = ['Programada', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Fallido', 'Seguimiento', 'Cancelado'];
 
         ordersByMember.forEach(order => {
           if (['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado'].includes(order.status) && order.numberOfUnits) {
@@ -105,7 +106,6 @@ export default function TeamMemberProfilePage() {
               monthlySales[yearMonth] = (monthlySales[yearMonth] || 0) + order.numberOfUnits;
             }
           }
-          const visitStatuses: OrderStatus[] = ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Fallido', 'Seguimiento', 'Cancelado'];
           if (visitStatuses.includes(order.status)) {
             visitCount++;
           }

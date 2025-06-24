@@ -143,7 +143,7 @@ export default function DashboardPage() {
   const currentMonthVisitsByRep = React.useMemo(() => {
     if (!teamMember || userRole !== 'SalesRep' || orders.length === 0) return 0; 
     const currentDate = new Date();
-    const visitStatuses: OrderStatus[] = ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Fallido', 'Seguimiento', 'Cancelado'];
+    const visitStatuses: OrderStatus[] = ['Programada', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Fallido', 'Seguimiento', 'Cancelado'];
     return orders.filter(order =>
       order.salesRep === teamMember.name &&
       isValid(parseISO(order.visitDate)) &&
@@ -181,7 +181,7 @@ export default function DashboardPage() {
     if (userRole !== 'Admin' || orders.length === 0 || salesRepsForTeamProgress.length === 0) return 0;
     const currentDate = new Date();
     const salesRepNames = salesRepsForTeamProgress.map(rep => rep.name);
-    const visitStatuses: OrderStatus[] = ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Fallido', 'Seguimiento', 'Cancelado'];
+    const visitStatuses: OrderStatus[] = ['Programada', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Fallido', 'Seguimiento', 'Cancelado'];
     return orders.filter(order =>
       salesRepNames.includes(order.salesRep) &&
       isValid(parseISO(order.visitDate)) &&

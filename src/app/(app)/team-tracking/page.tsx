@@ -97,6 +97,7 @@ export default function TeamTrackingPage() {
             getAccountsFS()
         ]);
         const currentDate = new Date();
+        const visitStatuses: OrderStatus[] = ['Programada', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Fallido', 'Seguimiento', 'Cancelado'];
 
         const stats = salesTeamMembersBase.map(member => {
           let bottlesSold = 0;
@@ -111,7 +112,6 @@ export default function TeamTrackingPage() {
                 bottlesSold += order.numberOfUnits;
                 ordersCount++;
               }
-              const visitStatuses: OrderStatus[] = ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Fallido', 'Seguimiento', 'Cancelado'];
               if (visitStatuses.includes(order.status) && isValid(parseISO(order.visitDate))) {
                  visitsCount++;
                  if (isSameMonth(parseISO(order.visitDate), currentDate) && isSameYear(parseISO(order.visitDate), currentDate)) {

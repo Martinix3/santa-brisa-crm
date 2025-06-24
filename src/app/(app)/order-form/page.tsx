@@ -123,9 +123,11 @@ const orderFormSchema = orderFormSchemaBase.superRefine((data, ctx) => {
 
   if (data.outcome !== "Programar Visita" && !data.clientStatus) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Debe indicar si es cliente nuevo o existente.", path: ["clientStatus"] });
+  } else if (data.outcome === "Programar Visita" && !data.clientStatus && !data.accountId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Debe indicar si es cliente nuevo o existente para programar una visita.", path: ["clientStatus"] });
   }
   
-  if (data.outcome !== "Programar Visita" && data.clientStatus === 'existing' && !data.accountId) {
+  if (data.clientStatus === 'existing' && !data.accountId) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "Debe seleccionar un cliente existente de la lista.",
@@ -626,7 +628,7 @@ export default function OrderFormPage() {
   const showAccountCreationFields = clientStatusWatched === "new" && !selectedAccountId;
   const isEditingFromTask = !!originalOrderForNewInteraction;
 
-  const showClientStatusRadio = outcomeWatched !== "Programar Visita" && (!isEditingFromTask || (isEditingFromTask && outcomeWatched && outcomeWatched !== "Programar Visita"));
+  const showClientStatusRadio = !!outcomeWatched && !isEditingFromTask;
   const showExistingClientSelector = clientStatusWatched === 'existing' && !isEditingFromTask;
 
 
@@ -713,7 +715,7 @@ export default function OrderFormPage() {
                 )}
               />
 
-              {userRole === 'Clavadista' && !isEditingFromTask && outcomeWatched && outcomeWatched !== "Programar Visita" && (
+              {userRole === 'Clavadista' && !isEditingFromTask && outcomeWatched && (
                 <FormField
                   control={form.control}
                   name="clavadistaSelectedSalesRepId"

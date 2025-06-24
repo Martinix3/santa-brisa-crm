@@ -25,17 +25,12 @@ import { getTeamMembersFS } from "@/services/team-member-service";
 
 
 export default function CrmFollowUpPage() {
-  const { userRole, teamMember } = useAuth();
+  const { userRole, teamMember, loading: authContextLoading } = useAuth();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = React.useState(""); 
   const [cityFilter, setCityFilter] = React.useState("");
   
-  const [selectedUserFilter, setSelectedUserFilter] = React.useState<string>(() => {
-    if ((userRole === 'SalesRep' || userRole === 'Clavadista') && teamMember) {
-      return teamMember.id; 
-    }
-    return "Todos"; 
-  });
+  const [selectedUserFilter, setSelectedUserFilter] = React.useState<string>("Todos");
 
   const [actionTypeFilter, setActionTypeFilter] = React.useState<NextActionType | "Todos" | "Visita Programada">("Todos");
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
@@ -54,7 +49,7 @@ export default function CrmFollowUpPage() {
       try {
         const [fetchedOrders, fetchedTeamMembers] = await Promise.all([
           getOrdersFS(),
-          userRole === 'Admin' ? getTeamMembersFS(['SalesRep', 'Admin', 'Clavadista']) : Promise.resolve([]) // Include Clavadistas for Admin filter
+          userRole === 'Admin' ? getTeamMembersFS(['SalesRep', 'Admin', 'Clavadista']) : Promise.resolve([])
         ]);
         
         setFollowUps(
@@ -74,8 +69,19 @@ export default function CrmFollowUpPage() {
         setIsLoading(false);
       }
     }
+    
+    if (authContextLoading) {
+        setIsLoading(true);
+        return;
+    }
+    if ((userRole === 'SalesRep' || userRole === 'Clavadista') && !teamMember) {
+        setIsLoading(false);
+        setFollowUps([]);
+        return;
+    }
+
     loadInitialData();
-  }, [toast, userRole, teamMember]); // Added teamMember to dependency array
+  }, [toast, userRole, teamMember, authContextLoading]);
 
 
   const uniqueActionTypesForFilter = ["Todos", ...nextActionTypeList, "Visita Programada"] as (NextActionType | "Todos" | "Visita Programada")[];

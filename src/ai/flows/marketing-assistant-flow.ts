@@ -75,6 +75,14 @@ Evita tecnicismos innecesarios. No uses lenguaje corporativo frío.
 - Programa de “Clavadistas”: Brand Ambassadors que ayudan en la introducción, impulsan ventas y activan la marca en el punto de venta.
 - Enfoque de partnership: "Somos partner, no proveedor. Entramos a quedarnos."
 
+### FORMACION DE PRODUCTO - SANTA BRISA
+
+#### LA HISTORIA DETRÁS DE LA MARGARITA PERFECTA
+(Esta sección detalla los orígenes y la inspiración detrás de la receta de Santa Brisa, conectando con la época dorada de Acapulco).
+
+#### ¿QUÉ HACE ÚNICA A SANTA BRISA?
+1. **AROMA REAL A TEQUILA**: El primer impacto en nariz es de tequila 100% agave, no de un sirope o un aroma artificial. Es el aroma de un cóctel recién hecho.
+
 ### FAQs Rápidas y Detalles de Preparación:
 - **¿Quién hace el tequila?** Nuestro tequila blanco 100% agave se elabora en una pequeña destilería familiar en Jalisco. Nada de procesos industriales. Solo carácter y autenticidad.
 - **¿Qué cantidad se sirve por copa?** 100 ml por copa, como marca la tradición de una Margarita bien servida. Por eso nuestra botella de 750 ml da 7 copas perfectas. No hay truco, ni relleno, ni medias medidas.
@@ -153,4 +161,3 @@ const marketingAssistantFlow = ai.defineFlow(
   }
 );
     
-

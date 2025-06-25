@@ -24,7 +24,7 @@ Aquí tenéis un resumen de los cambios más importantes:
 ### 3. Panel de Pedidos: ¡Más control!
 
 - **Nuevo estado "Facturado":** Ya podéis marcar los pedidos como "Facturado" en el Panel de Pedidos para llevar un mejor control del ciclo de venta completo.
-- **Subida de facturas en PDF**: Ahora los administradores pueden subir el archivo de la factura directamente en la ficha de edición del pedido cuando está en estado "Facturado".
+- **Subida de facturas en PDF**: Ahora los administradores y distribuidores pueden subir el archivo de la factura directamente desde la ficha de edición del pedido cuando está en estado "Facturado".
 
 ### 4. Métricas de Equipo más Precisas: ¡Lo que se mide, mejora!
 

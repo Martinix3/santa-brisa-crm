@@ -325,6 +325,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const canEditOrderDetailsOverall = isAdmin;
   const canEditStatusAndNotesOnly = isDistributor && !isAdmin; 
   const isReadOnlyForMostFields = isSalesRep || (!isAdmin && !isDistributor);
+  const canManageInvoice = isAdmin || isDistributor;
 
   const formFieldsGenericDisabled = isReadOnlyForMostFields || isLoadingDropdownData || isLoadingAccountDetails;
   const productRelatedFieldsDisabled = !canEditOrderDetailsOverall || ['Seguimiento', 'Fallido', 'Programada'].includes(currentStatus) || isLoadingDropdownData || isLoadingAccountDetails;
@@ -336,7 +337,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const canalOrigenFieldDisabled = !canEditOrderDetailsOverall || isLoadingDropdownData || isLoadingAccountDetails;
   const paymentMethodFieldDisabled = !canEditOrderDetailsOverall || productRelatedFieldsDisabled;
   const materialsSectionDisabled = !canEditOrderDetailsOverall || currentStatus === 'Programada' || isLoadingDropdownData || isLoadingAccountDetails;
-  const invoiceSectionDisabled = !canEditOrderDetailsOverall || isLoadingDropdownData || isLoadingAccountDetails;
+  const invoiceSectionDisabled = !canManageInvoice || isLoadingDropdownData || isLoadingAccountDetails;
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -608,7 +609,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
               </Button>
               <DialogClose asChild><Button type="button" variant="outline" disabled={isSaving}>Cancelar</Button></DialogClose>
               {!(isReadOnlyForMostFields && !canEditStatusAndNotesOnly) && (
-                <Button type="submit" disabled={isSaving || isUploading || isLoadingDropdownData || isLoadingAccountDetails || (!form.formState.isDirty && !(isAdmin || isDistributor)) }>
+                <Button type="submit" disabled={isSaving || isUploading || isLoadingDropdownData || isLoadingAccountDetails || (!form.formState.isDirty && !!order) }>
                   {isSaving || isUploading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>) : ("Guardar Cambios")}
                 </Button>
               )}

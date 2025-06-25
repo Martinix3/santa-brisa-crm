@@ -110,7 +110,7 @@ Ambos roles son cruciales para generar demanda y registrar la actividad en el pu
 
 *   **Panel de Pedidos (`/orders-dashboard`):**
     *   Visualiza los pedidos de cliente final que Santa Brisa (a través de su equipo comercial) ha generado y que el importador/distribuidor debe surtir.
-    *   Puede actualizar el estado de estos pedidos (ej. de "Confirmado" a "Procesando" o "Enviado") y añadir notas.
+    *   Puede actualizar el estado de estos pedidos (ej. de "Confirmado" a "Procesando" o "Enviado"), añadir notas y, cuando un pedido esté en estado "Facturado", **subir el archivo PDF de la factura**.
 *   **Eventos (`/events`):**
     *   Consulta los eventos programados.
 *   **Recursos de Marketing (`/marketing-resources`):**
@@ -132,7 +132,6 @@ El CRM está en constante evolución. Algunas de las funcionalidades que se plan
 
 *   **Perfil de Usuario Personalizado:** Posibilidad de ver y (según permisos) editar detalles básicos de tu perfil de usuario directamente en la aplicación.
 *   **Cambio de Contraseña:** Funcionalidad para que los usuarios puedan cambiar su propia contraseña de acceso al CRM.
-*   **Subida de Facturas:** Permitir adjuntar archivos de factura (PDFs, imágenes) directamente a los pedidos (para Admin y Distributor) o a las Ventas Directas SB (para Admin).
 *   **Notificaciones Mejoradas:** Alertas dentro de la app (y opcionalmente por email) para tareas vencidas, nuevos pedidos asignados o cambios relevantes.
 *   **Informes y Exportaciones Avanzadas:** Herramientas para que los Administradores puedan generar informes más personalizados y exportar datos en formatos como Excel.
 *   **Integración con Calendarios Externos:** Sincronización de "Mi Agenda" del CRM con calendarios como Google Calendar u Outlook Calendar.

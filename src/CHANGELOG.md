@@ -17,21 +17,23 @@ Aquí tenéis un resumen de los cambios más importantes:
 
 ### 2. Seguimiento de Tareas: ¡Más rápido y sin salir de la pantalla!
 
-- **Diálogo rápido para registrar resultados:** Lo más importante. Ahora, desde el "Panel de Seguimiento", podéis registrar el resultado de una tarea **en una ventana emergente, sin cambiar de página**.
-- **Asigna el siguiente paso:** En ese mismo diálogo, si la tarea resulta en un "nuevo seguimiento", podéis **asignar directamente quién será el responsable** del equipo.
-- **Un historial que se entiende:** Hemos aclarado la lógica. Ahora, en el historial de un cliente, se diferencia perfectamente entre una "Tarea Completada" y un "Pedido". Además, en lugar de un ID técnico, veréis las **notas o el objetivo de la visita**, para tener contexto al instante.
+- **Registro de resultados unificado:** Se acabó la confusión. Ahora, da igual si registras el resultado de una visita desde el "Panel de Seguimiento", "Mi Agenda" o el "Historial de un Cliente": **siempre irás al formulario de interacción completo**. Esto os permite añadir materiales o asignar clavadistas en cualquier momento, sin limitaciones.
+- **Asigna el siguiente paso:** En ese mismo formulario, si la tarea resulta en un "nuevo seguimiento", podéis **asignar directamente quién será el responsable** del equipo.
 
 ### 3. Panel de Pedidos: ¡Más control!
 
 - **Nuevo estado "Facturado":** Ya podéis marcar los pedidos como "Facturado" en el Panel de Pedidos para llevar un mejor control del ciclo de venta completo.
 - **Subida de facturas en PDF**: Ahora los administradores y distribuidores pueden subir el archivo de la factura directamente desde la ficha de edición del pedido cuando está en estado "Facturado".
 
-### 4. Métricas de Equipo más Precisas: ¡Lo que se mide, mejora!
+### 4. Asistente IA "Santi" más potente
+- **Santi se sabe la lección:** Hemos cargado el nuevo documento de "Formación de Producto" directamente en la memoria del asistente IA. Ahora tiene más argumentos y detalles sobre la historia y las características únicas de Santa Brisa para ayudaros a vender más y mejor.
+
+### 5. Métricas de Equipo más Precisas: ¡Lo que se mide, mejora!
 
 - **Conteo de Cuentas Nuevas Corregido:** Hemos ajustado cómo se cuentan las "cuentas nuevas" del equipo. Ahora se basa en la fecha del **primer pedido con éxito** de un cliente, no en la fecha de creación de la cuenta. Esto da una visión mucho más fiel del trabajo de captación.
 - **Conteo de Visitas Unificado:** El número de "visitas" ahora incluye **todas las interacciones registradas en el sistema** (ya sean pedidos, seguimientos o visitas fallidas), reflejando toda la actividad del equipo en la calle.
 
-### 5. Correcciones "invisibles" pero importantes
+### 6. Correcciones "invisibles" pero importantes
 
 - Se ha solucionado un problema que a veces impedía que el servidor de la aplicación arrancara.
 - Hemos corregido varios pequeños bugs que iban saliendo.

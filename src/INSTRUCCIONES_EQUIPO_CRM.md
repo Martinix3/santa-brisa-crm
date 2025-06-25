@@ -95,7 +95,7 @@ Ambos roles son cruciales para generar demanda y registrar la actividad en el pu
     *   **Gestionar dificultades con la forma de pago "Adelantado" reportadas por el equipo.**
 *   **Panel de Pedidos (`/orders-dashboard`):**
     *   Supervisa todos los pedidos de colocación (los que gestiona el importador).
-    *   Puedes editar detalles y cambiar estados, incluyendo el estado "Facturado" y asociar la URL de la factura.
+    *   Puedes editar detalles y cambiar estados.
     *   **Subida de Facturas:** Cuando un pedido está en estado "Facturado", los administradores pueden **subir el archivo PDF de la factura** directamente desde la ficha de edición del pedido.
 *   **Configuración (`/admin/settings`):**
     *   Gestiona Objetivos Estratégicos, Metas de KPIs y Materiales Promocionales.
@@ -130,12 +130,13 @@ Ambos roles son cruciales para generar demanda y registrar la actividad en el pu
 
 El CRM está en constante evolución. Algunas de las funcionalidades que se planean implementar en futuras versiones incluyen:
 
+*   **Generador de Presupuestos de Marketing:** Una herramienta para crear, gestionar y hacer seguimiento de los presupuestos para eventos y activaciones de marca.
+*   **Notificaciones Mejoradas:** Alertas dentro de la app (y opcionalmente por email) para tareas vencidas, nuevos pedidos asignados, cambios relevantes en cuentas o eventos importantes.
 *   **Perfil de Usuario Personalizado:** Posibilidad de ver y (según permisos) editar detalles básicos de tu perfil de usuario directamente en la aplicación.
 *   **Cambio de Contraseña:** Funcionalidad para que los usuarios puedan cambiar su propia contraseña de acceso al CRM.
-*   **Notificaciones Mejoradas:** Alertas dentro de la app (y opcionalmente por email) para tareas vencidas, nuevos pedidos asignados o cambios relevantes.
 *   **Informes y Exportaciones Avanzadas:** Herramientas para que los Administradores puedan generar informes más personalizados y exportar datos en formatos como Excel.
 *   **Integración con Calendarios Externos:** Sincronización de "Mi Agenda" del CRM con calendarios como Google Calendar u Outlook Calendar.
-*   **Gestión de Stock de Material Promocional:** Un control más detallado del inventario de materiales de marketing.
+*   **Gestión de Stock de Material Promocional:** Un control más detallado del inventario de materiales de marketing para saber qué queda disponible.
 *   *(Otras mejoras se irán comunicando)*
 
 ## 5. Soporte

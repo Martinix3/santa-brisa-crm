@@ -6,7 +6,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { Account, Order, UserRole, AddressDetails, OrderStatus, FollowUpResultFormValues, TeamMember } from "@/types";
+import type { Account, Order, UserRole, AddressDetails, OrderStatus, TeamMember } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { Building2, Edit, ArrowLeft, AlertTriangle, UserCircle, Mail, Phone, FileText, ShoppingCart, CalendarDays, Send, Info, Euro, Printer, Loader2, MapPin, Link as LinkIcon, CheckCircle } from "lucide-react";
 import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
@@ -18,12 +18,9 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { getAccountByIdFS, updateAccountFS, getAccountsFS } from "@/services/account-service";
-import { getOrdersFS, addOrderFS, updateOrderFS } from "@/services/order-service"; 
+import { getOrdersFS } from "@/services/order-service"; 
 import { getTeamMembersFS } from "@/services/team-member-service";
-import FollowUpResultDialog from "@/components/app/follow-up-result-dialog";
 
-
-const IVA_RATE = 21;
 
 const formatAddress = (address?: AddressDetails): string => {
   if (!address) return 'No especificada';
@@ -73,7 +70,6 @@ export default function AccountDetailPage() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [relatedInteractions, setRelatedInteractions] = React.useState<Order[]>([]);
   const [isAccountDialogOpen, setIsAccountDialogOpen] = React.useState(false);
-  const [editingFollowUp, setEditingFollowUp] = React.useState<Order | null>(null);
   
   const accountId = params.accountId as string;
   const canEditAccount = userRole === 'Admin' || userRole === 'SalesRep';
@@ -153,63 +149,6 @@ export default function AccountDetailPage() {
       setIsLoading(false);
     }
   };
-
-  const handleSaveFollowUpResult = async (data: FollowUpResultFormValues, originalOrder: Order) => {
-    const { outcome, ...formData } = data;
-    let newOrderData: Partial<Order> = {
-      clientName: originalOrder.clientName,
-      visitDate: format(new Date(), 'yyyy-MM-dd'),
-      accountId: originalOrder.accountId,
-      clientType: originalOrder.clientType,
-      clientStatus: originalOrder.accountId ? 'existing' : 'new',
-      originatingTaskId: originalOrder.id,
-      notes: formData.notes,
-      clavadistaId: originalOrder.clavadistaId,
-    };
-
-    if (outcome === 'successful') {
-      const subtotal = (formData.numberOfUnits || 0) * (formData.unitPrice || 0);
-      newOrderData = {
-        ...newOrderData,
-        status: 'Confirmado',
-        paymentMethod: formData.paymentMethod,
-        numberOfUnits: formData.numberOfUnits,
-        unitPrice: formData.unitPrice,
-        value: subtotal + (subtotal * (IVA_RATE / 100)),
-        salesRep: originalOrder.salesRep,
-      };
-    } else if (outcome === 'follow-up') {
-      const assignedRep = allTeamMembers.find(m => m.id === formData.assignedSalesRepId);
-      newOrderData = {
-        ...newOrderData,
-        status: 'Seguimiento',
-        nextActionType: formData.nextActionType,
-        nextActionCustom: formData.nextActionType === 'Opción personalizada' ? formData.nextActionCustom : undefined,
-        nextActionDate: formData.nextActionDate ? format(formData.nextActionDate, 'yyyy-MM-dd') : undefined,
-        salesRep: assignedRep ? assignedRep.name : (teamMember?.name || 'No asignado'),
-      };
-    } else if (outcome === 'failed') {
-      newOrderData = {
-        ...newOrderData,
-        status: 'Fallido',
-        failureReasonType: formData.failureReasonType,
-        failureReasonCustom: formData.failureReasonType === 'Otro (especificar)' ? formData.failureReasonCustom : undefined,
-        salesRep: originalOrder.salesRep,
-      };
-    }
-
-    try {
-      await addOrderFS(newOrderData as Order);
-      await updateOrderFS(originalOrder.id, { status: 'Completado' });
-      toast({ title: "Acción Registrada", description: "El resultado del seguimiento se ha guardado correctamente." });
-      refreshDataSignature();
-      setEditingFollowUp(null);
-    } catch (error) {
-      console.error("Error saving follow-up result:", error);
-      toast({ title: "Error al Guardar", description: "No se pudo guardar el resultado del seguimiento.", variant: "destructive"});
-    }
-  };
-
 
   const handlePrint = () => {
     window.print();
@@ -385,8 +324,10 @@ export default function AccountDetailPage() {
                         </TableCell>
                         <TableCell className="text-right print-hide">
                            {isOpenTask(interaction.status) && canRegisterResult ? (
-                                <Button variant="outline" size="sm" onClick={() => setEditingFollowUp(interaction)}>
+                                <Button asChild variant="outline" size="sm">
+                                  <Link href={`/order-form?originatingTaskId=${interaction.id}`}>
                                     <Send className="mr-1 h-3 w-3" /> Registrar Resultado
+                                  </Link>
                                 </Button>
                            ) : (
                                 <Button variant="ghost" size="sm" disabled>
@@ -416,18 +357,6 @@ export default function AccountDetailPage() {
           }}
           onSave={handleSaveAccountDetails}
           allAccounts={allAccountsForValidation}
-        />
-      )}
-
-      {account && (
-        <FollowUpResultDialog
-          isOpen={!!editingFollowUp}
-          onOpenChange={(open) => !open && setEditingFollowUp(null)}
-          order={editingFollowUp}
-          onSave={handleSaveFollowUpResult}
-          allTeamMembers={allTeamMembers}
-          currentUser={teamMember}
-          currentUserRole={userRole}
         />
       )}
     </div>

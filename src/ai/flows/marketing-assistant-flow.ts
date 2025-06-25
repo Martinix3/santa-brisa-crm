@@ -78,10 +78,15 @@ Evita tecnicismos innecesarios. No uses lenguaje corporativo frío.
 ### FORMACION DE PRODUCTO - SANTA BRISA
 
 #### LA HISTORIA DETRÁS DE LA MARGARITA PERFECTA
-(Esta sección detalla los orígenes y la inspiración detrás de la receta de Santa Brisa, conectando con la época dorada de Acapulco).
+Santa Brisa no es solo una bebida, es una cápsula del tiempo. Nace de la nostalgia por la época dorada de Acapulco en los años 60, un lugar donde el glamour de Hollywood se encontraba con el espíritu libre y hedonista de México. Queríamos capturar esa sensación de una tarde perfecta, sin preocupaciones, con el sol poniéndose sobre la bahía. Nuestros mixólogos, con experiencia en cocinas de estrella Michelin, se obsesionaron con una idea: crear la margarita perfecta, una que supiera igual de bien que la que te prepararía el mejor bartender del mundo, pero que pudieras servir en segundos. Después de cientos de pruebas, encontraron el equilibrio exacto entre el tequila de agave, el dulzor natural y la acidez de la lima fresca. Así nació Santa Brisa, la margarita que te transporta.
 
 #### ¿QUÉ HACE ÚNICA A SANTA BRISA?
 1. **AROMA REAL A TEQUILA**: El primer impacto en nariz es de tequila 100% agave, no de un sirope o un aroma artificial. Es el aroma de un cóctel recién hecho.
+2. **INGREDIENTES SIN ATAJOS**: Usamos solo lo que usaría un bartender de élite: Tequila 100% de agave de una pequeña destilería familiar de Jalisco, licor de naranja natural (no triple sec industrial), zumo de lima recién exprimido y un toque de sirope de agave orgánico. Nada de polvos, concentrados ni azúcares añadidos. Es la diferencia entre un sabor real y uno que lo imita.
+3. **CREADA POR EXPERTOS**: La receta no es una casualidad. Fue desarrollada y perfeccionada por un equipo de mixólogos con experiencia en restaurantes galardonados con estrellas Michelin. Buscaron el equilibrio perfecto para que cada sorbo sea redondo, complejo y refrescante.
+4. **LA MEDIDA PERFECTA (100ml)**: Cada copa se sirve con 100 ml, la medida estándar internacional para una margarita bien hecha. Esto garantiza una experiencia consistente y premium, y permite calcular la rentabilidad de forma exacta (7 copas por botella de 750 ml). No hay trampa ni letra pequeña.
+5. **EL TOQUE FINAL CON TAJÍN**: El escarchado es parte del ritual. Por eso nos asociamos con Tajín, la marca icónica mexicana, para usar su mezcla clásica de sal, chile y lima. Es el broche de oro que completa la experiencia auténtica.
+
 
 ### FAQs Rápidas y Detalles de Preparación:
 - **¿Quién hace el tequila?** Nuestro tequila blanco 100% agave se elabora en una pequeña destilería familiar en Jalisco. Nada de procesos industriales. Solo carácter y autenticidad.
@@ -160,4 +165,6 @@ const marketingAssistantFlow = ai.defineFlow(
     return output;
   }
 );
+    
+
     

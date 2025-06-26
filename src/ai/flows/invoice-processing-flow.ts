@@ -57,6 +57,7 @@ const prompt = ai.definePrompt({
 Analyze the provided invoice image or PDF and extract the following details. Be extremely precise.
 
 **Critically Important Instructions:**
+- **Input Type Awareness**: If the input is a PDF, be aware that the underlying text data can be messy or different from what is visually presented. Prioritize the visual information in the document. If you see "10.290,00" visually, use that, even if the extracted text layer says "11290". Treat the PDF as an image first and foremost.
 - **Number Format Detection**: Before processing numbers, analyze the invoice to determine its locale.
   - If it appears to be a **Spanish/European** invoice, the period (\`.\`) is the thousands separator and the comma (\`,\`) is the decimal separator. Example: \`1.234,56\` must be interpreted as \`1234.56\`.
   - If it appears to be an **Anglo-Saxon (US/UK)** invoice, the comma (\`,\`) is the thousands separator and the period (\`.\`) is the decimal separator. Example: \`1,234.56\` must be interpreted as \`1234.56\`.

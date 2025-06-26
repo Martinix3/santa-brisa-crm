@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview An AI agent for processing invoices.
@@ -42,6 +43,7 @@ const prompt = ai.definePrompt({
   name: 'invoiceProcessingPrompt',
   input: {schema: ProcessInvoiceInputSchema},
   output: {schema: ProcessInvoiceOutputSchema},
+  model: 'googleai/gemini-1.5-flash-latest',
   prompt: `You are an expert accounting assistant. Your task is to extract structured information from an invoice file.
 
 Analyze the provided invoice image or PDF and extract the following details. Be precise.

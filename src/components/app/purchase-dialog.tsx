@@ -115,7 +115,7 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
       supplier: "",
       orderDate: new Date(),
       status: "Borrador",
-      items: [{ materialId: "", description: "", quantity: 1, unitPrice: undefined as any }],
+      items: [{ materialId: "", description: "", quantity: 1, unitPrice: undefined }],
       shippingCost: 0,
       taxRate: 21,
       notes: "",
@@ -176,7 +176,7 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
           supplier: "",
           orderDate: new Date(),
           status: "Borrador",
-          items: [{ materialId: "", description: "", quantity: 1, unitPrice: undefined as any }],
+          items: [{ materialId: "", description: "", quantity: 1, unitPrice: undefined }],
           shippingCost: 0,
           taxRate: 21,
           notes: "",
@@ -238,19 +238,63 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
                         <FormMessage />
                     </FormItem>
                   )} />
-                  <FormField control={form.control} name={`items.${index}.quantity`} render={({ field }) => (<FormItem className="w-24"><FormLabel className="text-xs">Cantidad</FormLabel><FormControl><Input type="number" {...field} disabled={isReadOnly} onChange={e => field.onChange(parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name={`items.${index}.unitPrice`} render={({ field }) => (<FormItem className="w-28"><FormLabel className="text-xs">Precio Unit. (€)</FormLabel><FormControl><Input type="number" step="0.01" {...field} disabled={isReadOnly} onChange={e => field.onChange(parseFloat(e.target.value))} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name={`items.${index}.quantity`} render={({ field }) => (
+                    <FormItem className="w-24">
+                        <FormLabel className="text-xs">Cantidad</FormLabel>
+                        <FormControl>
+                            <Input type="number" {...field} disabled={isReadOnly}
+                                   value={field.value === undefined || isNaN(field.value) ? '' : field.value}
+                                   onChange={e => { const val = e.target.value; field.onChange(val === '' ? undefined : parseInt(val, 10)); }}
+                            />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name={`items.${index}.unitPrice`} render={({ field }) => (
+                    <FormItem className="w-28">
+                        <FormLabel className="text-xs">Precio Unit. (€)</FormLabel>
+                        <FormControl>
+                            <Input type="number" step="0.01" {...field} disabled={isReadOnly}
+                                   value={field.value === undefined || isNaN(field.value) ? '' : field.value}
+                                   onChange={e => { const val = e.target.value; field.onChange(val === '' ? undefined : parseFloat(val)); }}
+                            />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                  )} />
                   {!isReadOnly && <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>}
                 </div>
               ))}
-               {!isReadOnly && <Button type="button" variant="outline" size="sm" onClick={() => append({ materialId: "", description: "", quantity: 1, unitPrice: undefined as any })}><PlusCircle className="mr-2 h-4 w-4" />Añadir Artículo</Button>}
+               {!isReadOnly && <Button type="button" variant="outline" size="sm" onClick={() => append({ materialId: "", description: "", quantity: 1, unitPrice: undefined })}><PlusCircle className="mr-2 h-4 w-4" />Añadir Artículo</Button>}
             </div>
 
             <Separator />
             <h3 className="text-md font-semibold">Totales y Estado</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField control={form.control} name="shippingCost" render={({ field }) => (<FormItem><FormLabel>Gastos de Envío (€)</FormLabel><FormControl><Input type="number" step="0.01" {...field} disabled={isReadOnly} onChange={e => field.onChange(e.target.value === '' ? 0 : parseFloat(e.target.value))} value={field.value ?? 0} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="taxRate" render={({ field }) => (<FormItem><FormLabel>Tasa de IVA (%)</FormLabel><FormControl><Input type="number" {...field} disabled={isReadOnly} onChange={e => field.onChange(parseFloat(e.target.value))} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="shippingCost" render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Gastos de Envío (€)</FormLabel>
+                        <FormControl>
+                            <Input type="number" step="0.01" {...field} disabled={isReadOnly}
+                                   value={field.value === undefined || isNaN(field.value) ? '' : field.value}
+                                   onChange={e => { const val = e.target.value; field.onChange(val === '' ? undefined : parseFloat(val)); }}
+                            />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )} />
+                <FormField control={form.control} name="taxRate" render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Tasa de IVA (%)</FormLabel>
+                        <FormControl>
+                            <Input type="number" {...field} disabled={isReadOnly} 
+                                   value={field.value === undefined || isNaN(field.value) ? '' : field.value}
+                                   onChange={e => { const val = e.target.value; field.onChange(val === '' ? undefined : parseFloat(val)); }}
+                            />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )} />
             </div>
 
             <div className="p-4 bg-muted/50 rounded-md space-y-2">

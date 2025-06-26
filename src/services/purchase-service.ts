@@ -2,7 +2,7 @@
 'use server';
 
 import { db, storage } from '@/lib/firebase';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { ref, uploadString, getDownloadURL, deleteObject } from 'firebase/storage';
 import {
   collection,
   getDocs,
@@ -98,36 +98,21 @@ async function uploadInvoice(
       throw new Error('Invalid data URI provided.');
     }
     
-    const parts = dataUri.split(',');
-    if (parts.length < 2) {
-      throw new Error('Malformed data URI.');
+    // We still need the MIME type for the file extension.
+    const mimeTypeMatch = dataUri.match(/^data:(.*);/);
+    const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'application/octet-stream';
+    const extension = MimeTypeMap[mimeType] || 'bin';
+    if (!MimeTypeMap[mimeType]) {
+        console.warn(`Unsupported MIME type for file extension: ${mimeType}. Using .bin`);
     }
 
-    const meta = parts[0];
-    const data = parts[1];
-    
-    const mimeTypeMatch = meta.match(/:(.*?);/);
-    if (!mimeTypeMatch || !mimeTypeMatch[1]) {
-      throw new Error('Could not determine MIME type from data URI.');
-    }
-    
-    const mimeType = mimeTypeMatch[1];
-    const extension = MimeTypeMap[mimeType];
-
-    if (!extension) {
-      throw new Error(`Unsupported file type: ${mimeType}. Supported types are PDF, JPG, PNG, WebP.`);
-    }
-
-    const buffer = Buffer.from(data, 'base64');
-    
     const uniqueFileName = `invoice_${Date.now()}.${extension}`;
     const storagePath = `invoices/purchases/${purchaseId}/${uniqueFileName}`;
     const storageRef = ref(storage, storagePath);
 
-    const snapshot = await uploadBytes(storageRef, buffer, {
-      contentType: mimeType,
-    });
-
+    // Use uploadString with 'data_url' format. The SDK handles the parsing.
+    const snapshot = await uploadString(storageRef, dataUri, 'data_url');
+    
     const downloadUrl = await getDownloadURL(snapshot.ref);
     return {
       downloadUrl,
@@ -135,6 +120,7 @@ async function uploadInvoice(
     };
   } catch (error: any) {
     console.error('Error uploading invoice to Firebase Storage:', error);
+    // Provide a more specific error message if available
     const errorMessage = error.code || error.message || "Failed to upload file to storage.";
     throw new Error(`Upload failed: ${errorMessage}`);
   }
@@ -184,7 +170,6 @@ const findOrCreateSupplier = async (data: Partial<PurchaseFormValues>): Promise<
     }
     console.log(`Starting findOrCreateSupplier for: ${data.supplier} (CIF: ${data.supplierCif || 'N/A'})`);
 
-    // Step 1 & 2: Query for existing supplier outside a transaction
     if (data.supplierCif) {
         console.log(`Searching for supplier by CIF: ${data.supplierCif}`);
         const cifQuery = query(collection(db, SUPPLIERS_COLLECTION), where("cif", "==", data.supplierCif), limit(1));
@@ -205,7 +190,6 @@ const findOrCreateSupplier = async (data: Partial<PurchaseFormValues>): Promise<
         return supplierDoc.id;
     }
 
-    // Step 3: If not found, create a new one.
     console.log(`No existing supplier found. Creating new one for: ${data.supplier}`);
     try {
         const newSupplierData: SupplierFormValues = {
@@ -219,12 +203,12 @@ const findOrCreateSupplier = async (data: Partial<PurchaseFormValues>): Promise<
             address_country: data.supplierAddress_country,
         };
         const firestoreData = toFirestoreSupplier(newSupplierData, true);
-        const newDocRef = await addDoc(collection(db, SUPPLIERS_COLLECTION), firestoreData);
+        const docRef = await addDoc(collection(db, SUPPLIERS_COLLECTION), firestoreData);
         console.log(`New supplier created with ID: ${newDocRef.id}`);
-        return newDocRef.id;
-    } catch (error) {
-        console.error("Error creating new supplier:", error);
-        throw error; // Re-throw the original error
+        return docRef.id;
+    } catch (err) {
+        console.error('Supplier creation failed', err);
+        throw err; // Re-throw the original error
     }
 };
 

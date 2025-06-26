@@ -2,7 +2,7 @@
 'use server';
 
 import { db, storage } from '@/lib/firebase';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import {
   collection,
   getDocs,
@@ -74,69 +74,52 @@ const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean):
   return firestoreData;
 };
 
+
 async function uploadInvoice(
   dataUri: string,
   purchaseId: string
 ): Promise<{ downloadUrl: string; storagePath: string }> {
-  return new Promise(async (resolve, reject) => {
-    try {
-      if (!dataUri.startsWith('data:')) {
-        return reject(new Error('Invalid data URI provided.'));
-      }
-      
-      const parts = dataUri.split(',');
-      if (parts.length < 2) {
-        return reject(new Error('Malformed data URI.'));
-      }
-
-      const meta = parts[0];
-      const data = parts[1];
-      
-      const mimeTypeMatch = meta.match(/:(.*?);/);
-      if (!mimeTypeMatch || !mimeTypeMatch[1]) {
-        return reject(new Error('Could not determine MIME type from data URI.'));
-      }
-      
-      const mimeType = mimeTypeMatch[1];
-      const buffer = Buffer.from(data, 'base64');
-      
-      const fileExtension = mimeType.split('/')[1] || 'bin';
-      const uniqueFileName = `invoice_${Date.now()}.${fileExtension}`;
-      const storagePath = `invoices/purchases/${purchaseId}/${uniqueFileName}`;
-      const storageRef = ref(storage, storagePath);
-
-      const uploadTask = uploadBytesResumable(storageRef, buffer, {
-        contentType: mimeType,
-      });
-
-      uploadTask.on('state_changed',
-        (snapshot) => {
-          // Observe state change events such as progress, pause, and resume
-        }, 
-        (error) => {
-          // Handle unsuccessful uploads
-          console.error('Error during resumable upload:', error);
-          reject(new Error(`Upload failed: ${error.code || "Unknown storage error."}`));
-        }, 
-        async () => {
-          // Handle successful uploads on complete
-          try {
-            const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
-            resolve({
-              downloadUrl,
-              storagePath: uploadTask.snapshot.metadata.fullPath,
-            });
-          } catch (urlError: any) {
-            console.error('Error getting download URL:', urlError);
-            reject(new Error(`URL retrieval failed: ${urlError.message}`));
-          }
-        }
-      );
-    } catch (error: any) {
-      console.error('Error setting up upload:', error);
-      reject(new Error(`Upload setup failed: ${error.message}`));
+  try {
+    if (!dataUri.startsWith('data:')) {
+      throw new Error('Invalid data URI provided.');
     }
-  });
+    
+    const parts = dataUri.split(',');
+    if (parts.length < 2) {
+      throw new Error('Malformed data URI.');
+    }
+
+    const meta = parts[0];
+    const data = parts[1];
+    
+    const mimeTypeMatch = meta.match(/:(.*?);/);
+    if (!mimeTypeMatch || !mimeTypeMatch[1]) {
+      throw new Error('Could not determine MIME type from data URI.');
+    }
+    
+    const mimeType = mimeTypeMatch[1];
+    const buffer = Buffer.from(data, 'base64');
+    
+    const fileExtension = mimeType.split('/')[1] || 'bin';
+    const uniqueFileName = `invoice_${Date.now()}.${fileExtension.replace(/[^a-zA-Z0-9.]/g, '')}`; // Sanitize extension
+    const storagePath = `invoices/purchases/${purchaseId}/${uniqueFileName}`;
+    const storageRef = ref(storage, storagePath);
+
+    const snapshot = await uploadBytes(storageRef, buffer, {
+      contentType: mimeType,
+    });
+
+    const downloadUrl = await getDownloadURL(snapshot.ref);
+    return {
+      downloadUrl,
+      storagePath: snapshot.metadata.fullPath,
+    };
+  } catch (error: any) {
+    console.error('Error uploading invoice to Firebase Storage:', error);
+    // Provide a more specific error message if available
+    const errorMessage = error.code || error.message || "Failed to upload file to storage.";
+    throw new Error(`Upload failed: ${errorMessage}`);
+  }
 }
 
 

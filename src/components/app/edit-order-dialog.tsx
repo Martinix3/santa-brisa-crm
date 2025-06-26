@@ -49,10 +49,7 @@ import { getPromotionalMaterialsFS } from "@/services/promotional-material-servi
 import { getAccountByIdFS } from "@/services/account-service"; 
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
-import { storage } from "@/lib/firebase";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Label } from "@/components/ui/label";
-import { uploadFileFromDataUri } from "@/services/storage-service";
 
 
 const NO_CLAVADISTA_VALUE = "##NONE##";
@@ -118,21 +115,6 @@ interface EditOrderDialogProps {
   currentUserRole: UserRole;
 }
 
-const fileToDataUri = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (reader.result) {
-        resolve(reader.result as string);
-      } else {
-        reject(new Error("FileReader failed to read file."));
-      }
-    };
-    reader.onerror = (error) => reject(error);
-    reader.readAsDataURL(file);
-  });
-};
-
 const formatAddressForDisplay = (address?: AddressDetails): string => {
   if (!address) return "No especificada";
   const parts = [
@@ -155,10 +137,6 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const [associatedAccount, setAssociatedAccount] = React.useState<Account | null>(null);
   const [isLoadingAccountDetails, setIsLoadingAccountDetails] = React.useState(false); 
   const { toast } = useToast();
-
-  const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
-  const [isUploading, setIsUploading] = React.useState(false);
-
 
   React.useEffect(() => {
     async function loadDataForDialog() {
@@ -273,53 +251,11 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     }
   }, [order, isOpen, form, isLoadingDropdownData, salesReps, toast]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-        const file = e.target.files[0];
-        if (file.type !== "application/pdf") {
-            toast({ title: "Archivo no válido", description: "Por favor, seleccione un archivo PDF.", variant: "destructive" });
-            e.target.value = ''; 
-            return;
-        }
-        setSelectedFile(file);
-        form.setValue("invoiceFileName", file.name, { shouldDirty: true });
-        form.setValue("invoiceUrl", "", { shouldDirty: true });
-    }
-  };
-
   const onSubmit = async (data: EditOrderFormValues) => {
     if (!order) return;
     setIsSaving(true);
-    let finalData = { ...data };
-
-    if (selectedFile) {
-        setIsUploading(true);
-        try {
-            const dataUri = await fileToDataUri(selectedFile);
-            const uploadResponse = await uploadFileFromDataUri(
-                dataUri,
-                `invoices/orders/${order.id}`,
-                selectedFile.name
-            );
-
-            finalData.invoiceUrl = uploadResponse.downloadURL;
-            finalData.invoiceFileName = uploadResponse.fileName;
-
-            toast({ title: "Subida Exitosa", description: `Factura "${selectedFile.name}" subida correctamente.` });
-
-        } catch (uploadError: any) {
-            console.error("Error uploading file:", uploadError);
-            toast({ title: "Error de Subida", description: `No se pudo subir el archivo de la factura: ${uploadError.message}`, variant: "destructive" });
-            setIsSaving(false);
-            setIsUploading(false);
-            return; 
-        }
-        setIsUploading(false);
-    }
-    
-    await onSave(finalData, order.id);
+    await onSave(data, order.id);
     setIsSaving(false);
-    setSelectedFile(null); 
   };
 
   const handlePrint = () => {
@@ -347,7 +283,6 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
 
   const formFieldsGenericDisabled = isReadOnlyForMostFields || isLoadingDropdownData || isLoadingAccountDetails;
   const productRelatedFieldsDisabled = !canEditOrderDetailsOverall || ['Seguimiento', 'Fallido', 'Programada'].includes(currentStatus) || isLoadingDropdownData || isLoadingAccountDetails;
-  const billingFieldsDisabled = true; 
   const statusFieldDisabled = !(canEditOrderDetailsOverall || canEditStatusAndNotesOnly) || isLoadingDropdownData || isLoadingAccountDetails;
   const notesFieldDisabled = !(canEditOrderDetailsOverall || canEditStatusAndNotesOnly) || isLoadingDropdownData || isLoadingAccountDetails;
   const salesRepFieldDisabled = !isAdmin || isLoadingDropdownData || isLoadingAccountDetails;
@@ -450,20 +385,14 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                  <p className="text-sm text-muted-foreground">Los detalles de productos y valor no aplican para el estado actual del pedido ({currentStatus}).</p>
             )}
             
-            {currentStatus === 'Facturado' && (
+            {currentStatus === "Facturado" && (
               <>
                 <Separator className="my-6" />
                 <h3 className="text-md font-semibold text-muted-foreground">Información de Factura</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                  <FormField control={form.control} name="invoiceUrl" render={({ field }) => (<FormItem><FormLabel>URL de la Factura</FormLabel><FormControl><Input placeholder="https://ejemplo.com/factura.pdf" {...field} disabled={invoiceSectionDisabled || !!selectedFile} /></FormControl><FormMessage /></FormItem>)} />
-                   <div className="space-y-2">
-                    <Label htmlFor="invoice-upload">Subir Factura PDF</Label>
-                    <Input id="invoice-upload" type="file" accept=".pdf" onChange={handleFileChange} disabled={invoiceSectionDisabled || isUploading} className="pt-2 text-sm file:mr-2 file:text-primary file:font-medium" />
-                    {isUploading && <div className="flex items-center text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Subiendo...</div>}
-                  </div>
+                  <FormField control={form.control} name="invoiceUrl" render={({ field }) => (<FormItem><FormLabel>URL de la Factura</FormLabel><FormControl><Input placeholder="https://ejemplo.com/factura.pdf" {...field} disabled={invoiceSectionDisabled} /></FormControl><FormMessage /></FormItem>)} />
                 </div>
-                <FormField control={form.control} name="invoiceFileName" render={({ field }) => (<FormItem><FormLabel>Nombre Archivo Factura</FormLabel><FormControl><Input {...field} disabled={true} /></FormControl><FormDescription>Se rellena al subir un archivo o si la URL ya contiene uno.</FormDescription><FormMessage /></FormItem>)} />
-                 {watchedInvoiceUrl && !selectedFile && isValidUrl(watchedInvoiceUrl) && (
+                 {watchedInvoiceUrl && isValidUrl(watchedInvoiceUrl) && (
                     <Button variant="link" asChild className="p-0 h-auto mt-1">
                         <Link href={watchedInvoiceUrl} target="_blank" rel="noopener noreferrer" className="text-sm">
                             <Link2 className="mr-1 h-3 w-3" /> Ver Factura Cargada
@@ -627,8 +556,8 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
               </Button>
               <DialogClose asChild><Button type="button" variant="outline" disabled={isSaving}>Cancelar</Button></DialogClose>
               {!(isReadOnlyForMostFields && !canEditStatusAndNotesOnly) && (
-                <Button type="submit" disabled={isSaving || isUploading || isLoadingDropdownData || isLoadingAccountDetails || (!form.formState.isDirty && !!order) }>
-                  {isSaving || isUploading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>) : ("Guardar Cambios")}
+                <Button type="submit" disabled={isSaving || isLoadingDropdownData || isLoadingAccountDetails || (!form.formState.isDirty && !!order) }>
+                  {isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>) : ("Guardar Cambios")}
                 </Button>
               )}
             </DialogFooter>

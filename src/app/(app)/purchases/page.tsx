@@ -14,7 +14,6 @@ import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, MoreHorizontal, Filter, ChevronDown, Edit, Trash2, Receipt, Loader2, UploadCloud, Download } from "lucide-react";
 import PurchaseDialog from "@/components/app/purchase-dialog";
 import type { PurchaseFormValues } from "@/components/app/purchase-dialog";
-import InvoiceUploadDialog from "@/components/app/invoice-upload-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
@@ -30,12 +29,8 @@ export default function PurchasesPage() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [editingPurchase, setEditingPurchase] = React.useState<Purchase | null>(null);
   const [isPurchaseDialogOpen, setIsPurchaseDialogOpen] = React.useState(false);
-  const [isUploadDialogOpen, setIsUploadDialogOpen] = React.useState(false);
   const [purchaseToDelete, setPurchaseToDelete] = React.useState<Purchase | null>(null);
-  const [initialPurchaseData, setInitialPurchaseData] = React.useState<Partial<PurchaseFormValues> | null>(null);
   
-  const [pendingInvoice, setPendingInvoice] = React.useState<{ uri: string; name: string } | null>(null);
-
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<PurchaseStatus | "Todos">("Todos");
 
@@ -63,29 +58,12 @@ export default function PurchasesPage() {
 
   const handleAddNewPurchase = () => {
     if (!isAdmin) return;
-    setInitialPurchaseData(null);
-    setPendingInvoice(null);
     setEditingPurchase(null);
     setIsPurchaseDialogOpen(true);
   };
   
-  const handleOpenUploadDialog = () => {
-    if (!isAdmin) return;
-    setIsUploadDialogOpen(true);
-  };
-
-  const handleDataExtracted = (data: Partial<PurchaseFormValues>, fileDataUri: string, fileName: string) => {
-    setIsUploadDialogOpen(false);
-    setInitialPurchaseData(data);
-    setPendingInvoice({ uri: fileDataUri, name: fileName });
-    setEditingPurchase(null);
-    setIsPurchaseDialogOpen(true);
-  };
-
   const handleEditPurchase = (purchase: Purchase) => {
     if (!isAdmin) return;
-    setInitialPurchaseData(null);
-    setPendingInvoice(null);
     setEditingPurchase(purchase);
     setIsPurchaseDialogOpen(true);
   };
@@ -94,22 +72,16 @@ export default function PurchasesPage() {
     if (!isAdmin) return;
     setIsLoading(true);
     
-    let finalData = { ...data };
-    if (pendingInvoice) {
-        finalData.invoiceDataUri = pendingInvoice.uri;
-        finalData.invoiceFileName = pendingInvoice.name;
-    }
-
     try {
       let successMessage = "";
       if (purchaseId) {
-        await updatePurchaseFS(purchaseId, finalData);
+        await updatePurchaseFS(purchaseId, data);
         successMessage = `La compra a "${data.supplier}" ha sido actualizada.`;
       } else {
-        await addPurchaseFS(finalData);
+        await addPurchaseFS(data);
         successMessage = `La compra a "${data.supplier}" ha sido añadida.`;
       }
-      refreshDataSignature(); // Trigger data reload
+      refreshDataSignature();
       const updatedPurchases = await getPurchasesFS();
       setPurchases(updatedPurchases);
       toast({ title: "¡Operación Exitosa!", description: successMessage });
@@ -120,7 +92,6 @@ export default function PurchasesPage() {
       setIsLoading(false);
       setIsPurchaseDialogOpen(false);
       setEditingPurchase(null);
-      setPendingInvoice(null);
     }
   };
 
@@ -169,9 +140,6 @@ export default function PurchasesPage() {
             <h1 className="text-3xl font-headline font-semibold">Gestión de Compras y Gastos</h1>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={handleOpenUploadDialog} variant="outline" disabled={isLoading}>
-            <UploadCloud className="mr-2 h-4 w-4" /> Crear desde Factura (IA)
-          </Button>
           <Button onClick={handleAddNewPurchase} disabled={isLoading}>
             <PlusCircle className="mr-2 h-4 w-4" /> Añadir Compra Manual
           </Button>
@@ -317,23 +285,14 @@ export default function PurchasesPage() {
 
       <PurchaseDialog
           purchase={editingPurchase}
-          initialData={initialPurchaseData}
-          pendingInvoice={pendingInvoice}
           isOpen={isPurchaseDialogOpen}
           onOpenChange={(open) => {
               setIsPurchaseDialogOpen(open);
               if (!open) {
                 setEditingPurchase(null);
-                setInitialPurchaseData(null);
-                setPendingInvoice(null);
               }
           }}
           onSave={handleSavePurchase}
-      />
-       <InvoiceUploadDialog
-        isOpen={isUploadDialogOpen}
-        onOpenChange={setIsUploadDialogOpen}
-        onDataExtracted={handleDataExtracted}
       />
     </div>
   );

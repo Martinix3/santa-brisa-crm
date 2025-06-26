@@ -66,12 +66,12 @@ export interface AssignedPromotionalMaterial {
 export type CanalOrigenColocacion = 'Equipo Santa Brisa' | 'Iniciativa Importador' | 'Marketing Digital' | 'Referido' | 'Otro';
 
 export interface AddressDetails {
-  street: string;
-  number?: string;
-  city: string;
-  province: string;
-  postalCode: string;
-  country?: string; 
+  street: string | null;
+  number?: string | null;
+  city: string | null;
+  province: string | null;
+  postalCode: string | null;
+  country?: string | null; 
 }
 
 export type PaymentMethod = 'Adelantado' | 'Contado' | 'Transferencia 30 días';
@@ -225,10 +225,6 @@ export interface PurchaseFormValues {
   shippingCost?: number;
   taxRate: number;
   notes?: string;
-
-  // Para pasar datos de la factura subida
-  invoiceDataUri?: string;
-  invoiceFileName?: string;
 }
 
 

@@ -1,7 +1,7 @@
 
-"use server";
+"use client";
 
-import { db, storage } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import {
   collection,
   getDocs,
@@ -18,58 +18,11 @@ import {
   where,
   limit
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { v4 as uuidv4 } from 'uuid';
 import type { Purchase, PurchaseFormValues, SupplierFormValues } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 import { getSupplierByNameFS, getSupplierByCifFS, addSupplierFS } from './supplier-service';
 
 const PURCHASES_COLLECTION = 'purchases';
-
-/**
- * Uploads a file from a data URI to a specified path in Firebase Storage.
- * This is a local helper function to be used within this server module.
- * @param dataUri The file encoded as a data URI.
- * @param pathPrefix The folder path in the storage bucket.
- * @param originalFileName The original name of the file.
- * @returns An object containing the public download URL and the original file name.
- */
-async function uploadFileFromDataUri(
-  dataUri: string,
-  pathPrefix: string,
-  originalFileName: string
-): Promise<{ downloadURL: string; fileName: string }> {
-  try {
-    const fileExtension = originalFileName.split('.').pop() || 'bin';
-    const uniqueFileName = `${uuidv4()}.${fileExtension}`;
-    const fullPath = `${pathPrefix}/${uniqueFileName}`;
-    
-    const storageRef = ref(storage, fullPath);
-
-    const match = dataUri.match(/^data:(.+);base64,(.+)$/);
-    if (!match) {
-        throw new Error('Invalid data URI format.');
-    }
-    
-    const contentType = match[1];
-    const base64Data = match[2];
-    
-    const buffer = Buffer.from(base64Data, 'base64');
-
-    const uploadResult = await uploadBytes(storageRef, buffer, {
-      contentType: contentType,
-    });
-    
-    const downloadURL = await getDownloadURL(uploadResult.ref);
-
-    return { downloadURL, fileName: originalFileName };
-  } catch (error: any) {
-    console.error("Error in uploadFileFromDataUri helper:", error);
-    const errorMessage = error.code || error.message || "Failed to upload file to storage.";
-    throw new Error(`Upload failed: ${errorMessage}`);
-  }
-}
-
 
 const fromFirestorePurchase = (docSnap: any): Purchase => {
   const data = docSnap.data();
@@ -160,23 +113,11 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
   const supplierId = await findOrCreateSupplier(data);
 
   const docRef = doc(collection(db, PURCHASES_COLLECTION));
-  let invoiceUrl: string | undefined = undefined;
-  let invoiceFileName: string | undefined = undefined;
-
-  if (data.invoiceDataUri && data.invoiceFileName) {
-      const uploadResponse = await uploadFileFromDataUri(
-        data.invoiceDataUri,
-        `invoices/purchases/${docRef.id}`,
-        data.invoiceFileName
-      );
-      invoiceUrl = uploadResponse.downloadURL;
-      invoiceFileName = uploadResponse.fileName;
-  }
   
   const firestoreData = toFirestorePurchase(data, true);
   firestoreData.supplierId = supplierId;
-  firestoreData.invoiceUrl = invoiceUrl;
-  firestoreData.invoiceFileName = invoiceFileName;
+  firestoreData.invoiceUrl = null;
+  firestoreData.invoiceFileName = null;
 
   await setDoc(docRef, firestoreData);
   return docRef.id;

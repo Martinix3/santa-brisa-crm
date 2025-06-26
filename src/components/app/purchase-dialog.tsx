@@ -59,8 +59,6 @@ const purchaseFormSchema = z.object({
   supplierAddress_province: z.string().optional(),
   supplierAddress_postalCode: z.string().optional(),
   supplierAddress_country: z.string().optional(),
-  invoiceDataUri: z.string().optional(),
-  invoiceFileName: z.string().optional(),
   orderDate: z.date({ required_error: "La fecha del pedido es obligatoria." }),
   status: z.enum(purchaseStatusList as [PurchaseStatus, ...PurchaseStatus[]]),
   items: z.array(purchaseItemSchema).min(1, "Debe añadir al menos un artículo a la compra."),
@@ -73,15 +71,13 @@ export type PurchaseFormValues = z.infer<typeof purchaseFormSchema>;
 
 interface PurchaseDialogProps {
   purchase: Purchase | null;
-  initialData?: Partial<PurchaseFormValues> | null;
-  pendingInvoice?: { uri: string; name: string } | null;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (data: PurchaseFormValues, purchaseId?: string) => Promise<void>;
   isReadOnly?: boolean;
 }
 
-export default function PurchaseDialog({ purchase, initialData, pendingInvoice, isOpen, onOpenChange, onSave, isReadOnly = false }: PurchaseDialogProps) {
+export default function PurchaseDialog({ purchase, isOpen, onOpenChange, onSave, isReadOnly = false }: PurchaseDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
 
   const form = useForm<PurchaseFormValues>({
@@ -127,30 +123,14 @@ export default function PurchaseDialog({ purchase, initialData, pendingInvoice, 
 
   React.useEffect(() => {
     if (isOpen) {
-      if (initialData) {
-        form.reset({
-            supplier: initialData.supplier || "",
-            supplierCif: initialData.supplierCif,
-            supplierAddress_street: initialData.supplierAddress_street,
-            supplierAddress_city: initialData.supplierAddress_city,
-            supplierAddress_province: initialData.supplierAddress_province,
-            supplierAddress_postalCode: initialData.supplierAddress_postalCode,
-            supplierAddress_country: initialData.supplierAddress_country,
-            orderDate: initialData.orderDate || new Date(),
-            status: "Borrador",
-            items: initialData.items && initialData.items.length > 0 ? initialData.items : [{ description: "", quantity: 1, unitPrice: undefined as any }],
-            shippingCost: initialData.shippingCost || 0,
-            taxRate: initialData.taxRate || 21,
-            notes: initialData.notes || "",
-        });
-      } else if (purchase) {
+      if (purchase) {
         form.reset({
           supplier: purchase.supplier,
           orderDate: parseISO(purchase.orderDate),
           status: purchase.status,
           items: purchase.items.map(item => ({ description: item.description, quantity: item.quantity, unitPrice: item.unitPrice })),
           shippingCost: purchase.shippingCost || 0,
-          taxRate: purchase.tax ? (purchase.tax / (purchase.subtotal + (purchase.shippingCost || 0))) * 100 : 21,
+          taxRate: purchase.tax ? (purchase.subtotal + (purchase.shippingCost || 0)) ? (purchase.tax / (purchase.subtotal + (purchase.shippingCost || 0))) * 100 : 21 : 21,
           notes: purchase.notes || "",
         });
       } else {
@@ -165,19 +145,12 @@ export default function PurchaseDialog({ purchase, initialData, pendingInvoice, 
         });
       }
     }
-  }, [purchase, initialData, isOpen, form]);
+  }, [purchase, isOpen, form]);
 
   const onSubmit = async (data: PurchaseFormValues) => {
     if (isReadOnly) return;
     setIsSaving(true);
-    
-    const finalData = { ...data };
-    if (pendingInvoice) {
-      finalData.invoiceDataUri = pendingInvoice.uri;
-      finalData.invoiceFileName = pendingInvoice.name;
-    }
-    
-    await onSave(finalData, purchase?.id);
+    await onSave(data, purchase?.id);
     setIsSaving(false);
   };
 
@@ -185,9 +158,9 @@ export default function PurchaseDialog({ purchase, initialData, pendingInvoice, 
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isReadOnly ? "Detalles de Compra" : (purchase || initialData ? "Editar Compra/Gasto" : "Registrar Nueva Compra/Gasto")}</DialogTitle>
+          <DialogTitle>{isReadOnly ? "Detalles de Compra" : (purchase ? "Editar Compra/Gasto" : "Registrar Nueva Compra/Gasto")}</DialogTitle>
           <DialogDescription>
-            {isReadOnly ? `Viendo detalles de la compra a ${purchase?.supplier}.` : (purchase || initialData ? "Modifica los detalles de la compra." : "Introduce la información de la nueva compra o gasto.")}
+            {isReadOnly ? `Viendo detalles de la compra a ${purchase?.supplier}.` : (purchase ? "Modifica los detalles de la compra." : "Introduce la información de la nueva compra o gasto.")}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>

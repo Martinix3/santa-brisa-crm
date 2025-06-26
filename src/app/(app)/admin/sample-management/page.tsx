@@ -5,11 +5,11 @@ import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import type { SampleRequest, SampleRequestStatus, UserRole, TeamMember } from "@/types";
+import type { SampleRequest, SampleRequestStatus, UserRole, TeamMember, Account } from "@/types";
 import { sampleRequestStatusList } from "@/lib/data";
-import { Filter, ChevronDown, Loader2, PackageCheck, ListOrdered, Users } from "lucide-react";
+import { Filter, ChevronDown, Loader2, PackageCheck, ListOrdered, Users, Printer, MoreHorizontal } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from 'date-fns/locale';
 import { useToast } from "@/hooks/use-toast";
@@ -17,7 +17,9 @@ import { useAuth } from "@/contexts/auth-context";
 import StatusBadge from "@/components/app/status-badge";
 import { getSampleRequestsFS, updateSampleRequestStatusFS } from "@/services/sample-request-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
+import { getAccountsFS } from "@/services/account-service";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
+import ShippingLabelDialog from "@/components/app/shipping-label-dialog";
 
 
 export default function SampleManagementPage() {
@@ -26,7 +28,9 @@ export default function SampleManagementPage() {
   
   const [requests, setRequests] = React.useState<SampleRequest[]>([]);
   const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([]);
+  const [accounts, setAccounts] = React.useState<Account[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [printingRequest, setPrintingRequest] = React.useState<SampleRequest | null>(null);
 
   const [statusFilter, setStatusFilter] = React.useState<SampleRequestStatus | "Todos">("Todos");
   const [requesterFilter, setRequesterFilter] = React.useState<string>("Todos");
@@ -49,12 +53,14 @@ export default function SampleManagementPage() {
       }
       setIsLoading(true);
       try {
-        const [fetchedRequests, fetchedMembers] = await Promise.all([
+        const [fetchedRequests, fetchedMembers, fetchedAccounts] = await Promise.all([
           getSampleRequestsFS(),
-          getTeamMembersFS(['SalesRep', 'Clavadista', 'Admin'])
+          getTeamMembersFS(['SalesRep', 'Clavadista', 'Admin']),
+          getAccountsFS(),
         ]);
         setRequests(fetchedRequests);
         setTeamMembers(fetchedMembers);
+        setAccounts(fetchedAccounts);
 
         // Calculate stats
         const stats = fetchedMembers.map(member => {
@@ -86,6 +92,8 @@ export default function SampleManagementPage() {
     const requesterIds = new Set(requests.map(r => r.requesterId));
     return teamMembers.filter(tm => requesterIds.has(tm.id));
   }, [requests, teamMembers]);
+  
+  const accountsMap = React.useMemo(() => new Map(accounts.map(acc => [acc.id, acc])), [accounts]);
 
   const filteredRequests = React.useMemo(() => {
     return requests
@@ -212,7 +220,8 @@ export default function SampleManagementPage() {
                     <TableHead className="w-[20%]">Cuenta</TableHead>
                     <TableHead className="w-[20%]">Propósito</TableHead>
                     <TableHead className="text-right w-[10%]">Cantidad</TableHead>
-                    <TableHead className="text-center w-[20%]">Estado</TableHead>
+                    <TableHead className="text-center w-[15%]">Estado</TableHead>
+                    <TableHead className="text-right w-[5%]">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -245,10 +254,25 @@ export default function SampleManagementPage() {
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Abrir menú</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onSelect={() => setPrintingRequest(req)}>
+                              <Printer className="mr-2 h-4 w-4" /> Imprimir Dirección
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
                     </TableRow>
                   )) : (
                     <TableRow>
-                      <TableCell colSpan={6} className="h-24 text-center">No se encontraron solicitudes con los filtros actuales.</TableCell>
+                      <TableCell colSpan={7} className="h-24 text-center">No se encontraron solicitudes con los filtros actuales.</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
@@ -260,6 +284,13 @@ export default function SampleManagementPage() {
           <p className="text-xs text-muted-foreground">Mostrando {filteredRequests.length} de {requests.length} solicitudes.</p>
         </CardFooter>
       </Card>
+      
+      <ShippingLabelDialog
+        isOpen={!!printingRequest}
+        onOpenChange={(open) => !open && setPrintingRequest(null)}
+        request={printingRequest}
+        account={printingRequest?.accountId ? accountsMap.get(printingRequest.accountId) ?? null : null}
+      />
     </div>
   );
 }

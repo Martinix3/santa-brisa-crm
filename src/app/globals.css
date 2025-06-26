@@ -202,8 +202,39 @@ body {
   #printable-account-details a[href^="mailto"]:after {
     content: "" !important; 
   }
+  
+  .shipping-label-dialog {
+    display: block !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    box-shadow: none !important;
+    border: none !important;
+    visibility: visible !important;
+    overflow: visible !important;
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: none !important;
+  }
+  
+  .shipping-label-dialog-content {
+     border: 2px dashed #000;
+     padding: 1.5cm;
+     margin: 1cm;
+     page-break-inside: avoid;
+  }
+  
+  .shipping-label-dialog-content * {
+    visibility: visible !important;
+    color: #000 !important;
+    background-color: transparent !important;
+  }
 
-  /* Styles for the print dialog (if ever used, kept for consistency) */
   .print-dialog-content {
     display: block !important;
     width: 100% !important;

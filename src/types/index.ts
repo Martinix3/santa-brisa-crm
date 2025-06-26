@@ -248,7 +248,7 @@ export interface SampleRequest {
   id: string;
   requesterId: string;
   requesterName: string;
-  clientId?: string;
+  accountId?: string;
   clientName: string;
   purpose: SampleRequestPurpose;
   numberOfSamples: number;
@@ -257,6 +257,7 @@ export interface SampleRequest {
   requestDate: string;
   decisionDate?: string;
   adminNotes?: string;
+  shippingAddress?: AddressDetails;
 }
 
 export interface SampleRequestFormValues {
@@ -267,4 +268,10 @@ export interface SampleRequestFormValues {
   purpose: SampleRequestPurpose;
   numberOfSamples: number;
   justificationNotes: string;
+  shippingAddress_street?: string;
+  shippingAddress_number?: string;
+  shippingAddress_city?: string;
+  shippingAddress_province?: string;
+  shippingAddress_postalCode?: string;
+  shippingAddress_country?: string;
 }

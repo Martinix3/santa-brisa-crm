@@ -16,11 +16,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, SendHorizonal, Package, Users } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { useRouter } from "next/navigation";
-import { sampleRequestPurposeList } from "@/lib/data";
+import { sampleRequestPurposeList, provincesSpainList } from "@/lib/data";
 import type { Account, SampleRequestPurpose, SampleRequestFormValues, TeamMember } from "@/types";
 import { getAccountsFS } from "@/services/account-service";
 import { addSampleRequestFS } from "@/services/sample-request-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
+import { Separator } from "@/components/ui/separator";
 
 
 const NEW_CLIENT_ACCOUNT_ID_PLACEHOLDER = "##NEW_CLIENT##";
@@ -33,6 +34,23 @@ const sampleRequestFormSchema = z.object({
   purpose: z.enum(sampleRequestPurposeList as [SampleRequestPurpose, ...SampleRequestPurpose[]], { required_error: "Debe seleccionar un propósito." }),
   numberOfSamples: z.coerce.number().min(1, "Debe solicitar al menos 1 muestra.").max(50, "No se pueden solicitar más de 50 muestras a la vez."),
   justificationNotes: z.string().min(10, "La justificación debe tener al menos 10 caracteres."),
+  shippingAddress_street: z.string().optional(),
+  shippingAddress_number: z.string().optional(),
+  shippingAddress_city: z.string().optional(),
+  shippingAddress_province: z.string().optional(),
+  shippingAddress_postalCode: z.string().optional(),
+  shippingAddress_country: z.string().optional().default("España"),
+}).superRefine((data, ctx) => {
+    if (data.clientStatus === 'new') {
+        const shippingFields = [data.shippingAddress_street, data.shippingAddress_city, data.shippingAddress_province, data.shippingAddress_postalCode];
+        const someShippingFieldFilled = shippingFields.some(field => field && field.trim() !== "");
+        if (someShippingFieldFilled) {
+            if (!data.shippingAddress_street?.trim()) ctx.addIssue({ path: ["shippingAddress_street"], message: "Calle es obligatoria si se rellena la dirección de envío." });
+            if (!data.shippingAddress_city?.trim()) ctx.addIssue({ path: ["shippingAddress_city"], message: "Ciudad es obligatoria." });
+            if (!data.shippingAddress_province?.trim()) ctx.addIssue({ path: ["shippingAddress_province"], message: "Provincia es obligatoria." });
+            if (!data.shippingAddress_postalCode?.trim()) ctx.addIssue({ path: ["shippingAddress_postalCode"], message: "Código postal es obligatorio." });
+        }
+    }
 });
 
 export default function RequestSamplePage() {
@@ -115,12 +133,7 @@ export default function RequestSamplePage() {
     }
 
     const dataForService: SampleRequestFormValues & { requesterId: string; requesterName: string } = {
-        clientStatus: values.clientStatus,
-        accountId: values.accountId,
-        clientName: values.clientName,
-        purpose: values.purpose,
-        numberOfSamples: values.numberOfSamples,
-        justificationNotes: values.justificationNotes,
+        ...values,
         requesterId: finalRequesterId,
         requesterName: finalRequesterName,
     };
@@ -249,6 +262,26 @@ export default function RequestSamplePage() {
                   )}
                 />
               )}
+
+            {clientStatusWatched === 'new' && (
+                <>
+                  <Separator className="my-4"/>
+                  <div className="space-y-1">
+                      <h3 className="text-md font-medium">Dirección de Envío (Opcional)</h3>
+                      <p className="text-sm text-muted-foreground">
+                          Si conoces la dirección de envío para esta nueva cuenta, puedes añadirla aquí para facilitar el envío.
+                      </p>
+                  </div>
+                   <FormField control={form.control} name="shippingAddress_street" render={({ field }) => (<FormItem><FormLabel>Calle</FormLabel><FormControl><Input placeholder="Ej: Calle Principal" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <FormField control={form.control} name="shippingAddress_number" render={({ field }) => (<FormItem><FormLabel>Número</FormLabel><FormControl><Input placeholder="Ej: 123" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="shippingAddress_postalCode" render={({ field }) => (<FormItem><FormLabel>Cód. Postal</FormLabel><FormControl><Input placeholder="Ej: 28001" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="shippingAddress_city" render={({ field }) => (<FormItem><FormLabel>Ciudad</FormLabel><FormControl><Input placeholder="Ej: Madrid" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="shippingAddress_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                  </div>
+                  <Separator className="my-4"/>
+                </>
+            )}
 
               <FormField
                 control={form.control}

@@ -12,7 +12,7 @@ import {
   query,
   orderBy
 } from 'firebase/firestore';
-import type { SampleRequest, SampleRequestFormValues, SampleRequestStatus } from '@/types';
+import type { SampleRequest, SampleRequestFormValues, SampleRequestStatus, AddressDetails } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 
 const SAMPLE_REQUESTS_COLLECTION = 'sampleRequests';
@@ -23,7 +23,7 @@ const fromFirestoreSampleRequest = (docSnap: any): SampleRequest => {
     id: docSnap.id,
     requesterId: data.requesterId,
     requesterName: data.requesterName,
-    clientId: data.clientId || undefined,
+    accountId: data.accountId || undefined,
     clientName: data.clientName,
     purpose: data.purpose,
     numberOfSamples: data.numberOfSamples,
@@ -32,6 +32,7 @@ const fromFirestoreSampleRequest = (docSnap: any): SampleRequest => {
     requestDate: data.requestDate instanceof Timestamp ? format(data.requestDate.toDate(), "yyyy-MM-dd'T'HH:mm:ss") : format(new Date(), "yyyy-MM-dd'T'HH:mm:ss"),
     decisionDate: data.decisionDate instanceof Timestamp ? format(data.decisionDate.toDate(), "yyyy-MM-dd'T'HH:mm:ss") : undefined,
     adminNotes: data.adminNotes || undefined,
+    shippingAddress: data.shippingAddress || undefined,
   };
 };
 
@@ -43,13 +44,35 @@ export const getSampleRequestsFS = async (): Promise<SampleRequest[]> => {
 };
 
 export const addSampleRequestFS = async (data: SampleRequestFormValues & { requesterId: string; requesterName: string }): Promise<string> => {
+  
+  let shippingAddress: AddressDetails | null = null;
+  if (data.shippingAddress_street && data.shippingAddress_city && data.shippingAddress_province && data.shippingAddress_postalCode) {
+    shippingAddress = {
+      street: data.shippingAddress_street,
+      number: data.shippingAddress_number || undefined,
+      city: data.shippingAddress_city,
+      province: data.shippingAddress_province,
+      postalCode: data.shippingAddress_postalCode,
+      country: data.shippingAddress_country || "España",
+    };
+  }
+
   const firestoreData = {
-    ...data,
+    requesterId: data.requesterId,
+    requesterName: data.requesterName,
+    clientStatus: data.clientStatus,
+    accountId: data.accountId || null,
+    clientName: data.clientName,
+    purpose: data.purpose,
+    numberOfSamples: data.numberOfSamples,
+    justificationNotes: data.justificationNotes,
+    shippingAddress: shippingAddress,
     status: 'Pendiente',
     requestDate: Timestamp.fromDate(new Date()),
     decisionDate: null,
     adminNotes: null,
   };
+
   const docRef = await addDoc(collection(db, SAMPLE_REQUESTS_COLLECTION), firestoreData);
   return docRef.id;
 };

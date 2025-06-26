@@ -21,7 +21,6 @@ if (getApps().length === 0) {
     console.log("Firebase Admin SDK initialized successfully with Application Default Credentials.");
   } catch (error: any) {
     console.error("Failed to initialize Firebase Admin SDK:", error);
-    // Provide more specific feedback if possible
     if (error.message.includes('Google Application Default Credentials are not available')) {
       console.error("Hint: This usually means you're running locally. Run `gcloud auth application-default login` in your terminal and try again.");
     }

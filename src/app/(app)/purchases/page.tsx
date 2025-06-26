@@ -73,13 +73,9 @@ export default function PurchasesPage() {
     setIsPurchaseDialogOpen(true);
   };
 
-  const handleDataFromInvoice = (extractedData: Partial<PurchaseFormValues>, fileDataUri: string, fileName: string) => {
+  const handleDataFromInvoice = (extractedData: Partial<PurchaseFormValues>) => {
     setEditingPurchase(null);
-    setPrefilledData({
-      ...extractedData,
-      invoiceDataUri: fileDataUri,
-      invoiceFileName: fileName,
-    });
+    setPrefilledData(extractedData);
     setIsInvoiceUploadOpen(false);
     setIsPurchaseDialogOpen(true);
   };

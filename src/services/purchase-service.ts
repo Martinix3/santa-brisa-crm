@@ -2,14 +2,12 @@
 'use server';
 
 import { db } from '@/lib/firebase';
-import { adminBucket } from '@/lib/firebaseAdmin';
 import {
   collection,
   getDocs,
   doc,
   getDoc,
   addDoc,
-  setDoc,
   updateDoc,
   deleteDoc,
   Timestamp,
@@ -19,52 +17,12 @@ import {
   where,
   limit,
 } from 'firebase/firestore';
-import type { Purchase, PurchaseFormValues } from '@/types';
+import type { Purchase, PurchaseFormValues, Supplier } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
-import { v4 as uuidv4 } from 'uuid';
-import { Buffer } from 'buffer';
 
 const PURCHASES_COLLECTION = 'purchases';
 const SUPPLIERS_COLLECTION = 'suppliers';
 
-const MimeTypeMap: Record<string, string> = {
-    'application/pdf': 'pdf',
-    'image/jpeg': 'jpg',
-    'image/png': 'png',
-    'image/webp': 'webp',
-};
-
-async function uploadInvoice(dataUri: string, purchaseId: string) {
-  console.log(`Uploading invoice for purchase ID: ${purchaseId} via Admin SDK.`);
-  if (!dataUri.startsWith('data:')) throw new Error('Invalid data URI for upload.');
-  
-  const [meta, base64] = dataUri.split(',');
-  const mime = /data:(.*?);base64/.exec(meta)?.[1] ?? 'application/pdf';
-  const ext = MimeTypeMap[mime];
-
-  if (!ext) {
-    throw new Error(`Unsupported mime type for upload: ${mime}`);
-  }
-  
-  const path = `invoices/purchases/${purchaseId}/invoice_${Date.now()}.${ext}`;
-
-  const file = adminBucket.file(path);
-  try {
-    const downloadToken = uuidv4();
-    await file.save(Buffer.from(base64, 'base64'), {
-      contentType: mime,
-      resumable: false,
-      metadata: { metadata: { firebaseStorageDownloadTokens: downloadToken } }
-    });
-    console.log(`Admin SDK: Invoice uploaded successfully to: ${path}`);
-
-    const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${adminBucket.name}/o/${encodeURIComponent(path)}?alt=media&token=${downloadToken}`;
-    return { downloadUrl, storagePath: path };
-  } catch(error: any) {
-    console.error('Error uploading invoice via Admin SDK:', error);
-    throw error;
-  }
-}
 
 const fromFirestorePurchase = (docSnap: any): Purchase => {
   const data = docSnap.data();
@@ -107,7 +65,7 @@ const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean, 
     shippingCost,
     totalAmount,
     notes: data.notes || null,
-    invoiceUrl: data.invoiceUrl || null,
+    invoiceUrl: data.invoiceUrl || null, 
     storagePath: data.storagePath || null,
   };
 
@@ -190,18 +148,7 @@ export const getPurchasesFS = async (): Promise<Purchase[]> => {
 };
 
 export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> => {
-    console.log('Server Action: addPurchaseFS received payload.');
     try {
-        const purchaseId = uuidv4();
-        
-        if (data.invoiceUrl && data.invoiceUrl.startsWith('data:')) {
-          console.log("Data URI found, starting server-side upload...");
-          const uploadResult = await uploadInvoice(data.invoiceUrl, purchaseId);
-          data.invoiceUrl = uploadResult.downloadUrl;
-          data.storagePath = uploadResult.storagePath;
-          console.log("Server-side upload complete. URL:", data.invoiceUrl);
-        }
-
         const supplierId = await findOrCreateSupplier(data);
         if (!supplierId) {
             throw new Error("Failed to process supplier. Supplier name might be empty.");
@@ -209,12 +156,8 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
         
         const firestoreData = toFirestorePurchase(data, true, supplierId);
         
-        console.log(`Creating new purchase document with pre-generated ID: ${purchaseId}`);
-        const purchaseDocRef = doc(db, PURCHASES_COLLECTION, purchaseId);
-        await setDoc(purchaseDocRef, firestoreData);
-        console.log(`Purchase document created successfully.`);
-        return purchaseId;
-
+        const docRef = await addDoc(collection(db, PURCHASES_COLLECTION), firestoreData);
+        return docRef.id;
     } catch (error) {
         console.error("Failed to add purchase:", error);
         throw error;
@@ -227,28 +170,10 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
     if (data.supplier) {
         supplierId = await findOrCreateSupplier(data);
     }
-
     const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);
-    const existingDocSnap = await getDoc(purchaseDocRef);
-    const existingData = existingDocSnap.exists() ? fromFirestorePurchase(existingDocSnap) : null;
-    
-    if (data.invoiceUrl && data.invoiceUrl.startsWith('data:')) {
-        console.log("New invoice file detected for update.");
-        const uploadResult = await uploadInvoice(data.invoiceUrl, id);
-        data.invoiceUrl = uploadResult.downloadUrl;
-        data.storagePath = uploadResult.storagePath;
-        
-        if (existingData?.storagePath && existingData.storagePath !== data.storagePath) {
-            console.log(`Deleting old invoice file: ${existingData.storagePath}`);
-            await adminBucket.file(existingData.storagePath).delete().catch(err => console.error("Failed to delete old invoice file:", err));
-        }
-    }
-
     const firestoreData = toFirestorePurchase(data as PurchaseFormValues, false, supplierId);
-    
     await updateDoc(purchaseDocRef, firestoreData);
     console.log("Purchase document updated.");
-
   } catch (error) {
     console.error("Failed to update purchase:", error);
     throw error;
@@ -256,20 +181,14 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
 };
 
 export const deletePurchaseFS = async (id: string): Promise<void> => {
-  console.log(`Attempting to delete purchase with ID: ${id}`);
+  console.log(`Attempting to delete purchase document with ID: ${id}`);
   const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);
   const docSnap = await getDoc(purchaseDocRef);
   
   if (docSnap.exists()) {
       const data = fromFirestorePurchase(docSnap);
       if (data.storagePath) {
-          console.log(`Deleting associated invoice file: ${data.storagePath}`);
-          try {
-            await adminBucket.file(data.storagePath).delete();
-            console.log(`Successfully deleted file ${data.storagePath} from Storage.`);
-          } catch (error) {
-            console.error(`Failed to delete file ${data.storagePath} from Storage. It might have been already deleted.`, error);
-          }
+          console.warn(`Associated file found at ${data.storagePath}. File deletion from server is currently disabled due to environment restrictions. Please delete manually from Firebase Console if needed.`);
       }
   }
 

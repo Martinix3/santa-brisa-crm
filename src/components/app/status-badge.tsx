@@ -3,13 +3,13 @@
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { OrderStatus, AccountStatus, CrmEventStatus, EstadoVentaDirectaSB, SampleRequestStatus } from "@/types";
+import type { OrderStatus, AccountStatus, CrmEventStatus, PurchaseStatus, SampleRequestStatus } from "@/types";
 
 type StatusBadgeProps = 
   | { type: 'order'; status: OrderStatus; className?: string; }
   | { type: 'account'; status: AccountStatus; className?: string; }
   | { type: 'event'; status: CrmEventStatus; className?: string; }
-  | { type: 'ventaDirectaSB'; status: EstadoVentaDirectaSB; className?: string; }
+  | { type: 'purchase'; status: PurchaseStatus; className?: string; }
   | { type: 'sampleRequest'; status: SampleRequestStatus; className?: string; };
 
 const getOrderBadgeColorClass = (status: OrderStatus): string => {
@@ -51,14 +51,22 @@ const getEventBadgeColorClass = (status: CrmEventStatus): string => {
   }
 };
 
-const getVentaDirectaSBBadgeColorClass = (status: EstadoVentaDirectaSB): string => {
+const getPurchaseBadgeColorClass = (status: PurchaseStatus): string => {
   switch (status) {
-    case 'Pagada': return 'bg-green-500 hover:bg-green-600 text-white';
-    case 'Facturada': return 'bg-blue-500 hover:bg-blue-600 text-white';
-    case 'Confirmada': return 'bg-[hsl(var(--brand-turquoise-hsl))] hover:brightness-90 text-white';
-    case 'Borrador': return 'bg-yellow-400 hover:bg-yellow-500 text-black';
-    case 'Cancelada': return 'bg-red-500 hover:bg-red-600 text-white';
-    default: return 'bg-gray-400 hover:bg-gray-500 text-white';
+    case 'Completado':
+    case 'Factura Recibida':
+    case 'Pagado':
+      return 'bg-green-500 hover:bg-green-600 text-white';
+    case 'Pago a 30 días':
+      return 'bg-blue-500 hover:bg-blue-600 text-white';
+    case 'Proforma Recibida':
+      return 'bg-yellow-400 hover:bg-yellow-500 text-black';
+    case 'Borrador':
+      return 'bg-gray-400 hover:bg-gray-500 text-white';
+    case 'Cancelado':
+      return 'bg-red-500 hover:bg-red-600 text-white';
+    default:
+      return 'bg-gray-400 hover:bg-gray-500 text-white';
   }
 };
 
@@ -86,8 +94,8 @@ export default function StatusBadge(props: StatusBadgeProps) {
   } else if (props.type === 'event') {
     badgeColorClass = getEventBadgeColorClass(props.status);
     statusText = props.status;
-  } else if (props.type === 'ventaDirectaSB') {
-    badgeColorClass = getVentaDirectaSBBadgeColorClass(props.status);
+  } else if (props.type === 'purchase') {
+    badgeColorClass = getPurchaseBadgeColorClass(props.status);
     statusText = props.status;
   } else if (props.type === 'sampleRequest') {
     badgeColorClass = getSampleRequestBadgeColorClass(props.status);

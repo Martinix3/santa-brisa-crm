@@ -1,5 +1,6 @@
 
 
+
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
 
 export interface Kpi {
@@ -178,54 +179,31 @@ export interface TeamMemberFormValues {
   authUid?: string; 
 }
 
-export type CanalVentaDirectaSB = 'Importador' | 'Online' | 'Estratégica' | 'Otro Directo';
-export type EstadoVentaDirectaSB = 'Borrador' | 'Confirmada' | 'Facturada' | 'Pagada' | 'Cancelada';
+export type PurchaseStatus = 'Borrador' | 'Proforma Recibida' | 'Pagado' | 'Pago a 30 días' | 'Factura Recibida' | 'Completado' | 'Cancelado';
 
-export interface VentaDirectaSBItem {
-  productoDescripcion: string; 
-  cantidad: number;
-  precioUnitarioNetoSB: number; 
-  subtotalNetoSB: number; 
+export interface Purchase {
+  id: string;
+  supplier: string;
+  description: string;
+  orderDate: string; // YYYY-MM-DD
+  amount: number;
+  status: PurchaseStatus;
+  invoiceUrl?: string; 
+  invoiceFileName?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
-export interface VentaDirectaSB {
-  id: string; 
-  fechaEmision: string; 
-  numeroFacturaSB?: string; 
-  clienteId: string; 
-  nombreClienteFactura: string; 
-  cifClienteFactura?: string;
-  direccionClienteFactura?: AddressDetails; 
-  canalVentaDirectaSB: CanalVentaDirectaSB;
-  items: VentaDirectaSBItem[];
-  subtotalGeneralNetoSB: number;
-  tipoIvaAplicadoSB?: number; 
-  importeIvaSB?: number;
-  totalFacturaSB: number; 
-  estadoVentaDirectaSB: EstadoVentaDirectaSB;
-  fechaVencimientoPago?: string; 
-  referenciasOrdenesColocacion?: string[]; 
-  notasInternasSB?: string;
-  createdAt: string; 
-  updatedAt: string; 
+export interface PurchaseFormValues {
+  supplier: string;
+  description: string;
+  orderDate: Date;
+  amount: number;
+  status: PurchaseStatus;
+  notes?: string;
 }
 
-export interface VentaDirectaSBFormValues {
-  fechaEmision: Date;
-  numeroFacturaSB?: string;
-  clienteId: string;
-  canalVentaDirectaSB: CanalVentaDirectaSB;
-  items: {
-    productoDescripcion: string;
-    cantidad?: number;
-    precioUnitarioNetoSB?: number;
-  }[];
-  tipoIvaAplicadoSB?: number;
-  estadoVentaDirectaSB: EstadoVentaDirectaSB;
-  fechaVencimientoPago?: Date;
-  referenciasOrdenesColocacion?: string; 
-  notasInternasSB?: string;
-}
 
 export interface FollowUpResultFormValues {
   outcome?: "successful" | "failed" | "follow-up";

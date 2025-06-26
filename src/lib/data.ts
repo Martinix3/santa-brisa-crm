@@ -1,5 +1,5 @@
 
-import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType, Account, AccountType, AccountStatus, NextActionType, FailureReasonType, CrmEvent, CrmEventType, CrmEventStatus, PromotionalMaterial, PromotionalMaterialType, AssignedPromotionalMaterial, CanalOrigenColocacion, CanalVentaDirectaSB, EstadoVentaDirectaSB, VentaDirectaSB, VentaDirectaSBItem, PaymentMethod, AddressDetails, SampleRequestStatus, SampleRequestPurpose } from '@/types';
+import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType, Account, AccountType, AccountStatus, NextActionType, FailureReasonType, CrmEvent, CrmEventType, CrmEventStatus, PromotionalMaterial, PromotionalMaterialType, AssignedPromotionalMaterial, CanalOrigenColocacion, Purchase, PurchaseStatus, PaymentMethod, AddressDetails, SampleRequestStatus, SampleRequestPurpose } from '@/types';
 import { Package, Users, ShoppingBag, BarChart3 } from 'lucide-react';
 import { format, addDays, subDays, isEqual, parseISO } from 'date-fns';
 import { TrendingUp, Briefcase, CalendarPlus, Repeat } from "lucide-react";
@@ -17,7 +17,7 @@ export const mockOrders: Order[] = [];
 export const mockAccounts: Account[] = [];
 export const mockCrmEvents: CrmEvent[] = [];
 export const mockPromotionalMaterials: PromotionalMaterial[] = [];
-export const mockVentasDirectasSB: VentaDirectaSB[] = [];
+export const mockPurchases: Purchase[] = [];
 
 
 export const orderStatusesList: OrderStatus[] = ['Programada', 'Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Cancelado', 'Fallido', 'Seguimiento'];
@@ -68,8 +68,7 @@ export const promotionalMaterialTypeList: PromotionalMaterialType[] = ['Merchand
 export const crmEventTypeList: CrmEventType[] = ['Activación en Tienda', 'Feria Comercial', 'Evento Corporativo', 'Degustación', 'Patrocinio', 'Activación', 'Otro'];
 export const crmEventStatusList: CrmEventStatus[] = ['Planificado', 'Confirmado', 'En Curso', 'Completado', 'Cancelado', 'Pospuesto'];
 
-export const canalVentaDirectaList: CanalVentaDirectaSB[] = ['Importador', 'Online', 'Estratégica', 'Otro Directo'];
-export const estadoVentaDirectaList: EstadoVentaDirectaSB[] = ['Borrador', 'Confirmada', 'Facturada', 'Pagada', 'Cancelada'];
+export const purchaseStatusList: PurchaseStatus[] = ['Borrador', 'Proforma Recibida', 'Pagado', 'Pago a 30 días', 'Factura Recibida', 'Completado', 'Cancelado'];
 export const canalOrigenColocacionList: CanalOrigenColocacion[] = ['Equipo Santa Brisa', 'Iniciativa Importador', 'Marketing Digital', 'Referido', 'Otro'];
 
 export const paymentMethodList: PaymentMethod[] = ['Adelantado', 'Contado', 'Transferencia 30 días'];

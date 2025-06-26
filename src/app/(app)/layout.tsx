@@ -85,11 +85,11 @@ const navigationStructure: NavGroup[] = [
     ],
   },
    {
-    id: 'facturacion_sb', 
-    label: 'Facturación Santa Brisa',
+    id: 'administrativo', 
+    label: 'Administrativo',
     groupRoles: ['Admin'],
     items: [
-      { href: '/direct-sales-sb', label: 'Ventas Directas SB', icon: Receipt, roles: ['Admin'] },
+      { href: '/direct-sales-sb', label: 'Gestión de Compras', icon: Receipt, roles: ['Admin'] },
     ],
   },
   {

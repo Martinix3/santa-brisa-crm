@@ -5,7 +5,7 @@ import React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import type { Kpi, StrategicObjective, Order, Account, TeamMember, UserRole, OrderStatus } from "@/types";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, LabelList, PieChart, Pie, Cell, Legend } from "recharts";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, LabelList, PieChart, Pie, Cell, Legend } from "recharts";
 import { Progress } from "@/components/ui/progress";
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 import { cn } from "@/lib/utils";
@@ -393,7 +393,6 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent className="h-[300px] pr-0">
                 <ChartContainer config={distributionChartConfig} className="h-full w-full">
-                <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={ventasDistribucionData} layout="vertical" margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                     <XAxis type="number" tickFormatter={(value) => `${value / 1000}k`} />
@@ -406,7 +405,6 @@ export default function DashboardPage() {
                         <LabelList dataKey="value" position="right" offset={8} className="fill-foreground" fontSize={12} formatter={(value: number) => value.toLocaleString('es-ES')} />
                     </Bar>
                     </BarChart>
-                </ResponsiveContainer>
                 </ChartContainer>
             </CardContent>
             </Card>
@@ -419,7 +417,6 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent className="h-[150px] flex items-center justify-center">
                 <ChartContainer config={{}} className="h-full w-full aspect-square">
-                    <ResponsiveContainer width="100%" height="100%">
                     <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                         <Pie
                         data={progresoVentasEquipoData}
@@ -453,7 +450,6 @@ export default function DashboardPage() {
                             </ul>
                         )}/>
                     </PieChart>
-                    </ResponsiveContainer>
                 </ChartContainer>
                 </CardContent>
             </Card>
@@ -465,7 +461,6 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent className="h-[150px] flex items-center justify-center">
                     <ChartContainer config={{}} className="h-full w-full aspect-square">
-                        <ResponsiveContainer width="100%" height="100%">
                         <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                             <Pie
                             data={progresoCuentasEquipoData}
@@ -499,7 +494,6 @@ export default function DashboardPage() {
                                 </ul>
                             )}/>
                         </PieChart>
-                        </ResponsiveContainer>
                     </ChartContainer>
                 </CardContent>
             </Card>

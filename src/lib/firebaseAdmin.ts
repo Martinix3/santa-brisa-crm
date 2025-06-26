@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { initializeApp, applicationDefault, getApps } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
 

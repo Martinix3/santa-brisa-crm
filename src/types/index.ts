@@ -1,5 +1,4 @@
 
-
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
 
 export interface Kpi {
@@ -239,4 +238,31 @@ export interface FollowUpResultFormValues {
   failureReasonCustom?: string;
   notes?: string;
   assignedSalesRepId?: string;
+}
+
+export type SampleRequestStatus = 'Pendiente' | 'Aprobada' | 'Rechazada' | 'Enviada';
+export type SampleRequestPurpose = 'Captación Cliente Nuevo' | 'Seguimiento Cliente Existente' | 'Material para Evento' | 'Uso Interno/Formación' | 'Otro';
+
+export interface SampleRequest {
+  id: string;
+  requesterId: string;
+  requesterName: string;
+  clientId?: string;
+  clientName: string;
+  purpose: SampleRequestPurpose;
+  numberOfSamples: number;
+  justificationNotes: string;
+  status: SampleRequestStatus;
+  requestDate: string;
+  decisionDate?: string;
+  adminNotes?: string;
+}
+
+export interface SampleRequestFormValues {
+  clientStatus: 'new' | 'existing';
+  accountId?: string;
+  clientName: string;
+  purpose: SampleRequestPurpose;
+  numberOfSamples: number;
+  justificationNotes: string;
 }

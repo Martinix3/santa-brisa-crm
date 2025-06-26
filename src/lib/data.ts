@@ -1,5 +1,5 @@
 
-import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType, Account, AccountType, AccountStatus, NextActionType, FailureReasonType, CrmEvent, CrmEventType, CrmEventStatus, PromotionalMaterial, PromotionalMaterialType, AssignedPromotionalMaterial, CanalOrigenColocacion, CanalVentaDirectaSB, EstadoVentaDirectaSB, VentaDirectaSB, VentaDirectaSBItem, PaymentMethod, AddressDetails } from '@/types'; // Added PaymentMethod
+import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType, Account, AccountType, AccountStatus, NextActionType, FailureReasonType, CrmEvent, CrmEventType, CrmEventStatus, PromotionalMaterial, PromotionalMaterialType, AssignedPromotionalMaterial, CanalOrigenColocacion, CanalVentaDirectaSB, EstadoVentaDirectaSB, VentaDirectaSB, VentaDirectaSBItem, PaymentMethod, AddressDetails, SampleRequestStatus, SampleRequestPurpose } from '@/types';
 import { Package, Users, ShoppingBag, BarChart3 } from 'lucide-react';
 import { format, addDays, subDays, isEqual, parseISO } from 'date-fns';
 import { TrendingUp, Briefcase, CalendarPlus, Repeat } from "lucide-react";
@@ -73,6 +73,10 @@ export const estadoVentaDirectaList: EstadoVentaDirectaSB[] = ['Borrador', 'Conf
 export const canalOrigenColocacionList: CanalOrigenColocacion[] = ['Equipo Santa Brisa', 'Iniciativa Importador', 'Marketing Digital', 'Referido', 'Otro'];
 
 export const paymentMethodList: PaymentMethod[] = ['Adelantado', 'Contado', 'Transferencia 30 días'];
+
+export const sampleRequestStatusList: SampleRequestStatus[] = ['Pendiente', 'Aprobada', 'Rechazada', 'Enviada'];
+export const sampleRequestPurposeList: SampleRequestPurpose[] = ['Captación Cliente Nuevo', 'Seguimiento Cliente Existente', 'Material para Evento', 'Uso Interno/Formación', 'Otro'];
+
 export const provincesSpainList: string[] = [
   "Álava", "Albacete", "Alicante", "Almería", "Asturias", "Ávila", "Badajoz", "Barcelona", "Burgos", "Cáceres",
   "Cádiz", "Cantabria", "Castellón", "Ciudad Real", "Córdoba", "La Coruña", "Cuenca", "Gerona", "Granada", "Guadalajara",

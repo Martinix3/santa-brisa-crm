@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button';
 import Logo from '@/components/icons/Logo';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2, Building2, ClipboardList, CalendarCheck, PartyPopper, ListChecks, Footprints, Briefcase, Target, Award, Sparkles, Receipt } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2, Building2, ClipboardList, CalendarCheck, PartyPopper, ListChecks, Footprints, Briefcase, Target, Award, Sparkles, Receipt, PackageCheck, SendHorizonal } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -51,7 +51,7 @@ interface NavItem {
   label: string;
   icon: React.ElementType;
   roles: UserRole[];
-  exact?: boolean; // Para coincidencias exactas de ruta
+  exact?: boolean; 
 }
 
 interface NavGroup {
@@ -80,6 +80,7 @@ const navigationStructure: NavGroup[] = [
     items: [
       { href: '/crm-follow-up', label: 'Tareas de Seguimiento', icon: ClipboardList, roles: ['Admin', 'SalesRep', 'Clavadista'] },
       { href: '/order-form', label: 'Registrar Interacción', icon: FileText, roles: ['Admin', 'SalesRep', 'Clavadista'] },
+      { href: '/request-sample', label: 'Solicitar Muestras', icon: SendHorizonal, roles: ['Admin', 'SalesRep', 'Clavadista'] },
       { href: '/team-tracking', label: 'Equipo de Ventas', icon: Users, roles: ['Admin', 'SalesRep'] },
     ],
   },
@@ -90,6 +91,14 @@ const navigationStructure: NavGroup[] = [
     items: [
       { href: '/direct-sales-sb', label: 'Ventas Directas SB', icon: Receipt, roles: ['Admin'] },
     ],
+  },
+  {
+    id: 'operaciones',
+    label: 'Operaciones y Logística',
+    groupRoles: ['Admin'],
+    items: [
+       { href: '/admin/sample-management', label: 'Gestión de Muestras', icon: PackageCheck, roles: ['Admin'] },
+    ]
   },
   {
     id: 'marketing',
@@ -599,7 +608,7 @@ function AppNavigation({ navStructure, userRole, teamMember }: AppNavigationProp
                     if (item.href === '/dashboard') {
                         isActive = pathname === item.href;
                     } else if (item.href === '/admin/settings') {
-                        isActive = pathname === item.href || (pathname.startsWith('/admin/') && !pathname.startsWith('/admin/user-management') && !pathname.startsWith('/admin/objectives-management') && !pathname.startsWith('/admin/kpi-launch-targets') && !pathname.startsWith('/admin/promotional-materials'));
+                        isActive = pathname === item.href || (pathname.startsWith('/admin/') && !pathname.startsWith('/admin/user-management') && !pathname.startsWith('/admin/objectives-management') && !pathname.startsWith('/admin/kpi-launch-targets') && !pathname.startsWith('/admin/promotional-materials') && !pathname.startsWith('/admin/sample-management') );
                     } else if (item.href === '/direct-sales-sb') {
                         isActive = pathname === item.href;
                     } else {

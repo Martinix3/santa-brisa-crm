@@ -1,8 +1,7 @@
 
 'use server';
 
-import { adminDb as db } from '@/lib/firebaseAdmin';
-import { collection, query, where, limit, orderBy, getDocs, doc, getDoc, addDoc, updateDoc, deleteDoc, writeBatch, Timestamp } from 'firebase-admin/firestore';
+import { adminDb as db, collection, query, where, limit, orderBy, getDocs, doc, getDoc, addDoc, updateDoc, deleteDoc, writeBatch, Timestamp } from '@/lib/firebaseAdmin';
 import type { TeamMember, TeamMemberFormValues, UserRole } from '@/types';
 import { format, parseISO } from 'date-fns';
 import { mockTeamMembers as initialMockTeamMembersForSeeding } from '@/lib/data';

@@ -1,8 +1,7 @@
 
 'use server';
 
-import { adminDb as db } from '@/lib/firebaseAdmin';
-import { collection, query, orderBy, getDocs, doc, getDoc, addDoc, updateDoc, deleteDoc, writeBatch, Timestamp } from 'firebase-admin/firestore';
+import { adminDb as db, collection, query, orderBy, getDocs, doc, getDoc, addDoc, updateDoc, deleteDoc, writeBatch, Timestamp } from '@/lib/firebaseAdmin';
 import type { PromotionalMaterial, PromotionalMaterialFormValues, LatestPurchaseInfo } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 

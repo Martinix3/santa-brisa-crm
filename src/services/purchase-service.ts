@@ -1,8 +1,7 @@
 
 'use server';
 
-import { adminDb as db, adminBucket } from '@/lib/firebaseAdmin';
-import { collection, query, where, limit, orderBy, getDocs, doc, addDoc, updateDoc, deleteDoc, Timestamp } from 'firebase-admin/firestore';
+import { adminDb as db, adminBucket, collection, query, where, limit, orderBy, getDocs, doc, addDoc, updateDoc, deleteDoc, Timestamp, getDoc } from '@/lib/firebaseAdmin';
 import type { Purchase, PurchaseFormValues, Supplier } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 

@@ -1,21 +1,9 @@
 
+
+'use server';
+
 import { initializeApp, getApps, App } from 'firebase-admin/app';
-import { 
-  getFirestore, 
-  collection, 
-  query, 
-  where, 
-  limit, 
-  orderBy, 
-  getDocs, 
-  doc, 
-  getDoc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  writeBatch, 
-  Timestamp 
-} from 'firebase-admin/firestore';
+import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 
 const BUCKET_NAME = 'santa-brisa-crm.appspot.com';
@@ -48,20 +36,3 @@ if (getApps().length === 0) {
 
 export const adminDb = getFirestore(app);
 export const adminBucket = getStorage(app).bucket(BUCKET_NAME);
-
-// Re-export firestore functions
-export {
-  collection,
-  query,
-  where,
-  limit,
-  orderBy,
-  getDocs,
-  doc,
-  getDoc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  writeBatch,
-  Timestamp,
-};

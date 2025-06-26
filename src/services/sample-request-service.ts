@@ -1,7 +1,9 @@
 
+
 'use server';
 
-import { adminDb as db, collection, query, orderBy, getDocs, doc, addDoc, updateDoc, Timestamp } from '@/lib/firebaseAdmin';
+import { adminDb as db } from '@/lib/firebaseAdmin';
+import { collection, query, orderBy, getDocs, doc, addDoc, updateDoc, Timestamp } from 'firebase-admin/firestore';
 import type { SampleRequest, SampleRequestFormValues, SampleRequestStatus, AddressDetails } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 

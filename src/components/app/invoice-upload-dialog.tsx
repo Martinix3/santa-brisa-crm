@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -19,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { processInvoice, type ProcessInvoiceOutput } from "@/ai/flows/invoice-processing-flow";
 import type { PurchaseFormValues } from "@/components/app/purchase-dialog";
 import { parse, isValid } from "date-fns";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface InvoiceUploadDialogProps {
   isOpen: boolean;
@@ -36,6 +36,7 @@ const MimeTypeMap: Record<string, string> = {
 export default function InvoiceUploadDialog({ isOpen, onOpenChange, onDataExtracted }: InvoiceUploadDialogProps) {
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [saveInvoiceFile, setSaveInvoiceFile] = React.useState(true);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -81,7 +82,7 @@ export default function InvoiceUploadDialog({ isOpen, onOpenChange, onDataExtrac
                 taxRate: extractedData.taxRate,
                 notes: extractedData.notes,
                 status: "Borrador",
-                invoiceDataUri: dataUri,
+                invoiceDataUri: saveInvoiceFile ? dataUri : undefined,
             };
           
             toast({
@@ -129,6 +130,17 @@ export default function InvoiceUploadDialog({ isOpen, onOpenChange, onDataExtrac
                 ref={fileInputRef}
             />
             <p className="text-xs text-muted-foreground">Límite: 4MB. Formatos: PDF, JPG, PNG.</p>
+          </div>
+           <div className="mt-4 flex items-center space-x-2">
+            <Checkbox
+              id="save-invoice"
+              checked={saveInvoiceFile}
+              onCheckedChange={(checked) => setSaveInvoiceFile(Boolean(checked))}
+              disabled={isProcessing}
+            />
+            <Label htmlFor="save-invoice" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+              Guardar el archivo PDF/imagen de la factura en el sistema
+            </Label>
           </div>
           {isProcessing && (
             <div className="mt-4 flex items-center justify-center space-x-2">

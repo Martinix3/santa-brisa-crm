@@ -22,7 +22,6 @@ import {
 import type { Purchase, PurchaseFormValues, SupplierFormValues } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 import { getSupplierByNameFS, getSupplierByCifFS, addSupplierFS } from './supplier-service';
-import { v4 as uuidv4 } from 'uuid';
 
 const PURCHASES_COLLECTION = 'purchases';
 
@@ -83,19 +82,15 @@ async function uploadInvoice(
     if (!dataUri.startsWith('data:')) {
       throw new Error('Invalid data URI provided.');
     }
-
-    const [header, base64Data] = dataUri.split(',');
-    if (!header || !base64Data) {
-      throw new Error('Malformed data URI.');
-    }
     
-    const mimeMatch = header.match(/:(.*?);/);
-    const mimeType = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+    const response = await fetch(dataUri);
+    const blob = await response.blob();
+    const buffer = Buffer.from(await blob.arrayBuffer());
+
+    const mimeType = blob.type;
     const fileExtension = mimeType.split('/')[1] || 'bin';
     
-    const buffer = Buffer.from(base64Data, 'base64');
-    
-    const uniqueFileName = `${uuidv4()}.${fileExtension}`;
+    const uniqueFileName = `invoice_${Date.now()}.${fileExtension}`;
     const storagePath = `invoices/purchases/${purchaseId}/${uniqueFileName}`;
     const storageRef = ref(storage, storagePath);
 

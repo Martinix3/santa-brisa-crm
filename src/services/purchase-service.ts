@@ -2,7 +2,7 @@
 'use server';
 
 import { db, storage } from '@/lib/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import {
   collection,
   getDocs,
@@ -17,13 +17,15 @@ import {
   orderBy,
   writeBatch,
   where,
-  limit
+  limit,
+  runTransaction
 } from 'firebase/firestore';
 import type { Purchase, PurchaseFormValues, SupplierFormValues } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
-import { getSupplierByNameFS, getSupplierByCifFS, addSupplierFS } from './supplier-service';
+import { Buffer } from 'buffer';
 
 const PURCHASES_COLLECTION = 'purchases';
+const SUPPLIERS_COLLECTION = 'suppliers';
 
 const fromFirestorePurchase = (docSnap: any): Purchase => {
   const data = docSnap.data();
@@ -34,12 +36,14 @@ const fromFirestorePurchase = (docSnap: any): Purchase => {
     items: data.items || [],
     subtotal: data.subtotal || 0,
     tax: data.tax || 0,
+    taxRate: data.taxRate ?? 21,
     shippingCost: data.shippingCost,
     totalAmount: data.totalAmount || 0,
     orderDate: data.orderDate instanceof Timestamp ? format(data.orderDate.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
     status: data.status || 'Borrador',
     invoiceUrl: data.invoiceUrl || undefined,
     invoiceFileName: data.invoiceFileName || undefined,
+    storagePath: data.storagePath || undefined,
     notes: data.notes || undefined,
     createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
     updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
@@ -61,6 +65,7 @@ const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean):
     items: data.items?.map(item => ({...item, total: (item.quantity || 0) * (item.unitPrice || 0)})) || [],
     subtotal,
     tax,
+    taxRate,
     shippingCost,
     totalAmount,
     notes: data.notes || null,
@@ -74,6 +79,12 @@ const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean):
   return firestoreData;
 };
 
+const MimeTypeMap: Record<string, string> = {
+    'application/pdf': 'pdf',
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+};
 
 async function uploadInvoice(
   dataUri: string,
@@ -98,10 +109,15 @@ async function uploadInvoice(
     }
     
     const mimeType = mimeTypeMatch[1];
+    const extension = MimeTypeMap[mimeType];
+
+    if (!extension) {
+      throw new Error(`Unsupported file type: ${mimeType}. Supported types are PDF, JPG, PNG, WebP.`);
+    }
+
     const buffer = Buffer.from(data, 'base64');
     
-    const fileExtension = mimeType.split('/')[1] || 'bin';
-    const uniqueFileName = `invoice_${Date.now()}.${fileExtension.replace(/[^a-zA-Z0-9.]/g, '')}`; // Sanitize extension
+    const uniqueFileName = `invoice_${Date.now()}.${extension}`;
     const storagePath = `invoices/purchases/${purchaseId}/${uniqueFileName}`;
     const storageRef = ref(storage, storagePath);
 
@@ -116,38 +132,97 @@ async function uploadInvoice(
     };
   } catch (error: any) {
     console.error('Error uploading invoice to Firebase Storage:', error);
-    // Provide a more specific error message if available
     const errorMessage = error.code || error.message || "Failed to upload file to storage.";
     throw new Error(`Upload failed: ${errorMessage}`);
   }
 }
 
+const toFirestoreSupplier = (data: Partial<SupplierFormValues>, isNew: boolean): any => {
+  const firestoreData: { [key: string]: any } = {
+    name: data.name,
+    cif: data.cif || null,
+    contactName: data.contactName || null,
+    contactEmail: data.contactEmail || null,
+    contactPhone: data.contactPhone || null,
+    notes: data.notes || null,
+  };
+
+  if (data.address_street || data.address_city || data.address_province || data.address_postalCode) {
+    firestoreData.address = {
+      street: data.address_street || null,
+      number: data.address_number || null,
+      city: data.address_city || null,
+      province: data.address_province || null,
+      postalCode: data.address_postalCode || null,
+      country: data.address_country || "España",
+    };
+    Object.keys(firestoreData.address).forEach(key => {
+      if (firestoreData.address[key] === undefined) {
+        firestoreData.address[key] = null;
+      }
+    });
+  } else {
+    firestoreData.address = null;
+  }
+
+  if (isNew) {
+    firestoreData.createdAt = Timestamp.fromDate(new Date());
+  }
+  firestoreData.updatedAt = Timestamp.fromDate(new Date());
+  
+  return firestoreData;
+};
 
 const findOrCreateSupplier = async (data: Partial<PurchaseFormValues>): Promise<string | undefined> => {
     if (!data.supplier) return undefined;
 
-    let existingSupplier = data.supplierCif ? await getSupplierByCifFS(data.supplierCif) : null;
-    if (!existingSupplier) {
-        existingSupplier = await getSupplierByNameFS(data.supplier);
-    }
+    try {
+        const supplierId = await runTransaction(db, async (transaction) => {
+            let supplierDoc;
 
-    if (existingSupplier) {
-        return existingSupplier.id;
-    } else {
-        const newSupplierData: SupplierFormValues = {
-            name: data.supplier,
-            cif: data.supplierCif,
-            address_street: data.supplierAddress_street,
-            address_number: data.supplierAddress_number,
-            address_city: data.supplierAddress_city,
-            address_province: data.supplierAddress_province,
-            address_postalCode: data.supplierAddress_postalCode,
-            address_country: data.supplierAddress_country,
-        };
-        const newSupplierId = await addSupplierFS(newSupplierData);
-        return newSupplierId;
+            if (data.supplierCif) {
+                const cifQuery = query(collection(db, SUPPLIERS_COLLECTION), where("cif", "==", data.supplierCif), limit(1));
+                const cifSnapshot = await transaction.get(cifQuery);
+                if (!cifSnapshot.empty) {
+                    supplierDoc = cifSnapshot.docs[0];
+                }
+            }
+
+            if (!supplierDoc) {
+                const nameQuery = query(collection(db, SUPPLIERS_COLLECTION), where("name", "==", data.supplier), limit(1));
+                const nameSnapshot = await transaction.get(nameQuery);
+                if (!nameSnapshot.empty) {
+                    supplierDoc = nameSnapshot.docs[0];
+                }
+            }
+
+            if (supplierDoc) {
+                return supplierDoc.id;
+            } 
+            else {
+                const newSupplierData: SupplierFormValues = {
+                    name: data.supplier!,
+                    cif: data.supplierCif,
+                    address_street: data.supplierAddress_street,
+                    address_number: data.supplierAddress_number,
+                    address_city: data.supplierAddress_city,
+                    address_province: data.supplierAddress_province,
+                    address_postalCode: data.supplierAddress_postalCode,
+                    address_country: data.supplierAddress_country,
+                };
+                
+                const newDocRef = doc(collection(db, SUPPLIERS_COLLECTION));
+                const firestoreData = toFirestoreSupplier(newSupplierData, true);
+                transaction.set(newDocRef, firestoreData);
+                return newDocRef.id;
+            }
+        });
+        return supplierId;
+    } catch (error) {
+        console.error("Transaction failed: ", error);
+        throw new Error("Failed to find or create supplier.");
     }
-}
+};
 
 
 export const getPurchasesFS = async (): Promise<Purchase[]> => {
@@ -164,11 +239,13 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
   
   let invoiceUrl: string | null = null;
   let invoiceFileName: string | null = data.invoiceFileName || null;
+  let storagePath: string | null = null;
 
   if (data.invoiceDataUri && data.invoiceFileName) {
     try {
-        const { downloadUrl } = await uploadInvoice(data.invoiceDataUri, purchaseDocRef.id);
-        invoiceUrl = downloadUrl;
+        const uploadResult = await uploadInvoice(data.invoiceDataUri, purchaseDocRef.id);
+        invoiceUrl = uploadResult.downloadUrl;
+        storagePath = uploadResult.storagePath;
     } catch (uploadError) {
       console.error("Halting purchase creation due to upload error:", uploadError);
       throw uploadError;
@@ -179,6 +256,7 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
   firestoreData.supplierId = supplierId;
   firestoreData.invoiceUrl = invoiceUrl;
   firestoreData.invoiceFileName = invoiceFileName;
+  firestoreData.storagePath = storagePath;
 
   await setDoc(purchaseDocRef, firestoreData);
   return purchaseDocRef.id;
@@ -192,16 +270,19 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
 
   const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);
   const existingDocSnap = await getDoc(purchaseDocRef);
-  const existingData = existingDocSnap.exists() ? existingDocSnap.data() : {};
+  const existingData = existingDocSnap.exists() ? fromFirestorePurchase(existingDocSnap) : null;
   
-  let invoiceUrl: string | null = existingData.invoiceUrl || null;
-  let invoiceFileName: string | null = existingData.invoiceFileName || null;
+  let invoiceUrl: string | null = existingData?.invoiceUrl || null;
+  let invoiceFileName: string | null = existingData?.invoiceFileName || null;
+  let storagePath: string | null = existingData?.storagePath || null;
+  const oldStoragePath = existingData?.storagePath || null;
 
   if (data.invoiceDataUri && data.invoiceFileName) {
      try {
-        const { downloadUrl } = await uploadInvoice(data.invoiceDataUri, id);
-        invoiceUrl = downloadUrl;
+        const uploadResult = await uploadInvoice(data.invoiceDataUri, id);
+        invoiceUrl = uploadResult.downloadUrl;
         invoiceFileName = data.invoiceFileName;
+        storagePath = uploadResult.storagePath;
      } catch (uploadError) {
         console.error("Halting purchase update due to upload error:", uploadError);
         throw uploadError;
@@ -214,12 +295,28 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
   }
   firestoreData.invoiceUrl = invoiceUrl;
   firestoreData.invoiceFileName = invoiceFileName;
+  firestoreData.storagePath = storagePath;
   
   await updateDoc(purchaseDocRef, firestoreData);
+
+  if (oldStoragePath && oldStoragePath !== storagePath) {
+      const oldFileRef = ref(storage, oldStoragePath);
+      await deleteObject(oldFileRef).catch(err => console.error("Failed to delete old invoice file:", err));
+  }
 };
 
 export const deletePurchaseFS = async (id: string): Promise<void> => {
   const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);
+  const docSnap = await getDoc(purchaseDocRef);
+  
+  if (docSnap.exists()) {
+      const data = fromFirestorePurchase(docSnap);
+      if (data.storagePath) {
+          const fileRef = ref(storage, data.storagePath);
+          await deleteObject(fileRef).catch(err => console.error("Failed to delete invoice file on purchase delete:", err));
+      }
+  }
+
   await deleteDoc(purchaseDocRef);
 };
 

@@ -194,12 +194,14 @@ export interface Purchase {
   items: PurchaseItem[];
   subtotal: number;
   tax: number;
+  taxRate: number;
   shippingCost?: number;
   totalAmount: number;
   orderDate: string; // YYYY-MM-DD
   status: PurchaseStatus;
   invoiceUrl?: string; 
   invoiceFileName?: string;
+  storagePath?: string;
   notes?: string;
   createdAt: string;
   updatedAt: string;

@@ -1,4 +1,5 @@
 
+
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
 
 export interface Kpi {
@@ -179,12 +180,22 @@ export interface TeamMemberFormValues {
 
 export type PurchaseStatus = 'Borrador' | 'Proforma Recibida' | 'Pagado' | 'Pago a 30 días' | 'Factura Recibida' | 'Completado' | 'Cancelado';
 
+export interface PurchaseItem {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+}
+
 export interface Purchase {
   id: string;
   supplier: string;
-  description: string;
+  items: PurchaseItem[];
+  subtotal: number;
+  tax: number;
+  shippingCost?: number;
+  totalAmount: number;
   orderDate: string; // YYYY-MM-DD
-  amount: number;
   status: PurchaseStatus;
   invoiceUrl?: string; 
   invoiceFileName?: string;
@@ -195,10 +206,15 @@ export interface Purchase {
 
 export interface PurchaseFormValues {
   supplier: string;
-  description: string;
   orderDate: Date;
-  amount: number;
   status: PurchaseStatus;
+  items: {
+    description: string;
+    quantity: number;
+    unitPrice: number;
+  }[];
+  shippingCost?: number;
+  taxRate: number;
   notes?: string;
 }
 

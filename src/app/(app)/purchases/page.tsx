@@ -118,7 +118,7 @@ export default function PurchasesPage() {
   const filteredPurchases = purchases
     .filter(purchase =>
       (purchase.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       purchase.description.toLowerCase().includes(searchTerm.toLowerCase()))
+       (purchase.items && purchase.items.some(item => item.description.toLowerCase().includes(searchTerm.toLowerCase()))))
     )
     .filter(purchase => statusFilter === "Todos" || purchase.status === statusFilter);
 
@@ -184,9 +184,9 @@ export default function PurchasesPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[20%]">Proveedor</TableHead>
-                    <TableHead className="w-[30%]">Concepto</TableHead>
+                    <TableHead className="w-[30%]">Concepto Principal</TableHead>
                     <TableHead className="w-[15%]">Fecha Pedido</TableHead>
-                    <TableHead className="text-right w-[15%]">Importe</TableHead>
+                    <TableHead className="text-right w-[15%]">Importe Total</TableHead>
                     <TableHead className="text-center w-[10%]">Estado</TableHead>
                     <TableHead className="text-right w-[10%]">Acciones</TableHead>
                   </TableRow>
@@ -195,10 +195,10 @@ export default function PurchasesPage() {
                   {filteredPurchases.length > 0 ? filteredPurchases.map((purchase) => (
                     <TableRow key={purchase.id}>
                       <TableCell className="font-medium">{purchase.supplier}</TableCell>
-                      <TableCell>{purchase.description}</TableCell>
+                      <TableCell>{purchase.items[0]?.description || 'Varios'}{purchase.items.length > 1 ? ` y ${purchase.items.length - 1} más...` : ''}</TableCell>
                       <TableCell>{format(parseISO(purchase.orderDate), "dd/MM/yy", { locale: es })}</TableCell>
                       <TableCell className="text-right">
-                        <FormattedNumericValue value={purchase.amount} options={{ style: 'currency', currency: 'EUR' }} />
+                        <FormattedNumericValue value={purchase.totalAmount} options={{ style: 'currency', currency: 'EUR' }} />
                       </TableCell>
                       <TableCell className="text-center">
                         <StatusBadge type="purchase" status={purchase.status} />
@@ -232,7 +232,7 @@ export default function PurchasesPage() {
                                       <AlertDialogDescription>
                                           Esta acción no se puede deshacer. Esto eliminará permanentemente la compra de:
                                           <br />
-                                          <strong className="mt-2 block">{purchaseToDelete.supplier} - {purchaseToDelete.description}</strong>
+                                          <strong className="mt-2 block">{purchaseToDelete.supplier} - {purchaseToDelete.items[0]?.description}</strong>
                                       </AlertDialogDescription>
                                       </AlertDialogHeader>
                                       <AlertDialogFooter>

@@ -26,9 +26,12 @@ const fromFirestorePurchase = (docSnap: any): Purchase => {
   return {
     id: docSnap.id,
     supplier: data.supplier || '',
-    description: data.description || '',
+    items: data.items || [],
+    subtotal: data.subtotal || 0,
+    tax: data.tax || 0,
+    shippingCost: data.shippingCost,
+    totalAmount: data.totalAmount || 0,
     orderDate: data.orderDate instanceof Timestamp ? format(data.orderDate.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
-    amount: data.amount || 0,
     status: data.status || 'Borrador',
     invoiceUrl: data.invoiceUrl || undefined,
     invoiceFileName: data.invoiceFileName || undefined,
@@ -39,12 +42,22 @@ const fromFirestorePurchase = (docSnap: any): Purchase => {
 };
 
 const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean): any => {
+  const subtotal = data.items?.reduce((sum, item) => sum + (item.quantity || 0) * (item.unitPrice || 0), 0) || 0;
+  const shippingCost = data.shippingCost || 0;
+  const subtotalWithShipping = subtotal + shippingCost;
+  const taxRate = data.taxRate !== undefined ? data.taxRate : 21;
+  const tax = subtotalWithShipping * (taxRate / 100);
+  const totalAmount = subtotalWithShipping + tax;
+
   const firestoreData: { [key: string]: any } = {
     supplier: data.supplier,
-    description: data.description,
     orderDate: data.orderDate instanceof Date && isValid(data.orderDate) ? Timestamp.fromDate(data.orderDate) : Timestamp.fromDate(new Date()),
-    amount: data.amount,
     status: data.status,
+    items: data.items?.map(item => ({...item, total: item.quantity * item.unitPrice})) || [],
+    subtotal,
+    tax,
+    shippingCost,
+    totalAmount,
     notes: data.notes || null,
   };
 
@@ -73,7 +86,7 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
 
 export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormValues>): Promise<void> => {
   const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);
-  const firestoreData = toFirestorePurchase(data, false);
+  const firestoreData = toFirestorePurchase(data as PurchaseFormValues, false);
   await updateDoc(purchaseDocRef, firestoreData);
 };
 

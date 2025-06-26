@@ -51,7 +51,7 @@ const prompt = ai.definePrompt({
   name: 'invoiceProcessingPrompt',
   input: {schema: ProcessInvoiceInputSchema},
   output: {schema: ProcessInvoiceOutputSchema},
-  model: 'googleai/gemini-1.5-flash-latest',
+  model: 'googleai/gemini-1.5-pro-latest',
   prompt: `You are an expert accounting assistant. Your task is to extract structured information from an invoice file with the highest possible accuracy, especially with numbers.
 
 Analyze the provided invoice image or PDF and extract the following details. Be extremely precise.

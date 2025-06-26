@@ -64,13 +64,14 @@ export type PurchaseFormValues = z.infer<typeof purchaseFormSchema>;
 
 interface PurchaseDialogProps {
   purchase: Purchase | null;
+  initialData?: Partial<PurchaseFormValues> | null;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (data: PurchaseFormValues, purchaseId?: string) => Promise<void>;
   isReadOnly?: boolean;
 }
 
-export default function PurchaseDialog({ purchase, isOpen, onOpenChange, onSave, isReadOnly = false }: PurchaseDialogProps) {
+export default function PurchaseDialog({ purchase, initialData, isOpen, onOpenChange, onSave, isReadOnly = false }: PurchaseDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
 
   const form = useForm<PurchaseFormValues>({
@@ -116,7 +117,17 @@ export default function PurchaseDialog({ purchase, isOpen, onOpenChange, onSave,
 
   React.useEffect(() => {
     if (isOpen) {
-      if (purchase) {
+      if (initialData) {
+        form.reset({
+            supplier: initialData.supplier || "",
+            orderDate: initialData.orderDate || new Date(),
+            status: "Borrador",
+            items: initialData.items && initialData.items.length > 0 ? initialData.items : [{ description: "", quantity: 1, unitPrice: undefined as any }],
+            shippingCost: initialData.shippingCost || 0,
+            taxRate: initialData.taxRate || 21,
+            notes: initialData.notes || "",
+        });
+      } else if (purchase) {
         form.reset({
           supplier: purchase.supplier,
           orderDate: parseISO(purchase.orderDate),
@@ -138,7 +149,7 @@ export default function PurchaseDialog({ purchase, isOpen, onOpenChange, onSave,
         });
       }
     }
-  }, [purchase, isOpen, form]);
+  }, [purchase, initialData, isOpen, form]);
 
   const onSubmit = async (data: PurchaseFormValues) => {
     if (isReadOnly) return;
@@ -151,9 +162,9 @@ export default function PurchaseDialog({ purchase, isOpen, onOpenChange, onSave,
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isReadOnly ? "Detalles de Compra" : (purchase ? "Editar Compra/Gasto" : "Registrar Nueva Compra/Gasto")}</DialogTitle>
+          <DialogTitle>{isReadOnly ? "Detalles de Compra" : (purchase || initialData ? "Editar Compra/Gasto" : "Registrar Nueva Compra/Gasto")}</DialogTitle>
           <DialogDescription>
-            {isReadOnly ? `Viendo detalles de la compra a ${purchase?.supplier}.` : (purchase ? "Modifica los detalles de la compra." : "Introduce la información de la nueva compra o gasto.")}
+            {isReadOnly ? `Viendo detalles de la compra a ${purchase?.supplier}.` : (purchase || initialData ? "Modifica los detalles de la compra." : "Introduce la información de la nueva compra o gasto.")}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -197,7 +208,7 @@ export default function PurchaseDialog({ purchase, isOpen, onOpenChange, onSave,
 
             <DialogFooter className="pt-6">
               <DialogClose asChild><Button type="button" variant="outline" disabled={isSaving}>{isReadOnly ? "Cerrar" : "Cancelar"}</Button></DialogClose>
-              {!isReadOnly && (<Button type="submit" disabled={isSaving || !form.formState.isDirty}>{isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>) : (purchase ? "Guardar Cambios" : "Añadir Compra")}</Button>)}
+              {!isReadOnly && (<Button type="submit" disabled={isSaving || (!form.formState.isDirty && !!purchase)}>{isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>) : (purchase ? "Guardar Cambios" : "Añadir Compra")}</Button>)}
             </DialogFooter>
           </form>
         </Form>

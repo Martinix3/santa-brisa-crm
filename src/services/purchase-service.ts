@@ -50,7 +50,7 @@ const fromFirestorePurchase = (docSnap: any): Purchase => {
   };
 };
 
-const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean): any => {
+const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean, supplierId?: string): any => {
   const subtotal = data.items?.reduce((sum, item) => sum + (item.quantity || 0) * (item.unitPrice || 0), 0) || 0;
   const shippingCost = data.shippingCost || 0;
   const subtotalWithShipping = subtotal + shippingCost;
@@ -70,6 +70,10 @@ const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean):
     totalAmount,
     notes: data.notes || null,
   };
+
+  if (supplierId) {
+    firestoreData.supplierId = supplierId;
+  }
 
   if (isNew) {
     firestoreData.createdAt = Timestamp.fromDate(new Date());
@@ -174,32 +178,40 @@ const toFirestoreSupplier = (data: Partial<SupplierFormValues>, isNew: boolean):
 };
 
 const findOrCreateSupplier = async (data: Partial<PurchaseFormValues>): Promise<string | undefined> => {
-    if (!data.supplier) return undefined;
+    if (!data.supplier) {
+        console.warn('findOrCreateSupplier called with an empty supplier name. Aborting.');
+        return undefined;
+    }
+    console.log(`Starting findOrCreateSupplier for: ${data.supplier} (CIF: ${data.supplierCif || 'N/A'})`);
 
     try {
         const supplierId = await runTransaction(db, async (transaction) => {
             let supplierDoc;
 
             if (data.supplierCif) {
+                console.log(`Searching for supplier by CIF: ${data.supplierCif}`);
                 const cifQuery = query(collection(db, SUPPLIERS_COLLECTION), where("cif", "==", data.supplierCif), limit(1));
                 const cifSnapshot = await transaction.get(cifQuery);
                 if (!cifSnapshot.empty) {
                     supplierDoc = cifSnapshot.docs[0];
+                    console.log(`Found supplier by CIF. ID: ${supplierDoc.id}`);
                 }
             }
 
             if (!supplierDoc) {
+                console.log(`Searching for supplier by name: ${data.supplier}`);
                 const nameQuery = query(collection(db, SUPPLIERS_COLLECTION), where("name", "==", data.supplier), limit(1));
                 const nameSnapshot = await transaction.get(nameQuery);
                 if (!nameSnapshot.empty) {
                     supplierDoc = nameSnapshot.docs[0];
+                    console.log(`Found supplier by name. ID: ${supplierDoc.id}`);
                 }
             }
 
             if (supplierDoc) {
                 return supplierDoc.id;
-            } 
-            else {
+            } else {
+                console.log(`No existing supplier found. Creating new one for: ${data.supplier}`);
                 const newSupplierData: SupplierFormValues = {
                     name: data.supplier!,
                     cif: data.supplierCif,
@@ -214,13 +226,16 @@ const findOrCreateSupplier = async (data: Partial<PurchaseFormValues>): Promise<
                 const newDocRef = doc(collection(db, SUPPLIERS_COLLECTION));
                 const firestoreData = toFirestoreSupplier(newSupplierData, true);
                 transaction.set(newDocRef, firestoreData);
+                console.log(`New supplier created with temporary ID in transaction. Name: ${data.supplier}`);
                 return newDocRef.id;
             }
         });
+        console.log(`Transaction successful. Supplier ID: ${supplierId}`);
         return supplierId;
     } catch (error) {
-        console.error("Transaction failed: ", error);
-        throw new Error("Failed to find or create supplier.");
+        console.error("Error in findOrCreateSupplier transaction:", error);
+        // Re-throw the original error to be caught by the calling function
+        throw error;
     }
 };
 
@@ -234,74 +249,84 @@ export const getPurchasesFS = async (): Promise<Purchase[]> => {
 
 
 export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> => {
-  const supplierId = await findOrCreateSupplier(data);
-  const purchaseDocRef = doc(collection(db, PURCHASES_COLLECTION));
-  
-  let invoiceUrl: string | null = null;
-  let invoiceFileName: string | null = data.invoiceFileName || null;
-  let storagePath: string | null = null;
-
-  if (data.invoiceDataUri && data.invoiceFileName) {
+    console.log('Payload arriving at addPurchaseFS:', data);
     try {
-        const uploadResult = await uploadInvoice(data.invoiceDataUri, purchaseDocRef.id);
-        invoiceUrl = uploadResult.downloadUrl;
-        storagePath = uploadResult.storagePath;
-    } catch (uploadError) {
-      console.error("Halting purchase creation due to upload error:", uploadError);
-      throw uploadError;
-    }
-  }
-  
-  const firestoreData = toFirestorePurchase(data, true);
-  firestoreData.supplierId = supplierId;
-  firestoreData.invoiceUrl = invoiceUrl;
-  firestoreData.invoiceFileName = invoiceFileName;
-  firestoreData.storagePath = storagePath;
+        const supplierId = await findOrCreateSupplier(data);
 
-  await setDoc(purchaseDocRef, firestoreData);
-  return purchaseDocRef.id;
+        // This check is now more specific based on the "verbal" output of the function
+        if (!supplierId) {
+            // This case should only be hit if the supplier name was empty from the start
+            throw new Error("Supplier name was not provided. Cannot create purchase.");
+        }
+
+        const purchaseDocRef = doc(collection(db, PURCHASES_COLLECTION));
+        
+        let invoiceUrl: string | null = null;
+        let invoiceFileName: string | null = data.invoiceFileName || null;
+        let storagePath: string | null = null;
+
+        if (data.invoiceDataUri && data.invoiceFileName) {
+            console.log(`Uploading invoice for new purchase...`);
+            const uploadResult = await uploadInvoice(data.invoiceDataUri, purchaseDocRef.id);
+            invoiceUrl = uploadResult.downloadUrl;
+            storagePath = uploadResult.storagePath;
+            console.log(`Invoice uploaded successfully. URL: ${invoiceUrl}`);
+        }
+        
+        const firestoreData = toFirestorePurchase(data, true, supplierId);
+        firestoreData.invoiceUrl = invoiceUrl;
+        firestoreData.invoiceFileName = invoiceFileName;
+        firestoreData.storagePath = storagePath;
+
+        console.log(`Setting new purchase document... ID: ${purchaseDocRef.id}`);
+        await setDoc(purchaseDocRef, firestoreData);
+        console.log(`Purchase document created successfully.`);
+        return purchaseDocRef.id;
+
+    } catch (error) {
+        console.error("Failed to add purchase:", error);
+        // Re-throw the original error for the UI to catch
+        throw error;
+    }
 };
 
 export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormValues>): Promise<void> => {
-  let supplierId: string | undefined;
-  if (data.supplier) {
-      supplierId = await findOrCreateSupplier(data);
-  }
+  try {
+    let supplierId: string | undefined;
+    if (data.supplier) {
+        supplierId = await findOrCreateSupplier(data);
+    }
 
-  const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);
-  const existingDocSnap = await getDoc(purchaseDocRef);
-  const existingData = existingDocSnap.exists() ? fromFirestorePurchase(existingDocSnap) : null;
-  
-  let invoiceUrl: string | null = existingData?.invoiceUrl || null;
-  let invoiceFileName: string | null = existingData?.invoiceFileName || null;
-  let storagePath: string | null = existingData?.storagePath || null;
-  const oldStoragePath = existingData?.storagePath || null;
+    const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);
+    const existingDocSnap = await getDoc(purchaseDocRef);
+    const existingData = existingDocSnap.exists() ? fromFirestorePurchase(existingDocSnap) : null;
+    
+    let invoiceUrl: string | null = existingData?.invoiceUrl || null;
+    let invoiceFileName: string | null = existingData?.invoiceFileName || null;
+    let storagePath: string | null = existingData?.storagePath || null;
+    const oldStoragePath = existingData?.storagePath || null;
 
-  if (data.invoiceDataUri && data.invoiceFileName) {
-     try {
-        const uploadResult = await uploadInvoice(data.invoiceDataUri, id);
-        invoiceUrl = uploadResult.downloadUrl;
-        invoiceFileName = data.invoiceFileName;
-        storagePath = uploadResult.storagePath;
-     } catch (uploadError) {
-        console.error("Halting purchase update due to upload error:", uploadError);
-        throw uploadError;
-     }
-  }
-  
-  const firestoreData = toFirestorePurchase(data as PurchaseFormValues, false);
-  if (supplierId) {
-    firestoreData.supplierId = supplierId;
-  }
-  firestoreData.invoiceUrl = invoiceUrl;
-  firestoreData.invoiceFileName = invoiceFileName;
-  firestoreData.storagePath = storagePath;
-  
-  await updateDoc(purchaseDocRef, firestoreData);
+    if (data.invoiceDataUri && data.invoiceFileName) {
+       const uploadResult = await uploadInvoice(data.invoiceDataUri, id);
+       invoiceUrl = uploadResult.downloadUrl;
+       invoiceFileName = data.invoiceFileName;
+       storagePath = uploadResult.storagePath;
+    }
+    
+    const firestoreData = toFirestorePurchase(data as PurchaseFormValues, false, supplierId);
+    firestoreData.invoiceUrl = invoiceUrl;
+    firestoreData.invoiceFileName = invoiceFileName;
+    firestoreData.storagePath = storagePath;
+    
+    await updateDoc(purchaseDocRef, firestoreData);
 
-  if (oldStoragePath && oldStoragePath !== storagePath) {
-      const oldFileRef = ref(storage, oldStoragePath);
-      await deleteObject(oldFileRef).catch(err => console.error("Failed to delete old invoice file:", err));
+    if (oldStoragePath && oldStoragePath !== storagePath) {
+        const oldFileRef = ref(storage, oldStoragePath);
+        await deleteObject(oldFileRef).catch(err => console.error("Failed to delete old invoice file:", err));
+    }
+  } catch (error) {
+    console.error("Failed to update purchase:", error);
+    throw error;
   }
 };
 

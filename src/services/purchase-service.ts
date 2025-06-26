@@ -4,18 +4,17 @@
 import { db } from '@/lib/firebase';
 import {
   collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, setDoc,
-  type DocumentSnapshot,
+  type DocumentSnapshot, runTransaction,
 } from "firebase/firestore";
-import type { Purchase, PurchaseFormValues } from '@/types';
+import type { Purchase, PurchaseFormValues, PromotionalMaterial } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 import { updateMaterialStockFS } from './promotional-material-service';
+// import { adminBucket } from '@/lib/firebaseAdmin'; // Invoice upload disabled
 
 const PURCHASES_COLLECTION = 'purchases';
 const SUPPLIERS_COLLECTION = 'suppliers';
 
 // Disabling invoice upload for now as requested
-// import { adminBucket } from '@/lib/firebaseAdmin'; 
-
 // async function uploadInvoice(dataUri: string, purchaseId: string): Promise<{ downloadUrl: string; storagePath: string }> {
 //   const [meta, base64] = dataUri.split(',');
 //   const mime = /data:(.*?);base64/.exec(meta)?.[1] ?? 'application/pdf';
@@ -177,6 +176,7 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
 
         const firestoreData = toFirestorePurchase(data, true, supplierId);
         
+        // Use the ref with the ID to set the data
         await setDoc(newDocRef, firestoreData);
 
         const completeStatuses = ['Completado', 'Factura Recibida', 'Pagado'];

@@ -2,7 +2,7 @@
 'use server';
 
 import { db } from '@/lib/firebase';
-import { getStorage, ref as storageRef, deleteObject } from "firebase/storage";
+import { adminBucket } from '@/lib/firebaseAdmin';
 import {
   collection,
   getDocs,
@@ -22,9 +22,51 @@ import {
 import type { Purchase, PurchaseFormValues, SupplierFormValues } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
+import { Buffer } from 'buffer';
 
 const PURCHASES_COLLECTION = 'purchases';
 const SUPPLIERS_COLLECTION = 'suppliers';
+
+const MimeTypeMap: Record<string, string> = {
+    'application/pdf': 'pdf',
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+};
+
+async function uploadInvoice(dataUri: string, purchaseId: string) {
+  console.log(`Uploading invoice for purchase ID: ${purchaseId}`);
+  if (!dataUri.startsWith('data:')) throw new Error('Invalid data URI');
+  
+  const [meta, base64] = dataUri.split(',');
+  const mime = /data:(.*?);base64/.exec(meta)?.[1] ?? 'application/pdf';
+  const ext = MimeTypeMap[mime] ?? 'bin';
+
+  if (!ext || !mime) {
+    throw new Error(`Invalid or unsupported mime type: ${mime}`);
+  }
+  
+  const path = `invoices/purchases/${purchaseId}/invoice_${Date.now()}.${ext}`;
+
+  const file = adminBucket.file(path);
+  try {
+    await file.save(Buffer.from(base64, 'base64'), {
+      contentType: mime,
+      resumable: false,
+      // Create a public URL. The token is a UUID.
+      metadata: { metadata: { firebaseStorageDownloadTokens: uuidv4() } }
+    });
+    console.log(`Invoice uploaded successfully to: ${path}`);
+
+    // Manually construct the public URL
+    const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${adminBucket.name}/o/${encodeURIComponent(path)}?alt=media&token=${file.metadata.metadata.firebaseStorageDownloadTokens}`;
+
+    return { downloadUrl, storagePath: path };
+  } catch(error) {
+    console.error('Error uploading invoice via Admin SDK:', error);
+    throw error;
+  }
+}
 
 const fromFirestorePurchase = (docSnap: any): Purchase => {
   const data = docSnap.data();
@@ -88,9 +130,9 @@ const findOrCreateSupplier = async (data: Partial<PurchaseFormValues>): Promise<
         console.warn('findOrCreateSupplier called with an empty supplier name. Aborting.');
         return undefined;
     }
-    console.info(`Finding or creating supplier: ${data.supplier}`);
+    console.info(`Finding or creating supplier: "${data.supplier}"`);
 
-    if (data.supplierCif) {
+    if (data.supplierCif && data.supplierCif.trim() !== '') {
         console.log(`Searching for supplier by CIF: ${data.supplierCif}`);
         const cifQuery = query(collection(db, SUPPLIERS_COLLECTION), where("cif", "==", data.supplierCif), limit(1));
         const cifSnapshot = await getDocs(cifQuery);
@@ -101,7 +143,7 @@ const findOrCreateSupplier = async (data: Partial<PurchaseFormValues>): Promise<
         }
     }
 
-    console.log(`Searching for supplier by name: ${data.supplier}`);
+    console.log(`Searching for supplier by name: "${data.supplier}"`);
     const nameQuery = query(collection(db, SUPPLIERS_COLLECTION), where("name", "==", data.supplier), limit(1));
     const nameSnapshot = await getDocs(nameQuery);
     if (!nameSnapshot.empty) {
@@ -114,41 +156,31 @@ const findOrCreateSupplier = async (data: Partial<PurchaseFormValues>): Promise<
         return supplierDoc.id;
     }
 
-    console.log(`No existing supplier found. Creating new one for: ${data.supplier}`);
+    console.log(`No existing supplier found. Creating new one for: "${data.supplier}"`);
     try {
-        const newSupplierData: SupplierFormValues = {
+        const newSupplierData = {
             name: data.supplier!,
-            cif: data.supplierCif,
-            address_street: data.supplierAddress_street,
-            address_number: data.supplierAddress_number,
-            address_city: data.supplierAddress_city,
-            address_province: data.supplierAddress_province,
-            address_postalCode: data.supplierAddress_postalCode,
-            address_country: data.supplierAddress_country,
+            cif: data.supplierCif || null,
+            address: (data.supplierAddress_street || data.supplierAddress_city) ? {
+                street: data.supplierAddress_street || null,
+                number: data.supplierAddress_number || null,
+                city: data.supplierAddress_city || null,
+                province: data.supplierAddress_province || null,
+                postalCode: data.supplierAddress_postalCode || null,
+                country: data.supplierAddress_country || "España",
+            } : null,
+            contactName: null, contactEmail: null, contactPhone: null,
+            notes: "Creado automáticamente desde una compra.",
+            createdAt: Timestamp.fromDate(new Date()),
+            updatedAt: Timestamp.fromDate(new Date()),
         };
-        const toFirestoreSupplier = (data: Partial<SupplierFormValues>, isNew: boolean): any => {
-            const firestoreData: { [key: string]: any } = {
-                name: data.name, cif: data.cif || null, contactName: data.contactName || null,
-                contactEmail: data.contactEmail || null, contactPhone: data.contactPhone || null, notes: data.notes || null,
-            };
-            if (data.address_street || data.address_city || data.address_province || data.address_postalCode) {
-                firestoreData.address = {
-                street: data.address_street || null, number: data.address_number || null, city: data.address_city || null,
-                province: data.address_province || null, postalCode: data.address_postalCode || null, country: data.address_country || "España",
-                };
-                Object.keys(firestoreData.address).forEach(key => { if (firestoreData.address[key] === undefined) { firestoreData.address[key] = null; } });
-            } else { firestoreData.address = null; }
-            if (isNew) { firestoreData.createdAt = Timestamp.fromDate(new Date()); }
-            firestoreData.updatedAt = Timestamp.fromDate(new Date());
-            return firestoreData;
-        };
-        const firestoreData = toFirestoreSupplier(newSupplierData, true);
-        const docRef = await addDoc(collection(db, SUPPLIERS_COLLECTION), firestoreData);
+
+        const docRef = await addDoc(collection(db, SUPPLIERS_COLLECTION), newSupplierData);
         console.log(`New supplier created with ID: ${docRef.id}`);
         return docRef.id;
-    } catch (err: any) {
+    } catch (err) {
         console.error('Supplier creation failed', err);
-        throw err;
+        throw err; // Re-throw the original Firestore error
     }
 };
 
@@ -159,22 +191,30 @@ export const getPurchasesFS = async (): Promise<Purchase[]> => {
   return purchaseSnapshot.docs.map(docSnap => fromFirestorePurchase(docSnap));
 };
 
-
 export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> => {
     console.log('Payload arriving at addPurchaseFS:', data);
     try {
-        const supplierId = await findOrCreateSupplier(data);
+        const purchaseId = uuidv4();
+        let uploadResult = { downloadUrl: null, storagePath: null };
 
+        if (data.invoiceUrl) { // invoiceUrl is used as a placeholder for the dataUri from the form
+          uploadResult = await uploadInvoice(data.invoiceUrl, purchaseId);
+          data.invoiceUrl = uploadResult.downloadUrl;
+          data.storagePath = uploadResult.storagePath;
+        }
+
+        const supplierId = await findOrCreateSupplier(data);
         if (!supplierId) {
-            throw new Error("Failed to find or create supplier.");
+            throw new Error("Failed to find or create supplier because supplier name was empty.");
         }
         
         const firestoreData = toFirestorePurchase(data, true, supplierId);
         
-        console.log(`Creating new purchase document...`);
-        const purchaseDocRef = await addDoc(collection(db, PURCHASES_COLLECTION), firestoreData);
-        console.log(`Purchase document created successfully with ID: ${purchaseDocRef.id}`);
-        return purchaseDocRef.id;
+        console.log(`Creating new purchase document with pre-generated ID: ${purchaseId}`);
+        const purchaseDocRef = doc(db, PURCHASES_COLLECTION, purchaseId);
+        await setDoc(purchaseDocRef, firestoreData);
+        console.log(`Purchase document created successfully.`);
+        return purchaseId;
 
     } catch (error) {
         console.error("Failed to add purchase:", error);
@@ -193,23 +233,26 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
     const existingDocSnap = await getDoc(purchaseDocRef);
     const existingData = existingDocSnap.exists() ? fromFirestorePurchase(existingDocSnap) : null;
     
-    // Check if the invoice file is being changed.
-    const oldStoragePath = existingData?.storagePath;
-    const newStoragePath = data.storagePath;
+    // Check if a new invoice file is being uploaded
+    if (data.invoiceUrl && data.invoiceUrl.startsWith('data:')) {
+        console.log("New invoice file detected for update.");
+        const uploadResult = await uploadInvoice(data.invoiceUrl, id);
+        data.invoiceUrl = uploadResult.downloadUrl;
+        data.storagePath = uploadResult.storagePath;
+        
+        // If an old file existed, delete it
+        if (existingData?.storagePath && existingData.storagePath !== data.storagePath) {
+            console.log(`Deleting old invoice file: ${existingData.storagePath}`);
+            await adminBucket.file(existingData.storagePath).delete().catch(err => console.error("Failed to delete old invoice file:", err));
+            console.log("Old invoice file deleted.");
+        }
+    }
 
     const firestoreData = toFirestorePurchase(data as PurchaseFormValues, false, supplierId);
     
     await updateDoc(purchaseDocRef, firestoreData);
     console.log("Purchase document updated.");
 
-    // If a new file was uploaded (new path exists) and it's different from the old one, delete the old one.
-    if (oldStoragePath && newStoragePath && oldStoragePath !== newStoragePath) {
-        console.log("Deleting old invoice file from client-side request:", oldStoragePath);
-        const storage = getStorage();
-        const oldFileRef = storageRef(storage, oldStoragePath);
-        await deleteObject(oldFileRef).catch(err => console.error("Failed to delete old invoice file:", err));
-        console.log("Old invoice file deleted.");
-    }
   } catch (error) {
     console.error("Failed to update purchase:", error);
     throw error;
@@ -224,10 +267,13 @@ export const deletePurchaseFS = async (id: string): Promise<void> => {
   if (docSnap.exists()) {
       const data = fromFirestorePurchase(docSnap);
       if (data.storagePath) {
-          console.log(`A client-side request will be needed to delete associated invoice file: ${data.storagePath}`);
-          // We can't delete from the server without admin sdk.
-          // The deletion should be triggered from the client-side, or use a cloud function.
-          // For now, we just delete the firestore document.
+          console.log(`Deleting associated invoice file: ${data.storagePath}`);
+          try {
+            await adminBucket.file(data.storagePath).delete();
+            console.log(`Successfully deleted file ${data.storagePath} from Storage.`);
+          } catch (error) {
+            console.error(`Failed to delete file ${data.storagePath} from Storage. It might have been already deleted.`, error);
+          }
       }
   }
 

@@ -18,7 +18,6 @@ import {
   writeBatch,
   where,
   limit,
-  runTransaction
 } from 'firebase/firestore';
 import type { Purchase, PurchaseFormValues, SupplierFormValues } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
@@ -177,6 +176,7 @@ const toFirestoreSupplier = (data: Partial<SupplierFormValues>, isNew: boolean):
   return firestoreData;
 };
 
+
 const findOrCreateSupplier = async (data: Partial<PurchaseFormValues>): Promise<string | undefined> => {
     if (!data.supplier) {
         console.warn('findOrCreateSupplier called with an empty supplier name. Aborting.');
@@ -184,58 +184,47 @@ const findOrCreateSupplier = async (data: Partial<PurchaseFormValues>): Promise<
     }
     console.log(`Starting findOrCreateSupplier for: ${data.supplier} (CIF: ${data.supplierCif || 'N/A'})`);
 
+    // Step 1 & 2: Query for existing supplier outside a transaction
+    if (data.supplierCif) {
+        console.log(`Searching for supplier by CIF: ${data.supplierCif}`);
+        const cifQuery = query(collection(db, SUPPLIERS_COLLECTION), where("cif", "==", data.supplierCif), limit(1));
+        const cifSnapshot = await getDocs(cifQuery);
+        if (!cifSnapshot.empty) {
+            const supplierDoc = cifSnapshot.docs[0];
+            console.log(`Found supplier by CIF. ID: ${supplierDoc.id}`);
+            return supplierDoc.id;
+        }
+    }
+
+    console.log(`Searching for supplier by name: ${data.supplier}`);
+    const nameQuery = query(collection(db, SUPPLIERS_COLLECTION), where("name", "==", data.supplier), limit(1));
+    const nameSnapshot = await getDocs(nameQuery);
+    if (!nameSnapshot.empty) {
+        const supplierDoc = nameSnapshot.docs[0];
+        console.log(`Found supplier by name. ID: ${supplierDoc.id}`);
+        return supplierDoc.id;
+    }
+
+    // Step 3: If not found, create a new one.
+    console.log(`No existing supplier found. Creating new one for: ${data.supplier}`);
     try {
-        const supplierId = await runTransaction(db, async (transaction) => {
-            let supplierDoc;
-
-            if (data.supplierCif) {
-                console.log(`Searching for supplier by CIF: ${data.supplierCif}`);
-                const cifQuery = query(collection(db, SUPPLIERS_COLLECTION), where("cif", "==", data.supplierCif), limit(1));
-                const cifSnapshot = await transaction.get(cifQuery);
-                if (!cifSnapshot.empty) {
-                    supplierDoc = cifSnapshot.docs[0];
-                    console.log(`Found supplier by CIF. ID: ${supplierDoc.id}`);
-                }
-            }
-
-            if (!supplierDoc) {
-                console.log(`Searching for supplier by name: ${data.supplier}`);
-                const nameQuery = query(collection(db, SUPPLIERS_COLLECTION), where("name", "==", data.supplier), limit(1));
-                const nameSnapshot = await transaction.get(nameQuery);
-                if (!nameSnapshot.empty) {
-                    supplierDoc = nameSnapshot.docs[0];
-                    console.log(`Found supplier by name. ID: ${supplierDoc.id}`);
-                }
-            }
-
-            if (supplierDoc) {
-                return supplierDoc.id;
-            } else {
-                console.log(`No existing supplier found. Creating new one for: ${data.supplier}`);
-                const newSupplierData: SupplierFormValues = {
-                    name: data.supplier!,
-                    cif: data.supplierCif,
-                    address_street: data.supplierAddress_street,
-                    address_number: data.supplierAddress_number,
-                    address_city: data.supplierAddress_city,
-                    address_province: data.supplierAddress_province,
-                    address_postalCode: data.supplierAddress_postalCode,
-                    address_country: data.supplierAddress_country,
-                };
-                
-                const newDocRef = doc(collection(db, SUPPLIERS_COLLECTION));
-                const firestoreData = toFirestoreSupplier(newSupplierData, true);
-                transaction.set(newDocRef, firestoreData);
-                console.log(`New supplier created with temporary ID in transaction. Name: ${data.supplier}`);
-                return newDocRef.id;
-            }
-        });
-        console.log(`Transaction successful. Supplier ID: ${supplierId}`);
-        return supplierId;
+        const newSupplierData: SupplierFormValues = {
+            name: data.supplier!,
+            cif: data.supplierCif,
+            address_street: data.supplierAddress_street,
+            address_number: data.supplierAddress_number,
+            address_city: data.supplierAddress_city,
+            address_province: data.supplierAddress_province,
+            address_postalCode: data.supplierAddress_postalCode,
+            address_country: data.supplierAddress_country,
+        };
+        const firestoreData = toFirestoreSupplier(newSupplierData, true);
+        const newDocRef = await addDoc(collection(db, SUPPLIERS_COLLECTION), firestoreData);
+        console.log(`New supplier created with ID: ${newDocRef.id}`);
+        return newDocRef.id;
     } catch (error) {
-        console.error("Error in findOrCreateSupplier transaction:", error);
-        // Re-throw the original error to be caught by the calling function
-        throw error;
+        console.error("Error creating new supplier:", error);
+        throw error; // Re-throw the original error
     }
 };
 
@@ -253,10 +242,8 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
     try {
         const supplierId = await findOrCreateSupplier(data);
 
-        // This check is now more specific based on the "verbal" output of the function
         if (!supplierId) {
-            // This case should only be hit if the supplier name was empty from the start
-            throw new Error("Supplier name was not provided. Cannot create purchase.");
+            throw new Error("Failed to find or create supplier.");
         }
 
         const purchaseDocRef = doc(collection(db, PURCHASES_COLLECTION));
@@ -285,7 +272,6 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
 
     } catch (error) {
         console.error("Failed to add purchase:", error);
-        // Re-throw the original error for the UI to catch
         throw error;
     }
 };

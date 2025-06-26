@@ -1,11 +1,10 @@
 
-
 'use server';
 
 import { db } from '@/lib/firebase';
 import { adminBucket } from '@/lib/firebaseAdmin'; // Keep admin for Storage operations
 import {
-  collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
+  collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, setDoc,
   type DocumentSnapshot,
 } from "firebase/firestore";
 import type { Purchase, PurchaseFormValues } from '@/types';
@@ -178,7 +177,7 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
         const firestoreData = toFirestorePurchase(data, true, supplierId);
         
         // Use the ref with the ID to set the data
-        await updateDoc(newDocRef, firestoreData);
+        await setDoc(newDocRef, firestoreData);
 
         console.log(`New purchase added with ID: ${purchaseId}`);
         return purchaseId;
@@ -255,4 +254,3 @@ export const initializeMockPurchasesInFirestore = async (mockData: Purchase[]) =
         console.log('Mock purchases initialized in Firestore.');
     }
 };
-

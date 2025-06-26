@@ -25,6 +25,23 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  webpack: (config, {isServer}) => {
+    // This is required to make `firebase-admin` work in Next.js.
+    // It prevents client-side modules from being bundled into the server-side code.
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        child_process: false,
+        net: false,
+        tls: false,
+        dns: false,
+      };
+    }
+    // This is crucial to prevent `firebase-admin` from being bundled on the client.
+    config.externals.push('firebase-admin');
+    return config;
+  },
 };
 
 export default nextConfig;

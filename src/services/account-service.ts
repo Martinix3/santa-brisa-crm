@@ -1,7 +1,7 @@
 
 "use client";
 
-import { db } from '@/lib/firebase';
+import { adminDb as db } from '@/lib/firebaseAdmin';
 import {
   collection,
   getDocs,
@@ -14,14 +14,16 @@ import {
   query,
   orderBy,
   writeBatch,
-} from 'firebase/firestore';
+} from 'firebase-admin/firestore';
 import type { Account, AccountFormValues, AddressDetails } from '@/types';
 import { format, parseISO } from 'date-fns';
 
 const ACCOUNTS_COLLECTION = 'accounts';
 
-const fromFirestore = (docSnap: any): Account => {
+const fromFirestore = (docSnap: FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>): Account => {
   const data = docSnap.data();
+  if (!data) throw new Error("Document data is undefined.");
+
   return {
     id: docSnap.id,
     name: data.name || '',
@@ -29,8 +31,8 @@ const fromFirestore = (docSnap: any): Account => {
     cif: data.cif || '',
     type: data.type, 
     status: data.status,
-    addressBilling: data.addressBilling, // Se asume que Firestore devuelve el objeto AddressDetails o undefined
-    addressShipping: data.addressShipping, // Se asume que Firestore devuelve el objeto AddressDetails o undefined
+    addressBilling: data.addressBilling,
+    addressShipping: data.addressShipping,
     mainContactName: data.mainContactName || '',
     mainContactEmail: data.mainContactEmail || '',
     mainContactPhone: data.mainContactPhone || '',
@@ -42,9 +44,7 @@ const fromFirestore = (docSnap: any): Account => {
   };
 };
 
-// Helper para convertir datos de AccountFormValues (que ahora incluyen campos de dirección desglosados)
-// a lo que se guarda en Firestore (que espera objetos AddressDetails)
-const toFirestore = (data: AccountFormValues & { // Tipado extendido para incluir los campos desglosados
+const toFirestore = (data: AccountFormValues & {
     addressBilling_street?: string, addressBilling_number?: string, addressBilling_city?: string, addressBilling_province?: string, addressBilling_postalCode?: string, addressBilling_country?: string,
     addressShipping_street?: string, addressShipping_number?: string, addressShipping_city?: string, addressShipping_province?: string, addressShipping_postalCode?: string, addressShipping_country?: string,
 }, isNew: boolean): any => {
@@ -121,7 +121,7 @@ export const getAccountByIdFS = async (id: string): Promise<Account | null> => {
   }
   const accountDocRef = doc(db, ACCOUNTS_COLLECTION, id);
   const docSnap = await getDoc(accountDocRef);
-  if (docSnap.exists()) {
+  if (docSnap.exists) {
     return fromFirestore(docSnap);
   } else {
     console.warn(`Account with ID ${id} not found in Firestore.`);
@@ -129,7 +129,6 @@ export const getAccountByIdFS = async (id: string): Promise<Account | null> => {
   }
 };
 
-// La data aquí vendrá del AccountDialog, que tendrá los campos desglosados
 export const addAccountFS = async (data: AccountFormValues & {
     addressBilling_street?: string, addressBilling_number?: string, addressBilling_city?: string, addressBilling_province?: string, addressBilling_postalCode?: string, addressBilling_country?: string,
     addressShipping_street?: string, addressShipping_number?: string, addressShipping_city?: string, addressShipping_province?: string, addressShipping_postalCode?: string, addressShipping_country?: string,
@@ -166,8 +165,8 @@ export const initializeMockAccountsInFirestore = async (mockAccounts: Account[])
                 createdAt: account.createdAt ? Timestamp.fromDate(parseISO(account.createdAt)) : Timestamp.fromDate(new Date()),
                 updatedAt: account.updatedAt ? Timestamp.fromDate(parseISO(account.updatedAt)) : Timestamp.fromDate(new Date()),
                 salesRepId: account.salesRepId || null,
-                addressBilling: addressBilling || null, // Guardar el objeto AddressDetails o null
-                addressShipping: addressShipping || null, // Guardar el objeto AddressDetails o null
+                addressBilling: addressBilling || null,
+                addressShipping: addressShipping || null,
             };
             
             Object.keys(firestoreReadyData).forEach(key => {

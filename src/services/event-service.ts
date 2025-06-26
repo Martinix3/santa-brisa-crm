@@ -1,7 +1,7 @@
 
 "use client";
 
-import { db } from '@/lib/firebase';
+import { adminDb as db } from '@/lib/firebaseAdmin';
 import {
   collection,
   getDocs,
@@ -14,15 +14,15 @@ import {
   query,
   orderBy,
   writeBatch
-} from 'firebase/firestore';
+} from 'firebase-admin/firestore';
 import type { CrmEvent, EventFormValues, AssignedPromotionalMaterial } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 
 const EVENTS_COLLECTION = 'events';
 
-// Helper para convertir datos de Firestore a tipo CrmEvent (UI)
-const fromFirestoreEvent = (docSnap: any): CrmEvent => {
+const fromFirestoreEvent = (docSnap: FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>): CrmEvent => {
   const data = docSnap.data();
+  if (!data) throw new Error("Document data is undefined.");
   return {
     id: docSnap.id,
     name: data.name || '',
@@ -40,7 +40,6 @@ const fromFirestoreEvent = (docSnap: any): CrmEvent => {
   };
 };
 
-// Helper para convertir datos de EventFormValues a lo que se guarda en Firestore
 const toFirestoreEvent = (data: EventFormValues, isNew: boolean): any => {
   const firestoreData: { [key: string]: any } = {
     name: data.name,
@@ -60,12 +59,11 @@ const toFirestoreEvent = (data: EventFormValues, isNew: boolean): any => {
   }
   firestoreData.updatedAt = Timestamp.fromDate(new Date());
 
-  // Limpiar campos que no deben ser string vacíos, sino null o no existir si no se proveen
   Object.keys(firestoreData).forEach(key => {
     if (firestoreData[key] === undefined || firestoreData[key] === '') {
       if (['description', 'location', 'notes', 'endDate'].includes(key)) {
         firestoreData[key] = null;
-      } else if (!['assignedTeamMemberIds', 'assignedMaterials'].includes(key)) { // Arrays pueden estar vacíos
+      } else if (!['assignedTeamMemberIds', 'assignedMaterials'].includes(key)) {
         delete firestoreData[key];
       }
     }
@@ -112,7 +110,7 @@ export const initializeMockEventsInFirestore = async (mockEventsData: CrmEvent[]
     if (snapshot.empty && mockEventsData.length > 0) {
         const batch = writeBatch(db);
         mockEventsData.forEach(event => {
-            const { id, createdAt, updatedAt, startDate, endDate, ...eventData } = event; // Excluir ID del mock
+            const { id, createdAt, updatedAt, startDate, endDate, ...eventData } = event;
             
             const firestoreReadyData: any = { ...eventData };
             firestoreReadyData.startDate = startDate ? Timestamp.fromDate(parseISO(startDate)) : Timestamp.fromDate(new Date());
@@ -122,12 +120,11 @@ export const initializeMockEventsInFirestore = async (mockEventsData: CrmEvent[]
             firestoreReadyData.assignedTeamMemberIds = event.assignedTeamMemberIds || [];
             firestoreReadyData.assignedMaterials = event.assignedMaterials || [];
             
-            // Clean up optional fields that might be empty strings from mock
             firestoreReadyData.description = event.description || null;
             firestoreReadyData.location = event.location || null;
             firestoreReadyData.notes = event.notes || null;
 
-            const docRef = doc(eventsCol); // Firestore generará el ID
+            const docRef = doc(eventsCol);
             batch.set(docRef, firestoreReadyData);
         });
         await batch.commit();

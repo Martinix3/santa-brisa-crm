@@ -1,7 +1,7 @@
 
 "use client";
 
-import { db } from '@/lib/firebase';
+import { adminDb as db } from '@/lib/firebaseAdmin';
 import {
   collection,
   getDocs,
@@ -16,22 +16,24 @@ import {
   orderBy,
   writeBatch,
   limit
-} from 'firebase/firestore';
+} from 'firebase-admin/firestore';
 import type { TeamMember, TeamMemberFormValues, UserRole } from '@/types';
 import { format, parseISO } from 'date-fns';
-import { mockTeamMembers as initialMockTeamMembersForSeeding } from '@/lib/data'; // For seeding only
+import { mockTeamMembers as initialMockTeamMembersForSeeding } from '@/lib/data';
 
 const TEAM_MEMBERS_COLLECTION = 'teamMembers';
 
-const fromFirestoreTeamMember = (docSnap: any): TeamMember => {
+const fromFirestoreTeamMember = (docSnap: FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>): TeamMember => {
   const data = docSnap.data();
+  if (!data) throw new Error("Document data is undefined.");
+
   return {
     id: docSnap.id,
-    authUid: data.authUid || docSnap.id, // Fallback to doc id if authUid isn't there
+    authUid: data.authUid || docSnap.id,
     name: data.name || '',
     email: data.email || '',
     avatarUrl: data.avatarUrl || '',
-    role: data.role || 'SalesRep', // Default role if not specified
+    role: data.role || 'SalesRep',
     monthlyTargetAccounts: data.monthlyTargetAccounts,
     monthlyTargetVisits: data.monthlyTargetVisits,
     createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : (typeof data.createdAt === 'string' ? data.createdAt : undefined),
@@ -43,7 +45,7 @@ const toFirestoreTeamMember = (data: TeamMemberFormValues, isNew: boolean): any 
   const firestoreData: { [key: string]: any } = {
     authUid: data.authUid,
     name: data.name,
-    email: data.email, // Email should generally not be updated after creation
+    email: data.email,
     role: data.role,
     avatarUrl: data.avatarUrl || `https://placehold.co/100x100.png?text=${data.name.substring(0,2).toUpperCase()}`,
     monthlyTargetAccounts: data.role === 'SalesRep' ? (data.monthlyTargetAccounts || 0) : null,
@@ -55,7 +57,6 @@ const toFirestoreTeamMember = (data: TeamMemberFormValues, isNew: boolean): any 
   }
   firestoreData.updatedAt = Timestamp.fromDate(new Date());
   
-  // Remove undefined fields explicitly before saving, except for targets which become null
   Object.keys(firestoreData).forEach(key => {
     if (firestoreData[key] === undefined && key !== 'monthlyTargetAccounts' && key !== 'monthlyTargetVisits') {
       delete firestoreData[key];
@@ -104,15 +105,12 @@ export const getTeamMemberByEmailFS = async (email: string): Promise<TeamMember 
 export const addTeamMemberFS = async (data: TeamMemberFormValues): Promise<string> => {
   const firestoreData = toFirestoreTeamMember(data, true);
   const docRef = await addDoc(collection(db, TEAM_MEMBERS_COLLECTION), firestoreData);
-  // Optionally, update the document with its own ID if you use that as `id` field
-  // await updateDoc(docRef, { id: docRef.id });
   return docRef.id;
 };
 
 export const updateTeamMemberFS = async (id: string, data: Partial<TeamMemberFormValues>): Promise<void> => {
   const docRef = doc(db, TEAM_MEMBERS_COLLECTION, id);
-   // Fetch existing doc to merge if needed, or simply overwrite specific fields
-  const updateData = toFirestoreTeamMember(data as TeamMemberFormValues, false); // Cast needed if data is partial
+  const updateData = toFirestoreTeamMember(data as TeamMemberFormValues, false);
   await updateDoc(docRef, updateData);
 };
 
@@ -128,12 +126,12 @@ export const initializeMockTeamMembersInFirestore = async () => {
     if (snapshot.empty && initialMockTeamMembersForSeeding.length > 0) {
         const batch = writeBatch(db);
         initialMockTeamMembersForSeeding.forEach(member => {
-            const { id, performanceData, bottlesSold, orders, visits, ...memberData } = member; // Excluir campos calculados o de mock puro
+            const { id, performanceData, bottlesSold, orders, visits, ...memberData } = member;
             
             const formValues: TeamMemberFormValues = {
-                authUid: member.id, // Usamos el ID del mock como authUid para el seeding
+                authUid: member.id,
                 name: member.name,
-                email: member.email.toLowerCase(), // Guardar emails en minúscula para consistencia
+                email: member.email.toLowerCase(),
                 role: member.role,
                 avatarUrl: member.avatarUrl,
                 monthlyTargetAccounts: member.monthlyTargetAccounts,
@@ -141,7 +139,6 @@ export const initializeMockTeamMembersInFirestore = async () => {
             };
             const firestoreReadyData = toFirestoreTeamMember(formValues, true);
             
-            // Para el seeding, el ID del documento será el mismo que el authUid para facilitar la vinculación
             const docRef = doc(membersCol, member.id); 
             batch.set(docRef, firestoreReadyData);
         });

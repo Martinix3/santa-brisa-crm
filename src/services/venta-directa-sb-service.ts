@@ -1,8 +1,7 @@
 
-
 "use client";
 
-import { db } from '@/lib/firebase';
+import { adminDb as db } from '@/lib/firebaseAdmin';
 import {
   collection,
   getDocs,
@@ -15,14 +14,16 @@ import {
   query,
   orderBy,
   writeBatch
-} from 'firebase/firestore';
-import type { DirectSale, DirectSaleItem } from '@/types'; // Import DirectSale types
+} from 'firebase-admin/firestore';
+import type { DirectSale, DirectSaleItem } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 
 const DIRECT_SALES_COLLECTION = 'directSales';
 
-const fromFirestoreDirectSale = (docSnap: any): DirectSale => {
+const fromFirestoreDirectSale = (docSnap: FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>): DirectSale => {
   const data = docSnap.data();
+  if (!data) throw new Error("Document data is undefined.");
+
   return {
     id: docSnap.id,
     customerId: data.customerId || '',
@@ -46,7 +47,6 @@ const fromFirestoreDirectSale = (docSnap: any): DirectSale => {
 const toFirestoreDirectSale = (data: Partial<DirectSale>, isNew: boolean): any => {
   const firestoreData: { [key: string]: any } = { ...data };
 
-  // Convert dates to Timestamps
   if (data.issueDate && typeof data.issueDate === 'string') {
     firestoreData.issueDate = Timestamp.fromDate(parseISO(data.issueDate));
   } else if (data.issueDate instanceof Date) {
@@ -65,7 +65,6 @@ const toFirestoreDirectSale = (data: Partial<DirectSale>, isNew: boolean): any =
   }
   firestoreData.updatedAt = Timestamp.fromDate(new Date());
   
-  // Clean up undefined/null values
   Object.keys(firestoreData).forEach(key => {
     if (firestoreData[key] === undefined) {
       firestoreData[key] = null;

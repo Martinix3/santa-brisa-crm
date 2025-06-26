@@ -1,7 +1,7 @@
 
 'use server';
 
-import { db } from '@/lib/firebase';
+import { adminDb as db } from '@/lib/firebaseAdmin';
 import {
   collection,
   getDocs,
@@ -16,14 +16,15 @@ import {
   writeBatch,
   where,
   limit
-} from 'firebase/firestore';
+} from 'firebase-admin/firestore';
 import type { Supplier, SupplierFormValues, AddressDetails } from '@/types';
 import { format, parseISO } from 'date-fns';
 
 const SUPPLIERS_COLLECTION = 'suppliers';
 
-const fromFirestoreSupplier = (docSnap: any): Supplier => {
+const fromFirestoreSupplier = (docSnap: FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>): Supplier => {
   const data = docSnap.data();
+  if (!data) throw new Error("Document data is undefined.");
   return {
     id: docSnap.id,
     name: data.name || '',
@@ -57,7 +58,6 @@ const toFirestoreSupplier = (data: Partial<SupplierFormValues>, isNew: boolean):
       postalCode: data.address_postalCode || null,
       country: data.address_country || "España",
     };
-    // Double-check nested object for undefined
     Object.keys(firestoreData.address).forEach(key => {
       if (firestoreData.address[key] === undefined) {
         firestoreData.address[key] = null;

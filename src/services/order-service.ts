@@ -1,7 +1,7 @@
 
 "use client";
 
-import { db } from '@/lib/firebase';
+import { adminDb as db } from '@/lib/firebaseAdmin';
 import {
   collection,
   getDocs,
@@ -16,14 +16,16 @@ import {
   where,
   WriteBatch,
   writeBatch
-} from 'firebase/firestore';
+} from 'firebase-admin/firestore';
 import type { Order, OrderFormValues, CanalOrigenColocacion, AddressDetails, PaymentMethod } from '@/types'; 
 import { format, parseISO, isValid } from 'date-fns';
 
 const ORDERS_COLLECTION = 'orders';
 
-const fromFirestoreOrder = (docSnap: any): Order => {
+const fromFirestoreOrder = (docSnap: FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>): Order => {
   const data = docSnap.data();
+  if (!data) throw new Error("Document data is undefined.");
+
   const order: Order = {
     id: docSnap.id,
     clientName: data.clientName || '',
@@ -129,7 +131,7 @@ export const getOrderByIdFS = async (id: string): Promise<Order | null> => {
   }
   const orderDocRef = doc(db, ORDERS_COLLECTION, id);
   const docSnap = await getDoc(orderDocRef);
-  if (docSnap.exists()) {
+  if (docSnap.exists) {
     return fromFirestoreOrder(docSnap);
   } else {
     console.warn(`Order with ID ${id} not found in Firestore.`);

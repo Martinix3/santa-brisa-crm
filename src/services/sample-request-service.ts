@@ -1,7 +1,7 @@
 
 "use client";
 
-import { db } from '@/lib/firebase';
+import { adminDb as db } from '@/lib/firebaseAdmin';
 import {
   collection,
   getDocs,
@@ -11,14 +11,16 @@ import {
   Timestamp,
   query,
   orderBy
-} from 'firebase/firestore';
+} from 'firebase-admin/firestore';
 import type { SampleRequest, SampleRequestFormValues, SampleRequestStatus, AddressDetails } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 
 const SAMPLE_REQUESTS_COLLECTION = 'sampleRequests';
 
-const fromFirestoreSampleRequest = (docSnap: any): SampleRequest => {
+const fromFirestoreSampleRequest = (docSnap: FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>): SampleRequest => {
   const data = docSnap.data();
+  if (!data) throw new Error("Document data is undefined.");
+
   return {
     id: docSnap.id,
     requesterId: data.requesterId,
@@ -89,5 +91,5 @@ export const updateSampleRequestStatusFS = async (id: string, status: SampleRequ
   if (adminNotes) {
     updateData.adminNotes = adminNotes;
   }
-  await updateDoc(requestDocRef, updateData);
+  await updateDoc(requestDocRef, updateData as any);
 };

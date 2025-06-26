@@ -1,7 +1,7 @@
 
 "use client";
 
-import { db } from '@/lib/firebase';
+import { adminDb as db } from '@/lib/firebaseAdmin';
 import {
   collection,
   getDocs,
@@ -14,15 +14,16 @@ import {
   query,
   orderBy,
   writeBatch
-} from 'firebase/firestore';
+} from 'firebase-admin/firestore';
 import type { PromotionalMaterial, PromotionalMaterialFormValues, LatestPurchaseInfo } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 
 const PROMOTIONAL_MATERIALS_COLLECTION = 'promotionalMaterials';
 
-// Helper para convertir datos de Firestore a tipo PromotionalMaterial (UI)
-const fromFirestorePromotionalMaterial = (docSnap: any): PromotionalMaterial => {
+const fromFirestorePromotionalMaterial = (docSnap: FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>): PromotionalMaterial => {
   const data = docSnap.data();
+  if (!data) throw new Error("Document data is undefined.");
+
   let latestPurchase: LatestPurchaseInfo | undefined = undefined;
   if (data.latestPurchase) {
     latestPurchase = {
@@ -37,14 +38,12 @@ const fromFirestorePromotionalMaterial = (docSnap: any): PromotionalMaterial => 
   return {
     id: docSnap.id,
     name: data.name || '',
-    type: data.type || 'Otro', // Asegurar un valor por defecto
+    type: data.type || 'Otro',
     description: data.description || undefined,
     latestPurchase: latestPurchase,
-    // createdAt and updatedAt can be added if needed for tracking material record itself
   };
 };
 
-// Helper para convertir datos de PromotionalMaterialFormValues a lo que se guarda en Firestore
 const toFirestorePromotionalMaterial = (data: PromotionalMaterialFormValues, isNew: boolean): any => {
   const firestoreData: { [key: string]: any } = {
     name: data.name,
@@ -62,14 +61,8 @@ const toFirestorePromotionalMaterial = (data: PromotionalMaterialFormValues, isN
       notes: data.latestPurchaseNotes || null,
     };
   } else {
-    firestoreData.latestPurchase = null; // O no incluirlo si no hay datos de compra
+    firestoreData.latestPurchase = null;
   }
-
-  // Timestamps for the material record itself, if desired
-  // if (isNew) {
-  //   firestoreData.createdAt = Timestamp.fromDate(new Date());
-  // }
-  // firestoreData.updatedAt = Timestamp.fromDate(new Date());
 
   return firestoreData;
 };

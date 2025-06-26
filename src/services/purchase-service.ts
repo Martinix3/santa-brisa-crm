@@ -1,8 +1,7 @@
 
 'use server';
 
-import { db } from '@/lib/firebase';
-import { adminBucket } from '@/lib/firebaseAdmin';
+import { adminDb as db, adminBucket } from '@/lib/firebaseAdmin';
 import {
   collection,
   getDocs,
@@ -17,7 +16,7 @@ import {
   writeBatch,
   where,
   limit,
-} from 'firebase/firestore';
+} from 'firebase-admin/firestore';
 import type { Purchase, PurchaseFormValues, Supplier } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 
@@ -33,18 +32,18 @@ async function uploadInvoice(dataUri: string, purchaseId: string): Promise<{ dow
   await adminBucket.file(path).save(Buffer.from(base64, 'base64'), {
     contentType: mime,
     resumable: false,
-    public: true, // Make the file publicly readable
+    public: true,
   });
 
-  // Construct a public URL. Note: for production, you might want signed URLs instead.
   const url = `https://storage.googleapis.com/${adminBucket.name}/${path}`;
   console.log(`File uploaded to ${path}, public URL: ${url}`);
   return { downloadUrl: url, storagePath: path };
 }
 
-
-const fromFirestorePurchase = (docSnap: any): Purchase => {
+const fromFirestorePurchase = (docSnap: FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>): Purchase => {
   const data = docSnap.data();
+  if (!data) throw new Error("Document data is undefined.");
+
   return {
     id: docSnap.id,
     supplier: data.supplier || '',
@@ -185,7 +184,7 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
 
         const firestoreData = toFirestorePurchase(data, true, supplierId);
         
-        await updateDoc(tempPurchaseRef, firestoreData); // Use updateDoc on the ref we created
+        await updateDoc(tempPurchaseRef, firestoreData);
         console.log(`New purchase added with ID: ${purchaseId}`);
         return purchaseId;
     } catch (error) {
@@ -232,7 +231,6 @@ export const deletePurchaseFS = async (id: string): Promise<void> => {
             console.log(`File ${data.storagePath} deleted successfully.`);
           } catch(e: any) {
              console.error(`Failed to delete file from Storage at path ${data.storagePath}:`, e.message);
-             // We continue to delete the Firestore doc even if file deletion fails
           }
       }
   }

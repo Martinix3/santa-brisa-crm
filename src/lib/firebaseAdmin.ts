@@ -1,7 +1,8 @@
 import { initializeApp, applicationDefault, getApps } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
 
-// Define the bucket name explicitly to match the client-side configuration.
+// Explicitly define the bucket name to prevent ambiguity.
+// This name must match the one in your Firebase project settings.
 const BUCKET_NAME = 'santa-brisa-crm-bucket';
 
 if (getApps().length === 0) {
@@ -9,7 +10,7 @@ if (getApps().length === 0) {
     // In a managed environment, applicationDefault() automatically discovers credentials.
     initializeApp({
       credential: applicationDefault(),
-      // Explicitly set the storageBucket to ensure we target the correct one.
+      // Also setting the storageBucket in the config for completeness.
       storageBucket: BUCKET_NAME,
     });
     console.info({
@@ -30,5 +31,5 @@ if (getApps().length === 0) {
   }
 }
 
-// Calling bucket() without arguments will now use the correctly configured default bucket.
-export const adminBucket = getStorage().bucket();
+// Explicitly get the bucket by name for maximum safety.
+export const adminBucket = getStorage().bucket(BUCKET_NAME);

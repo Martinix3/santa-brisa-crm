@@ -3,35 +3,17 @@
 'use server';
 
 import { db } from '@/lib/firebase';
-// import { adminBucket } from '@/lib/firebaseAdmin'; // Desactivado para no usar Storage
 import {
   collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, setDoc,
   type DocumentSnapshot,
 } from "firebase/firestore";
 import type { Purchase, PurchaseFormValues } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
+import { updateMaterialStockFS } from './promotional-material-service';
 
 const PURCHASES_COLLECTION = 'purchases';
 const SUPPLIERS_COLLECTION = 'suppliers';
 
-/* PDF Upload disabled
-async function uploadInvoice(dataUri: string, purchaseId: string): Promise<{ downloadUrl: string; storagePath: string }> {
-  const [meta, base64] = dataUri.split(',');
-  const mime = /data:(.*?);base64/.exec(meta)?.[1] ?? 'application/pdf';
-  const ext = mime.split('/')[1] ?? 'bin';
-  const path = `invoices/purchases/${purchaseId}/invoice_${Date.now()}.${ext}`;
-
-  await adminBucket.file(path).save(Buffer.from(base64, 'base64'), {
-    contentType: mime,
-    resumable: false,
-    public: true,
-  });
-
-  const url = `https://storage.googleapis.com/${adminBucket.name}/${path}`;
-  console.log(`File uploaded to ${path}, public URL: ${url}`);
-  return { downloadUrl: url, storagePath: path };
-}
-*/
 
 const fromFirestorePurchase = (docSnap: DocumentSnapshot): Purchase => {
   const data = docSnap.data();
@@ -69,7 +51,7 @@ const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean, 
     supplier: data.supplier,
     orderDate: data.orderDate instanceof Date && isValid(data.orderDate) ? Timestamp.fromDate(data.orderDate) : Timestamp.fromDate(new Date()),
     status: data.status,
-    items: data.items?.map(item => ({...item, total: (item.quantity || 0) * (item.unitPrice || 0)})) || [],
+    items: data.items?.map(item => ({ materialId: item.materialId, description: item.description, quantity: item.quantity, unitPrice: item.unitPrice, total: (item.quantity || 0) * (item.unitPrice || 0) })) || [],
     subtotal,
     tax,
     taxRate,
@@ -167,22 +149,18 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
         }
         
         const purchasesCol = collection(db, PURCHASES_COLLECTION);
-        const newDocRef = doc(purchasesCol); // Create ref to get ID first
+        const newDocRef = doc(purchasesCol);
         const purchaseId = newDocRef.id;
 
-        /* PDF Upload disabled
-        if (data.invoiceDataUri) {
-            console.log(`Uploading invoice for new purchase ID: ${purchaseId}`);
-            const { downloadUrl, storagePath } = await uploadInvoice(data.invoiceDataUri, purchaseId);
-            data.invoiceUrl = downloadUrl;
-            data.storagePath = storagePath;
-        }
-        */
-
         const firestoreData = toFirestorePurchase(data, true, supplierId);
-        
-        // Use the ref with the ID to set the data
         await setDoc(newDocRef, firestoreData);
+
+        const completeStatuses = ['Completado', 'Factura Recibida', 'Pagado'];
+        if (completeStatuses.includes(data.status)) {
+            for (const item of data.items) {
+                await updateMaterialStockFS(item.materialId, item.quantity);
+            }
+        }
 
         console.log(`New purchase added with ID: ${purchaseId}`);
         return purchaseId;
@@ -195,26 +173,57 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
 export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormValues>): Promise<void> => {
   try {
     let supplierId: string | undefined;
+    const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);
+    const existingPurchaseDoc = await getDoc(purchaseDocRef);
+    if (!existingPurchaseDoc.exists()) throw new Error("Purchase not found");
+    const oldData = fromFirestorePurchase(existingPurchaseDoc);
+
     if (data.supplier) {
-        const existingPurchaseDoc = await getDoc(doc(db, PURCHASES_COLLECTION, id));
-        supplierId = existingPurchaseDoc.data()?.supplierId;
+        supplierId = oldData.supplierId;
         if (!supplierId) {
             supplierId = await findOrCreateSupplier(data);
         }
     }
-    
-    /* PDF Upload disabled
-    if (data.invoiceDataUri) {
-        console.log(`Uploading new invoice for existing purchase ID: ${id}`);
-        const { downloadUrl, storagePath } = await uploadInvoice(data.invoiceDataUri, id);
-        data.invoiceUrl = downloadUrl;
-        data.storagePath = storagePath;
-    }
-    */
 
-    const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);
     const firestoreData = toFirestorePurchase(data as PurchaseFormValues, false, supplierId);
     await updateDoc(purchaseDocRef, firestoreData);
+    
+    const completeStatuses = ['Completado', 'Factura Recibida', 'Pagado'];
+    const wasComplete = completeStatuses.includes(oldData.status);
+    const isNowComplete = completeStatuses.includes(data.status!);
+
+    // If status changed to complete, add new stock
+    if (!wasComplete && isNowComplete) {
+        for (const item of data.items || []) {
+            await updateMaterialStockFS(item.materialId, item.quantity);
+        }
+    }
+    // If status changed from complete, revert old stock
+    else if (wasComplete && !isNowComplete) {
+        for (const item of oldData.items) {
+            await updateMaterialStockFS(item.materialId, -item.quantity);
+        }
+    }
+    // If it was and still is complete, calculate the diff
+    else if (wasComplete && isNowComplete) {
+        const stockChanges = new Map<string, number>();
+        // Add new quantities
+        for (const newItem of data.items || []) {
+            stockChanges.set(newItem.materialId, (stockChanges.get(newItem.materialId) || 0) + newItem.quantity);
+        }
+        // Subtract old quantities
+        for (const oldItem of oldData.items) {
+            stockChanges.set(oldItem.materialId, (stockChanges.get(oldItem.materialId) || 0) - oldItem.quantity);
+        }
+        // Apply the changes
+        for (const [materialId, quantityChange] of stockChanges.entries()) {
+            if (quantityChange !== 0) {
+                await updateMaterialStockFS(materialId, quantityChange);
+            }
+        }
+    }
+
+
     console.log("Purchase document updated.");
   } catch (error) {
     console.error("Failed to update purchase:", error);
@@ -227,20 +236,24 @@ export const deletePurchaseFS = async (id: string): Promise<void> => {
   const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);
   const docSnap = await getDoc(purchaseDocRef);
   
-  /* PDF Upload disabled
   if (docSnap.exists()) {
       const data = fromFirestorePurchase(docSnap);
+      const completeStatuses = ['Completado', 'Factura Recibida', 'Pagado'];
+      // If purchase was completed, revert the stock addition on deletion
+      if (completeStatuses.includes(data.status)) {
+        for (const item of data.items) {
+            await updateMaterialStockFS(item.materialId, -item.quantity);
+        }
+      }
+      
       if (data.storagePath) {
           try {
-            console.log(`Deleting associated file from Storage: ${data.storagePath}`);
-            await adminBucket.file(data.storagePath).delete();
-            console.log(`File ${data.storagePath} deleted successfully.`);
+            console.log(`File deletion from Storage is currently disabled.`);
           } catch(e: any) {
-             console.error(`Failed to delete file from Storage at path ${data.storagePath}:`, e.message);
+             console.error(`Error during mock file deletion:`, e.message);
           }
       }
   }
-  */
 
   await deleteDoc(purchaseDocRef);
   console.log(`Purchase document ${id} deleted.`);

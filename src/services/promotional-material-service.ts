@@ -4,7 +4,7 @@
 
 import { db } from '@/lib/firebase';
 import {
-  collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
+  collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, runTransaction,
   type DocumentSnapshot,
 } from "firebase/firestore";
 import type { PromotionalMaterial, PromotionalMaterialFormValues, LatestPurchaseInfo } from '@/types';
@@ -33,6 +33,8 @@ const fromFirestorePromotionalMaterial = (docSnap: DocumentSnapshot): Promotiona
     type: data.type || 'Otro',
     description: data.description || undefined,
     latestPurchase: latestPurchase,
+    stock: data.stock || 0,
+    sku: data.sku || undefined,
   };
 };
 
@@ -42,6 +44,10 @@ const toFirestorePromotionalMaterial = (data: PromotionalMaterialFormValues, isN
     type: data.type,
     description: data.description || null,
   };
+  
+  if (isNew) {
+    firestoreData.stock = 0;
+  }
 
   if (data.latestPurchaseQuantity && data.latestPurchaseTotalCost && data.latestPurchaseDate) {
     const calculatedUnitCost = data.latestPurchaseTotalCost / data.latestPurchaseQuantity;
@@ -52,7 +58,10 @@ const toFirestorePromotionalMaterial = (data: PromotionalMaterialFormValues, isN
       calculatedUnitCost: parseFloat(calculatedUnitCost.toFixed(4)),
       notes: data.latestPurchaseNotes || null,
     };
-  } else {
+    if (isNew) {
+        firestoreData.stock = data.latestPurchaseQuantity;
+    }
+  } else if (isNew) {
     firestoreData.latestPurchase = null;
   }
 
@@ -90,12 +99,42 @@ export const deletePromotionalMaterialFS = async (id: string): Promise<void> => 
   await deleteDoc(materialDocRef);
 };
 
+
+export const updateMaterialStockFS = async (materialId: string, quantityChange: number): Promise<void> => {
+  if (!materialId || typeof quantityChange !== 'number') {
+    console.error("Invalid arguments for updateMaterialStockFS:", { materialId, quantityChange });
+    return;
+  }
+
+  const materialDocRef = doc(db, PROMOTIONAL_MATERIALS_COLLECTION, materialId);
+  
+  try {
+    await runTransaction(db, async (transaction) => {
+      const materialDoc = await transaction.get(materialDocRef);
+      if (!materialDoc.exists()) {
+        throw new Error(`Material with ID ${materialId} does not exist.`);
+      }
+
+      const currentStock = materialDoc.data().stock || 0;
+      const newStock = currentStock + quantityChange;
+
+      console.log(`Updating stock for material ${materialId}. Current: ${currentStock}, Change: ${quantityChange}, New: ${newStock}`);
+      
+      transaction.update(materialDocRef, { stock: newStock });
+    });
+  } catch (e) {
+    console.error("Stock update transaction failed: ", e);
+    throw e; // Re-throw the error to be handled by the caller
+  }
+};
+
+
 export const initializeMockPromotionalMaterialsInFirestore = async (mockMaterialsData: PromotionalMaterial[]) => {
     const materialsCol = collection(db, PROMOTIONAL_MATERIALS_COLLECTION);
     const snapshot = await getDocs(query(materialsCol, orderBy('name', 'asc')));
     if (snapshot.empty && mockMaterialsData.length > 0) {
         for (const material of mockMaterialsData) {
-            const { id, ...materialData } = material; 
+            const { id, stock, sku, ...materialData } = material; 
             
             const formValues: PromotionalMaterialFormValues = {
                 name: material.name,
@@ -108,6 +147,8 @@ export const initializeMockPromotionalMaterialsInFirestore = async (mockMaterial
             };
 
             const firestoreReadyData = toFirestorePromotionalMaterial(formValues, true);
+            if (sku) firestoreReadyData.sku = sku;
+
             await addDoc(materialsCol, firestoreReadyData);
         }
         console.log('Mock promotional materials initialized in Firestore.');
@@ -117,4 +158,3 @@ export const initializeMockPromotionalMaterialsInFirestore = async (mockMaterial
         console.log('PromotionalMaterials collection is not empty. Skipping initialization.');
     }
 };
-

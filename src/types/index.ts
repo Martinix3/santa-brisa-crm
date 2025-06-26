@@ -56,6 +56,8 @@ export interface PromotionalMaterial {
   description?: string;
   type: PromotionalMaterialType;
   latestPurchase?: LatestPurchaseInfo; 
+  stock: number;
+  sku?: string;
 }
 
 export interface AssignedPromotionalMaterial {
@@ -181,6 +183,7 @@ export interface TeamMemberFormValues {
 export type PurchaseStatus = 'Borrador' | 'Proforma Recibida' | 'Pagado' | 'Pago a 30 días' | 'Factura Recibida' | 'Completado' | 'Cancelado';
 
 export interface PurchaseItem {
+  materialId: string;
   description: string;
   quantity: number;
   unitPrice: number;
@@ -219,6 +222,7 @@ export interface PurchaseFormValues {
   orderDate: Date;
   status: PurchaseStatus;
   items: {
+    materialId: string;
     description: string;
     quantity: number;
     unitPrice: number;

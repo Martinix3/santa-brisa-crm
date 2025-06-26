@@ -7,8 +7,9 @@ import {
   collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
   type DocumentSnapshot,
 } from "firebase/firestore";
-import type { Order } from '@/types';
+import type { Order, AssignedPromotionalMaterial } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
+import { updateMaterialStockFS } from './promotional-material-service';
 
 const ORDERS_COLLECTION = 'orders';
 
@@ -132,17 +133,61 @@ export const getOrderByIdFS = async (id: string): Promise<Order | null> => {
 export const addOrderFS = async (data: Partial<Order> & {visitDate: Date | string, accountId?: string}): Promise<string> => {
   const firestoreData = toFirestoreOrder(data, true);
   const docRef = await addDoc(collection(db, ORDERS_COLLECTION), firestoreData);
+  
+  // Deduct stock for assigned materials
+  if (data.assignedMaterials && data.assignedMaterials.length > 0) {
+    for (const item of data.assignedMaterials) {
+        await updateMaterialStockFS(item.materialId, -item.quantity);
+    }
+  }
+
   return docRef.id;
 };
 
 export const updateOrderFS = async (id: string, data: Partial<Order> & {visitDate?: Date | string}): Promise<void> => { 
   const orderDocRef = doc(db, ORDERS_COLLECTION, id);
+  const existingOrderDoc = await getDoc(orderDocRef);
+  if (!existingOrderDoc.exists()) throw new Error("Order not found to update stock");
+  const oldData = fromFirestoreOrder(existingOrderDoc);
+  
   const firestoreData = toFirestoreOrder(data, false); 
   await updateDoc(orderDocRef, firestoreData);
+
+  // Calculate stock difference and update
+  const stockChanges = new Map<string, number>();
+  const oldMaterials = oldData.assignedMaterials || [];
+  const newMaterials = data.assignedMaterials || [];
+
+  // Add new quantities to be deducted
+  for (const newItem of newMaterials) {
+    stockChanges.set(newItem.materialId, (stockChanges.get(newItem.materialId) || 0) - newItem.quantity);
+  }
+  // Add old quantities back to stock
+  for (const oldItem of oldMaterials) {
+    stockChanges.set(oldItem.materialId, (stockChanges.get(oldItem.materialId) || 0) + oldItem.quantity);
+  }
+  // Apply the net changes
+  for (const [materialId, quantityChange] of stockChanges.entries()) {
+    if (quantityChange !== 0) {
+      await updateMaterialStockFS(materialId, quantityChange);
+    }
+  }
 };
 
 export const deleteOrderFS = async (id: string): Promise<void> => {
   const orderDocRef = doc(db, ORDERS_COLLECTION, id);
+  const existingOrderDoc = await getDoc(orderDocRef);
+
+  if (existingOrderDoc.exists()) {
+    const orderData = fromFirestoreOrder(existingOrderDoc);
+    // Add stock back on deletion
+    if (orderData.assignedMaterials && orderData.assignedMaterials.length > 0) {
+      for (const item of orderData.assignedMaterials) {
+        await updateMaterialStockFS(item.materialId, item.quantity);
+      }
+    }
+  }
+  
   await deleteDoc(orderDocRef);
 };
 
@@ -185,4 +230,3 @@ export const initializeMockOrdersInFirestore = async (mockOrdersData: Order[]) =
         console.log('Orders collection is not empty. Skipping initialization.');
     }
 };
-

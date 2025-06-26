@@ -9,6 +9,7 @@ import {
 } from "firebase/firestore";
 import type { CrmEvent, EventFormValues } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
+import { updateMaterialStockFS } from './promotional-material-service';
 
 const EVENTS_COLLECTION = 'events';
 
@@ -81,17 +82,60 @@ export const getEventByIdFS = async (id: string): Promise<CrmEvent | null> => {
 export const addEventFS = async (data: EventFormValues): Promise<string> => {
   const firestoreData = toFirestoreEvent(data, true);
   const docRef = await addDoc(collection(db, EVENTS_COLLECTION), firestoreData);
+  
+  // Deduct stock for assigned materials
+  if (data.assignedMaterials && data.assignedMaterials.length > 0) {
+    for (const item of data.assignedMaterials) {
+        await updateMaterialStockFS(item.materialId, -item.quantity);
+    }
+  }
+
   return docRef.id;
 };
 
 export const updateEventFS = async (id: string, data: EventFormValues): Promise<void> => {
   const eventDocRef = doc(db, EVENTS_COLLECTION, id);
+  const existingEventDoc = await getDoc(eventDocRef);
+  if (!existingEventDoc.exists()) throw new Error("Event not found to update stock");
+  const oldData = fromFirestoreEvent(existingEventDoc);
+
   const firestoreData = toFirestoreEvent(data, false);
   await updateDoc(eventDocRef, firestoreData);
+
+  // Calculate stock difference and update
+  const stockChanges = new Map<string, number>();
+  const oldMaterials = oldData.assignedMaterials || [];
+  const newMaterials = data.assignedMaterials || [];
+
+  // Add new quantities to be deducted
+  for (const newItem of newMaterials) {
+    stockChanges.set(newItem.materialId, (stockChanges.get(newItem.materialId) || 0) - newItem.quantity);
+  }
+  // Add old quantities back to stock
+  for (const oldItem of oldMaterials) {
+    stockChanges.set(oldItem.materialId, (stockChanges.get(oldItem.materialId) || 0) + oldItem.quantity);
+  }
+  // Apply the net changes
+  for (const [materialId, quantityChange] of stockChanges.entries()) {
+    if (quantityChange !== 0) {
+      await updateMaterialStockFS(materialId, quantityChange);
+    }
+  }
 };
 
 export const deleteEventFS = async (id: string): Promise<void> => {
   const eventDocRef = doc(db, EVENTS_COLLECTION, id);
+  const existingEventDoc = await getDoc(eventDocRef);
+
+  if (existingEventDoc.exists()) {
+    const eventData = fromFirestoreEvent(existingEventDoc);
+    // Add stock back on deletion
+    if (eventData.assignedMaterials && eventData.assignedMaterials.length > 0) {
+        for (const item of eventData.assignedMaterials) {
+            await updateMaterialStockFS(item.materialId, item.quantity);
+        }
+    }
+  }
   await deleteDoc(eventDocRef);
 };
 
@@ -123,4 +167,3 @@ export const initializeMockEventsInFirestore = async (mockEventsData: CrmEvent[]
         console.log('Events collection is not empty. Skipping initialization.');
     }
 };
-

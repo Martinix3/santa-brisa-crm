@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { Purchase, PurchaseItem, PurchaseFormValues as PurchaseFormValuesType, PurchaseStatus } from "@/types";
+import type { Purchase, PurchaseFormValues as PurchaseFormValuesType, PurchaseStatus, PromotionalMaterial } from "@/types";
 import { purchaseStatusList } from "@/lib/data";
 import { Loader2, Calendar as CalendarIcon, DollarSign, PlusCircle, Trash2, FileCheck2, Link2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -44,9 +44,12 @@ import { es } from 'date-fns/locale';
 import { Separator } from "../ui/separator";
 import FormattedNumericValue from "../lib/formatted-numeric-value";
 import Link from 'next/link';
+import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
+import { useToast } from "@/hooks/use-toast";
 
 const purchaseItemSchema = z.object({
-  description: z.string().min(3, "El concepto debe tener al menos 3 caracteres."),
+  materialId: z.string().min(1, "Debe seleccionar un material."),
+  description: z.string().optional(), // Now optional, will be auto-filled
   quantity: z.coerce.number().min(1, "La cantidad debe ser al menos 1."),
   unitPrice: z.coerce.number().min(0.01, "El precio debe ser positivo."),
 });
@@ -66,7 +69,7 @@ const purchaseFormSchema = z.object({
   shippingCost: z.coerce.number().min(0, "Los portes no pueden ser negativos.").optional(),
   taxRate: z.coerce.number().min(0, "El IVA no puede ser negativo.").default(21),
   notes: z.string().optional(),
-  invoiceDataUri: z.string().optional(), // Holds the file data for server upload
+  invoiceDataUri: z.string().optional(), 
   invoiceUrl: z.string().url("URL no válida").optional().or(z.literal("")),
   storagePath: z.string().optional(),
 });
@@ -84,6 +87,27 @@ interface PurchaseDialogProps {
 
 export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpenChange, onSave, isReadOnly = false }: PurchaseDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
+  const [availableMaterials, setAvailableMaterials] = React.useState<PromotionalMaterial[]>([]);
+  const [isLoadingMaterials, setIsLoadingMaterials] = React.useState(true);
+  const { toast } = useToast();
+
+  React.useEffect(() => {
+    async function loadMaterials() {
+        setIsLoadingMaterials(true);
+        try {
+            const materials = await getPromotionalMaterialsFS();
+            setAvailableMaterials(materials);
+        } catch (error) {
+            console.error("Failed to load promotional materials for purchase dialog:", error);
+            toast({ title: "Error", description: "No se pudieron cargar los materiales promocionales.", variant: "destructive" });
+        } finally {
+            setIsLoadingMaterials(false);
+        }
+    }
+    if (isOpen) {
+        loadMaterials();
+    }
+  }, [isOpen, toast]);
 
   const form = useForm<PurchaseFormValues>({
     resolver: zodResolver(purchaseFormSchema),
@@ -91,7 +115,7 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
       supplier: "",
       orderDate: new Date(),
       status: "Borrador",
-      items: [{ description: "", quantity: 1, unitPrice: undefined as any }],
+      items: [{ materialId: "", description: "", quantity: 1, unitPrice: undefined as any }],
       shippingCost: 0,
       taxRate: 21,
       notes: "",
@@ -101,7 +125,7 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
     },
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, update } = useFieldArray({
     control: form.control,
     name: "items",
   });
@@ -139,20 +163,20 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
           supplier: purchase.supplier,
           orderDate: parseISO(purchase.orderDate),
           status: purchase.status,
-          items: purchase.items.map(item => ({ description: item.description, quantity: item.quantity, unitPrice: item.unitPrice })),
+          items: purchase.items.map(item => ({ materialId: item.materialId, description: item.description, quantity: item.quantity, unitPrice: item.unitPrice })),
           shippingCost: purchase.shippingCost || 0,
           taxRate: purchase.taxRate,
           notes: purchase.notes || "",
           invoiceUrl: purchase.invoiceUrl || "",
           storagePath: purchase.storagePath || "",
-          invoiceDataUri: "", // Don't prefill this from existing purchases
+          invoiceDataUri: "", 
         });
       } else {
         form.reset({
           supplier: "",
           orderDate: new Date(),
           status: "Borrador",
-          items: [{ description: "", quantity: 1, unitPrice: undefined as any }],
+          items: [{ materialId: "", description: "", quantity: 1, unitPrice: undefined as any }],
           shippingCost: 0,
           taxRate: 21,
           notes: "",
@@ -192,13 +216,34 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
             <div className="space-y-3">
               {fields.map((field, index) => (
                 <div key={field.id} className="flex items-end gap-2 p-3 border rounded-md bg-secondary/20">
-                  <FormField control={form.control} name={`items.${index}.description`} render={({ field }) => (<FormItem className="flex-grow"><FormLabel className="text-xs">Concepto</FormLabel><FormControl><Input placeholder="Descripción del producto o servicio" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name={`items.${index}.materialId`} render={({ field: selectField }) => (
+                    <FormItem className="flex-grow">
+                        <FormLabel className="text-xs">Concepto</FormLabel>
+                        <Select
+                            onValueChange={(value) => {
+                                selectField.onChange(value);
+                                const selectedMaterial = availableMaterials.find(m => m.id === value);
+                                update(index, { ...watchedItems[index], materialId: value, description: selectedMaterial?.name || "" });
+                            }}
+                            value={selectField.value}
+                            disabled={isReadOnly || isLoadingMaterials}
+                        >
+                            <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar material" /></SelectTrigger></FormControl>
+                            <SelectContent>
+                                {availableMaterials.map(material => (
+                                    <SelectItem key={material.id} value={material.id}>{material.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                    </FormItem>
+                  )} />
                   <FormField control={form.control} name={`items.${index}.quantity`} render={({ field }) => (<FormItem className="w-24"><FormLabel className="text-xs">Cantidad</FormLabel><FormControl><Input type="number" {...field} disabled={isReadOnly} onChange={e => field.onChange(parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)} />
                   <FormField control={form.control} name={`items.${index}.unitPrice`} render={({ field }) => (<FormItem className="w-28"><FormLabel className="text-xs">Precio Unit. (€)</FormLabel><FormControl><Input type="number" step="0.01" {...field} disabled={isReadOnly} onChange={e => field.onChange(parseFloat(e.target.value))} /></FormControl><FormMessage /></FormItem>)} />
                   {!isReadOnly && <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>}
                 </div>
               ))}
-               {!isReadOnly && <Button type="button" variant="outline" size="sm" onClick={() => append({ description: "", quantity: 1, unitPrice: undefined as any })}><PlusCircle className="mr-2 h-4 w-4" />Añadir Artículo</Button>}
+               {!isReadOnly && <Button type="button" variant="outline" size="sm" onClick={() => append({ materialId: "", description: "", quantity: 1, unitPrice: undefined as any })}><PlusCircle className="mr-2 h-4 w-4" />Añadir Artículo</Button>}
             </div>
 
             <Separator />

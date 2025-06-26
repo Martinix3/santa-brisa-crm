@@ -118,7 +118,7 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
         setIsLoadingMaterials(true);
         try {
           const materialsFromFS = await getPromotionalMaterialsFS();
-          setAvailableMaterials(materialsFromFS.filter(m => m.latestPurchase && m.latestPurchase.calculatedUnitCost > 0));
+          setAvailableMaterials(materialsFromFS);
         } catch (error) {
           console.error("Error loading promotional materials for event dialog:", error);
           toast({ title: "Error Materiales", description: "No se pudieron cargar los materiales promocionales.", variant: "destructive"});
@@ -162,8 +162,21 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
 
   const onSubmit = async (data: EventFormValues) => {
     if (isReadOnly) return;
-    setIsSaving(true);
     
+    // Stock validation
+    for (const item of data.assignedMaterials || []) {
+      const material = availableMaterials.find(m => m.id === item.materialId);
+      if (material && material.stock < item.quantity) {
+        toast({
+          title: "Stock Insuficiente",
+          description: `No hay suficiente stock para "${material.name}". Disponible: ${material.stock}, Solicitado: ${item.quantity}.`,
+          variant: "destructive",
+        });
+        return; 
+      }
+    }
+
+    setIsSaving(true);
     await new Promise(resolve => setTimeout(resolve, 500)); 
     onSave(data, event?.id);
     setIsSaving(false);
@@ -236,7 +249,7 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
                 const unitCost = selectedMaterialInfo?.latestPurchase?.calculatedUnitCost || 0;
                 return (
                   <div key={item.id} className="flex items-end gap-2 p-3 border rounded-md bg-secondary/30">
-                    <FormField control={form.control} name={`assignedMaterials.${index}.materialId`} render={({ field }) => ( <FormItem className="flex-grow"><FormLabel className="text-xs">Material</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly || isLoadingMaterials}><FormControl><SelectTrigger><SelectValue placeholder={isLoadingMaterials ? "Cargando..." : "Seleccionar material"} /></SelectTrigger></FormControl><SelectContent>{availableMaterials.map(mat => (<SelectItem key={mat.id} value={mat.id}>{mat.name} ({mat.type}) - <FormattedNumericValue value={mat.latestPurchase?.calculatedUnitCost || 0} options={{style:'currency', currency:'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4}}/></SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name={`assignedMaterials.${index}.materialId`} render={({ field }) => ( <FormItem className="flex-grow"><FormLabel className="text-xs">Material</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly || isLoadingMaterials}><FormControl><SelectTrigger><SelectValue placeholder={isLoadingMaterials ? "Cargando..." : "Seleccionar material"} /></SelectTrigger></FormControl><SelectContent>{availableMaterials.map(mat => (<SelectItem key={mat.id} value={mat.id}>{mat.name} (Stock: {mat.stock})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name={`assignedMaterials.${index}.quantity`} render={({ field }) => (<FormItem className="w-24"><FormLabel className="text-xs">Cantidad</FormLabel><FormControl><Input type="number" {...field} disabled={isReadOnly} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} value={field.value ?? ""}/></FormControl><FormMessage /></FormItem>)} />
                     <div className="text-sm text-muted-foreground w-28 text-right whitespace-nowrap">{watchedMaterials[index]?.quantity > 0 ? (<FormattedNumericValue value={unitCost * watchedMaterials[index].quantity} options={{style:'currency', currency:'EUR'}} />) : <FormattedNumericValue value={0} options={{style:'currency', currency:'EUR'}} />}</div>
                     {!isReadOnly && (<Button type="button" variant="ghost" size="icon" onClick={() => removeMaterial(index)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>)}

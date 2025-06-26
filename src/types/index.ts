@@ -225,6 +225,8 @@ export interface PurchaseFormValues {
   shippingCost?: number;
   taxRate: number;
   notes?: string;
+  invoiceDataUri?: string;
+  invoiceFileName?: string;
 }
 
 

@@ -1,7 +1,8 @@
 
-"use client";
+'use server';
 
-import { db } from '@/lib/firebase';
+import { db, storage } from '@/lib/firebase';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import {
   collection,
   getDocs,
@@ -21,6 +22,7 @@ import {
 import type { Purchase, PurchaseFormValues, SupplierFormValues } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 import { getSupplierByNameFS, getSupplierByCifFS, addSupplierFS } from './supplier-service';
+import { v4 as uuidv4 } from 'uuid';
 
 const PURCHASES_COLLECTION = 'purchases';
 
@@ -73,6 +75,32 @@ const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean):
   return firestoreData;
 };
 
+async function uploadInvoice(
+  dataUri: string,
+  purchaseId: string
+): Promise<{ downloadUrl: string; storagePath: string }> {
+  try {
+    const mimeType = dataUri.substring(dataUri.indexOf(':') + 1, dataUri.indexOf(';'));
+    const fileExtension = mimeType.split('/')[1] || 'bin';
+    const uniqueFileName = `${uuidv4()}.${fileExtension}`;
+    const storagePath = `invoices/purchases/${purchaseId}/${uniqueFileName}`;
+    const storageRef = ref(storage, storagePath);
+
+    const base64Data = dataUri.split(',')[1];
+    
+    const snapshot = await uploadString(storageRef, base64Data, 'base64', {
+        contentType: mimeType,
+    });
+    
+    const downloadUrl = await getDownloadURL(snapshot.ref);
+
+    return { downloadUrl, storagePath: snapshot.metadata.fullPath };
+  } catch (error: any) {
+    console.error('Error uploading invoice to Firebase Storage:', error);
+    const errorMessage = error.code || error.message || "Failed to upload file to storage.";
+    throw new Error(`Upload failed: ${errorMessage}`);
+  }
+}
 
 const findOrCreateSupplier = async (data: Partial<PurchaseFormValues>): Promise<string | undefined> => {
     if (!data.supplier) return undefined;
@@ -111,16 +139,23 @@ export const getPurchasesFS = async (): Promise<Purchase[]> => {
 
 export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> => {
   const supplierId = await findOrCreateSupplier(data);
+  const purchaseDocRef = doc(collection(db, PURCHASES_COLLECTION));
+  
+  let invoiceUrl: string | null = null;
+  let invoiceFileName: string | null = data.invoiceFileName || null;
 
-  const docRef = doc(collection(db, PURCHASES_COLLECTION));
+  if (data.invoiceDataUri && data.invoiceFileName) {
+    const { downloadUrl } = await uploadInvoice(data.invoiceDataUri, purchaseDocRef.id);
+    invoiceUrl = downloadUrl;
+  }
   
   const firestoreData = toFirestorePurchase(data, true);
   firestoreData.supplierId = supplierId;
-  firestoreData.invoiceUrl = null;
-  firestoreData.invoiceFileName = null;
+  firestoreData.invoiceUrl = invoiceUrl;
+  firestoreData.invoiceFileName = invoiceFileName;
 
-  await setDoc(docRef, firestoreData);
-  return docRef.id;
+  await setDoc(purchaseDocRef, firestoreData);
+  return purchaseDocRef.id;
 };
 
 export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormValues>): Promise<void> => {
@@ -130,10 +165,21 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
   }
 
   const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);
+  
+  let invoiceUrl: string | null = (data as any).invoiceUrl || null; // Cast to any to check existing value if passed
+  let invoiceFileName: string | null = data.invoiceFileName || null;
+
+  if (data.invoiceDataUri && data.invoiceFileName) {
+    const { downloadUrl } = await uploadInvoice(data.invoiceDataUri, id);
+    invoiceUrl = downloadUrl;
+  }
+  
   const firestoreData = toFirestorePurchase(data as PurchaseFormValues, false);
   if (supplierId) {
     firestoreData.supplierId = supplierId;
   }
+  firestoreData.invoiceUrl = invoiceUrl;
+  firestoreData.invoiceFileName = invoiceFileName;
   
   await updateDoc(purchaseDocRef, firestoreData);
 };

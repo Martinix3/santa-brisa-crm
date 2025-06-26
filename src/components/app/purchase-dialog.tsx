@@ -37,7 +37,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { Purchase, PurchaseItem, PurchaseFormValues as PurchaseFormValuesType, PurchaseStatus } from "@/types";
 import { purchaseStatusList } from "@/lib/data";
-import { Loader2, Calendar as CalendarIcon, DollarSign, PlusCircle, Trash2 } from "lucide-react";
+import { Loader2, Calendar as CalendarIcon, DollarSign, PlusCircle, Trash2, FileCheck2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
@@ -65,19 +65,22 @@ const purchaseFormSchema = z.object({
   shippingCost: z.coerce.number().min(0, "Los portes no pueden ser negativos.").optional(),
   taxRate: z.coerce.number().min(0, "El IVA no puede ser negativo.").default(21),
   notes: z.string().optional(),
+  invoiceDataUri: z.string().optional(),
+  invoiceFileName: z.string().optional(),
 });
 
 export type PurchaseFormValues = z.infer<typeof purchaseFormSchema>;
 
 interface PurchaseDialogProps {
   purchase: Purchase | null;
+  prefilledData: Partial<PurchaseFormValues> | null;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (data: PurchaseFormValues, purchaseId?: string) => Promise<void>;
   isReadOnly?: boolean;
 }
 
-export default function PurchaseDialog({ purchase, isOpen, onOpenChange, onSave, isReadOnly = false }: PurchaseDialogProps) {
+export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpenChange, onSave, isReadOnly = false }: PurchaseDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
 
   const form = useForm<PurchaseFormValues>({
@@ -123,7 +126,9 @@ export default function PurchaseDialog({ purchase, isOpen, onOpenChange, onSave,
 
   React.useEffect(() => {
     if (isOpen) {
-      if (purchase) {
+      if (prefilledData) {
+         form.reset(prefilledData);
+      } else if (purchase) {
         form.reset({
           supplier: purchase.supplier,
           orderDate: parseISO(purchase.orderDate),
@@ -145,7 +150,7 @@ export default function PurchaseDialog({ purchase, isOpen, onOpenChange, onSave,
         });
       }
     }
-  }, [purchase, isOpen, form]);
+  }, [purchase, prefilledData, isOpen, form]);
 
   const onSubmit = async (data: PurchaseFormValues) => {
     if (isReadOnly) return;
@@ -201,10 +206,21 @@ export default function PurchaseDialog({ purchase, isOpen, onOpenChange, onSave,
 
             <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un estado" /></SelectTrigger></FormControl><SelectContent>{purchaseStatusList.map(s => (<SelectItem key={s} value={s}>{s}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
             <FormField control={form.control} name="notes" render={({ field }) => (<FormItem><FormLabel>Notas (Opcional)</FormLabel><FormControl><Textarea placeholder="Cualquier información adicional, n.º de proforma, etc." {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+            
+            {form.getValues('invoiceFileName') && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-sm flex items-center gap-3">
+                    <FileCheck2 className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                    <div>
+                        <p className="font-semibold text-blue-800">Factura adjunta (desde IA):</p>
+                        <p className="text-blue-700 truncate" title={form.getValues('invoiceFileName')}>{form.getValues('invoiceFileName')}</p>
+                        <p className="text-xs text-blue-600">El archivo se subirá al guardar esta compra.</p>
+                    </div>
+                </div>
+            )}
 
             <DialogFooter className="pt-6">
               <DialogClose asChild><Button type="button" variant="outline" disabled={isSaving}>{isReadOnly ? "Cerrar" : "Cancelar"}</Button></DialogClose>
-              {!isReadOnly && (<Button type="submit" disabled={isSaving || (!form.formState.isDirty && !!purchase)}>{isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>) : (purchase ? "Guardar Cambios" : "Añadir Compra")}</Button>)}
+              {!isReadOnly && (<Button type="submit" disabled={isSaving || (!form.formState.isDirty && !!purchase && !prefilledData)}>{isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>) : (purchase ? "Guardar Cambios" : "Añadir Compra")}</Button>)}
             </DialogFooter>
           </form>
         </Form>

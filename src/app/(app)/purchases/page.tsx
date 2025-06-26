@@ -21,6 +21,7 @@ import StatusBadge from "@/components/app/status-badge";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { addPurchaseFS, updatePurchaseFS, deletePurchaseFS, getPurchasesFS } from "@/services/purchase-service";
 import Link from "next/link";
+import InvoiceUploadDialog from "@/components/app/invoice-upload-dialog";
 
 export default function PurchasesPage() {
   const { toast } = useToast();
@@ -30,6 +31,8 @@ export default function PurchasesPage() {
   const [editingPurchase, setEditingPurchase] = React.useState<Purchase | null>(null);
   const [isPurchaseDialogOpen, setIsPurchaseDialogOpen] = React.useState(false);
   const [purchaseToDelete, setPurchaseToDelete] = React.useState<Purchase | null>(null);
+  const [prefilledData, setPrefilledData] = React.useState<Partial<PurchaseFormValues> | null>(null);
+  const [isInvoiceUploadOpen, setIsInvoiceUploadOpen] = React.useState(false);
   
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<PurchaseStatus | "Todos">("Todos");
@@ -59,12 +62,25 @@ export default function PurchasesPage() {
   const handleAddNewPurchase = () => {
     if (!isAdmin) return;
     setEditingPurchase(null);
+    setPrefilledData(null);
     setIsPurchaseDialogOpen(true);
   };
   
   const handleEditPurchase = (purchase: Purchase) => {
     if (!isAdmin) return;
     setEditingPurchase(purchase);
+    setPrefilledData(null);
+    setIsPurchaseDialogOpen(true);
+  };
+
+  const handleDataFromInvoice = (extractedData: Partial<PurchaseFormValues>, fileDataUri: string, fileName: string) => {
+    setEditingPurchase(null);
+    setPrefilledData({
+      ...extractedData,
+      invoiceDataUri: fileDataUri,
+      invoiceFileName: fileName,
+    });
+    setIsInvoiceUploadOpen(false);
     setIsPurchaseDialogOpen(true);
   };
 
@@ -85,13 +101,14 @@ export default function PurchasesPage() {
       const updatedPurchases = await getPurchasesFS();
       setPurchases(updatedPurchases);
       toast({ title: "¡Operación Exitosa!", description: successMessage });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving purchase:", error);
-      toast({ title: "Error al Guardar", description: "No se pudo guardar la orden de compra.", variant: "destructive" });
+      toast({ title: "Error al Guardar", description: `No se pudo guardar la orden de compra. Error: ${error.message}`, variant: "destructive" });
     } finally {
       setIsLoading(false);
       setIsPurchaseDialogOpen(false);
       setEditingPurchase(null);
+      setPrefilledData(null);
     }
   };
 
@@ -142,6 +159,9 @@ export default function PurchasesPage() {
         <div className="flex items-center gap-2">
           <Button onClick={handleAddNewPurchase} disabled={isLoading}>
             <PlusCircle className="mr-2 h-4 w-4" /> Añadir Compra Manual
+          </Button>
+           <Button onClick={() => setIsInvoiceUploadOpen(true)} disabled={isLoading} variant="outline">
+            <UploadCloud className="mr-2 h-4 w-4" /> Crear desde Factura (IA)
           </Button>
         </div>
       </header>
@@ -285,14 +305,22 @@ export default function PurchasesPage() {
 
       <PurchaseDialog
           purchase={editingPurchase}
+          prefilledData={prefilledData}
           isOpen={isPurchaseDialogOpen}
           onOpenChange={(open) => {
               setIsPurchaseDialogOpen(open);
               if (!open) {
                 setEditingPurchase(null);
+                setPrefilledData(null);
               }
           }}
           onSave={handleSavePurchase}
+      />
+
+       <InvoiceUploadDialog
+        isOpen={isInvoiceUploadOpen}
+        onOpenChange={setIsInvoiceUploadOpen}
+        onDataExtracted={handleDataFromInvoice}
       />
     </div>
   );

@@ -1,27 +1,21 @@
-import 'dotenv/config';
 import { initializeApp, applicationDefault, getApps } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
 
-const storageBucket = process.env.FIREBASE_STORAGE_BUCKET;
-const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+// In a managed environment like Cloud Workstations or Cloud Run,
+// applicationDefault() automatically discovers credentials and configuration.
+// We no longer need to read them from .env.
 
 if (getApps().length === 0) {
-  if (!storageBucket) {
-    throw new Error('The FIREBASE_STORAGE_BUCKET environment variable is not set. Please add it to your .env file.');
-  }
-  if (!projectId) {
-    throw new Error('The NEXT_PUBLIC_FIREBASE_PROJECT_ID environment variable is not set. Please add it to your .env file.');
-  }
-
   try {
     initializeApp({
       credential: applicationDefault(),
-      storageBucket: storageBucket,
-      projectId: projectId,
+      // The storageBucket and projectId will be inferred from the environment's
+      // Application Default Credentials (ADC).
     });
-    console.log("Firebase Admin SDK initialized successfully with Application Default Credentials.");
+    console.log("Firebase Admin SDK initialized successfully using environment's Application Default Credentials.");
   } catch (error: any) {
     console.error("Failed to initialize Firebase Admin SDK:", error);
+    // This provides a helpful hint if running in a misconfigured local environment.
     if (error.message.includes('Google Application Default Credentials are not available')) {
       console.error("Hint: This usually means you're running locally. Run `gcloud auth application-default login` in your terminal and try again.");
     }
@@ -29,4 +23,5 @@ if (getApps().length === 0) {
   }
 }
 
+// Calling bucket() without arguments will use the default bucket from the initialized app.
 export const adminBucket = getStorage().bucket();

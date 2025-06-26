@@ -1,10 +1,10 @@
-import 'dotenv/config'; // Asegura que las variables de entorno se carguen primero
 import {genkit} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
 
-// Se pasa la API Key explícitamente al plugin para evitar errores de autenticación.
-// Esta es la forma más robusta de asegurar que Genkit tenga las credenciales.
+// In a managed environment, Genkit automatically uses Application Default Credentials.
+// We remove the explicit API key to allow Genkit to use the environment's
+// more secure, built-in authentication method.
 export const ai = genkit({
-  plugins: [googleAI({apiKey: process.env.GOOGLE_API_KEY})],
+  plugins: [googleAI()],
   model: 'googleai/gemini-1.5-pro-latest',
 });

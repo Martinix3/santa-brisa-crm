@@ -18,7 +18,7 @@ const ProcessInvoiceInputSchema = z.object({
       "A photo or PDF of an invoice, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
     ),
 });
-export type ProcessInvoiceInput = z.infer<typeof ProcessInvoiceInputSchema>;
+type ProcessInvoiceInput = z.infer<typeof ProcessInvoiceInputSchema>;
 
 const ProcessInvoiceOutputSchema = z.object({
   supplier: z.string().describe("The name of the supplier or vendor from the invoice."),
@@ -40,7 +40,7 @@ const ProcessInvoiceOutputSchema = z.object({
   taxRate: z.number().optional().describe("The tax rate as a percentage (e.g., 21 for 21%). If multiple rates, provide the most common one."),
   notes: z.string().optional().describe("Any relevant notes or invoice numbers found."),
 });
-export type ProcessInvoiceOutput = z.infer<typeof ProcessInvoiceOutputSchema>;
+type ProcessInvoiceOutput = z.infer<typeof ProcessInvoiceOutputSchema>;
 
 
 export async function processInvoice(input: ProcessInvoiceInput): Promise<ProcessInvoiceOutput> {
@@ -52,13 +52,16 @@ const prompt = ai.definePrompt({
   input: {schema: ProcessInvoiceInputSchema},
   output: {schema: ProcessInvoiceOutputSchema},
   model: 'googleai/gemini-1.5-flash-latest',
-  prompt: `You are an expert accounting assistant specialized in processing Spanish invoices. Your task is to extract structured information from an invoice file with the highest possible accuracy, especially with numbers.
+  prompt: `You are an expert accounting assistant. Your task is to extract structured information from an invoice file with the highest possible accuracy, especially with numbers.
 
 Analyze the provided invoice image or PDF and extract the following details. Be extremely precise.
 
 **Critically Important Instructions:**
-- **Double-Check Numbers**: Numeric values are the most critical part of this task. Before outputting any number (quantity, price, total), double-check your transcription from the document. Be aware of common OCR errors (e.g., '1' vs 'l', '0' vs 'O', '8' vs 'B'). Accuracy is paramount.
-- **Spanish Number Format:** The invoice uses Spanish number formatting. The period (.) is a thousands separator and the comma (,) is the decimal separator. For example, '1.234,56' must be interpreted as 1234.56. Be very careful with this.
+- **Number Format Detection**: Before processing numbers, analyze the invoice to determine its locale.
+  - If it appears to be a **Spanish/European** invoice, the period (\`.\`) is the thousands separator and the comma (\`,\`) is the decimal separator. Example: \`1.234,56\` must be interpreted as \`1234.56\`.
+  - If it appears to be an **Anglo-Saxon (US/UK)** invoice, the comma (\`,\`) is the thousands separator and the period (\`.\`) is the decimal separator. Example: \`1,234.56\` must be interpreted as \`1234.56\`.
+  - This step is CRUCIAL. Misinterpreting the decimal separator will lead to incorrect financial data.
+- **Double-Check Numbers**: After determining the format, double-check your transcription of all numbers (quantity, price, total). Be aware of common OCR errors (e.g., '1' vs 'l', '0' vs 'O', '8' vs 'B'). Accuracy is paramount.
 - **Line Items Source:** Extract line items ONLY from the main table with columns like CANT, PRECIO, IMPORTE. Ignore any summary text below the table (like pallet details or production notes) when creating the list of items.
 
 **Data to Extract:**

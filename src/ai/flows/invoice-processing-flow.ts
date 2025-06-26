@@ -52,19 +52,21 @@ const prompt = ai.definePrompt({
   input: {schema: ProcessInvoiceInputSchema},
   output: {schema: ProcessInvoiceOutputSchema},
   model: 'googleai/gemini-1.5-flash-latest',
-  prompt: `You are an expert accounting assistant specialized in processing Spanish invoices. Your task is to extract structured information from an invoice file.
+  prompt: `You are an expert accounting assistant specialized in processing Spanish invoices. Your task is to extract structured information from an invoice file with the highest possible accuracy, especially with numbers.
 
-Analyze the provided invoice image or PDF and extract the following details. Be precise.
+Analyze the provided invoice image or PDF and extract the following details. Be extremely precise.
 
-**Key Instructions:**
-- **Number Format:** The invoice uses Spanish number formatting. The period (.) is a thousands separator and the comma (,) is the decimal separator. For example, '1.234,56' must be interpreted as 1234.56. Be very careful with this.
+**Critically Important Instructions:**
+- **Double-Check Numbers**: Numeric values are the most critical part of this task. Before outputting any number (quantity, price, total), double-check your transcription from the document. Be aware of common OCR errors (e.g., '1' vs 'l', '0' vs 'O', '8' vs 'B'). Accuracy is paramount.
+- **Spanish Number Format:** The invoice uses Spanish number formatting. The period (.) is a thousands separator and the comma (,) is the decimal separator. For example, '1.234,56' must be interpreted as 1234.56. Be very careful with this.
 - **Line Items Source:** Extract line items ONLY from the main table with columns like CANT, PRECIO, IMPORTE. Ignore any summary text below the table (like pallet details or production notes) when creating the list of items.
 
+**Data to Extract:**
 - **Supplier Name**: Identify the vendor or company that issued the invoice.
 - **Supplier CIF/VAT ID**: Extract the supplier's tax identification number (CIF, NIF, VAT ID, etc.).
 - **Supplier Address**: Extract the supplier's full mailing address and break it down into structured fields: street, city, province, postal code, and country.
 - **Invoice Date**: Find the issue date and format it as YYYY-MM-DD.
-- **Line Items**: Extract each line item from the main table. For each item, provide its description, quantity, and unit price (before tax).
+- **Line Items**: For each item in the main table, provide its description, quantity, and unit price (before tax).
 - **Shipping Cost**: If there is a separate charge for shipping, delivery, or "portes", extract that value. If not present, this should be 0 or omitted.
 - **Tax Rate**: Identify the VAT or tax rate percentage (e.g., IVA 21%). If there are multiple, provide the most prominent one.
 - **Notes**: Extract any invoice number (Nº Factura), order number, or other relevant text notes from the document.

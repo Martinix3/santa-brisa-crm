@@ -80,27 +80,31 @@ async function uploadInvoice(
   purchaseId: string
 ): Promise<{ downloadUrl: string; storagePath: string }> {
   try {
+    // Basic validation of the data URI
+    if (!dataUri.startsWith('data:')) {
+      throw new Error('Invalid data URI provided.');
+    }
+
     const mimeType = dataUri.substring(dataUri.indexOf(':') + 1, dataUri.indexOf(';'));
     const fileExtension = mimeType.split('/')[1] || 'bin';
     const uniqueFileName = `${uuidv4()}.${fileExtension}`;
     const storagePath = `invoices/purchases/${purchaseId}/${uniqueFileName}`;
     const storageRef = ref(storage, storagePath);
 
-    const base64Data = dataUri.split(',')[1];
-    
-    const snapshot = await uploadString(storageRef, base64Data, 'base64', {
-        contentType: mimeType,
-    });
+    // Use uploadString with 'data_url' format. This is simpler and might be more robust.
+    const snapshot = await uploadString(storageRef, dataUri, 'data_url');
     
     const downloadUrl = await getDownloadURL(snapshot.ref);
 
     return { downloadUrl, storagePath: snapshot.metadata.fullPath };
   } catch (error: any) {
     console.error('Error uploading invoice to Firebase Storage:', error);
+    // Provide a more specific error message if available
     const errorMessage = error.code || error.message || "Failed to upload file to storage.";
     throw new Error(`Upload failed: ${errorMessage}`);
   }
 }
+
 
 const findOrCreateSupplier = async (data: Partial<PurchaseFormValues>): Promise<string | undefined> => {
     if (!data.supplier) return undefined;

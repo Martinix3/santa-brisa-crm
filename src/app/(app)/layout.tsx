@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button';
 import Logo from '@/components/icons/Logo';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2, Building2, ClipboardList, CalendarCheck, PartyPopper, ListChecks, Footprints, Briefcase, Target, Award, Sparkles, Receipt, PackageCheck, SendHorizonal } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2, Building2, ClipboardList, CalendarCheck, PartyPopper, ListChecks, Footprints, Briefcase, Target, Award, Sparkles, Receipt, PackageCheck, SendHorizonal, Truck } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -91,6 +91,7 @@ const navigationStructure: NavGroup[] = [
     items: [
       { href: '/direct-sales-sb', label: 'Ventas Directas SB', icon: Briefcase, roles: ['Admin'] },
       { href: '/purchases', label: 'Gestión de Compras', icon: Receipt, roles: ['Admin'] },
+      { href: '/suppliers', label: 'Proveedores', icon: Truck, roles: ['Admin'] },
     ],
   },
   {

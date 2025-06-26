@@ -21,6 +21,7 @@ import { es } from 'date-fns/locale';
 import StatusBadge from "@/components/app/status-badge";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { getPurchasesFS, addPurchaseFS, updatePurchaseFS, deletePurchaseFS } from "@/services/purchase-service";
+import Link from "next/link";
 
 export default function PurchasesPage() {
   const { toast } = useToast();
@@ -216,7 +217,15 @@ export default function PurchasesPage() {
                 <TableBody>
                   {filteredPurchases.length > 0 ? filteredPurchases.map((purchase) => (
                     <TableRow key={purchase.id}>
-                      <TableCell className="font-medium">{purchase.supplier}</TableCell>
+                      <TableCell className="font-medium">
+                        {purchase.supplierId ? (
+                          <Link href={`/suppliers/${purchase.supplierId}`} className="hover:underline text-primary">
+                            {purchase.supplier}
+                          </Link>
+                        ) : (
+                          purchase.supplier
+                        )}
+                      </TableCell>
                       <TableCell>{purchase.items[0]?.description || 'Varios'}{purchase.items.length > 1 ? ` y ${purchase.items.length - 1} más...` : ''}</TableCell>
                       <TableCell>{format(parseISO(purchase.orderDate), "dd/MM/yy", { locale: es })}</TableCell>
                       <TableCell className="text-right">

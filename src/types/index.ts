@@ -1,5 +1,6 @@
 
 
+
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
 
 export interface Kpi {
@@ -190,6 +191,7 @@ export interface PurchaseItem {
 export interface Purchase {
   id: string;
   supplier: string;
+  supplierId?: string;
   items: PurchaseItem[];
   subtotal: number;
   tax: number;
@@ -296,4 +298,32 @@ export interface DirectSale {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface Supplier {
+  id: string;
+  name: string;
+  cif?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  address?: AddressDetails;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SupplierFormValues {
+  name: string;
+  cif?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  address_street?: string;
+  address_number?: string;
+  address_city?: string;
+  address_province?: string;
+  address_postalCode?: string;
+  address_country?: string;
+  notes?: string;
 }

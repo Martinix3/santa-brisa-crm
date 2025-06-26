@@ -15,9 +15,10 @@ import {
   orderBy,
   writeBatch
 } from 'firebase/firestore';
-import type { Purchase, PurchaseFormValues } from '@/types';
+import type { Purchase, PurchaseFormValues, SupplierFormValues } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 import { mockPurchases } from '@/lib/data'; // Para seeding
+import { getSupplierByNameFS, addSupplierFS } from './supplier-service';
 
 const PURCHASES_COLLECTION = 'purchases';
 
@@ -26,6 +27,7 @@ const fromFirestorePurchase = (docSnap: any): Purchase => {
   return {
     id: docSnap.id,
     supplier: data.supplier || '',
+    supplierId: data.supplierId || undefined,
     items: data.items || [],
     subtotal: data.subtotal || 0,
     tax: data.tax || 0,
@@ -79,14 +81,40 @@ export const getPurchasesFS = async (): Promise<Purchase[]> => {
 
 
 export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> => {
+  let supplierId: string | undefined;
+  const existingSupplier = await getSupplierByNameFS(data.supplier);
+  if (existingSupplier) {
+    supplierId = existingSupplier.id;
+  } else {
+    const newSupplierData = { name: data.supplier };
+    supplierId = await addSupplierFS(newSupplierData as SupplierFormValues);
+  }
+
   const firestoreData = toFirestorePurchase(data, true);
+  firestoreData.supplierId = supplierId;
+
   const docRef = await addDoc(collection(db, PURCHASES_COLLECTION), firestoreData);
   return docRef.id;
 };
 
 export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormValues>): Promise<void> => {
+  let supplierId: string | undefined;
+  if (data.supplier) {
+      const existingSupplier = await getSupplierByNameFS(data.supplier);
+      if (existingSupplier) {
+          supplierId = existingSupplier.id;
+      } else {
+          const newSupplierData = { name: data.supplier };
+          supplierId = await addSupplierFS(newSupplierData as SupplierFormValues);
+      }
+  }
+
   const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);
   const firestoreData = toFirestorePurchase(data as PurchaseFormValues, false);
+  if (supplierId) {
+    firestoreData.supplierId = supplierId;
+  }
+  
   await updateDoc(purchaseDocRef, firestoreData);
 };
 

@@ -180,14 +180,13 @@ export default function RequestSamplePage() {
                     render={({ field }) => (
                     <FormItem>
                         <FormLabel className="flex items-center"><Users className="mr-2 h-4 w-4 text-primary"/> Solicitar en nombre de (Opcional)</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue="">
+                        <Select onValueChange={field.onChange} value={field.value || ""}>
                         <FormControl>
                             <SelectTrigger disabled={isLoading}>
                             <SelectValue placeholder="Yo mismo (Admin)" />
                             </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                            <SelectItem value="">Yo mismo (Admin)</SelectItem>
                             {requestersList.map(req => (
                                 <SelectItem key={req.id} value={req.id}>{req.name} ({req.role})</SelectItem>
                             ))}
@@ -346,3 +345,5 @@ export default function RequestSamplePage() {
     </div>
   );
 }
+
+    

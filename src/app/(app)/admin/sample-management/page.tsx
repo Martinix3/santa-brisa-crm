@@ -9,7 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuChe
 import { Input } from "@/components/ui/input";
 import type { SampleRequest, SampleRequestStatus, UserRole, TeamMember } from "@/types";
 import { sampleRequestStatusList } from "@/lib/data";
-import { Filter, ChevronDown, Loader2, PackageCheck, ListOrdered } from "lucide-react";
+import { Filter, ChevronDown, Loader2, PackageCheck, ListOrdered, Users } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from 'date-fns/locale';
 import { useToast } from "@/hooks/use-toast";
@@ -31,6 +31,14 @@ export default function SampleManagementPage() {
   const [statusFilter, setStatusFilter] = React.useState<SampleRequestStatus | "Todos">("Todos");
   const [requesterFilter, setRequesterFilter] = React.useState<string>("Todos");
 
+  const [requesterStats, setRequesterStats] = React.useState<{
+    id: string;
+    name: string;
+    requestCount: number;
+    totalSamples: number;
+  }[]>([]);
+
+
   const isAdmin = userRole === 'Admin';
 
   React.useEffect(() => {
@@ -47,6 +55,23 @@ export default function SampleManagementPage() {
         ]);
         setRequests(fetchedRequests);
         setTeamMembers(fetchedMembers);
+
+        // Calculate stats
+        const stats = fetchedMembers.map(member => {
+            const memberRequests = fetchedRequests.filter(req => req.requesterId === member.id);
+            const totalSamples = memberRequests.reduce((sum, req) => sum + req.numberOfSamples, 0);
+            return {
+                id: member.id,
+                name: member.name,
+                requestCount: memberRequests.length,
+                totalSamples: totalSamples,
+            };
+        }).filter(stat => stat.requestCount > 0) 
+          .sort((a,b) => b.totalSamples - a.totalSamples);
+        
+        setRequesterStats(stats);
+
+
       } catch (error) {
         console.error("Error fetching sample requests or team members:", error);
         toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar las solicitudes o el equipo.", variant: "destructive" });
@@ -92,6 +117,48 @@ export default function SampleManagementPage() {
         <PackageCheck className="h-8 w-8 text-primary" />
         <h1 className="text-3xl font-headline font-semibold">Gestión de Solicitudes de Muestras</h1>
       </header>
+
+      <Card className="shadow-subtle mb-6">
+        <CardHeader>
+            <CardTitle className="flex items-center"><Users className="mr-2 h-5 w-5 text-muted-foreground"/> Resumen de Solicitudes por Usuario</CardTitle>
+            <CardDescription>Total de muestras solicitadas por cada miembro del equipo.</CardDescription>
+        </CardHeader>
+        <CardContent>
+            {isLoading ? (
+                <div className="flex justify-center items-center h-24">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+            ) : requesterStats.length > 0 ? (
+                <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Solicitante</TableHead>
+                                <TableHead className="text-right">Nº de Solicitudes</TableHead>
+                                <TableHead className="text-right">Total Muestras Solicitadas</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {requesterStats.map(stat => (
+                                <TableRow key={stat.id}>
+                                    <TableCell className="font-medium">{stat.name}</TableCell>
+                                    <TableCell className="text-right">
+                                        <FormattedNumericValue value={stat.requestCount} />
+                                    </TableCell>
+                                    <TableCell className="text-right font-bold">
+                                        <FormattedNumericValue value={stat.totalSamples} />
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            ) : (
+                <p className="text-sm text-muted-foreground text-center">No hay datos de solicitudes para mostrar un resumen.</p>
+            )}
+        </CardContent>
+    </Card>
+
 
       <Card className="shadow-subtle">
         <CardHeader>
@@ -142,7 +209,7 @@ export default function SampleManagementPage() {
                   <TableRow>
                     <TableHead className="w-[15%]">Fecha Solicitud</TableHead>
                     <TableHead className="w-[15%]">Solicitante</TableHead>
-                    <TableHead className="w-[20%]">Cliente</TableHead>
+                    <TableHead className="w-[20%]">Cuenta</TableHead>
                     <TableHead className="w-[20%]">Propósito</TableHead>
                     <TableHead className="text-right w-[10%]">Cantidad</TableHead>
                     <TableHead className="text-center w-[20%]">Estado</TableHead>

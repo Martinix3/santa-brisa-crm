@@ -1,4 +1,5 @@
 
+
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
 
 export interface Kpi {
@@ -259,6 +260,7 @@ export interface SampleRequest {
 }
 
 export interface SampleRequestFormValues {
+  requesterId?: string;
   clientStatus: 'new' | 'existing';
   accountId?: string;
   clientName: string;

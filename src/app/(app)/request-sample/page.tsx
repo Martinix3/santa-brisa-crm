@@ -13,20 +13,23 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, SendHorizonal, Package } from "lucide-react";
+import { Loader2, SendHorizonal, Package, Users } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { useRouter } from "next/navigation";
 import { sampleRequestPurposeList } from "@/lib/data";
-import type { Account, SampleRequestPurpose, SampleRequestFormValues } from "@/types";
+import type { Account, SampleRequestPurpose, SampleRequestFormValues, TeamMember } from "@/types";
 import { getAccountsFS } from "@/services/account-service";
 import { addSampleRequestFS } from "@/services/sample-request-service";
+import { getTeamMembersFS } from "@/services/team-member-service";
+
 
 const NEW_CLIENT_ACCOUNT_ID_PLACEHOLDER = "##NEW_CLIENT##";
 
 const sampleRequestFormSchema = z.object({
-  clientStatus: z.enum(["new", "existing"], { required_error: "Debe indicar si es un cliente nuevo o existente." }),
+  requesterId: z.string().optional(),
+  clientStatus: z.enum(["new", "existing"], { required_error: "Debe indicar si la muestra es para una cuenta nueva o existente." }),
   accountId: z.string().optional(),
-  clientName: z.string().min(2, "El nombre del cliente debe tener al menos 2 caracteres."),
+  clientName: z.string().min(2, "El nombre de la cuenta debe tener al menos 2 caracteres."),
   purpose: z.enum(sampleRequestPurposeList as [SampleRequestPurpose, ...SampleRequestPurpose[]], { required_error: "Debe seleccionar un propósito." }),
   numberOfSamples: z.coerce.number().min(1, "Debe solicitar al menos 1 muestra.").max(50, "No se pueden solicitar más de 50 muestras a la vez."),
   justificationNotes: z.string().min(10, "La justificación debe tener al menos 10 caracteres."),
@@ -39,23 +42,32 @@ export default function RequestSamplePage() {
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [allAccounts, setAllAccounts] = React.useState<Account[]>([]);
-  const [isLoadingAccounts, setIsLoadingAccounts] = React.useState(true);
+  const [requestersList, setRequestersList] = React.useState<TeamMember[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
 
   React.useEffect(() => {
-    async function loadAccountsData() {
-      setIsLoadingAccounts(true);
+    async function loadData() {
+      setIsLoading(true);
       try {
-        const fetchedAccounts = await getAccountsFS();
-        setAllAccounts(fetchedAccounts);
+        const promises = [getAccountsFS()];
+        if (userRole === 'Admin') {
+            promises.push(getTeamMembersFS(['SalesRep', 'Clavadista']));
+        }
+        const [fetchedAccounts, fetchedRequesters] = await Promise.all(promises);
+        setAllAccounts(fetchedAccounts as Account[]);
+        if(fetchedRequesters) {
+            setRequestersList(fetchedRequesters as TeamMember[]);
+        }
       } catch (error) {
-        console.error("Error loading accounts:", error);
-        toast({ title: "Error al Cargar Cuentas", description: "No se pudieron cargar las cuentas de clientes.", variant: "destructive" });
+        console.error("Error loading data for sample request form:", error);
+        toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar los datos necesarios.", variant: "destructive" });
       } finally {
-        setIsLoadingAccounts(false);
+        setIsLoading(false);
       }
     }
-    loadAccountsData();
-  }, [toast]);
+    loadData();
+  }, [toast, userRole]);
+
 
   const form = useForm<SampleRequestFormValues>({
     resolver: zodResolver(sampleRequestFormSchema),
@@ -90,12 +102,31 @@ export default function RequestSamplePage() {
       return;
     }
     setIsSubmitting(true);
+
+    let finalRequesterId = teamMember.id;
+    let finalRequesterName = teamMember.name;
+
+    if (userRole === 'Admin' && values.requesterId && values.requesterId !== "") {
+        const selectedRequester = requestersList.find(r => r.id === values.requesterId);
+        if (selectedRequester) {
+            finalRequesterId = selectedRequester.id;
+            finalRequesterName = selectedRequester.name;
+        }
+    }
+
+    const dataForService: SampleRequestFormValues & { requesterId: string; requesterName: string } = {
+        clientStatus: values.clientStatus,
+        accountId: values.accountId,
+        clientName: values.clientName,
+        purpose: values.purpose,
+        numberOfSamples: values.numberOfSamples,
+        justificationNotes: values.justificationNotes,
+        requesterId: finalRequesterId,
+        requesterName: finalRequesterName,
+    };
+
     try {
-      await addSampleRequestFS({
-        ...values,
-        requesterId: teamMember.id,
-        requesterName: teamMember.name,
-      });
+      await addSampleRequestFS(dataForService);
       toast({
         title: "¡Solicitud Enviada!",
         description: "Tu solicitud de muestras ha sido enviada para su revisión.",
@@ -128,21 +159,49 @@ export default function RequestSamplePage() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+
+             {userRole === 'Admin' && (
+                <FormField
+                    control={form.control}
+                    name="requesterId"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel className="flex items-center"><Users className="mr-2 h-4 w-4 text-primary"/> Solicitar en nombre de (Opcional)</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue="">
+                        <FormControl>
+                            <SelectTrigger disabled={isLoading}>
+                            <SelectValue placeholder="Yo mismo (Admin)" />
+                            </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                            <SelectItem value="">Yo mismo (Admin)</SelectItem>
+                            {requestersList.map(req => (
+                                <SelectItem key={req.id} value={req.id}>{req.name} ({req.role})</SelectItem>
+                            ))}
+                        </SelectContent>
+                        </Select>
+                        <FormDescription>Si se deja en blanco, la solicitud se registrará a tu nombre.</FormDescription>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+            )}
+
               <FormField
                 control={form.control}
                 name="clientStatus"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>¿La muestra es para un cliente nuevo o existente?</FormLabel>
+                    <FormLabel>¿La muestra es para una cuenta nueva o existente?</FormLabel>
                     <FormControl>
                       <RadioGroup onValueChange={field.onChange} value={field.value} className="flex space-x-4">
                         <FormItem className="flex items-center space-x-2 space-y-0">
                           <FormControl><RadioGroupItem value="new" /></FormControl>
-                          <FormLabel className="font-normal">Cliente Nuevo</FormLabel>
+                          <FormLabel className="font-normal">Para Cuenta Nueva</FormLabel>
                         </FormItem>
                         <FormItem className="flex items-center space-x-2 space-y-0">
                           <FormControl><RadioGroupItem value="existing" /></FormControl>
-                          <FormLabel className="font-normal">Cliente Existente</FormLabel>
+                          <FormLabel className="font-normal">Para Cuenta Existente</FormLabel>
                         </FormItem>
                       </RadioGroup>
                     </FormControl>
@@ -157,15 +216,15 @@ export default function RequestSamplePage() {
                   name="accountId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Seleccionar Cliente Existente</FormLabel>
+                      <FormLabel>Seleccionar Cuenta Existente</FormLabel>
                       <Select onValueChange={(value) => handleExistingClientSelected(value)} value={field.value || ""}>
                         <FormControl>
-                          <SelectTrigger disabled={isLoadingAccounts}>
-                            <SelectValue placeholder={isLoadingAccounts ? "Cargando cuentas..." : "Buscar cliente..."} />
+                          <SelectTrigger disabled={isLoading}>
+                            <SelectValue placeholder={isLoading ? "Cargando cuentas..." : "Buscar cuenta..."} />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value={NEW_CLIENT_ACCOUNT_ID_PLACEHOLDER}>--- Registrar como Cliente Nuevo ---</SelectItem>
+                          <SelectItem value={NEW_CLIENT_ACCOUNT_ID_PLACEHOLDER}>--- Registrar como Cuenta Nueva ---</SelectItem>
                           {allAccounts.map(account => (
                             <SelectItem key={account.id} value={account.id}>{account.name} ({account.cif || 'Sin CIF'})</SelectItem>
                           ))}
@@ -181,7 +240,7 @@ export default function RequestSamplePage() {
                   name="clientName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Nombre del Cliente</FormLabel>
+                      <FormLabel>Nombre de la Cuenta/Cliente</FormLabel>
                       <FormControl>
                         <Input placeholder="Nombre del local o cliente potencial" {...field} />
                       </FormControl>
@@ -221,6 +280,7 @@ export default function RequestSamplePage() {
                         type="number"
                         {...field}
                         value={field.value === undefined || isNaN(field.value) ? '' : field.value}
+                        onChange={(e) => field.onChange(parseInt(e.target.value, 10))}
                       />
                     </FormControl>
                     <FormMessage />
@@ -243,7 +303,7 @@ export default function RequestSamplePage() {
                 )}
               />
 
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
+              <Button type="submit" className="w-full" disabled={isSubmitting || isLoading}>
                 {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enviando Solicitud...</> : 'Enviar Solicitud de Muestras'}
               </Button>
             </form>

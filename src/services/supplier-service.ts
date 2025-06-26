@@ -2,7 +2,7 @@
 'use server';
 
 import { adminDb as db } from '@/lib/firebaseAdmin';
-import * as adminFirestore from 'firebase-admin/firestore';
+import { collection, query, where, limit, orderBy, getDocs, doc, getDoc, addDoc, updateDoc, deleteDoc, Timestamp } from 'firebase-admin/firestore';
 import type { Supplier, SupplierFormValues, AddressDetails } from '@/types';
 import { format, parseISO } from 'date-fns';
 
@@ -20,8 +20,8 @@ const fromFirestoreSupplier = (docSnap: adminFirestore.DocumentSnapshot<adminFir
     contactEmail: data.contactEmail,
     contactPhone: data.contactPhone,
     notes: data.notes,
-    createdAt: data.createdAt instanceof adminFirestore.Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
-    updatedAt: data.updatedAt instanceof adminFirestore.Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+    createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+    updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
   };
 };
 
@@ -54,31 +54,31 @@ const toFirestoreSupplier = (data: Partial<SupplierFormValues>, isNew: boolean):
   }
 
   if (isNew) {
-    firestoreData.createdAt = adminFirestore.Timestamp.fromDate(new Date());
+    firestoreData.createdAt = Timestamp.fromDate(new Date());
   }
-  firestoreData.updatedAt = adminFirestore.Timestamp.fromDate(new Date());
+  firestoreData.updatedAt = Timestamp.fromDate(new Date());
   
   return firestoreData;
 };
 
 export const getSuppliersFS = async (): Promise<Supplier[]> => {
-  const suppliersCol = adminFirestore.collection(db, SUPPLIERS_COLLECTION);
-  const q = adminFirestore.query(suppliersCol, adminFirestore.orderBy('name', 'asc'));
-  const snapshot = await adminFirestore.getDocs(q);
+  const suppliersCol = collection(db, SUPPLIERS_COLLECTION);
+  const q = query(suppliersCol, orderBy('name', 'asc'));
+  const snapshot = await getDocs(q);
   return snapshot.docs.map(docSnap => fromFirestoreSupplier(docSnap));
 };
 
 export const getSupplierByIdFS = async (id: string): Promise<Supplier | null> => {
   if (!id) return null;
-  const docRef = adminFirestore.doc(db, SUPPLIERS_COLLECTION, id);
-  const docSnap = await adminFirestore.getDoc(docRef);
+  const docRef = doc(db, SUPPLIERS_COLLECTION, id);
+  const docSnap = await getDoc(docRef);
   return docSnap.exists() ? fromFirestoreSupplier(docSnap) : null;
 };
 
 export const getSupplierByNameFS = async (name: string): Promise<Supplier | null> => {
   if (!name || name.trim() === '') return null;
-  const q = adminFirestore.query(adminFirestore.collection(db, SUPPLIERS_COLLECTION), adminFirestore.where('name', '==', name), adminFirestore.limit(1));
-  const snapshot = await adminFirestore.getDocs(q);
+  const q = query(collection(db, SUPPLIERS_COLLECTION), where('name', '==', name), limit(1));
+  const snapshot = await getDocs(q);
   if (!snapshot.empty) {
     return fromFirestoreSupplier(snapshot.docs[0]);
   }
@@ -87,8 +87,8 @@ export const getSupplierByNameFS = async (name: string): Promise<Supplier | null
 
 export const getSupplierByCifFS = async (cif: string): Promise<Supplier | null> => {
     if (!cif || cif.trim() === '') return null;
-    const q = adminFirestore.query(adminFirestore.collection(db, SUPPLIERS_COLLECTION), adminFirestore.where('cif', '==', cif), adminFirestore.limit(1));
-    const snapshot = await adminFirestore.getDocs(q);
+    const q = query(collection(db, SUPPLIERS_COLLECTION), where('cif', '==', cif), limit(1));
+    const snapshot = await getDocs(q);
     if (!snapshot.empty) {
         return fromFirestoreSupplier(snapshot.docs[0]);
     }
@@ -97,17 +97,17 @@ export const getSupplierByCifFS = async (cif: string): Promise<Supplier | null> 
 
 export const addSupplierFS = async (data: SupplierFormValues): Promise<string> => {
   const firestoreData = toFirestoreSupplier(data, true);
-  const docRef = await adminFirestore.addDoc(adminFirestore.collection(db, SUPPLIERS_COLLECTION), firestoreData);
+  const docRef = await addDoc(collection(db, SUPPLIERS_COLLECTION), firestoreData);
   return docRef.id;
 };
 
 export const updateSupplierFS = async (id: string, data: Partial<SupplierFormValues>): Promise<void> => {
-  const docRef = adminFirestore.doc(db, SUPPLIERS_COLLECTION, id);
+  const docRef = doc(db, SUPPLIERS_COLLECTION, id);
   const firestoreData = toFirestoreSupplier(data, false);
-  await adminFirestore.updateDoc(docRef, firestoreData);
+  await updateDoc(docRef, firestoreData);
 };
 
 export const deleteSupplierFS = async (id: string): Promise<void> => {
-  const docRef = adminFirestore.doc(db, SUPPLIERS_COLLECTION, id);
-  await adminFirestore.deleteDoc(docRef);
+  const docRef = doc(db, SUPPLIERS_COLLECTION, id);
+  await deleteDoc(docRef);
 };

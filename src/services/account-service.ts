@@ -2,7 +2,7 @@
 'use server';
 
 import { adminDb as db } from '@/lib/firebaseAdmin';
-import * as adminFirestore from 'firebase-admin/firestore';
+import { collection, query, orderBy, getDocs, doc, getDoc, addDoc, updateDoc, deleteDoc, writeBatch, Timestamp } from 'firebase-admin/firestore';
 import type { Account, AccountFormValues, AddressDetails } from '@/types';
 import { format, parseISO } from 'date-fns';
 
@@ -27,8 +27,8 @@ const fromFirestore = (docSnap: adminFirestore.DocumentSnapshot<adminFirestore.D
     notes: data.notes || '',
     internalNotes: data.internalNotes || undefined,
     salesRepId: data.salesRepId || undefined, 
-    createdAt: data.createdAt instanceof adminFirestore.Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : (typeof data.createdAt === 'string' ? data.createdAt : format(new Date(), "yyyy-MM-dd")),
-    updatedAt: data.updatedAt instanceof adminFirestore.Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : (typeof data.updatedAt === 'string' ? data.updatedAt : format(new Date(), "yyyy-MM-dd")),
+    createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : (typeof data.createdAt === 'string' ? data.createdAt : format(new Date(), "yyyy-MM-dd")),
+    updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : (typeof data.updatedAt === 'string' ? data.updatedAt : format(new Date(), "yyyy-MM-dd")),
   };
 };
 
@@ -83,21 +83,21 @@ const toFirestore = (data: AccountFormValues & {
   }
 
   if (isNew) {
-    firestoreData.createdAt = adminFirestore.Timestamp.fromDate(new Date());
+    firestoreData.createdAt = Timestamp.fromDate(new Date());
     if (!firestoreData.name) firestoreData.name = "Nombre no especificado";
     if (!firestoreData.type) firestoreData.type = "Otro";
     if (!firestoreData.status) firestoreData.status = "Potencial";
   }
-  firestoreData.updatedAt = adminFirestore.Timestamp.fromDate(new Date());
+  firestoreData.updatedAt = Timestamp.fromDate(new Date());
 
   return firestoreData;
 };
 
 
 export const getAccountsFS = async (): Promise<Account[]> => {
-  const accountsCol = adminFirestore.collection(db, ACCOUNTS_COLLECTION);
-  const q = adminFirestore.query(accountsCol, adminFirestore.orderBy('createdAt', 'desc'));
-  const accountSnapshot = await adminFirestore.getDocs(q);
+  const accountsCol = collection(db, ACCOUNTS_COLLECTION);
+  const q = query(accountsCol, orderBy('createdAt', 'desc'));
+  const accountSnapshot = await getDocs(q);
   const accountList = accountSnapshot.docs.map(docSnap => fromFirestore(docSnap));
   return accountList;
 };
@@ -107,8 +107,8 @@ export const getAccountByIdFS = async (id: string): Promise<Account | null> => {
     console.warn("getAccountByIdFS called with no ID.");
     return null;
   }
-  const accountDocRef = adminFirestore.doc(db, ACCOUNTS_COLLECTION, id);
-  const docSnap = await adminFirestore.getDoc(accountDocRef);
+  const accountDocRef = doc(db, ACCOUNTS_COLLECTION, id);
+  const docSnap = await getDoc(accountDocRef);
   if (docSnap.exists) {
     return fromFirestore(docSnap);
   } else {
@@ -122,7 +122,7 @@ export const addAccountFS = async (data: AccountFormValues & {
     addressShipping_street?: string, addressShipping_number?: string, addressShipping_city?: string, addressShipping_province?: string, addressShipping_postalCode?: string, addressShipping_country?: string,
 }): Promise<string> => {
   const firestoreData = toFirestore(data, true);
-  const docRef = await adminFirestore.addDoc(adminFirestore.collection(db, ACCOUNTS_COLLECTION), firestoreData);
+  const docRef = await addDoc(collection(db, ACCOUNTS_COLLECTION), firestoreData);
   return docRef.id;
 };
 
@@ -130,28 +130,28 @@ export const updateAccountFS = async (id: string, data: Partial<AccountFormValue
     addressBilling_street?: string, addressBilling_number?: string, addressBilling_city?: string, addressBilling_province?: string, addressBilling_postalCode?: string, addressBilling_country?: string,
     addressShipping_street?: string, addressShipping_number?: string, addressShipping_city?: string, addressShipping_province?: string, addressShipping_postalCode?: string, addressShipping_country?: string,
 }>): Promise<void> => {
-  const accountDocRef = adminFirestore.doc(db, ACCOUNTS_COLLECTION, id);
+  const accountDocRef = doc(db, ACCOUNTS_COLLECTION, id);
   const firestoreData = toFirestore(data as any, false); 
-  await adminFirestore.updateDoc(accountDocRef, firestoreData);
+  await updateDoc(accountDocRef, firestoreData);
 };
 
 export const deleteAccountFS = async (id: string): Promise<void> => {
-  const accountDocRef = adminFirestore.doc(db, ACCOUNTS_COLLECTION, id);
-  await adminFirestore.deleteDoc(accountDocRef);
+  const accountDocRef = doc(db, ACCOUNTS_COLLECTION, id);
+  await deleteDoc(accountDocRef);
 };
 
 export const initializeMockAccountsInFirestore = async (mockAccounts: Account[]) => {
-    const accountsCol = adminFirestore.collection(db, ACCOUNTS_COLLECTION);
-    const snapshot = await adminFirestore.getDocs(adminFirestore.query(accountsCol));
+    const accountsCol = collection(db, ACCOUNTS_COLLECTION);
+    const snapshot = await getDocs(query(accountsCol));
     if (snapshot.empty) {
-        const batch = adminFirestore.writeBatch(db);
+        const batch = writeBatch(db);
         mockAccounts.forEach(account => {
             const { id, createdAt, updatedAt, addressBilling, addressShipping, ...accountData } = account; 
             
             const firestoreReadyData: any = {
                 ...accountData,
-                createdAt: account.createdAt ? adminFirestore.Timestamp.fromDate(parseISO(account.createdAt)) : adminFirestore.Timestamp.fromDate(new Date()),
-                updatedAt: account.updatedAt ? adminFirestore.Timestamp.fromDate(parseISO(account.updatedAt)) : adminFirestore.Timestamp.fromDate(new Date()),
+                createdAt: account.createdAt ? Timestamp.fromDate(parseISO(account.createdAt)) : Timestamp.fromDate(new Date()),
+                updatedAt: account.updatedAt ? Timestamp.fromDate(parseISO(account.updatedAt)) : Timestamp.fromDate(new Date()),
                 salesRepId: account.salesRepId || null,
                 addressBilling: addressBilling || null,
                 addressShipping: addressShipping || null,
@@ -164,7 +164,7 @@ export const initializeMockAccountsInFirestore = async (mockAccounts: Account[])
                   firestoreReadyData[key] = null; 
               }
             });
-            const docRef = adminFirestore.doc(accountsCol); 
+            const docRef = doc(accountsCol); 
             batch.set(docRef, firestoreReadyData);
         });
         await batch.commit();

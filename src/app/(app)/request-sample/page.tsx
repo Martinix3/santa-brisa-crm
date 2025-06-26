@@ -217,7 +217,11 @@ export default function RequestSamplePage() {
                   <FormItem>
                     <FormLabel className="flex items-center"><Package className="mr-2 h-4 w-4"/>Cantidad de Muestras</FormLabel>
                     <FormControl>
-                      <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10))} />
+                      <Input
+                        type="number"
+                        {...field}
+                        value={field.value === undefined || isNaN(field.value) ? '' : field.value}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

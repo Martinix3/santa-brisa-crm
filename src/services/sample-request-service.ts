@@ -46,15 +46,18 @@ export const getSampleRequestsFS = async (): Promise<SampleRequest[]> => {
 export const addSampleRequestFS = async (data: SampleRequestFormValues & { requesterId: string; requesterName: string }): Promise<string> => {
   
   let shippingAddress: AddressDetails | null = null;
-  if (data.shippingAddress_street && data.shippingAddress_city && data.shippingAddress_province && data.shippingAddress_postalCode) {
+  if (data.shippingAddress_street || data.shippingAddress_city || data.shippingAddress_province || data.shippingAddress_postalCode) {
     shippingAddress = {
-      street: data.shippingAddress_street,
+      street: data.shippingAddress_street || null,
       number: data.shippingAddress_number || null,
-      city: data.shippingAddress_city,
-      province: data.shippingAddress_province,
-      postalCode: data.shippingAddress_postalCode,
+      city: data.shippingAddress_city || null,
+      province: data.shippingAddress_province || null,
+      postalCode: data.shippingAddress_postalCode || null,
       country: data.shippingAddress_country || "España",
     };
+    Object.keys(shippingAddress).forEach(key => {
+        if(shippingAddress![key as keyof AddressDetails] === undefined) shippingAddress![key as keyof AddressDetails] = null as any;
+    });
   }
 
   const firestoreData = {

@@ -62,28 +62,34 @@ const toFirestore = (data: AccountFormValues & { // Tipado extendido para inclui
     salesRepId: data.salesRepId || null,
   };
 
-  if (data.addressBilling_street && data.addressBilling_city && data.addressBilling_province && data.addressBilling_postalCode) {
+  if (data.addressBilling_street || data.addressBilling_city || data.addressBilling_province || data.addressBilling_postalCode) {
     firestoreData.addressBilling = {
-      street: data.addressBilling_street,
+      street: data.addressBilling_street || null,
       number: data.addressBilling_number || null,
-      city: data.addressBilling_city,
-      province: data.addressBilling_province,
-      postalCode: data.addressBilling_postalCode,
+      city: data.addressBilling_city || null,
+      province: data.addressBilling_province || null,
+      postalCode: data.addressBilling_postalCode || null,
       country: data.addressBilling_country || "España",
     };
+    Object.keys(firestoreData.addressBilling).forEach(key => {
+        if(firestoreData.addressBilling[key] === undefined) firestoreData.addressBilling[key] = null;
+    });
   } else {
     firestoreData.addressBilling = null;
   }
 
-  if (data.addressShipping_street && data.addressShipping_city && data.addressShipping_province && data.addressShipping_postalCode) {
+  if (data.addressShipping_street || data.addressShipping_city || data.addressShipping_province || data.addressShipping_postalCode) {
     firestoreData.addressShipping = {
-      street: data.addressShipping_street,
+      street: data.addressShipping_street || null,
       number: data.addressShipping_number || null,
-      city: data.addressShipping_city,
-      province: data.addressShipping_province,
-      postalCode: data.addressShipping_postalCode,
+      city: data.addressShipping_city || null,
+      province: data.addressShipping_province || null,
+      postalCode: data.addressShipping_postalCode || null,
       country: data.addressShipping_country || "España",
     };
+     Object.keys(firestoreData.addressShipping).forEach(key => {
+        if(firestoreData.addressShipping[key] === undefined) firestoreData.addressShipping[key] = null;
+    });
   } else {
     firestoreData.addressShipping = null;
   }

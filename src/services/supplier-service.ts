@@ -48,15 +48,21 @@ const toFirestoreSupplier = (data: Partial<SupplierFormValues>, isNew: boolean):
     notes: data.notes || null,
   };
 
-  if (data.address_street && data.address_city && data.address_province && data.address_postalCode) {
+  if (data.address_street || data.address_city || data.address_province || data.address_postalCode) {
     firestoreData.address = {
-      street: data.address_street,
+      street: data.address_street || null,
       number: data.address_number || null,
-      city: data.address_city,
-      province: data.address_province,
-      postalCode: data.address_postalCode,
+      city: data.address_city || null,
+      province: data.address_province || null,
+      postalCode: data.address_postalCode || null,
       country: data.address_country || "España",
     };
+    // Double-check nested object for undefined
+    Object.keys(firestoreData.address).forEach(key => {
+      if (firestoreData.address[key] === undefined) {
+        firestoreData.address[key] = null;
+      }
+    });
   } else {
     firestoreData.address = null;
   }

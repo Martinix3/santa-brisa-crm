@@ -157,7 +157,16 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
   React.useEffect(() => {
     if (isOpen) {
       if (prefilledData) {
-         form.reset(prefilledData as PurchaseFormValues);
+        form.reset(prefilledData as PurchaseFormValues);
+        const hasUnmappedItems = prefilledData.items?.some(item => !item.materialId);
+        if (hasUnmappedItems) {
+            toast({
+                title: "Revisión de artículos necesaria",
+                description: "Hemos cargado los artículos de la factura. Por favor, asocia cada uno a un material de nuestro sistema.",
+                variant: "default",
+                duration: 8000,
+            });
+        }
       } else if (purchase) {
         form.reset({
           supplier: purchase.supplier,
@@ -186,7 +195,7 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
         });
       }
     }
-  }, [purchase, prefilledData, isOpen, form]);
+  }, [purchase, prefilledData, isOpen, form, toast]);
 
   const onSubmit = async (data: PurchaseFormValues) => {
     if (isReadOnly) return;
@@ -216,47 +225,54 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
             <div className="space-y-3">
               {fields.map((field, index) => (
                 <div key={field.id} className="flex items-end gap-2 p-3 border rounded-md bg-secondary/20">
-                  <FormField control={form.control} name={`items.${index}.materialId`} render={({ field: selectField }) => (
-                    <FormItem className="flex-grow">
-                        <FormLabel className="text-xs">Concepto</FormLabel>
-                        <Select
-                            onValueChange={(value) => {
-                                selectField.onChange(value);
-                                const selectedMaterial = availableMaterials.find(m => m.id === value);
-                                update(index, { ...watchedItems[index], materialId: value, description: selectedMaterial?.name || "" });
-                            }}
-                            value={selectField.value}
-                            disabled={isReadOnly || isLoadingMaterials}
-                        >
-                            <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar material" /></SelectTrigger></FormControl>
-                            <SelectContent>
-                                {availableMaterials.map(material => (
-                                    <SelectItem key={material.id} value={material.id}>{material.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <FormMessage />
-                    </FormItem>
-                  )} />
-                  <FormField control={form.control} name={`items.${index}.quantity`} render={({ field }) => (
+                  <div className="flex-grow space-y-1">
+                      <FormField control={form.control} name={`items.${index}.materialId`} render={({ field: selectField }) => (
+                        <FormItem>
+                            <FormLabel className="text-xs">Concepto</FormLabel>
+                            <Select
+                                onValueChange={(value) => {
+                                    selectField.onChange(value);
+                                    const selectedMaterial = availableMaterials.find(m => m.id === value);
+                                    update(index, { ...watchedItems[index], materialId: value, description: selectedMaterial?.name || "" });
+                                }}
+                                value={selectField.value}
+                                disabled={isReadOnly || isLoadingMaterials}
+                            >
+                                <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar material" /></SelectTrigger></FormControl>
+                                <SelectContent>
+                                    {availableMaterials.map(material => (
+                                        <SelectItem key={material.id} value={material.id}>{material.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                      )} />
+                      {watchedItems[index]?.description && (
+                          <FormDescription className="text-xs pl-1">
+                              Concepto factura: "{watchedItems[index].description}"
+                          </FormDescription>
+                      )}
+                  </div>
+                  <FormField control={form.control} name={`items.${index}.quantity`} render={({ field: quantityField }) => (
                     <FormItem className="w-24">
                         <FormLabel className="text-xs">Cantidad</FormLabel>
                         <FormControl>
-                            <Input type="number" {...field} disabled={isReadOnly}
-                                   value={field.value === undefined || isNaN(field.value) ? '' : field.value}
-                                   onChange={e => { const val = e.target.value; field.onChange(val === '' ? undefined : parseInt(val, 10)); }}
+                            <Input type="number" {...quantityField} disabled={isReadOnly}
+                                   value={quantityField.value ?? ""}
+                                   onChange={e => { const val = e.target.value; quantityField.onChange(val === '' ? undefined : parseInt(val, 10)); }}
                             />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
                   )} />
-                  <FormField control={form.control} name={`items.${index}.unitPrice`} render={({ field }) => (
+                  <FormField control={form.control} name={`items.${index}.unitPrice`} render={({ field: priceField }) => (
                     <FormItem className="w-28">
                         <FormLabel className="text-xs">Precio Unit. (€)</FormLabel>
                         <FormControl>
-                            <Input type="number" step="0.01" {...field} disabled={isReadOnly}
-                                   value={field.value === undefined || isNaN(field.value) ? '' : field.value}
-                                   onChange={e => { const val = e.target.value; field.onChange(val === '' ? undefined : parseFloat(val)); }}
+                            <Input type="number" step="0.01" {...priceField} disabled={isReadOnly}
+                                   value={priceField.value ?? ""}
+                                   onChange={e => { const val = e.target.value; priceField.onChange(val === '' ? undefined : parseFloat(val)); }}
                             />
                         </FormControl>
                         <FormMessage />
@@ -276,7 +292,7 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
                         <FormLabel>Gastos de Envío (€)</FormLabel>
                         <FormControl>
                             <Input type="number" step="0.01" {...field} disabled={isReadOnly}
-                                   value={field.value === undefined || isNaN(field.value) ? '' : field.value}
+                                   value={field.value ?? ""}
                                    onChange={e => { const val = e.target.value; field.onChange(val === '' ? undefined : parseFloat(val)); }}
                             />
                         </FormControl>
@@ -288,7 +304,7 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
                         <FormLabel>Tasa de IVA (%)</FormLabel>
                         <FormControl>
                             <Input type="number" {...field} disabled={isReadOnly} 
-                                   value={field.value === undefined || isNaN(field.value) ? '' : field.value}
+                                   value={field.value ?? ""}
                                    onChange={e => { const val = e.target.value; field.onChange(val === '' ? undefined : parseFloat(val)); }}
                             />
                         </FormControl>

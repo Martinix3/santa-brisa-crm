@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -77,7 +78,12 @@ export default function InvoiceUploadDialog({ isOpen, onOpenChange, onDataExtrac
                 supplierAddress_postalCode: extractedData.supplierAddress?.postalCode,
                 supplierAddress_country: extractedData.supplierAddress?.country,
                 orderDate: isValid(parsedDate) ? parsedDate : new Date(),
-                items: extractedData.items.map(item => ({...item, unitPrice: item.unitPrice || 0, total: (item.quantity || 0) * (item.unitPrice || 0) })),
+                items: extractedData.items.map(item => ({
+                    materialId: "", // Set empty materialId for user to map
+                    description: item.description,
+                    quantity: item.quantity,
+                    unitPrice: item.unitPrice || 0,
+                })),
                 shippingCost: extractedData.shippingCost,
                 taxRate: extractedData.taxRate,
                 notes: extractedData.notes,

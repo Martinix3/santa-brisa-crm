@@ -10,7 +10,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyAhk1AS8UBdfYqE3GYtR4YiQJw3BY2MWTw",
   authDomain: "santa-brisa-crm.firebaseapp.com",
   projectId: "santa-brisa-crm",
-  storageBucket: "santa-brisa-crm.appspot.com",
+  storageBucket: "santa-brisa-crm-bucket",
   messagingSenderId: "200195875400",
   appId: "1:200195875400:web:1a826c47bf3933332f6e7d"
 };

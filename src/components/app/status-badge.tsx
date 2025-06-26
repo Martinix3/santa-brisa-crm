@@ -3,14 +3,15 @@
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { OrderStatus, AccountStatus, CrmEventStatus, PurchaseStatus, SampleRequestStatus } from "@/types";
+import type { OrderStatus, AccountStatus, CrmEventStatus, PurchaseStatus, SampleRequestStatus, DirectSaleStatus } from "@/types";
 
 type StatusBadgeProps = 
   | { type: 'order'; status: OrderStatus; className?: string; }
   | { type: 'account'; status: AccountStatus; className?: string; }
   | { type: 'event'; status: CrmEventStatus; className?: string; }
   | { type: 'purchase'; status: PurchaseStatus; className?: string; }
-  | { type: 'sampleRequest'; status: SampleRequestStatus; className?: string; };
+  | { type: 'sampleRequest'; status: SampleRequestStatus; className?: string; }
+  | { type: 'directSale'; status: DirectSaleStatus; className?: string; };
 
 const getOrderBadgeColorClass = (status: OrderStatus): string => {
   switch (status) {
@@ -80,6 +81,16 @@ const getSampleRequestBadgeColorClass = (status: SampleRequestStatus): string =>
   }
 };
 
+const getDirectSaleBadgeColorClass = (status: DirectSaleStatus): string => {
+  switch (status) {
+    case 'Pagada': return 'bg-green-500 hover:bg-green-600 text-white';
+    case 'Facturada': return 'bg-teal-500 hover:bg-teal-600 text-white';
+    case 'Confirmada': return 'bg-blue-500 hover:bg-blue-600 text-white';
+    case 'Borrador': return 'bg-gray-400 hover:bg-gray-500 text-white';
+    case 'Cancelada': return 'bg-red-500 hover:bg-red-600 text-white';
+    default: return 'bg-gray-400 hover:bg-gray-500 text-white';
+  }
+};
 
 export default function StatusBadge(props: StatusBadgeProps) {
   let badgeColorClass = "";
@@ -99,6 +110,9 @@ export default function StatusBadge(props: StatusBadgeProps) {
     statusText = props.status;
   } else if (props.type === 'sampleRequest') {
     badgeColorClass = getSampleRequestBadgeColorClass(props.status);
+    statusText = props.status;
+  } else if (props.type === 'directSale') {
+    badgeColorClass = getDirectSaleBadgeColorClass(props.status);
     statusText = props.status;
   }
 

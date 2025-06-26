@@ -89,7 +89,8 @@ const navigationStructure: NavGroup[] = [
     label: 'Administrativo',
     groupRoles: ['Admin'],
     items: [
-      { href: '/direct-sales-sb', label: 'Gestión de Compras', icon: Receipt, roles: ['Admin'] },
+      { href: '/direct-sales-sb', label: 'Ventas Directas SB', icon: Briefcase, roles: ['Admin'] },
+      { href: '/purchases', label: 'Gestión de Compras', icon: Receipt, roles: ['Admin'] },
     ],
   },
   {
@@ -611,8 +612,10 @@ function AppNavigation({ navStructure, userRole, teamMember }: AppNavigationProp
                         isActive = pathname === item.href || (pathname.startsWith('/admin/') && !pathname.startsWith('/admin/user-management') && !pathname.startsWith('/admin/objectives-management') && !pathname.startsWith('/admin/kpi-launch-targets') && !pathname.startsWith('/admin/promotional-materials') && !pathname.startsWith('/admin/sample-management') );
                     } else if (item.href === '/direct-sales-sb') {
                         isActive = pathname === item.href;
+                    } else if (item.href === '/purchases') {
+                        isActive = pathname === item.href;
                     } else {
-                        isActive = pathname.startsWith(item.href) && item.href !== '/dashboard' && item.href !== '/direct-sales-sb';
+                        isActive = pathname.startsWith(item.href) && item.href !== '/dashboard' && item.href !== '/direct-sales-sb' && item.href !== '/purchases';
                     }
                      if (pathname.startsWith('/admin/') && group.id === 'configuracion') {
                         if (item.href.startsWith('/admin/')) {

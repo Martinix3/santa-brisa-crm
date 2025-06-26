@@ -1,6 +1,4 @@
 
-
-
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
 
 export interface Kpi {
@@ -252,4 +250,34 @@ export interface SampleRequestFormValues {
   shippingAddress_province?: string;
   shippingAddress_postalCode?: string;
   shippingAddress_country?: string;
+}
+
+export type DirectSaleStatus = 'Borrador' | 'Confirmada' | 'Facturada' | 'Pagada' | 'Cancelada';
+export type DirectSaleChannel = 'Importador' | 'Online' | 'Estratégica' | 'Otro';
+
+export interface DirectSaleItem {
+  productId: string;
+  productName: string;
+  quantity: number;
+  netUnitPrice: number; 
+  total: number;
+}
+
+export interface DirectSale {
+  id: string;
+  customerId: string;
+  customerName: string;
+  channel: DirectSaleChannel;
+  items: DirectSaleItem[];
+  subtotal: number;
+  tax: number;
+  totalAmount: number;
+  issueDate: string; 
+  dueDate?: string; 
+  invoiceNumber?: string;
+  status: DirectSaleStatus;
+  relatedPlacementOrders?: string[]; // IDs de las órdenes de colocación que cubre esta venta
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
 }

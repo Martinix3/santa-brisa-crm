@@ -8,42 +8,30 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import type { DirectSale, DirectSaleStatus, UserRole } from "@/types";
-import { directSaleStatusList } from "@/lib/data";
+import type { Purchase, PurchaseStatus, UserRole } from "@/types";
+import { purchaseStatusList } from "@/lib/data";
 import { useAuth } from "@/contexts/auth-context";
-import { PlusCircle, MoreHorizontal, Filter, ChevronDown, Edit, Trash2, Briefcase, Loader2 } from "lucide-react";
-// import DirectSaleDialog from "@/components/app/direct-sale-dialog"; // This component needs to be created
+import { PlusCircle, MoreHorizontal, Filter, ChevronDown, Edit, Trash2, Receipt, Loader2 } from "lucide-react";
+import PurchaseDialog from "@/components/app/purchase-dialog";
+import type { PurchaseFormValues } from "@/components/app/purchase-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
 import StatusBadge from "@/components/app/status-badge";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-// import { getDirectSalesFS, addDirectSaleFS, updateDirectSaleFS, deleteDirectSaleFS } from "@/services/direct-sale-service"; // This service needs to be created
+import { getPurchasesFS, addPurchaseFS, updatePurchaseFS, deletePurchaseFS } from "@/services/purchase-service";
 
-// Placeholder for dialog component until it's created
-const DirectSaleDialog = ({ isOpen, onOpenChange }: { isOpen: boolean, onOpenChange: (open: boolean) => void }) => (
-    <div style={{ display: isOpen ? 'block' : 'none', position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', padding: '2rem', background: 'white', border: '1px solid black', zIndex: 100 }}>
-        <h2>Direct Sale Dialog (Placeholder)</h2>
-        <button onClick={() => onOpenChange(false)}>Close</button>
-    </div>
-);
-
-// Placeholder for service functions
-const getDirectSalesFS = async (): Promise<DirectSale[]> => { console.log("getDirectSalesFS called"); return []; };
-const deleteDirectSaleFS = async (id: string): Promise<void> => { console.log(`deleteDirectSaleFS called with id: ${id}`); };
-
-
-export default function DirectSalesSbPage() {
+export default function PurchasesPage() {
   const { toast } = useToast();
   const { userRole, refreshDataSignature } = useAuth();
-  const [sales, setSales] = React.useState<DirectSale[]>([]);
+  const [purchases, setPurchases] = React.useState<Purchase[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [editingSale, setEditingSale] = React.useState<DirectSale | null>(null);
-  const [isSaleDialogOpen, setIsSaleDialogOpen] = React.useState(false);
-  const [saleToDelete, setSaleToDelete] = React.useState<DirectSale | null>(null);
+  const [editingPurchase, setEditingPurchase] = React.useState<Purchase | null>(null);
+  const [isPurchaseDialogOpen, setIsPurchaseDialogOpen] = React.useState(false);
+  const [purchaseToDelete, setPurchaseToDelete] = React.useState<Purchase | null>(null);
 
   const [searchTerm, setSearchTerm] = React.useState("");
-  const [statusFilter, setStatusFilter] = React.useState<DirectSaleStatus | "Todos">("Todos");
+  const [statusFilter, setStatusFilter] = React.useState<PurchaseStatus | "Todos">("Todos");
 
   const isAdmin = userRole === 'Admin';
 
@@ -51,11 +39,11 @@ export default function DirectSalesSbPage() {
     async function loadInitialData() {
         setIsLoading(true);
         try {
-            const fetchedSales = await getDirectSalesFS();
-            setSales(fetchedSales);
+            const fetchedPurchases = await getPurchasesFS();
+            setPurchases(fetchedPurchases);
         } catch (error) {
-            console.error("Failed to load direct sales:", error);
-            toast({ title: "Error", description: "No se pudieron cargar las ventas directas.", variant: "destructive" });
+            console.error("Failed to load purchases:", error);
+            toast({ title: "Error", description: "No se pudieron cargar las órdenes de compra.", variant: "destructive" });
         } finally {
             setIsLoading(false);
         }
@@ -67,47 +55,72 @@ export default function DirectSalesSbPage() {
     }
   }, [toast, isAdmin, refreshDataSignature]);
 
-  const handleAddNewSale = () => {
+  const handleAddNewPurchase = () => {
     if (!isAdmin) return;
-    setEditingSale(null);
-    toast({ title: "Función no implementada", description: "La creación de ventas directas aún no está disponible." });
-    // setIsSaleDialogOpen(true);
-  };
-  
-  const handleEditSale = (sale: DirectSale) => {
-    if (!isAdmin) return;
-    setEditingSale(sale);
-    toast({ title: "Función no implementada", description: "La edición de ventas directas aún no está disponible." });
-    // setIsSaleDialogOpen(true);
-  };
-  
-  const handleDeleteSale = (sale: DirectSale) => {
-    if (!isAdmin) return;
-    setSaleToDelete(sale);
+    setEditingPurchase(null);
+    setIsPurchaseDialogOpen(true);
   };
 
-  const confirmDeleteSale = async () => {
-    if (!isAdmin || !saleToDelete) return;
+  const handleEditPurchase = (purchase: Purchase) => {
+    if (!isAdmin) return;
+    setEditingPurchase(purchase);
+    setIsPurchaseDialogOpen(true);
+  };
+
+  const handleSavePurchase = async (data: PurchaseFormValues, purchaseId?: string) => {
+    if (!isAdmin) return;
     setIsLoading(true);
+
     try {
-      await deleteDirectSaleFS(saleToDelete.id);
-      setSales(prev => prev.filter(p => p.id !== saleToDelete.id));
-      toast({ title: "¡Venta Eliminada!", description: `La venta directa a "${saleToDelete.customerName}" ha sido eliminada.`, variant: "destructive" });
+      let successMessage = "";
+      if (purchaseId) {
+        await updatePurchaseFS(purchaseId, data);
+        successMessage = `La compra a "${data.supplier}" ha sido actualizada.`;
+      } else {
+        await addPurchaseFS(data);
+        successMessage = `La compra a "${data.supplier}" ha sido añadida.`;
+      }
+      refreshDataSignature(); // Trigger data reload
+      const updatedPurchases = await getPurchasesFS();
+      setPurchases(updatedPurchases);
+      toast({ title: "¡Operación Exitosa!", description: successMessage });
     } catch (error) {
-      console.error("Error deleting sale:", error);
-      toast({ title: "Error al Eliminar", description: "No se pudo eliminar la venta directa.", variant: "destructive" });
+      console.error("Error saving purchase:", error);
+      toast({ title: "Error al Guardar", description: "No se pudo guardar la orden de compra.", variant: "destructive" });
     } finally {
       setIsLoading(false);
-      setSaleToDelete(null);
+      setIsPurchaseDialogOpen(false);
+      setEditingPurchase(null);
     }
   };
 
-  const filteredSales = sales
-    .filter(sale =>
-      (sale.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       (sale.invoiceNumber && sale.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase())))
+  const handleDeletePurchase = (purchase: Purchase) => {
+    if (!isAdmin) return;
+    setPurchaseToDelete(purchase);
+  };
+
+  const confirmDeletePurchase = async () => {
+    if (!isAdmin || !purchaseToDelete) return;
+    setIsLoading(true);
+    try {
+      await deletePurchaseFS(purchaseToDelete.id);
+      setPurchases(prev => prev.filter(p => p.id !== purchaseToDelete.id));
+      toast({ title: "¡Compra Eliminada!", description: `La compra de "${purchaseToDelete.supplier}" ha sido eliminada.`, variant: "destructive" });
+    } catch (error) {
+      console.error("Error deleting purchase:", error);
+      toast({ title: "Error al Eliminar", description: "No se pudo eliminar la compra.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+      setPurchaseToDelete(null);
+    }
+  };
+
+  const filteredPurchases = purchases
+    .filter(purchase =>
+      (purchase.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
+       purchase.description.toLowerCase().includes(searchTerm.toLowerCase()))
     )
-    .filter(sale => statusFilter === "Todos" || sale.status === statusFilter);
+    .filter(purchase => statusFilter === "Todos" || purchase.status === statusFilter);
 
   if (!isAdmin) {
     return (
@@ -122,23 +135,23 @@ export default function DirectSalesSbPage() {
     <div className="space-y-8">
       <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center space-x-2">
-            <Briefcase className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-headline font-semibold">Ventas Directas (Facturación SB)</h1>
+            <Receipt className="h-8 w-8 text-primary" />
+            <h1 className="text-3xl font-headline font-semibold">Gestión de Compras y Gastos</h1>
         </div>
-        <Button onClick={handleAddNewSale} disabled={isLoading}>
-          <PlusCircle className="mr-2 h-4 w-4" /> Añadir Nueva Venta Directa
+        <Button onClick={handleAddNewPurchase} disabled={isLoading}>
+          <PlusCircle className="mr-2 h-4 w-4" /> Añadir Nueva Compra/Gasto
         </Button>
       </header>
 
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
-          <CardTitle>Listado de Ventas Directas</CardTitle>
-          <CardDescription>Administra las ventas facturadas directamente por Santa Brisa (a importadores, online, etc.).</CardDescription>
+          <CardTitle>Listado de Órdenes de Compra</CardTitle>
+          <CardDescription>Administra las compras a proveedores, los gastos generales y sigue el estado de los pagos y facturas.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
             <Input
-              placeholder="Buscar por cliente o N.º Factura..."
+              placeholder="Buscar por proveedor o concepto..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="max-w-sm"
@@ -152,7 +165,7 @@ export default function DirectSalesSbPage() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
                  <DropdownMenuCheckboxItem onSelect={() => setStatusFilter("Todos")} checked={statusFilter === "Todos"}>Todos</DropdownMenuCheckboxItem>
-                {directSaleStatusList.map(status => (
+                {purchaseStatusList.map(status => (
                    <DropdownMenuCheckboxItem key={status} onSelect={() => setStatusFilter(status)} checked={statusFilter === status}>
                     {status}
                   </DropdownMenuCheckboxItem>
@@ -163,32 +176,32 @@ export default function DirectSalesSbPage() {
           {isLoading ? (
              <div className="flex justify-center items-center h-64">
               <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              <p className="ml-4 text-muted-foreground">Cargando ventas...</p>
+              <p className="ml-4 text-muted-foreground">Cargando compras...</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[20%]">Cliente</TableHead>
-                    <TableHead className="w-[15%]">Fecha Emisión</TableHead>
-                    <TableHead className="w-[15%]">Nº Factura</TableHead>
-                    <TableHead className="text-right w-[15%]">Importe Total</TableHead>
-                    <TableHead className="text-center w-[15%]">Estado</TableHead>
-                    <TableHead className="text-right w-[20%]">Acciones</TableHead>
+                    <TableHead className="w-[20%]">Proveedor</TableHead>
+                    <TableHead className="w-[30%]">Concepto</TableHead>
+                    <TableHead className="w-[15%]">Fecha Pedido</TableHead>
+                    <TableHead className="text-right w-[15%]">Importe</TableHead>
+                    <TableHead className="text-center w-[10%]">Estado</TableHead>
+                    <TableHead className="text-right w-[10%]">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredSales.length > 0 ? filteredSales.map((sale) => (
-                    <TableRow key={sale.id}>
-                      <TableCell className="font-medium">{sale.customerName}</TableCell>
-                      <TableCell>{format(parseISO(sale.issueDate), "dd/MM/yy", { locale: es })}</TableCell>
-                      <TableCell>{sale.invoiceNumber || 'N/A'}</TableCell>
+                  {filteredPurchases.length > 0 ? filteredPurchases.map((purchase) => (
+                    <TableRow key={purchase.id}>
+                      <TableCell className="font-medium">{purchase.supplier}</TableCell>
+                      <TableCell>{purchase.description}</TableCell>
+                      <TableCell>{format(parseISO(purchase.orderDate), "dd/MM/yy", { locale: es })}</TableCell>
                       <TableCell className="text-right">
-                        <FormattedNumericValue value={sale.totalAmount} options={{ style: 'currency', currency: 'EUR' }} />
+                        <FormattedNumericValue value={purchase.amount} options={{ style: 'currency', currency: 'EUR' }} />
                       </TableCell>
                       <TableCell className="text-center">
-                        <StatusBadge type="directSale" status={sale.status} />
+                        <StatusBadge type="purchase" status={purchase.status} />
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
@@ -199,7 +212,7 @@ export default function DirectSalesSbPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onSelect={() => handleEditSale(sale)}>
+                            <DropdownMenuItem onSelect={() => handleEditPurchase(purchase)}>
                               <Edit className="mr-2 h-4 w-4" /> Editar / Ver Detalles
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
@@ -207,24 +220,24 @@ export default function DirectSalesSbPage() {
                               <AlertDialogTrigger asChild>
                                 <DropdownMenuItem
                                   className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                                  onSelect={(e) => { e.preventDefault(); handleDeleteSale(sale); }}
+                                  onSelect={(e) => { e.preventDefault(); handleDeletePurchase(purchase); }}
                                 >
-                                  <Trash2 className="mr-2 h-4 w-4" /> Eliminar Venta
+                                  <Trash2 className="mr-2 h-4 w-4" /> Eliminar Compra
                                 </DropdownMenuItem>
                               </AlertDialogTrigger>
-                              {saleToDelete && saleToDelete.id === sale.id && (
+                              {purchaseToDelete && purchaseToDelete.id === purchase.id && (
                                   <AlertDialogContent>
                                       <AlertDialogHeader>
                                       <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                                       <AlertDialogDescription>
-                                          Esta acción no se puede deshacer. Esto eliminará permanentemente la venta a:
+                                          Esta acción no se puede deshacer. Esto eliminará permanentemente la compra de:
                                           <br />
-                                          <strong className="mt-2 block">{saleToDelete.customerName}</strong>
+                                          <strong className="mt-2 block">{purchaseToDelete.supplier} - {purchaseToDelete.description}</strong>
                                       </AlertDialogDescription>
                                       </AlertDialogHeader>
                                       <AlertDialogFooter>
-                                      <AlertDialogCancel onClick={() => setSaleToDelete(null)}>Cancelar</AlertDialogCancel>
-                                      <AlertDialogAction onClick={confirmDeleteSale} variant="destructive">Sí, eliminar</AlertDialogAction>
+                                      <AlertDialogCancel onClick={() => setPurchaseToDelete(null)}>Cancelar</AlertDialogCancel>
+                                      <AlertDialogAction onClick={confirmDeletePurchase} variant="destructive">Sí, eliminar</AlertDialogAction>
                                       </AlertDialogFooter>
                                   </AlertDialogContent>
                               )}
@@ -236,7 +249,7 @@ export default function DirectSalesSbPage() {
                   )) : (
                     <TableRow>
                       <TableCell colSpan={6} className="h-24 text-center">
-                        No se encontraron ventas directas que coincidan con los filtros.
+                        No se encontraron compras o gastos que coincidan con tu búsqueda.
                       </TableCell>
                     </TableRow>
                   )}
@@ -245,19 +258,21 @@ export default function DirectSalesSbPage() {
             </div>
           )}
         </CardContent>
-        {!isLoading && filteredSales.length > 0 && (
+        {!isLoading && filteredPurchases.length > 0 && (
             <CardFooter>
-                <p className="text-xs text-muted-foreground">Total de ventas mostradas: {filteredSales.length} de {sales.length}</p>
+                <p className="text-xs text-muted-foreground">Total de compras mostradas: {filteredPurchases.length} de {purchases.length}</p>
             </CardFooter>
         )}
       </Card>
 
-      <DirectSaleDialog
-          isOpen={isSaleDialogOpen}
+      <PurchaseDialog
+          purchase={editingPurchase}
+          isOpen={isPurchaseDialogOpen}
           onOpenChange={(open) => {
-              setIsSaleDialogOpen(open);
-              if (!open) setEditingSale(null);
+              setIsPurchaseDialogOpen(open);
+              if (!open) setEditingPurchase(null);
           }}
+          onSave={handleSavePurchase}
       />
     </div>
   );

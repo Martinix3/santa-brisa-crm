@@ -1,5 +1,5 @@
 
-import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType, Account, AccountType, AccountStatus, NextActionType, FailureReasonType, CrmEvent, CrmEventType, CrmEventStatus, PromotionalMaterial, PromotionalMaterialType, AssignedPromotionalMaterial, CanalOrigenColocacion, Purchase, PurchaseStatus, PaymentMethod, AddressDetails, SampleRequestStatus, SampleRequestPurpose } from '@/types';
+import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType, Account, AccountType, AccountStatus, NextActionType, FailureReasonType, CrmEvent, CrmEventType, CrmEventStatus, PromotionalMaterial, PromotionalMaterialType, AssignedPromotionalMaterial, CanalOrigenColocacion, Purchase, PurchaseStatus, PaymentMethod, AddressDetails, SampleRequestStatus, SampleRequestPurpose, DirectSaleStatus } from '@/types';
 import { Package, Users, ShoppingBag, BarChart3 } from 'lucide-react';
 import { format, addDays, subDays, isEqual, parseISO } from 'date-fns';
 import { TrendingUp, Briefcase, CalendarPlus, Repeat } from "lucide-react";
@@ -83,3 +83,5 @@ export const provincesSpainList: string[] = [
   "Navarra", "Orense", "Palencia", "Las Palmas", "Pontevedra", "La Rioja", "Salamanca", "Santa Cruz de Tenerife",
   "Segovia", "Sevilla", "Soria", "Tarragona", "Teruel", "Toledo", "Valencia", "Valladolid", "Vizcaya", "Zamora", "Zaragoza"
 ];
+
+export const directSaleStatusList: DirectSaleStatus[] = ['Borrador', 'Confirmada', 'Facturada', 'Pagada', 'Cancelada'];

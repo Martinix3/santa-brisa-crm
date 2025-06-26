@@ -38,7 +38,7 @@ const fromFirestorePurchase = (docSnap: any): Purchase => {
   };
 };
 
-const toFirestorePurchase = (data: PurchaseFormValues, isNew: boolean): any => {
+const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean): any => {
   const firestoreData: { [key: string]: any } = {
     supplier: data.supplier,
     description: data.description,
@@ -73,7 +73,7 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
 
 export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormValues>): Promise<void> => {
   const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);
-  const firestoreData = toFirestorePurchase(data as PurchaseFormValues, false);
+  const firestoreData = toFirestorePurchase(data, false);
   await updateDoc(purchaseDocRef, firestoreData);
 };
 

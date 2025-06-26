@@ -52,6 +52,8 @@ const purchaseFormSchema = z.object({
   notes: z.string().optional(),
 });
 
+export type PurchaseFormValues = z.infer<typeof purchaseFormSchema>;
+
 interface PurchaseDialogProps {
   purchase: Purchase | null;
   isOpen: boolean;

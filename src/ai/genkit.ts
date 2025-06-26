@@ -6,5 +6,5 @@ import {googleAI} from '@genkit-ai/googleai';
 // Esta es la forma más robusta de asegurar que Genkit tenga las credenciales.
 export const ai = genkit({
   plugins: [googleAI({apiKey: process.env.GOOGLE_API_KEY})],
-  model: 'googleai/gemini-1.5-flash-latest',
+  model: 'googleai/gemini-1.5-pro-latest',
 });

@@ -51,7 +51,7 @@ const toFirestoreSupplier = (data: Partial<SupplierFormValues>, isNew: boolean):
   if (data.address_street && data.address_city && data.address_province && data.address_postalCode) {
     firestoreData.address = {
       street: data.address_street,
-      number: data.address_number || undefined,
+      number: data.address_number || null,
       city: data.address_city,
       province: data.address_province,
       postalCode: data.address_postalCode,

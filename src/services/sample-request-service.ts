@@ -49,7 +49,7 @@ export const addSampleRequestFS = async (data: SampleRequestFormValues & { reque
   if (data.shippingAddress_street && data.shippingAddress_city && data.shippingAddress_province && data.shippingAddress_postalCode) {
     shippingAddress = {
       street: data.shippingAddress_street,
-      number: data.shippingAddress_number || undefined,
+      number: data.shippingAddress_number || null,
       city: data.shippingAddress_city,
       province: data.shippingAddress_province,
       postalCode: data.shippingAddress_postalCode,

@@ -65,7 +65,7 @@ const toFirestore = (data: AccountFormValues & { // Tipado extendido para inclui
   if (data.addressBilling_street && data.addressBilling_city && data.addressBilling_province && data.addressBilling_postalCode) {
     firestoreData.addressBilling = {
       street: data.addressBilling_street,
-      number: data.addressBilling_number || undefined,
+      number: data.addressBilling_number || null,
       city: data.addressBilling_city,
       province: data.addressBilling_province,
       postalCode: data.addressBilling_postalCode,
@@ -78,7 +78,7 @@ const toFirestore = (data: AccountFormValues & { // Tipado extendido para inclui
   if (data.addressShipping_street && data.addressShipping_city && data.addressShipping_province && data.addressShipping_postalCode) {
     firestoreData.addressShipping = {
       street: data.addressShipping_street,
-      number: data.addressShipping_number || undefined,
+      number: data.addressShipping_number || null,
       city: data.addressShipping_city,
       province: data.addressShipping_province,
       postalCode: data.addressShipping_postalCode,

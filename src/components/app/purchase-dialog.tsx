@@ -52,6 +52,15 @@ const purchaseItemSchema = z.object({
 
 const purchaseFormSchema = z.object({
   supplier: z.string().min(2, "El nombre del proveedor es obligatorio."),
+  supplierCif: z.string().optional(),
+  supplierAddress_street: z.string().optional(),
+  supplierAddress_number: z.string().optional(),
+  supplierAddress_city: z.string().optional(),
+  supplierAddress_province: z.string().optional(),
+  supplierAddress_postalCode: z.string().optional(),
+  supplierAddress_country: z.string().optional(),
+  invoiceDataUri: z.string().optional(),
+  invoiceFileName: z.string().optional(),
   orderDate: z.date({ required_error: "La fecha del pedido es obligatoria." }),
   status: z.enum(purchaseStatusList as [PurchaseStatus, ...PurchaseStatus[]]),
   items: z.array(purchaseItemSchema).min(1, "Debe añadir al menos un artículo a la compra."),
@@ -65,13 +74,14 @@ export type PurchaseFormValues = z.infer<typeof purchaseFormSchema>;
 interface PurchaseDialogProps {
   purchase: Purchase | null;
   initialData?: Partial<PurchaseFormValues> | null;
+  pendingInvoice?: { uri: string; name: string } | null;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (data: PurchaseFormValues, purchaseId?: string) => Promise<void>;
   isReadOnly?: boolean;
 }
 
-export default function PurchaseDialog({ purchase, initialData, isOpen, onOpenChange, onSave, isReadOnly = false }: PurchaseDialogProps) {
+export default function PurchaseDialog({ purchase, initialData, pendingInvoice, isOpen, onOpenChange, onSave, isReadOnly = false }: PurchaseDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
 
   const form = useForm<PurchaseFormValues>({
@@ -120,6 +130,12 @@ export default function PurchaseDialog({ purchase, initialData, isOpen, onOpenCh
       if (initialData) {
         form.reset({
             supplier: initialData.supplier || "",
+            supplierCif: initialData.supplierCif,
+            supplierAddress_street: initialData.supplierAddress_street,
+            supplierAddress_city: initialData.supplierAddress_city,
+            supplierAddress_province: initialData.supplierAddress_province,
+            supplierAddress_postalCode: initialData.supplierAddress_postalCode,
+            supplierAddress_country: initialData.supplierAddress_country,
             orderDate: initialData.orderDate || new Date(),
             status: "Borrador",
             items: initialData.items && initialData.items.length > 0 ? initialData.items : [{ description: "", quantity: 1, unitPrice: undefined as any }],
@@ -154,7 +170,14 @@ export default function PurchaseDialog({ purchase, initialData, isOpen, onOpenCh
   const onSubmit = async (data: PurchaseFormValues) => {
     if (isReadOnly) return;
     setIsSaving(true);
-    await onSave(data, purchase?.id);
+    
+    const finalData = { ...data };
+    if (pendingInvoice) {
+      finalData.invoiceDataUri = pendingInvoice.uri;
+      finalData.invoiceFileName = pendingInvoice.name;
+    }
+    
+    await onSave(finalData, purchase?.id);
     setIsSaving(false);
   };
 

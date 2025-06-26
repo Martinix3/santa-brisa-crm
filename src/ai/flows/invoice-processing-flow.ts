@@ -22,6 +22,14 @@ export type ProcessInvoiceInput = z.infer<typeof ProcessInvoiceInputSchema>;
 
 const ProcessInvoiceOutputSchema = z.object({
   supplier: z.string().describe("The name of the supplier or vendor from the invoice."),
+  supplierCif: z.string().optional().describe("The supplier's CIF/VAT ID, if present."),
+  supplierAddress: z.object({
+      street: z.string().describe("The street name and number of the supplier's address."),
+      city: z.string().describe("The city of the supplier's address."),
+      province: z.string().describe("The province or state of the supplier's address."),
+      postalCode: z.string().describe("The postal code of the supplier's address."),
+      country: z.string().describe("The country of the supplier's address."),
+  }).optional().describe("The structured address of the supplier, if available."),
   orderDate: z.string().describe("The issue date of the invoice in YYYY-MM-DD format."),
   items: z.array(z.object({
     description: z.string().describe("The description of the item or service."),
@@ -49,6 +57,8 @@ const prompt = ai.definePrompt({
 Analyze the provided invoice image or PDF and extract the following details. Be precise.
 
 - **Supplier Name**: Identify the vendor or company that issued the invoice.
+- **Supplier CIF/VAT ID**: Extract the supplier's tax identification number (CIF, NIF, VAT ID, etc.).
+- **Supplier Address**: Extract the supplier's full mailing address and break it down into structured fields: street, city, province, postal code, and country.
 - **Invoice Date**: Find the issue date and format it as YYYY-MM-DD.
 - **Line Items**: Extract each line item from the invoice. For each item, provide its description, quantity, and unit price (before tax). If quantity or unit price are not specified, infer them if possible (e.g., if only total is given for a quantity of 1).
 - **Shipping Cost**: If there is a separate charge for shipping, delivery, or "portes", extract that value.

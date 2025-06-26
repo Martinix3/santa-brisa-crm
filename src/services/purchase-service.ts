@@ -1,13 +1,14 @@
 
 "use client";
 
-import { db } from '@/lib/firebase';
+import { db, storage } from '@/lib/firebase';
 import {
   collection,
   getDocs,
   doc,
   getDoc,
   addDoc,
+  setDoc,
   updateDoc,
   deleteDoc,
   Timestamp,
@@ -15,10 +16,11 @@ import {
   orderBy,
   writeBatch
 } from 'firebase/firestore';
+import { ref, uploadString, getDownloadURL } from "firebase/storage";
 import type { Purchase, PurchaseFormValues, SupplierFormValues } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 import { mockPurchases } from '@/lib/data'; // Para seeding
-import { getSupplierByNameFS, addSupplierFS } from './supplier-service';
+import { getSupplierByNameFS, getSupplierByCifFS, addSupplierFS } from './supplier-service';
 
 const PURCHASES_COLLECTION = 'purchases';
 
@@ -72,6 +74,33 @@ const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean):
 };
 
 
+const findOrCreateSupplier = async (data: Partial<PurchaseFormValues>): Promise<string | undefined> => {
+    if (!data.supplier) return undefined;
+
+    let existingSupplier = data.supplierCif ? await getSupplierByCifFS(data.supplierCif) : null;
+    if (!existingSupplier) {
+        existingSupplier = await getSupplierByNameFS(data.supplier);
+    }
+
+    if (existingSupplier) {
+        return existingSupplier.id;
+    } else {
+        const newSupplierData: SupplierFormValues = {
+            name: data.supplier,
+            cif: data.supplierCif,
+            address_street: data.supplierAddress_street,
+            address_number: data.supplierAddress_number,
+            address_city: data.supplierAddress_city,
+            address_province: data.supplierAddress_province,
+            address_postalCode: data.supplierAddress_postalCode,
+            address_country: data.supplierAddress_country,
+        };
+        const newSupplierId = await addSupplierFS(newSupplierData);
+        return newSupplierId;
+    }
+}
+
+
 export const getPurchasesFS = async (): Promise<Purchase[]> => {
   const purchasesCol = collection(db, PURCHASES_COLLECTION);
   const q = query(purchasesCol, orderBy('orderDate', 'desc'));
@@ -81,32 +110,32 @@ export const getPurchasesFS = async (): Promise<Purchase[]> => {
 
 
 export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> => {
-  let supplierId: string | undefined;
-  const existingSupplier = await getSupplierByNameFS(data.supplier);
-  if (existingSupplier) {
-    supplierId = existingSupplier.id;
-  } else {
-    const newSupplierData = { name: data.supplier };
-    supplierId = await addSupplierFS(newSupplierData as SupplierFormValues);
-  }
+  const supplierId = await findOrCreateSupplier(data);
 
+  const docRef = doc(collection(db, PURCHASES_COLLECTION));
+  let invoiceUrl: string | undefined = undefined;
+  let invoiceFileName: string | undefined = undefined;
+
+  if (data.invoiceDataUri && data.invoiceFileName) {
+      const storageRef = ref(storage, `invoices/purchases/${docRef.id}/${data.invoiceFileName}`);
+      const uploadResult = await uploadString(storageRef, data.invoiceDataUri, 'data_url');
+      invoiceUrl = await getDownloadURL(uploadResult.ref);
+      invoiceFileName = data.invoiceFileName;
+  }
+  
   const firestoreData = toFirestorePurchase(data, true);
   firestoreData.supplierId = supplierId;
+  firestoreData.invoiceUrl = invoiceUrl;
+  firestoreData.invoiceFileName = invoiceFileName;
 
-  const docRef = await addDoc(collection(db, PURCHASES_COLLECTION), firestoreData);
+  await setDoc(docRef, firestoreData);
   return docRef.id;
 };
 
 export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormValues>): Promise<void> => {
   let supplierId: string | undefined;
   if (data.supplier) {
-      const existingSupplier = await getSupplierByNameFS(data.supplier);
-      if (existingSupplier) {
-          supplierId = existingSupplier.id;
-      } else {
-          const newSupplierData = { name: data.supplier };
-          supplierId = await addSupplierFS(newSupplierData as SupplierFormValues);
-      }
+      supplierId = await findOrCreateSupplier(data);
   }
 
   const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);

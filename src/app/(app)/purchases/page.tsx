@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { Purchase, PurchaseStatus, UserRole } from "@/types";
 import { purchaseStatusList } from "@/lib/data";
 import { useAuth } from "@/contexts/auth-context";
-import { PlusCircle, MoreHorizontal, Filter, ChevronDown, Edit, Trash2, Receipt, Loader2, UploadCloud } from "lucide-react";
+import { PlusCircle, MoreHorizontal, Filter, ChevronDown, Edit, Trash2, Receipt, Loader2, UploadCloud, Download } from "lucide-react";
 import PurchaseDialog from "@/components/app/purchase-dialog";
 import type { PurchaseFormValues } from "@/components/app/purchase-dialog";
 import InvoiceUploadDialog from "@/components/app/invoice-upload-dialog";
@@ -20,7 +20,7 @@ import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
 import StatusBadge from "@/components/app/status-badge";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-import { getPurchasesFS, addPurchaseFS, updatePurchaseFS, deletePurchaseFS } from "@/services/purchase-service";
+import { addPurchaseFS, updatePurchaseFS, deletePurchaseFS, getPurchasesFS } from "@/services/purchase-service";
 import Link from "next/link";
 
 export default function PurchasesPage() {
@@ -33,6 +33,8 @@ export default function PurchasesPage() {
   const [isUploadDialogOpen, setIsUploadDialogOpen] = React.useState(false);
   const [purchaseToDelete, setPurchaseToDelete] = React.useState<Purchase | null>(null);
   const [initialPurchaseData, setInitialPurchaseData] = React.useState<Partial<PurchaseFormValues> | null>(null);
+  
+  const [pendingInvoice, setPendingInvoice] = React.useState<{ uri: string; name: string } | null>(null);
 
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<PurchaseStatus | "Todos">("Todos");
@@ -62,6 +64,7 @@ export default function PurchasesPage() {
   const handleAddNewPurchase = () => {
     if (!isAdmin) return;
     setInitialPurchaseData(null);
+    setPendingInvoice(null);
     setEditingPurchase(null);
     setIsPurchaseDialogOpen(true);
   };
@@ -71,9 +74,10 @@ export default function PurchasesPage() {
     setIsUploadDialogOpen(true);
   };
 
-  const handleDataExtracted = (data: Partial<PurchaseFormValues>) => {
+  const handleDataExtracted = (data: Partial<PurchaseFormValues>, fileDataUri: string, fileName: string) => {
     setIsUploadDialogOpen(false);
     setInitialPurchaseData(data);
+    setPendingInvoice({ uri: fileDataUri, name: fileName });
     setEditingPurchase(null);
     setIsPurchaseDialogOpen(true);
   };
@@ -81,6 +85,7 @@ export default function PurchasesPage() {
   const handleEditPurchase = (purchase: Purchase) => {
     if (!isAdmin) return;
     setInitialPurchaseData(null);
+    setPendingInvoice(null);
     setEditingPurchase(purchase);
     setIsPurchaseDialogOpen(true);
   };
@@ -88,14 +93,20 @@ export default function PurchasesPage() {
   const handleSavePurchase = async (data: PurchaseFormValues, purchaseId?: string) => {
     if (!isAdmin) return;
     setIsLoading(true);
+    
+    let finalData = { ...data };
+    if (pendingInvoice) {
+        finalData.invoiceDataUri = pendingInvoice.uri;
+        finalData.invoiceFileName = pendingInvoice.name;
+    }
 
     try {
       let successMessage = "";
       if (purchaseId) {
-        await updatePurchaseFS(purchaseId, data);
+        await updatePurchaseFS(purchaseId, finalData);
         successMessage = `La compra a "${data.supplier}" ha sido actualizada.`;
       } else {
-        await addPurchaseFS(data);
+        await addPurchaseFS(finalData);
         successMessage = `La compra a "${data.supplier}" ha sido añadida.`;
       }
       refreshDataSignature(); // Trigger data reload
@@ -109,6 +120,7 @@ export default function PurchasesPage() {
       setIsLoading(false);
       setIsPurchaseDialogOpen(false);
       setEditingPurchase(null);
+      setPendingInvoice(null);
     }
   };
 
@@ -144,7 +156,7 @@ export default function PurchasesPage() {
     return (
       <Card className="shadow-subtle">
         <CardHeader><CardTitle className="flex items-center">Acceso Denegado</CardTitle></CardHeader>
-        <CardContent><p>No tienes permisos para acceder a esta sección.</p></CardContent>
+        <CardContent><p>No tienes permiso para acceder a esta sección.</p></CardContent>
       </Card>
     );
   }
@@ -246,6 +258,13 @@ export default function PurchasesPage() {
                             <DropdownMenuItem onSelect={() => handleEditPurchase(purchase)}>
                               <Edit className="mr-2 h-4 w-4" /> Editar / Ver Detalles
                             </DropdownMenuItem>
+                            {purchase.invoiceUrl && (
+                               <DropdownMenuItem asChild>
+                                <Link href={purchase.invoiceUrl} target="_blank" rel="noopener noreferrer">
+                                  <Download className="mr-2 h-4 w-4" /> Descargar Factura
+                                </Link>
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuSeparator />
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
@@ -299,12 +318,14 @@ export default function PurchasesPage() {
       <PurchaseDialog
           purchase={editingPurchase}
           initialData={initialPurchaseData}
+          pendingInvoice={pendingInvoice}
           isOpen={isPurchaseDialogOpen}
           onOpenChange={(open) => {
               setIsPurchaseDialogOpen(open);
               if (!open) {
                 setEditingPurchase(null);
                 setInitialPurchaseData(null);
+                setPendingInvoice(null);
               }
           }}
           onSave={handleSavePurchase}

@@ -93,6 +93,16 @@ export const getSupplierByNameFS = async (name: string): Promise<Supplier | null
   return null;
 };
 
+export const getSupplierByCifFS = async (cif: string): Promise<Supplier | null> => {
+    if (!cif || cif.trim() === '') return null;
+    const q = query(collection(db, SUPPLIERS_COLLECTION), where('cif', '==', cif), limit(1));
+    const snapshot = await getDocs(q);
+    if (!snapshot.empty) {
+        return fromFirestoreSupplier(snapshot.docs[0]);
+    }
+    return null;
+}
+
 export const addSupplierFS = async (data: SupplierFormValues): Promise<string> => {
   const firestoreData = toFirestoreSupplier(data, true);
   const docRef = await addDoc(collection(db, SUPPLIERS_COLLECTION), firestoreData);

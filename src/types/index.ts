@@ -1,6 +1,5 @@
 
 
-
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
 
 export interface Kpi {
@@ -208,6 +207,14 @@ export interface Purchase {
 
 export interface PurchaseFormValues {
   supplier: string;
+  supplierCif?: string; // Para creación automática
+  supplierAddress_street?: string;
+  supplierAddress_number?: string;
+  supplierAddress_city?: string;
+  supplierAddress_province?: string;
+  supplierAddress_postalCode?: string;
+  supplierAddress_country?: string;
+
   orderDate: Date;
   status: PurchaseStatus;
   items: {
@@ -218,6 +225,10 @@ export interface PurchaseFormValues {
   shippingCost?: number;
   taxRate: number;
   notes?: string;
+
+  // Para pasar datos de la factura subida
+  invoiceDataUri?: string;
+  invoiceFileName?: string;
 }
 
 

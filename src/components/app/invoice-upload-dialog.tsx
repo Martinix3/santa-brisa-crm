@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -22,7 +23,7 @@ import { parse, isValid } from "date-fns";
 interface InvoiceUploadDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onDataExtracted: (data: Partial<PurchaseFormValues>) => void;
+  onDataExtracted: (data: Partial<PurchaseFormValues>, fileDataUri: string, fileName: string) => void;
 }
 
 export default function InvoiceUploadDialog({ isOpen, onOpenChange, onDataExtracted }: InvoiceUploadDialogProps) {
@@ -55,8 +56,14 @@ export default function InvoiceUploadDialog({ isOpen, onOpenChange, onDataExtrac
 
           const purchaseFormData: Partial<PurchaseFormValues> = {
             supplier: extractedData.supplier,
+            supplierCif: extractedData.supplierCif,
+            supplierAddress_street: extractedData.supplierAddress?.street,
+            supplierAddress_city: extractedData.supplierAddress?.city,
+            supplierAddress_province: extractedData.supplierAddress?.province,
+            supplierAddress_postalCode: extractedData.supplierAddress?.postalCode,
+            supplierAddress_country: extractedData.supplierAddress?.country,
             orderDate: isValid(parsedDate) ? parsedDate : new Date(),
-            items: extractedData.items.map(item => ({...item, unitPrice: item.unitPrice || 0})),
+            items: extractedData.items.map(item => ({...item, unitPrice: item.unitPrice || 0, total: (item.quantity || 0) * (item.unitPrice || 0) })),
             shippingCost: extractedData.shippingCost,
             taxRate: extractedData.taxRate,
             notes: extractedData.notes,
@@ -67,7 +74,7 @@ export default function InvoiceUploadDialog({ isOpen, onOpenChange, onDataExtrac
             title: "Datos Extraídos",
             description: "La información de la factura se ha cargado en el formulario. Por favor, revísala.",
           });
-          onDataExtracted(purchaseFormData);
+          onDataExtracted(purchaseFormData, dataUri, file.name);
 
         } catch (aiError: any) {
           console.error("AI processing error:", aiError);

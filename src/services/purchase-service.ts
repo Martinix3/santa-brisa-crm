@@ -2,7 +2,7 @@
 'use server';
 
 import { db, storage } from '@/lib/firebase';
-import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import {
   collection,
   getDocs,
@@ -80,26 +80,34 @@ async function uploadInvoice(
   purchaseId: string
 ): Promise<{ downloadUrl: string; storagePath: string }> {
   try {
-    // Basic validation of the data URI
     if (!dataUri.startsWith('data:')) {
       throw new Error('Invalid data URI provided.');
     }
 
-    const mimeType = dataUri.substring(dataUri.indexOf(':') + 1, dataUri.indexOf(';'));
+    const [header, base64Data] = dataUri.split(',');
+    if (!header || !base64Data) {
+      throw new Error('Malformed data URI.');
+    }
+    
+    const mimeMatch = header.match(/:(.*?);/);
+    const mimeType = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
     const fileExtension = mimeType.split('/')[1] || 'bin';
+    
+    const buffer = Buffer.from(base64Data, 'base64');
+    
     const uniqueFileName = `${uuidv4()}.${fileExtension}`;
     const storagePath = `invoices/purchases/${purchaseId}/${uniqueFileName}`;
     const storageRef = ref(storage, storagePath);
 
-    // Use uploadString with 'data_url' format. This is simpler and might be more robust.
-    const snapshot = await uploadString(storageRef, dataUri, 'data_url');
+    const snapshot = await uploadBytes(storageRef, buffer, {
+      contentType: mimeType,
+    });
     
     const downloadUrl = await getDownloadURL(snapshot.ref);
 
     return { downloadUrl, storagePath: snapshot.metadata.fullPath };
   } catch (error: any) {
     console.error('Error uploading invoice to Firebase Storage:', error);
-    // Provide a more specific error message if available
     const errorMessage = error.code || error.message || "Failed to upload file to storage.";
     throw new Error(`Upload failed: ${errorMessage}`);
   }
@@ -169,13 +177,16 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
   }
 
   const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);
+  const existingDocSnap = await getDoc(purchaseDocRef);
+  const existingData = existingDocSnap.exists() ? existingDocSnap.data() : {};
   
-  let invoiceUrl: string | null = (data as any).invoiceUrl || null; // Cast to any to check existing value if passed
-  let invoiceFileName: string | null = data.invoiceFileName || null;
+  let invoiceUrl: string | null = existingData.invoiceUrl || null;
+  let invoiceFileName: string | null = existingData.invoiceFileName || null;
 
   if (data.invoiceDataUri && data.invoiceFileName) {
     const { downloadUrl } = await uploadInvoice(data.invoiceDataUri, id);
     invoiceUrl = downloadUrl;
+    invoiceFileName = data.invoiceFileName;
   }
   
   const firestoreData = toFirestorePurchase(data as PurchaseFormValues, false);

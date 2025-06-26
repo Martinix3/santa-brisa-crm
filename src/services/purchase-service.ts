@@ -1,8 +1,9 @@
 
+
 'use server';
 
 import { db } from '@/lib/firebase';
-import { adminBucket } from '@/lib/firebaseAdmin'; // Keep admin for Storage operations
+// import { adminBucket } from '@/lib/firebaseAdmin'; // Desactivado para no usar Storage
 import {
   collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, setDoc,
   type DocumentSnapshot,
@@ -13,6 +14,7 @@ import { format, parseISO, isValid } from 'date-fns';
 const PURCHASES_COLLECTION = 'purchases';
 const SUPPLIERS_COLLECTION = 'suppliers';
 
+/* PDF Upload disabled
 async function uploadInvoice(dataUri: string, purchaseId: string): Promise<{ downloadUrl: string; storagePath: string }> {
   const [meta, base64] = dataUri.split(',');
   const mime = /data:(.*?);base64/.exec(meta)?.[1] ?? 'application/pdf';
@@ -29,6 +31,7 @@ async function uploadInvoice(dataUri: string, purchaseId: string): Promise<{ dow
   console.log(`File uploaded to ${path}, public URL: ${url}`);
   return { downloadUrl: url, storagePath: path };
 }
+*/
 
 const fromFirestorePurchase = (docSnap: DocumentSnapshot): Purchase => {
   const data = docSnap.data();
@@ -167,12 +170,14 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
         const newDocRef = doc(purchasesCol); // Create ref to get ID first
         const purchaseId = newDocRef.id;
 
+        /* PDF Upload disabled
         if (data.invoiceDataUri) {
             console.log(`Uploading invoice for new purchase ID: ${purchaseId}`);
             const { downloadUrl, storagePath } = await uploadInvoice(data.invoiceDataUri, purchaseId);
             data.invoiceUrl = downloadUrl;
             data.storagePath = storagePath;
         }
+        */
 
         const firestoreData = toFirestorePurchase(data, true, supplierId);
         
@@ -197,13 +202,15 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
             supplierId = await findOrCreateSupplier(data);
         }
     }
-
+    
+    /* PDF Upload disabled
     if (data.invoiceDataUri) {
         console.log(`Uploading new invoice for existing purchase ID: ${id}`);
         const { downloadUrl, storagePath } = await uploadInvoice(data.invoiceDataUri, id);
         data.invoiceUrl = downloadUrl;
         data.storagePath = storagePath;
     }
+    */
 
     const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);
     const firestoreData = toFirestorePurchase(data as PurchaseFormValues, false, supplierId);
@@ -220,6 +227,7 @@ export const deletePurchaseFS = async (id: string): Promise<void> => {
   const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);
   const docSnap = await getDoc(purchaseDocRef);
   
+  /* PDF Upload disabled
   if (docSnap.exists()) {
       const data = fromFirestorePurchase(docSnap);
       if (data.storagePath) {
@@ -232,6 +240,7 @@ export const deletePurchaseFS = async (id: string): Promise<void> => {
           }
       }
   }
+  */
 
   await deleteDoc(purchaseDocRef);
   console.log(`Purchase document ${id} deleted.`);

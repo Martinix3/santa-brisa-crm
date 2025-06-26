@@ -1,7 +1,7 @@
 'use server';
 
 import { storage } from '@/lib/firebase';
-import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
@@ -19,22 +19,29 @@ export async function uploadFileFromDataUri(
 ): Promise<{ downloadURL: string; fileName: string }> {
   try {
     const fileExtension = originalFileName.split('.').pop() || 'bin';
-    // Generate a unique name to prevent overwrites, but keep the extension.
     const uniqueFileName = `${uuidv4()}.${fileExtension}`;
     const fullPath = `${pathPrefix}/${uniqueFileName}`;
     
     const storageRef = ref(storage, fullPath);
 
-    // Extract the content type from the data URI for the upload metadata.
-    const contentType = dataUri.substring(dataUri.indexOf(':') + 1, dataUri.indexOf(';'));
+    const match = dataUri.match(/^data:(.+);base64,(.+)$/);
+    if (!match) {
+        throw new Error('Invalid data URI format.');
+    }
+    
+    const contentType = match[1];
+    const base64Data = match[2];
+    
+    // Convert base64 to buffer
+    const buffer = Buffer.from(base64Data, 'base64');
 
-    const uploadResult = await uploadString(storageRef, dataUri, 'data_url', {
+    // Use uploadBytes which is more robust for binary data
+    const uploadResult = await uploadBytes(storageRef, buffer, {
       contentType: contentType,
     });
     
     const downloadURL = await getDownloadURL(uploadResult.ref);
 
-    // Return the original file name for storing in Firestore, which is more user-friendly.
     return { downloadURL, fileName: originalFileName };
   } catch (error: any) {
     console.error("Error in uploadFileFromDataUri service:", error);

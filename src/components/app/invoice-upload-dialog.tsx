@@ -19,9 +19,6 @@ import { useToast } from "@/hooks/use-toast";
 import { processInvoice, type ProcessInvoiceOutput } from "@/ai/flows/invoice-processing-flow";
 import type { PurchaseFormValues } from "@/components/app/purchase-dialog";
 import { parse, isValid } from "date-fns";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { useAuth } from "@/contexts/auth-context";
-import { v4 as uuidv4 } from 'uuid';
 
 interface InvoiceUploadDialogProps {
   isOpen: boolean;
@@ -41,16 +38,10 @@ export default function InvoiceUploadDialog({ isOpen, onOpenChange, onDataExtrac
   const [error, setError] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  const { user } = useAuth(); // Needed for client-side upload rules
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
-    if (!user) {
-        setError("Debes estar autenticado para subir archivos.");
-        return;
-    }
 
     if (file.size > 4 * 1024 * 1024) { // 4MB limit for Gemini
         setError("El archivo es demasiado grande. El límite es 4MB.");
@@ -70,22 +61,12 @@ export default function InvoiceUploadDialog({ isOpen, onOpenChange, onDataExtrac
     reader.onload = async () => {
         const dataUri = reader.result as string;
         try {
-            // Step 1: Upload file to Firebase Storage from the client
-            const storage = getStorage();
-            const extension = MimeTypeMap[file.type];
-            const uniqueFileName = `invoice_${Date.now()}_${uuidv4()}.${extension}`;
-            const storagePath = `invoices/purchases/${user.uid}/${uniqueFileName}`;
-            const storageRef = ref(storage, storagePath);
-            
-            await uploadBytes(storageRef, file);
-            const downloadUrl = await getDownloadURL(storageRef);
-
-            // Step 2: Process the invoice with AI
+            // Step 1: Process the invoice with AI
             const extractedData: ProcessInvoiceOutput = await processInvoice({ invoiceDataUri: dataUri });
           
             const parsedDate = parse(extractedData.orderDate, 'yyyy-MM-dd', new Date());
 
-            // Step 3: Prepare form data with extracted info and storage info
+            // Step 2: Prepare form data with extracted info. Crucially, pass the dataUri itself for server-side upload.
             const purchaseFormData: Partial<PurchaseFormValues> = {
                 supplier: extractedData.supplier,
                 supplierCif: extractedData.supplierCif,
@@ -100,8 +81,7 @@ export default function InvoiceUploadDialog({ isOpen, onOpenChange, onDataExtrac
                 taxRate: extractedData.taxRate,
                 notes: extractedData.notes,
                 status: "Borrador",
-                invoiceUrl: downloadUrl, // The public URL
-                storagePath: storagePath, // The path for future reference/deletion
+                invoiceUrl: dataUri, // Temporarily store the dataUri here to pass to the next dialog
             };
           
             toast({
@@ -109,28 +89,12 @@ export default function InvoiceUploadDialog({ isOpen, onOpenChange, onDataExtrac
                 description: "La información de la factura se ha cargado en el formulario. Por favor, revísala.",
             });
 
-            // Step 4: Pass all data to the parent component
+            // Step 3: Pass all data to the parent component
             onDataExtracted(purchaseFormData, dataUri, file.name);
 
         } catch (processError: any) {
-            console.error("Client-side processing error:", processError);
-            let errorMessage = "Ocurrió un error inesperado.";
-            if (processError.code) { // Firebase storage error
-                switch (processError.code) {
-                    case 'storage/unauthorized':
-                        errorMessage = "No tienes permiso para subir archivos. Revisa las reglas de seguridad de Storage.";
-                        break;
-                    case 'storage/canceled':
-                        errorMessage = "La subida del archivo fue cancelada.";
-                        break;
-                    default:
-                        errorMessage = `Error de subida: ${processError.message}`;
-                        break;
-                }
-            } else if (processError.message) { // AI or other error
-                errorMessage = `Error al procesar: ${processError.message}`;
-            }
-            setError(errorMessage);
+            console.error("Client-side AI processing error:", processError);
+            setError(`Error al procesar: ${processError.message}`);
         } finally {
             setIsProcessing(false);
             if (fileInputRef.current) {
@@ -170,7 +134,7 @@ export default function InvoiceUploadDialog({ isOpen, onOpenChange, onDataExtrac
           {isProcessing && (
             <div className="mt-4 flex items-center justify-center space-x-2">
               <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="text-sm text-muted-foreground">Subiendo y procesando factura...</span>
+              <span className="text-sm text-muted-foreground">Analizando factura...</span>
             </div>
           )}
           {error && (

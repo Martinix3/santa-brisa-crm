@@ -19,7 +19,7 @@ import {
   where,
   limit,
 } from 'firebase/firestore';
-import type { Purchase, PurchaseFormValues, SupplierFormValues } from '@/types';
+import type { Purchase, PurchaseFormValues } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
 import { Buffer } from 'buffer';
@@ -35,34 +35,32 @@ const MimeTypeMap: Record<string, string> = {
 };
 
 async function uploadInvoice(dataUri: string, purchaseId: string) {
-  console.log(`Uploading invoice for purchase ID: ${purchaseId}`);
-  if (!dataUri.startsWith('data:')) throw new Error('Invalid data URI');
+  console.log(`Uploading invoice for purchase ID: ${purchaseId} via Admin SDK.`);
+  if (!dataUri.startsWith('data:')) throw new Error('Invalid data URI for upload.');
   
   const [meta, base64] = dataUri.split(',');
   const mime = /data:(.*?);base64/.exec(meta)?.[1] ?? 'application/pdf';
-  const ext = MimeTypeMap[mime] ?? 'bin';
+  const ext = MimeTypeMap[mime];
 
-  if (!ext || !mime) {
-    throw new Error(`Invalid or unsupported mime type: ${mime}`);
+  if (!ext) {
+    throw new Error(`Unsupported mime type for upload: ${mime}`);
   }
   
   const path = `invoices/purchases/${purchaseId}/invoice_${Date.now()}.${ext}`;
 
   const file = adminBucket.file(path);
   try {
+    const downloadToken = uuidv4();
     await file.save(Buffer.from(base64, 'base64'), {
       contentType: mime,
       resumable: false,
-      // Create a public URL. The token is a UUID.
-      metadata: { metadata: { firebaseStorageDownloadTokens: uuidv4() } }
+      metadata: { metadata: { firebaseStorageDownloadTokens: downloadToken } }
     });
-    console.log(`Invoice uploaded successfully to: ${path}`);
+    console.log(`Admin SDK: Invoice uploaded successfully to: ${path}`);
 
-    // Manually construct the public URL
-    const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${adminBucket.name}/o/${encodeURIComponent(path)}?alt=media&token=${file.metadata.metadata.firebaseStorageDownloadTokens}`;
-
+    const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${adminBucket.name}/o/${encodeURIComponent(path)}?alt=media&token=${downloadToken}`;
     return { downloadUrl, storagePath: path };
-  } catch(error) {
+  } catch(error: any) {
     console.error('Error uploading invoice via Admin SDK:', error);
     throw error;
   }
@@ -180,7 +178,7 @@ const findOrCreateSupplier = async (data: Partial<PurchaseFormValues>): Promise<
         return docRef.id;
     } catch (err) {
         console.error('Supplier creation failed', err);
-        throw err; // Re-throw the original Firestore error
+        throw err;
     }
 };
 
@@ -192,20 +190,21 @@ export const getPurchasesFS = async (): Promise<Purchase[]> => {
 };
 
 export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> => {
-    console.log('Payload arriving at addPurchaseFS:', data);
+    console.log('Server Action: addPurchaseFS received payload.');
     try {
         const purchaseId = uuidv4();
-        let uploadResult = { downloadUrl: null, storagePath: null };
-
-        if (data.invoiceUrl) { // invoiceUrl is used as a placeholder for the dataUri from the form
-          uploadResult = await uploadInvoice(data.invoiceUrl, purchaseId);
+        
+        if (data.invoiceUrl && data.invoiceUrl.startsWith('data:')) {
+          console.log("Data URI found, starting server-side upload...");
+          const uploadResult = await uploadInvoice(data.invoiceUrl, purchaseId);
           data.invoiceUrl = uploadResult.downloadUrl;
           data.storagePath = uploadResult.storagePath;
+          console.log("Server-side upload complete. URL:", data.invoiceUrl);
         }
 
         const supplierId = await findOrCreateSupplier(data);
         if (!supplierId) {
-            throw new Error("Failed to find or create supplier because supplier name was empty.");
+            throw new Error("Failed to process supplier. Supplier name might be empty.");
         }
         
         const firestoreData = toFirestorePurchase(data, true, supplierId);
@@ -233,18 +232,15 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
     const existingDocSnap = await getDoc(purchaseDocRef);
     const existingData = existingDocSnap.exists() ? fromFirestorePurchase(existingDocSnap) : null;
     
-    // Check if a new invoice file is being uploaded
     if (data.invoiceUrl && data.invoiceUrl.startsWith('data:')) {
         console.log("New invoice file detected for update.");
         const uploadResult = await uploadInvoice(data.invoiceUrl, id);
         data.invoiceUrl = uploadResult.downloadUrl;
         data.storagePath = uploadResult.storagePath;
         
-        // If an old file existed, delete it
         if (existingData?.storagePath && existingData.storagePath !== data.storagePath) {
             console.log(`Deleting old invoice file: ${existingData.storagePath}`);
             await adminBucket.file(existingData.storagePath).delete().catch(err => console.error("Failed to delete old invoice file:", err));
-            console.log("Old invoice file deleted.");
         }
     }
 
@@ -300,9 +296,5 @@ export const initializeMockPurchasesInFirestore = async (mockData: Purchase[]) =
         });
         await batch.commit();
         console.log('Mock purchases initialized in Firestore.');
-    } else if (mockData.length === 0) {
-        // console.log('No mock purchases to seed.');
-    } else {
-        // console.log('Purchases collection is not empty. Skipping initialization.');
     }
 };

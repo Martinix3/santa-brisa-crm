@@ -2,6 +2,7 @@
 'use server';
 
 import { db } from '@/lib/firebase';
+import { adminBucket } from '@/lib/firebaseAdmin';
 import {
   collection,
   getDocs,
@@ -22,6 +23,24 @@ import { format, parseISO, isValid } from 'date-fns';
 
 const PURCHASES_COLLECTION = 'purchases';
 const SUPPLIERS_COLLECTION = 'suppliers';
+
+async function uploadInvoice(dataUri: string, purchaseId: string): Promise<{ downloadUrl: string; storagePath: string }> {
+  const [meta, base64] = dataUri.split(',');
+  const mime = /data:(.*?);base64/.exec(meta)?.[1] ?? 'application/pdf';
+  const ext = mime.split('/')[1] ?? 'bin';
+  const path = `invoices/purchases/${purchaseId}/invoice_${Date.now()}.${ext}`;
+
+  await adminBucket.file(path).save(Buffer.from(base64, 'base64'), {
+    contentType: mime,
+    resumable: false,
+    public: true, // Make the file publicly readable
+  });
+
+  // Construct a public URL. Note: for production, you might want signed URLs instead.
+  const url = `https://storage.googleapis.com/${adminBucket.name}/${path}`;
+  console.log(`File uploaded to ${path}, public URL: ${url}`);
+  return { downloadUrl: url, storagePath: path };
+}
 
 
 const fromFirestorePurchase = (docSnap: any): Purchase => {
@@ -154,10 +173,21 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
             throw new Error("Failed to process supplier. Supplier name might be empty.");
         }
         
+        const tempPurchaseRef = doc(collection(db, PURCHASES_COLLECTION));
+        const purchaseId = tempPurchaseRef.id;
+
+        if (data.invoiceDataUri) {
+            console.log(`Uploading invoice for new purchase ID: ${purchaseId}`);
+            const { downloadUrl, storagePath } = await uploadInvoice(data.invoiceDataUri, purchaseId);
+            data.invoiceUrl = downloadUrl;
+            data.storagePath = storagePath;
+        }
+
         const firestoreData = toFirestorePurchase(data, true, supplierId);
         
-        const docRef = await addDoc(collection(db, PURCHASES_COLLECTION), firestoreData);
-        return docRef.id;
+        await updateDoc(tempPurchaseRef, firestoreData); // Use updateDoc on the ref we created
+        console.log(`New purchase added with ID: ${purchaseId}`);
+        return purchaseId;
     } catch (error) {
         console.error("Failed to add purchase:", error);
         throw error;
@@ -170,6 +200,14 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
     if (data.supplier) {
         supplierId = await findOrCreateSupplier(data);
     }
+
+    if (data.invoiceDataUri) {
+        console.log(`Uploading new invoice for existing purchase ID: ${id}`);
+        const { downloadUrl, storagePath } = await uploadInvoice(data.invoiceDataUri, id);
+        data.invoiceUrl = downloadUrl;
+        data.storagePath = storagePath;
+    }
+
     const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);
     const firestoreData = toFirestorePurchase(data as PurchaseFormValues, false, supplierId);
     await updateDoc(purchaseDocRef, firestoreData);
@@ -188,7 +226,14 @@ export const deletePurchaseFS = async (id: string): Promise<void> => {
   if (docSnap.exists()) {
       const data = fromFirestorePurchase(docSnap);
       if (data.storagePath) {
-          console.warn(`Associated file found at ${data.storagePath}. File deletion from server is currently disabled due to environment restrictions. Please delete manually from Firebase Console if needed.`);
+          try {
+            console.log(`Deleting associated file from Storage: ${data.storagePath}`);
+            await adminBucket.file(data.storagePath).delete();
+            console.log(`File ${data.storagePath} deleted successfully.`);
+          } catch(e: any) {
+             console.error(`Failed to delete file from Storage at path ${data.storagePath}:`, e.message);
+             // We continue to delete the Firestore doc even if file deletion fails
+          }
       }
   }
 

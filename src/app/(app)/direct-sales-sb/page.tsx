@@ -12,25 +12,21 @@ import type { DirectSale, DirectSaleStatus, UserRole } from "@/types";
 import { directSaleStatusList } from "@/lib/data";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, MoreHorizontal, Filter, ChevronDown, Edit, Trash2, Briefcase, Loader2 } from "lucide-react";
-// import DirectSaleDialog from "@/components/app/direct-sale-dialog"; // This component needs to be created
+// import VentaDirectaDialog from "@/components/app/venta-directa-dialog"; // This component needs to be created
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
 import StatusBadge from "@/components/app/status-badge";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-// import { getDirectSalesFS, addDirectSaleFS, updateDirectSaleFS, deleteDirectSaleFS } from "@/services/direct-sale-service"; // This service needs to be created
+import { getDirectSalesFS, addDirectSaleFS, updateDirectSaleFS, deleteDirectSaleFS } from "@/services/venta-directa-sb-service"; 
 
 // Placeholder for dialog component until it's created
-const DirectSaleDialog = ({ isOpen, onOpenChange }: { isOpen: boolean, onOpenChange: (open: boolean) => void }) => (
+const VentaDirectaDialog = ({ isOpen, onOpenChange }: { isOpen: boolean, onOpenChange: (open: boolean) => void }) => (
     <div style={{ display: isOpen ? 'block' : 'none', position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', padding: '2rem', background: 'white', border: '1px solid black', zIndex: 100 }}>
-        <h2>Direct Sale Dialog (Placeholder)</h2>
+        <h2>Venta Directa Dialog (Placeholder)</h2>
         <button onClick={() => onOpenChange(false)}>Close</button>
     </div>
 );
-
-// Placeholder for service functions
-const getDirectSalesFS = async (): Promise<DirectSale[]> => { console.log("getDirectSalesFS called"); return []; };
-const deleteDirectSaleFS = async (id: string): Promise<void> => { console.log(`deleteDirectSaleFS called with id: ${id}`); };
 
 
 export default function DirectSalesSbPage() {
@@ -252,7 +248,7 @@ export default function DirectSalesSbPage() {
         )}
       </Card>
 
-      <DirectSaleDialog
+      <VentaDirectaDialog
           isOpen={isSaleDialogOpen}
           onOpenChange={(open) => {
               setIsSaleDialogOpen(open);

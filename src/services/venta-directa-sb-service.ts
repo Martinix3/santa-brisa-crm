@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { db } from '@/lib/firebase';
@@ -15,95 +16,110 @@ import {
   orderBy,
   writeBatch
 } from 'firebase/firestore';
-import type { Purchase, PurchaseFormValues } from '@/types';
+import type { DirectSale, DirectSaleItem } from '@/types'; // Import DirectSale types
 import { format, parseISO, isValid } from 'date-fns';
-import { mockPurchases } from '@/lib/data'; // Para seeding
 
-const PURCHASES_COLLECTION = 'purchases';
+const DIRECT_SALES_COLLECTION = 'directSales';
 
-const fromFirestorePurchase = (docSnap: any): Purchase => {
+const fromFirestoreDirectSale = (docSnap: any): DirectSale => {
   const data = docSnap.data();
   return {
     id: docSnap.id,
-    supplier: data.supplier || '',
-    description: data.description || '',
-    orderDate: data.orderDate instanceof Timestamp ? format(data.orderDate.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
-    amount: data.amount || 0,
+    customerId: data.customerId || '',
+    customerName: data.customerName || '',
+    channel: data.channel || 'Otro',
+    items: data.items || [],
+    subtotal: data.subtotal || 0,
+    tax: data.tax || 0,
+    totalAmount: data.totalAmount || 0,
+    issueDate: data.issueDate instanceof Timestamp ? format(data.issueDate.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+    dueDate: data.dueDate instanceof Timestamp ? format(data.dueDate.toDate(), "yyyy-MM-dd") : undefined,
+    invoiceNumber: data.invoiceNumber || undefined,
     status: data.status || 'Borrador',
-    invoiceUrl: data.invoiceUrl || undefined,
-    invoiceFileName: data.invoiceFileName || undefined,
+    relatedPlacementOrders: data.relatedPlacementOrders || [],
     notes: data.notes || undefined,
     createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
     updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
   };
 };
 
-const toFirestorePurchase = (data: PurchaseFormValues, isNew: boolean): any => {
-  const firestoreData: { [key: string]: any } = {
-    supplier: data.supplier,
-    description: data.description,
-    orderDate: data.orderDate instanceof Date && isValid(data.orderDate) ? Timestamp.fromDate(data.orderDate) : Timestamp.fromDate(new Date()),
-    amount: data.amount,
-    status: data.status,
-    notes: data.notes || null,
-  };
+const toFirestoreDirectSale = (data: Partial<DirectSale>, isNew: boolean): any => {
+  const firestoreData: { [key: string]: any } = { ...data };
+
+  // Convert dates to Timestamps
+  if (data.issueDate && typeof data.issueDate === 'string') {
+    firestoreData.issueDate = Timestamp.fromDate(parseISO(data.issueDate));
+  } else if (data.issueDate instanceof Date) {
+     firestoreData.issueDate = Timestamp.fromDate(data.issueDate);
+  }
+   if (data.dueDate && typeof data.dueDate === 'string') {
+    firestoreData.dueDate = Timestamp.fromDate(parseISO(data.dueDate));
+  } else if (data.dueDate instanceof Date) {
+     firestoreData.dueDate = Timestamp.fromDate(data.dueDate);
+  } else {
+    firestoreData.dueDate = null;
+  }
 
   if (isNew) {
     firestoreData.createdAt = Timestamp.fromDate(new Date());
   }
   firestoreData.updatedAt = Timestamp.fromDate(new Date());
+  
+  // Clean up undefined/null values
+  Object.keys(firestoreData).forEach(key => {
+    if (firestoreData[key] === undefined) {
+      firestoreData[key] = null;
+    }
+  });
 
   return firestoreData;
 };
 
 
-export const getPurchasesFS = async (): Promise<Purchase[]> => {
-  const purchasesCol = collection(db, PURCHASES_COLLECTION);
-  const q = query(purchasesCol, orderBy('orderDate', 'desc'));
-  const purchaseSnapshot = await getDocs(q);
-  return purchaseSnapshot.docs.map(docSnap => fromFirestorePurchase(docSnap));
+export const getDirectSalesFS = async (): Promise<DirectSale[]> => {
+  const salesCol = collection(db, DIRECT_SALES_COLLECTION);
+  const q = query(salesCol, orderBy('issueDate', 'desc'));
+  const salesSnapshot = await getDocs(q);
+  return salesSnapshot.docs.map(docSnap => fromFirestoreDirectSale(docSnap));
 };
 
 
-export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> => {
-  const firestoreData = toFirestorePurchase(data, true);
-  const docRef = await addDoc(collection(db, PURCHASES_COLLECTION), firestoreData);
+export const addDirectSaleFS = async (data: Partial<DirectSale>): Promise<string> => {
+  const firestoreData = toFirestoreDirectSale(data, true);
+  const docRef = await addDoc(collection(db, DIRECT_SALES_COLLECTION), firestoreData);
   return docRef.id;
 };
 
-export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormValues>): Promise<void> => {
-  const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);
-  const firestoreData = toFirestorePurchase(data as PurchaseFormValues, false);
-  await updateDoc(purchaseDocRef, firestoreData);
+export const updateDirectSaleFS = async (id: string, data: Partial<DirectSale>): Promise<void> => {
+  const saleDocRef = doc(db, DIRECT_SALES_COLLECTION, id);
+  const firestoreData = toFirestoreDirectSale(data, false);
+  await updateDoc(saleDocRef, firestoreData);
 };
 
-export const deletePurchaseFS = async (id: string): Promise<void> => {
-  const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);
-  await deleteDoc(purchaseDocRef);
+export const deleteDirectSaleFS = async (id: string): Promise<void> => {
+  const saleDocRef = doc(db, DIRECT_SALES_COLLECTION, id);
+  await deleteDoc(saleDocRef);
 };
 
 
-export const initializeMockPurchasesInFirestore = async (mockData: Purchase[]) => {
-    const purchasesCol = collection(db, PURCHASES_COLLECTION);
-    const snapshot = await getDocs(query(purchasesCol));
+export const initializeMockDirectSalesInFirestore = async (mockData: DirectSale[]) => {
+    const salesCol = collection(db, DIRECT_SALES_COLLECTION);
+    const snapshot = await getDocs(query(salesCol));
     if (snapshot.empty && mockData.length > 0) {
         const batch = writeBatch(db);
-        mockData.forEach(purchase => {
-            const { id, createdAt, updatedAt, orderDate, ...purchaseData } = purchase;
+        mockData.forEach(sale => {
+            const { id, createdAt, updatedAt, issueDate, dueDate, ...saleData } = sale;
             
-            const firestoreReadyData: any = { ...purchaseData };
-            firestoreReadyData.orderDate = orderDate ? Timestamp.fromDate(parseISO(orderDate)) : Timestamp.fromDate(new Date());
+            const firestoreReadyData: any = { ...saleData };
+            firestoreReadyData.issueDate = issueDate ? Timestamp.fromDate(parseISO(issueDate)) : Timestamp.fromDate(new Date());
+            firestoreReadyData.dueDate = dueDate ? Timestamp.fromDate(parseISO(dueDate)) : null;
             firestoreReadyData.createdAt = createdAt ? Timestamp.fromDate(parseISO(createdAt)) : Timestamp.fromDate(new Date());
             firestoreReadyData.updatedAt = updatedAt ? Timestamp.fromDate(parseISO(updatedAt)) : Timestamp.fromDate(new Date());
             
-            const docRef = doc(purchasesCol);
+            const docRef = doc(salesCol);
             batch.set(docRef, firestoreReadyData);
         });
         await batch.commit();
-        console.log('Mock purchases initialized in Firestore.');
-    } else if (mockData.length === 0) {
-        // console.log('No mock purchases to seed.');
-    } else {
-        // console.log('Purchases collection is not empty. Skipping initialization.');
+        console.log('Mock direct sales initialized in Firestore.');
     }
 };

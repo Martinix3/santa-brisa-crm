@@ -226,8 +226,9 @@ export interface PurchaseFormValues {
   shippingCost?: number;
   taxRate: number;
   notes?: string;
-  invoiceUrl?: string; // Changed from invoiceDataUri
-  storagePath?: string; // New field
+  invoiceDataUri?: string; 
+  invoiceUrl?: string;
+  storagePath?: string;
 }
 
 

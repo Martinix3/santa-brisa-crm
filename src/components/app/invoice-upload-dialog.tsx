@@ -19,10 +19,6 @@ import { useToast } from "@/hooks/use-toast";
 import { processInvoice, type ProcessInvoiceOutput } from "@/ai/flows/invoice-processing-flow";
 import type { PurchaseFormValues } from "@/components/app/purchase-dialog";
 import { parse, isValid } from "date-fns";
-import { v4 as uuidv4 } from 'uuid';
-import { storage } from "@/lib/firebase"; // Import client SDK
-import { ref, uploadString, getDownloadURL } from "firebase/storage";
-import { useAuth } from "@/contexts/auth-context";
 
 interface InvoiceUploadDialogProps {
   isOpen: boolean;
@@ -42,17 +38,10 @@ export default function InvoiceUploadDialog({ isOpen, onOpenChange, onDataExtrac
   const [error, setError] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  const { user } = useAuth();
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
-    if (!user) {
-        setError("Debes estar autenticado para subir archivos.");
-        toast({ title: "Error de Autenticación", description: "Por favor, recarga la página e inicia sesión.", variant: "destructive"});
-        return;
-    }
 
     if (file.size > 4 * 1024 * 1024) { 
         setError("El archivo es demasiado grande. El límite es 4MB.");
@@ -72,23 +61,12 @@ export default function InvoiceUploadDialog({ isOpen, onOpenChange, onDataExtrac
     reader.onload = async () => {
         const dataUri = reader.result as string;
         try {
-            // Step 1: Upload the file to Firebase Storage from the client
-            toast({ title: "Subiendo factura...", description: "Por favor, espera." });
-            
-            const filePath = `invoices/purchases/${user.uid}/invoice_${Date.now()}_${uuidv4()}.${file.name.split('.').pop()}`;
-            const storageRef = ref(storage, filePath);
-            
-            const uploadTask = await uploadString(storageRef, dataUri, 'data_url');
-            const downloadUrl = await getDownloadURL(uploadTask.ref);
+            toast({ title: "Analizando contenido con IA...", description: "Por favor, espera." });
 
-            toast({ title: "Factura subida", description: "Analizando contenido con IA..." });
-
-            // Step 2: Process the invoice with AI
             const extractedData: ProcessInvoiceOutput = await processInvoice({ invoiceDataUri: dataUri });
           
             const parsedDate = parse(extractedData.orderDate, 'yyyy-MM-dd', new Date());
 
-            // Step 3: Prepare form data with extracted info and the final downloadUrl
             const purchaseFormData: Partial<PurchaseFormValues> = {
                 supplier: extractedData.supplier,
                 supplierCif: extractedData.supplierCif,
@@ -103,8 +81,7 @@ export default function InvoiceUploadDialog({ isOpen, onOpenChange, onDataExtrac
                 taxRate: extractedData.taxRate,
                 notes: extractedData.notes,
                 status: "Borrador",
-                invoiceUrl: downloadUrl,
-                storagePath: filePath,
+                invoiceDataUri: dataUri,
             };
           
             toast({
@@ -115,13 +92,8 @@ export default function InvoiceUploadDialog({ isOpen, onOpenChange, onDataExtrac
             onDataExtracted(purchaseFormData);
 
         } catch (processError: any) {
-            console.error("Client-side error:", processError);
-             if (processError.code === 'storage/unauthorized') {
-                setError("Error de permisos (CORS). Sigue los pasos para configurar tu bucket.");
-                toast({ title: "Configuración Requerida", description: "Parece que falta configurar CORS en tu Firebase Storage. Por favor, sigue las instrucciones.", variant: "destructive", duration: 10000 });
-            } else {
-                setError(`Error al procesar: ${processError.message}`);
-            }
+            console.error("Error processing invoice with AI:", processError);
+            setError(`Error al procesar: ${processError.message}`);
         } finally {
             setIsProcessing(false);
             if (fileInputRef.current) {
@@ -161,7 +133,7 @@ export default function InvoiceUploadDialog({ isOpen, onOpenChange, onDataExtrac
           {isProcessing && (
             <div className="mt-4 flex items-center justify-center space-x-2">
               <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="text-sm text-muted-foreground">Subiendo y analizando factura...</span>
+              <span className="text-sm text-muted-foreground">Analizando factura...</span>
             </div>
           )}
           {error && (

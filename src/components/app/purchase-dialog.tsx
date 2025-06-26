@@ -66,6 +66,7 @@ const purchaseFormSchema = z.object({
   shippingCost: z.coerce.number().min(0, "Los portes no pueden ser negativos.").optional(),
   taxRate: z.coerce.number().min(0, "El IVA no puede ser negativo.").default(21),
   notes: z.string().optional(),
+  invoiceDataUri: z.string().optional(), // Holds the file data for server upload
   invoiceUrl: z.string().url("URL no válida").optional().or(z.literal("")),
   storagePath: z.string().optional(),
 });
@@ -96,6 +97,7 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
       notes: "",
       invoiceUrl: "",
       storagePath: "",
+      invoiceDataUri: "",
     },
   });
 
@@ -143,6 +145,7 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
           notes: purchase.notes || "",
           invoiceUrl: purchase.invoiceUrl || "",
           storagePath: purchase.storagePath || "",
+          invoiceDataUri: "", // Don't prefill this from existing purchases
         });
       } else {
         form.reset({
@@ -155,6 +158,7 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
           notes: "",
           invoiceUrl: "",
           storagePath: "",
+          invoiceDataUri: "",
         });
       }
     }

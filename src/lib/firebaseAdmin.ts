@@ -1,21 +1,28 @@
 import { initializeApp, applicationDefault, getApps } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
 
-// In a managed environment like Cloud Workstations or Cloud Run,
-// applicationDefault() automatically discovers credentials and configuration.
-// We no longer need to read them from .env.
+// Define the bucket name explicitly to match the client-side configuration.
+const BUCKET_NAME = 'santa-brisa-crm-bucket';
 
 if (getApps().length === 0) {
   try {
+    // In a managed environment, applicationDefault() automatically discovers credentials.
     initializeApp({
       credential: applicationDefault(),
-      // The storageBucket and projectId will be inferred from the environment's
-      // Application Default Credentials (ADC).
+      // Explicitly set the storageBucket to ensure we target the correct one.
+      storageBucket: BUCKET_NAME,
     });
-    console.log("Firebase Admin SDK initialized successfully using environment's Application Default Credentials.");
+    console.info({
+        event: 'firebase_admin_init_success',
+        bucket: BUCKET_NAME,
+        message: "Firebase Admin SDK initialized successfully.",
+    });
   } catch (error: any) {
-    console.error("Failed to initialize Firebase Admin SDK:", error);
-    // This provides a helpful hint if running in a misconfigured local environment.
+    console.error("Failed to initialize Firebase Admin SDK:", {
+        errorMessage: error.message,
+        docs: "https://firebase.google.com/docs/admin/setup",
+    });
+    // This hint is helpful for local development outside a configured GCP environment.
     if (error.message.includes('Google Application Default Credentials are not available')) {
       console.error("Hint: This usually means you're running locally. Run `gcloud auth application-default login` in your terminal and try again.");
     }
@@ -23,5 +30,5 @@ if (getApps().length === 0) {
   }
 }
 
-// Calling bucket() without arguments will use the default bucket from the initialized app.
+// Calling bucket() without arguments will now use the correctly configured default bucket.
 export const adminBucket = getStorage().bucket();

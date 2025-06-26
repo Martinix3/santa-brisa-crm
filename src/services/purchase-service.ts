@@ -2,21 +2,7 @@
 'use server';
 
 import { adminDb as db, adminBucket } from '@/lib/firebaseAdmin';
-import {
-  collection,
-  getDocs,
-  doc,
-  getDoc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  Timestamp,
-  query,
-  orderBy,
-  writeBatch,
-  where,
-  limit,
-} from 'firebase-admin/firestore';
+import * as adminFirestore from 'firebase-admin/firestore';
 import type { Purchase, PurchaseFormValues, Supplier } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 
@@ -40,7 +26,7 @@ async function uploadInvoice(dataUri: string, purchaseId: string): Promise<{ dow
   return { downloadUrl: url, storagePath: path };
 }
 
-const fromFirestorePurchase = (docSnap: FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>): Purchase => {
+const fromFirestorePurchase = (docSnap: adminFirestore.DocumentSnapshot<adminFirestore.DocumentData>): Purchase => {
   const data = docSnap.data();
   if (!data) throw new Error("Document data is undefined.");
 
@@ -54,13 +40,13 @@ const fromFirestorePurchase = (docSnap: FirebaseFirestore.DocumentSnapshot<Fireb
     taxRate: data.taxRate ?? 21,
     shippingCost: data.shippingCost,
     totalAmount: data.totalAmount || 0,
-    orderDate: data.orderDate instanceof Timestamp ? format(data.orderDate.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+    orderDate: data.orderDate instanceof adminFirestore.Timestamp ? format(data.orderDate.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
     status: data.status || 'Borrador',
     invoiceUrl: data.invoiceUrl || undefined,
     storagePath: data.storagePath || undefined,
     notes: data.notes || undefined,
-    createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
-    updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+    createdAt: data.createdAt instanceof adminFirestore.Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+    updatedAt: data.updatedAt instanceof adminFirestore.Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
   };
 };
 
@@ -74,7 +60,7 @@ const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean, 
 
   const firestoreData: { [key: string]: any } = {
     supplier: data.supplier,
-    orderDate: data.orderDate instanceof Date && isValid(data.orderDate) ? Timestamp.fromDate(data.orderDate) : Timestamp.fromDate(new Date()),
+    orderDate: data.orderDate instanceof Date && isValid(data.orderDate) ? adminFirestore.Timestamp.fromDate(data.orderDate) : adminFirestore.Timestamp.fromDate(new Date()),
     status: data.status,
     items: data.items?.map(item => ({...item, total: (item.quantity || 0) * (item.unitPrice || 0)})) || [],
     subtotal,
@@ -92,9 +78,9 @@ const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean, 
   }
 
   if (isNew) {
-    firestoreData.createdAt = Timestamp.fromDate(new Date());
+    firestoreData.createdAt = adminFirestore.Timestamp.fromDate(new Date());
   }
-  firestoreData.updatedAt = Timestamp.fromDate(new Date());
+  firestoreData.updatedAt = adminFirestore.Timestamp.fromDate(new Date());
 
   return firestoreData;
 };
@@ -108,8 +94,8 @@ const findOrCreateSupplier = async (data: Partial<PurchaseFormValues>): Promise<
 
     if (data.supplierCif && data.supplierCif.trim() !== '') {
         console.log(`Searching for supplier by CIF: ${data.supplierCif}`);
-        const cifQuery = query(collection(db, SUPPLIERS_COLLECTION), where("cif", "==", data.supplierCif), limit(1));
-        const cifSnapshot = await getDocs(cifQuery);
+        const cifQuery = adminFirestore.query(adminFirestore.collection(db, SUPPLIERS_COLLECTION), adminFirestore.where("cif", "==", data.supplierCif), adminFirestore.limit(1));
+        const cifSnapshot = await adminFirestore.getDocs(cifQuery);
         if (!cifSnapshot.empty) {
             const supplierDoc = cifSnapshot.docs[0];
             console.log(`Found supplier by CIF. ID: ${supplierDoc.id}`);
@@ -118,14 +104,14 @@ const findOrCreateSupplier = async (data: Partial<PurchaseFormValues>): Promise<
     }
 
     console.log(`Searching for supplier by name: "${data.supplier}"`);
-    const nameQuery = query(collection(db, SUPPLIERS_COLLECTION), where("name", "==", data.supplier), limit(1));
-    const nameSnapshot = await getDocs(nameQuery);
+    const nameQuery = adminFirestore.query(adminFirestore.collection(db, SUPPLIERS_COLLECTION), adminFirestore.where("name", "==", data.supplier), adminFirestore.limit(1));
+    const nameSnapshot = await adminFirestore.getDocs(nameQuery);
     if (!nameSnapshot.empty) {
         const supplierDoc = nameSnapshot.docs[0];
         console.log(`Found supplier by name. ID: ${supplierDoc.id}`);
         if (!supplierDoc.data().cif && data.supplierCif) {
             console.log(`Updating CIF for existing supplier ${supplierDoc.id}`);
-            await updateDoc(doc(db, SUPPLIERS_COLLECTION, supplierDoc.id), { cif: data.supplierCif });
+            await adminFirestore.updateDoc(adminFirestore.doc(db, SUPPLIERS_COLLECTION, supplierDoc.id), { cif: data.supplierCif });
         }
         return supplierDoc.id;
     }
@@ -145,11 +131,11 @@ const findOrCreateSupplier = async (data: Partial<PurchaseFormValues>): Promise<
             } : null,
             contactName: null, contactEmail: null, contactPhone: null,
             notes: "Creado automáticamente desde una compra.",
-            createdAt: Timestamp.fromDate(new Date()),
-            updatedAt: Timestamp.fromDate(new Date()),
+            createdAt: adminFirestore.Timestamp.fromDate(new Date()),
+            updatedAt: adminFirestore.Timestamp.fromDate(new Date()),
         };
 
-        const docRef = await addDoc(collection(db, SUPPLIERS_COLLECTION), newSupplierData);
+        const docRef = await adminFirestore.addDoc(adminFirestore.collection(db, SUPPLIERS_COLLECTION), newSupplierData);
         console.log(`New supplier created with ID: ${docRef.id}`);
         return docRef.id;
     } catch (err) {
@@ -159,9 +145,9 @@ const findOrCreateSupplier = async (data: Partial<PurchaseFormValues>): Promise<
 };
 
 export const getPurchasesFS = async (): Promise<Purchase[]> => {
-  const purchasesCol = collection(db, PURCHASES_COLLECTION);
-  const q = query(purchasesCol, orderBy('orderDate', 'desc'));
-  const purchaseSnapshot = await getDocs(q);
+  const purchasesCol = adminFirestore.collection(db, PURCHASES_COLLECTION);
+  const q = adminFirestore.query(purchasesCol, adminFirestore.orderBy('orderDate', 'desc'));
+  const purchaseSnapshot = await adminFirestore.getDocs(q);
   return purchaseSnapshot.docs.map(docSnap => fromFirestorePurchase(docSnap));
 };
 
@@ -172,7 +158,7 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
             throw new Error("Failed to process supplier. Supplier name might be empty.");
         }
         
-        const tempPurchaseRef = doc(collection(db, PURCHASES_COLLECTION));
+        const tempPurchaseRef = adminFirestore.doc(adminFirestore.collection(db, PURCHASES_COLLECTION));
         const purchaseId = tempPurchaseRef.id;
 
         if (data.invoiceDataUri) {
@@ -184,7 +170,7 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
 
         const firestoreData = toFirestorePurchase(data, true, supplierId);
         
-        await updateDoc(tempPurchaseRef, firestoreData);
+        await adminFirestore.updateDoc(tempPurchaseRef, firestoreData);
         console.log(`New purchase added with ID: ${purchaseId}`);
         return purchaseId;
     } catch (error) {
@@ -207,9 +193,9 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
         data.storagePath = storagePath;
     }
 
-    const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);
+    const purchaseDocRef = adminFirestore.doc(db, PURCHASES_COLLECTION, id);
     const firestoreData = toFirestorePurchase(data as PurchaseFormValues, false, supplierId);
-    await updateDoc(purchaseDocRef, firestoreData);
+    await adminFirestore.updateDoc(purchaseDocRef, firestoreData);
     console.log("Purchase document updated.");
   } catch (error) {
     console.error("Failed to update purchase:", error);
@@ -219,8 +205,8 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
 
 export const deletePurchaseFS = async (id: string): Promise<void> => {
   console.log(`Attempting to delete purchase document with ID: ${id}`);
-  const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);
-  const docSnap = await getDoc(purchaseDocRef);
+  const purchaseDocRef = adminFirestore.doc(db, PURCHASES_COLLECTION, id);
+  const docSnap = await adminFirestore.getDoc(purchaseDocRef);
   
   if (docSnap.exists()) {
       const data = fromFirestorePurchase(docSnap);
@@ -235,25 +221,25 @@ export const deletePurchaseFS = async (id: string): Promise<void> => {
       }
   }
 
-  await deleteDoc(purchaseDocRef);
+  await adminFirestore.deleteDoc(purchaseDocRef);
   console.log(`Purchase document ${id} deleted.`);
 };
 
 
 export const initializeMockPurchasesInFirestore = async (mockData: Purchase[]) => {
-    const purchasesCol = collection(db, PURCHASES_COLLECTION);
-    const snapshot = await getDocs(query(purchasesCol));
+    const purchasesCol = adminFirestore.collection(db, PURCHASES_COLLECTION);
+    const snapshot = await adminFirestore.getDocs(adminFirestore.query(purchasesCol));
     if (snapshot.empty && mockData.length > 0) {
-        const batch = writeBatch(db);
+        const batch = adminFirestore.writeBatch(db);
         mockData.forEach(purchase => {
             const { id, createdAt, updatedAt, orderDate, ...purchaseData } = purchase;
             
             const firestoreReadyData: any = { ...purchaseData };
-            firestoreReadyData.orderDate = orderDate ? Timestamp.fromDate(parseISO(orderDate)) : Timestamp.fromDate(new Date());
-            firestoreReadyData.createdAt = createdAt ? Timestamp.fromDate(parseISO(createdAt)) : Timestamp.fromDate(new Date());
-            firestoreReadyData.updatedAt = updatedAt ? Timestamp.fromDate(parseISO(updatedAt)) : Timestamp.fromDate(new Date());
+            firestoreReadyData.orderDate = orderDate ? adminFirestore.Timestamp.fromDate(parseISO(orderDate)) : adminFirestore.Timestamp.fromDate(new Date());
+            firestoreReadyData.createdAt = createdAt ? adminFirestore.Timestamp.fromDate(parseISO(createdAt)) : adminFirestore.Timestamp.fromDate(new Date());
+            firestoreReadyData.updatedAt = updatedAt ? adminFirestore.Timestamp.fromDate(parseISO(updatedAt)) : adminFirestore.Timestamp.fromDate(new Date());
             
-            const docRef = doc(purchasesCol);
+            const docRef = adminFirestore.doc(purchasesCol);
             batch.set(docRef, firestoreReadyData);
         });
         await batch.commit();

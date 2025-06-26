@@ -2,25 +2,13 @@
 'use server';
 
 import { adminDb as db } from '@/lib/firebaseAdmin';
-import {
-  collection,
-  getDocs,
-  doc,
-  getDoc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  Timestamp,
-  query,
-  orderBy,
-  writeBatch
-} from 'firebase-admin/firestore';
+import * as adminFirestore from 'firebase-admin/firestore';
 import type { PromotionalMaterial, PromotionalMaterialFormValues, LatestPurchaseInfo } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 
 const PROMOTIONAL_MATERIALS_COLLECTION = 'promotionalMaterials';
 
-const fromFirestorePromotionalMaterial = (docSnap: FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>): PromotionalMaterial => {
+const fromFirestorePromotionalMaterial = (docSnap: adminFirestore.DocumentSnapshot<adminFirestore.DocumentData>): PromotionalMaterial => {
   const data = docSnap.data();
   if (!data) throw new Error("Document data is undefined.");
 
@@ -29,7 +17,7 @@ const fromFirestorePromotionalMaterial = (docSnap: FirebaseFirestore.DocumentSna
     latestPurchase = {
       quantityPurchased: data.latestPurchase.quantityPurchased || 0,
       totalPurchaseCost: data.latestPurchase.totalPurchaseCost || 0,
-      purchaseDate: data.latestPurchase.purchaseDate instanceof Timestamp ? format(data.latestPurchase.purchaseDate.toDate(), "yyyy-MM-dd") : (typeof data.latestPurchase.purchaseDate === 'string' ? data.latestPurchase.purchaseDate : format(new Date(), "yyyy-MM-dd")),
+      purchaseDate: data.latestPurchase.purchaseDate instanceof adminFirestore.Timestamp ? format(data.latestPurchase.purchaseDate.toDate(), "yyyy-MM-dd") : (typeof data.latestPurchase.purchaseDate === 'string' ? data.latestPurchase.purchaseDate : format(new Date(), "yyyy-MM-dd")),
       calculatedUnitCost: data.latestPurchase.calculatedUnitCost || 0,
       notes: data.latestPurchase.notes || undefined,
     };
@@ -56,7 +44,7 @@ const toFirestorePromotionalMaterial = (data: PromotionalMaterialFormValues, isN
     firestoreData.latestPurchase = {
       quantityPurchased: data.latestPurchaseQuantity,
       totalPurchaseCost: data.latestPurchaseTotalCost,
-      purchaseDate: data.latestPurchaseDate instanceof Date && isValid(data.latestPurchaseDate) ? Timestamp.fromDate(data.latestPurchaseDate) : Timestamp.fromDate(new Date()),
+      purchaseDate: data.latestPurchaseDate instanceof Date && isValid(data.latestPurchaseDate) ? adminFirestore.Timestamp.fromDate(data.latestPurchaseDate) : adminFirestore.Timestamp.fromDate(new Date()),
       calculatedUnitCost: parseFloat(calculatedUnitCost.toFixed(4)),
       notes: data.latestPurchaseNotes || null,
     };
@@ -68,41 +56,41 @@ const toFirestorePromotionalMaterial = (data: PromotionalMaterialFormValues, isN
 };
 
 export const getPromotionalMaterialsFS = async (): Promise<PromotionalMaterial[]> => {
-  const materialsCol = collection(db, PROMOTIONAL_MATERIALS_COLLECTION);
-  const q = query(materialsCol, orderBy('name', 'asc'));
-  const materialSnapshot = await getDocs(q);
+  const materialsCol = adminFirestore.collection(db, PROMOTIONAL_MATERIALS_COLLECTION);
+  const q = adminFirestore.query(materialsCol, adminFirestore.orderBy('name', 'asc'));
+  const materialSnapshot = await adminFirestore.getDocs(q);
   return materialSnapshot.docs.map(docSnap => fromFirestorePromotionalMaterial(docSnap));
 };
 
 export const getPromotionalMaterialByIdFS = async (id: string): Promise<PromotionalMaterial | null> => {
   if (!id) return null;
-  const materialDocRef = doc(db, PROMOTIONAL_MATERIALS_COLLECTION, id);
-  const docSnap = await getDoc(materialDocRef);
+  const materialDocRef = adminFirestore.doc(db, PROMOTIONAL_MATERIALS_COLLECTION, id);
+  const docSnap = await adminFirestore.getDoc(materialDocRef);
   return docSnap.exists() ? fromFirestorePromotionalMaterial(docSnap) : null;
 };
 
 export const addPromotionalMaterialFS = async (data: PromotionalMaterialFormValues): Promise<string> => {
   const firestoreData = toFirestorePromotionalMaterial(data, true);
-  const docRef = await addDoc(collection(db, PROMOTIONAL_MATERIALS_COLLECTION), firestoreData);
+  const docRef = await adminFirestore.addDoc(adminFirestore.collection(db, PROMOTIONAL_MATERIALS_COLLECTION), firestoreData);
   return docRef.id;
 };
 
 export const updatePromotionalMaterialFS = async (id: string, data: PromotionalMaterialFormValues): Promise<void> => {
-  const materialDocRef = doc(db, PROMOTIONAL_MATERIALS_COLLECTION, id);
+  const materialDocRef = adminFirestore.doc(db, PROMOTIONAL_MATERIALS_COLLECTION, id);
   const firestoreData = toFirestorePromotionalMaterial(data, false);
-  await updateDoc(materialDocRef, firestoreData);
+  await adminFirestore.updateDoc(materialDocRef, firestoreData);
 };
 
 export const deletePromotionalMaterialFS = async (id: string): Promise<void> => {
-  const materialDocRef = doc(db, PROMOTIONAL_MATERIALS_COLLECTION, id);
-  await deleteDoc(materialDocRef);
+  const materialDocRef = adminFirestore.doc(db, PROMOTIONAL_MATERIALS_COLLECTION, id);
+  await adminFirestore.deleteDoc(materialDocRef);
 };
 
 export const initializeMockPromotionalMaterialsInFirestore = async (mockMaterialsData: PromotionalMaterial[]) => {
-    const materialsCol = collection(db, PROMOTIONAL_MATERIALS_COLLECTION);
-    const snapshot = await getDocs(query(materialsCol));
+    const materialsCol = adminFirestore.collection(db, PROMOTIONAL_MATERIALS_COLLECTION);
+    const snapshot = await adminFirestore.getDocs(adminFirestore.query(materialsCol));
     if (snapshot.empty && mockMaterialsData.length > 0) {
-        const batch = writeBatch(db);
+        const batch = adminFirestore.writeBatch(db);
         mockMaterialsData.forEach(material => {
             const { id, ...materialData } = material; 
             
@@ -117,7 +105,7 @@ export const initializeMockPromotionalMaterialsInFirestore = async (mockMaterial
             };
 
             const firestoreReadyData = toFirestorePromotionalMaterial(formValues, true);
-            const docRef = doc(materialsCol); 
+            const docRef = adminFirestore.doc(materialsCol); 
             batch.set(docRef, firestoreReadyData);
         });
         await batch.commit();

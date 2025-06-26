@@ -3,7 +3,7 @@ import { getStorage } from 'firebase-admin/storage';
 
 // Explicitly define the bucket name to prevent ambiguity.
 // This name must match the one in your Firebase project settings.
-const BUCKET_NAME = 'santa-brisa-crm-bucket';
+const BUCKET_NAME = 'santa-brisa-crm.appspot.com';
 
 if (getApps().length === 0) {
   try {

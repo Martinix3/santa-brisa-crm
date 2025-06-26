@@ -10,7 +10,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-export const ProcessInvoiceInputSchema = z.object({
+const ProcessInvoiceInputSchema = z.object({
   invoiceDataUri: z
     .string()
     .describe(
@@ -19,7 +19,7 @@ export const ProcessInvoiceInputSchema = z.object({
 });
 export type ProcessInvoiceInput = z.infer<typeof ProcessInvoiceInputSchema>;
 
-export const ProcessInvoiceOutputSchema = z.object({
+const ProcessInvoiceOutputSchema = z.object({
   supplier: z.string().describe("The name of the supplier or vendor from the invoice."),
   orderDate: z.string().describe("The issue date of the invoice in YYYY-MM-DD format."),
   items: z.array(z.object({

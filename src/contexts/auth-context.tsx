@@ -201,7 +201,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     createUserInAuthAndFirestore,
     dataSignature,
     refreshDataSignature,
-  }), [user, teamMember, userRole, loading, dataSignature, refreshDataSignature]); 
+  }), [user, teamMember, userRole, loading, dataSignature, refreshDataSignature, login, logout, createUserInAuthAndFirestore]); 
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

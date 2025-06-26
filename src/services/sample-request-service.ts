@@ -3,13 +3,13 @@
 'use server';
 
 import { adminDb as db } from '@/lib/firebaseAdmin';
-import { collection, query, orderBy, getDocs, doc, addDoc, updateDoc, Timestamp } from 'firebase-admin/firestore';
+import type { firestore as adminFirestore } from 'firebase-admin';
 import type { SampleRequest, SampleRequestFormValues, SampleRequestStatus, AddressDetails } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 
 const SAMPLE_REQUESTS_COLLECTION = 'sampleRequests';
 
-const fromFirestoreSampleRequest = (docSnap: adminFirestore.DocumentSnapshot<adminFirestore.DocumentData>): SampleRequest => {
+const fromFirestoreSampleRequest = (docSnap: adminFirestore.DocumentSnapshot): SampleRequest => {
   const data = docSnap.data();
   if (!data) throw new Error("Document data is undefined.");
 
@@ -23,17 +23,16 @@ const fromFirestoreSampleRequest = (docSnap: adminFirestore.DocumentSnapshot<adm
     numberOfSamples: data.numberOfSamples,
     justificationNotes: data.justificationNotes,
     status: data.status || 'Pendiente',
-    requestDate: data.requestDate instanceof Timestamp ? format(data.requestDate.toDate(), "yyyy-MM-dd'T'HH:mm:ss") : format(new Date(), "yyyy-MM-dd'T'HH:mm:ss"),
-    decisionDate: data.decisionDate instanceof Timestamp ? format(data.decisionDate.toDate(), "yyyy-MM-dd'T'HH:mm:ss") : undefined,
+    requestDate: data.requestDate instanceof adminFirestore.Timestamp ? format(data.requestDate.toDate(), "yyyy-MM-dd'T'HH:mm:ss") : format(new Date(), "yyyy-MM-dd'T'HH:mm:ss"),
+    decisionDate: data.decisionDate instanceof adminFirestore.Timestamp ? format(data.decisionDate.toDate(), "yyyy-MM-dd'T'HH:mm:ss") : undefined,
     adminNotes: data.adminNotes || undefined,
     shippingAddress: data.shippingAddress || undefined,
   };
 };
 
 export const getSampleRequestsFS = async (): Promise<SampleRequest[]> => {
-  const requestsCol = collection(db, SAMPLE_REQUESTS_COLLECTION);
-  const q = query(requestsCol, orderBy('requestDate', 'desc'));
-  const snapshot = await getDocs(q);
+  const requestsCol = db.collection(SAMPLE_REQUESTS_COLLECTION);
+  const snapshot = await requestsCol.orderBy('requestDate', 'desc').get();
   return snapshot.docs.map(docSnap => fromFirestoreSampleRequest(docSnap));
 };
 
@@ -65,23 +64,23 @@ export const addSampleRequestFS = async (data: SampleRequestFormValues & { reque
     justificationNotes: data.justificationNotes,
     shippingAddress: shippingAddress,
     status: 'Pendiente',
-    requestDate: Timestamp.fromDate(new Date()),
+    requestDate: adminFirestore.Timestamp.fromDate(new Date()),
     decisionDate: null,
     adminNotes: null,
   };
 
-  const docRef = await addDoc(collection(db, SAMPLE_REQUESTS_COLLECTION), firestoreData);
+  const docRef = await db.collection(SAMPLE_REQUESTS_COLLECTION).add(firestoreData);
   return docRef.id;
 };
 
 export const updateSampleRequestStatusFS = async (id: string, status: SampleRequestStatus, adminNotes?: string): Promise<void> => {
-  const requestDocRef = doc(db, SAMPLE_REQUESTS_COLLECTION, id);
-  const updateData: { status: SampleRequestStatus; decisionDate: Timestamp; adminNotes?: string } = {
+  const requestDocRef = db.collection(SAMPLE_REQUESTS_COLLECTION).doc(id);
+  const updateData: { status: SampleRequestStatus; decisionDate: adminFirestore.Timestamp; adminNotes?: string } = {
     status,
-    decisionDate: Timestamp.fromDate(new Date()),
+    decisionDate: adminFirestore.Timestamp.fromDate(new Date()),
   };
   if (adminNotes) {
     updateData.adminNotes = adminNotes;
   }
-  await updateDoc(requestDocRef, updateData as any);
+  await requestDocRef.update(updateData as any);
 };

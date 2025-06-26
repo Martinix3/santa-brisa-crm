@@ -1,8 +1,10 @@
 
+'use server';
+
 import { initializeApp, getApps, App, applicationDefault } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
 
-const BUCKET_NAME = 'santa-brisa-crm.appspot.com';
+const BUCKET_NAME = 'santa-brisa-crm.firebasestorage.app';
 
 function getFirebaseAdminApp(): App {
     // If the app is already initialized, return it.

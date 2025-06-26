@@ -1,22 +1,20 @@
-import { initializeApp, applicationDefault, getApps } from 'firebase-admin/app';
+import { initializeApp, getApps } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
 
-// Explicitly define the bucket name to prevent ambiguity.
-// This name must match the one in your Firebase project settings.
 const BUCKET_NAME = 'santa-brisa-crm.appspot.com';
 
 if (getApps().length === 0) {
   try {
-    // In a managed environment, applicationDefault() automatically discovers credentials.
+    // On Google Cloud environments like App Hosting, calling initializeApp() with no
+    // arguments automatically uses the environment's service account credentials.
+    // This is the most robust method for production.
     initializeApp({
-      credential: applicationDefault(),
-      // Also setting the storageBucket in the config for completeness.
       storageBucket: BUCKET_NAME,
     });
     console.info({
         event: 'firebase_admin_init_success',
+        message: "Firebase Admin SDK initialized using environment's default credentials.",
         bucket: BUCKET_NAME,
-        message: "Firebase Admin SDK initialized successfully.",
     });
   } catch (error: any) {
     console.error("Failed to initialize Firebase Admin SDK:", {

@@ -14,13 +14,16 @@ import {
   Timestamp,
   query,
   orderBy,
-  writeBatch
+  writeBatch,
+  where,
+  limit
 } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from "firebase/storage";
 import type { Purchase, PurchaseFormValues, SupplierFormValues } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 import { mockPurchases } from '@/lib/data'; // Para seeding
 import { getSupplierByNameFS, getSupplierByCifFS, addSupplierFS } from './supplier-service';
+import { uploadFileFromDataUri } from './storage-service';
 
 const PURCHASES_COLLECTION = 'purchases';
 
@@ -117,10 +120,13 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
   let invoiceFileName: string | undefined = undefined;
 
   if (data.invoiceDataUri && data.invoiceFileName) {
-      const storageRef = ref(storage, `invoices/purchases/${docRef.id}/${data.invoiceFileName}`);
-      const uploadResult = await uploadString(storageRef, data.invoiceDataUri, 'data_url');
-      invoiceUrl = await getDownloadURL(uploadResult.ref);
-      invoiceFileName = data.invoiceFileName;
+      const uploadResponse = await uploadFileFromDataUri(
+        data.invoiceDataUri,
+        `invoices/purchases/${docRef.id}`, // path prefix
+        data.invoiceFileName // original file name
+      );
+      invoiceUrl = uploadResponse.downloadURL;
+      invoiceFileName = uploadResponse.fileName;
   }
   
   const firestoreData = toFirestorePurchase(data, true);

@@ -52,6 +52,7 @@ import Link from "next/link";
 import { storage } from "@/lib/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Label } from "@/components/ui/label";
+import { uploadFileFromDataUri } from "@/services/storage-service";
 
 
 const NO_CLAVADISTA_VALUE = "##NONE##";
@@ -117,7 +118,21 @@ interface EditOrderDialogProps {
   currentUserRole: UserRole;
 }
 
-// Helper para formatear AddressDetails a un string para la UI
+const fileToDataUri = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (reader.result) {
+        resolve(reader.result as string);
+      } else {
+        reject(new Error("FileReader failed to read file."));
+      }
+    };
+    reader.onerror = (error) => reject(error);
+    reader.readAsDataURL(file);
+  });
+};
+
 const formatAddressForDisplay = (address?: AddressDetails): string => {
   if (!address) return "No especificada";
   const parts = [
@@ -126,7 +141,7 @@ const formatAddressForDisplay = (address?: AddressDetails): string => {
     address.province,
     address.postalCode,
     address.country,
-  ].filter(Boolean); // Filtra valores null, undefined, o strings vacíos
+  ].filter(Boolean); 
   if (parts.length === 0) return 'No especificada';
   return parts.join(', ');
 };
@@ -263,7 +278,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         const file = e.target.files[0];
         if (file.type !== "application/pdf") {
             toast({ title: "Archivo no válido", description: "Por favor, seleccione un archivo PDF.", variant: "destructive" });
-            e.target.value = ''; // Limpiar el input
+            e.target.value = ''; 
             return;
         }
         setSelectedFile(file);
@@ -280,18 +295,21 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     if (selectedFile) {
         setIsUploading(true);
         try {
-            const storageRef = ref(storage, `invoices/${order.id}/${selectedFile.name}`);
-            const uploadResult = await uploadBytes(storageRef, selectedFile);
-            const downloadURL = await getDownloadURL(uploadResult.ref);
-            
-            finalData.invoiceUrl = downloadURL;
-            finalData.invoiceFileName = selectedFile.name;
+            const dataUri = await fileToDataUri(selectedFile);
+            const uploadResponse = await uploadFileFromDataUri(
+                dataUri,
+                `invoices/orders/${order.id}`,
+                selectedFile.name
+            );
+
+            finalData.invoiceUrl = uploadResponse.downloadURL;
+            finalData.invoiceFileName = uploadResponse.fileName;
 
             toast({ title: "Subida Exitosa", description: `Factura "${selectedFile.name}" subida correctamente.` });
 
-        } catch (uploadError) {
+        } catch (uploadError: any) {
             console.error("Error uploading file:", uploadError);
-            toast({ title: "Error de Subida", description: "No se pudo subir el archivo de la factura.", variant: "destructive" });
+            toast({ title: "Error de Subida", description: `No se pudo subir el archivo de la factura: ${uploadError.message}`, variant: "destructive" });
             setIsSaving(false);
             setIsUploading(false);
             return; 
@@ -329,7 +347,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
 
   const formFieldsGenericDisabled = isReadOnlyForMostFields || isLoadingDropdownData || isLoadingAccountDetails;
   const productRelatedFieldsDisabled = !canEditOrderDetailsOverall || ['Seguimiento', 'Fallido', 'Programada'].includes(currentStatus) || isLoadingDropdownData || isLoadingAccountDetails;
-  const billingFieldsDisabled = true; // Siempre deshabilitado, la info viene de la cuenta
+  const billingFieldsDisabled = true; 
   const statusFieldDisabled = !(canEditOrderDetailsOverall || canEditStatusAndNotesOnly) || isLoadingDropdownData || isLoadingAccountDetails;
   const notesFieldDisabled = !(canEditOrderDetailsOverall || canEditStatusAndNotesOnly) || isLoadingDropdownData || isLoadingAccountDetails;
   const salesRepFieldDisabled = !isAdmin || isLoadingDropdownData || isLoadingAccountDetails;

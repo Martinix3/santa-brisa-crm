@@ -3,7 +3,7 @@
 /**
  * @fileOverview An AI agent for processing invoices.
  *
- * - processInvoice - A function that handles the invoice data extraction.
+ * - processInvoice - a function that handles the invoice data extraction.
  * - ProcessInvoiceInput - The input type for the processInvoice function.
  * - ProcessInvoiceOutput - The return type for the processInvoice function.
  */

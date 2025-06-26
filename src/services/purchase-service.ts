@@ -2,7 +2,7 @@
 'use server';
 
 import { db } from '@/lib/firebase';
-import { adminBucket } from '@/lib/firebaseAdmin'; // Use admin SDK for storage
+import { getStorage, ref as storageRef, deleteObject } from "firebase/storage";
 import {
   collection,
   getDocs,
@@ -21,8 +21,7 @@ import {
 } from 'firebase/firestore';
 import type { Purchase, PurchaseFormValues, SupplierFormValues } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
-import { Buffer } from 'buffer'; // Explicit import for server environments
-import { v4 as uuidv4 } from 'uuid'; // For generating download tokens
+import { v4 as uuidv4 } from 'uuid';
 
 const PURCHASES_COLLECTION = 'purchases';
 const SUPPLIERS_COLLECTION = 'suppliers';
@@ -42,7 +41,6 @@ const fromFirestorePurchase = (docSnap: any): Purchase => {
     orderDate: data.orderDate instanceof Timestamp ? format(data.orderDate.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
     status: data.status || 'Borrador',
     invoiceUrl: data.invoiceUrl || undefined,
-    invoiceFileName: data.invoiceFileName || undefined,
     storagePath: data.storagePath || undefined,
     notes: data.notes || undefined,
     createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
@@ -69,6 +67,8 @@ const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean, 
     shippingCost,
     totalAmount,
     notes: data.notes || null,
+    invoiceUrl: data.invoiceUrl || null,
+    storagePath: data.storagePath || null,
   };
 
   if (supplierId) {
@@ -83,66 +83,12 @@ const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean, 
   return firestoreData;
 };
 
-const MimeTypeMap: Record<string, string> = {
-    'application/pdf': 'pdf',
-    'image/jpeg': 'jpg',
-    'image/png': 'png',
-    'image/webp': 'webp',
-};
-
-async function uploadInvoice(
-  dataUri: string,
-  purchaseId: string
-): Promise<{ downloadUrl: string; storagePath: string }> {
-  try {
-    if (!dataUri.startsWith('data:')) {
-      throw new Error('Invalid data URI provided.');
-    }
-    
-    const [meta, base64] = dataUri.split(',');
-    if (!meta || !base64) {
-        throw new Error('Malformed data URI.');
-    }
-
-    const mime = /data:(.*?);base64/.exec(meta)?.[1] ?? 'application/pdf';
-    const extension = MimeTypeMap[mime] ?? 'bin';
-
-    if (!MimeTypeMap[mime]) {
-        console.warn(`Unsupported MIME type for file extension: ${mime}. Using .bin`);
-    }
-
-    const path = `invoices/purchases/${purchaseId}/invoice_${Date.now()}.${extension}`;
-    const file = adminBucket.file(path);
-
-    // Generate a UUID for the download token
-    const downloadToken = uuidv4();
-
-    await file.save(Buffer.from(base64, 'base64'), {
-      contentType: mime,
-      resumable: false,
-      metadata: { 
-          metadata: { 
-              firebaseStorageDownloadTokens: downloadToken 
-          } 
-      }
-    });
-
-    const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${adminBucket.name}/o/${encodeURIComponent(path)}?alt=media&token=${downloadToken}`;
-
-    return { downloadUrl, storagePath: path };
-
-  } catch (error: any) {
-    console.error('Error uploading invoice to Firebase Admin Storage:', error);
-    throw error;
-  }
-}
-
 const findOrCreateSupplier = async (data: Partial<PurchaseFormValues>): Promise<string | undefined> => {
     if (!data.supplier || data.supplier.trim() === '') {
         console.warn('findOrCreateSupplier called with an empty supplier name. Aborting.');
         return undefined;
     }
-    console.log(`Starting findOrCreateSupplier for: ${data.supplier} (CIF: ${data.supplierCif || 'N/A'})`);
+    console.info(`Finding or creating supplier: ${data.supplier}`);
 
     if (data.supplierCif) {
         console.log(`Searching for supplier by CIF: ${data.supplierCif}`);
@@ -200,7 +146,7 @@ const findOrCreateSupplier = async (data: Partial<PurchaseFormValues>): Promise<
         const docRef = await addDoc(collection(db, SUPPLIERS_COLLECTION), firestoreData);
         console.log(`New supplier created with ID: ${docRef.id}`);
         return docRef.id;
-    } catch (err) {
+    } catch (err: any) {
         console.error('Supplier creation failed', err);
         throw err;
     }
@@ -222,29 +168,12 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
         if (!supplierId) {
             throw new Error("Failed to find or create supplier.");
         }
-
-        const purchaseDocRef = doc(collection(db, PURCHASES_COLLECTION));
-        
-        let invoiceUrl: string | null = null;
-        let invoiceFileName: string | null = data.invoiceFileName || null;
-        let storagePath: string | null = null;
-
-        if (data.invoiceDataUri && data.invoiceFileName) {
-            console.log(`Uploading invoice for new purchase...`);
-            const uploadResult = await uploadInvoice(data.invoiceDataUri, purchaseDocRef.id);
-            invoiceUrl = uploadResult.downloadUrl;
-            storagePath = uploadResult.storagePath;
-            console.log(`Invoice uploaded successfully. URL: ${invoiceUrl}`);
-        }
         
         const firestoreData = toFirestorePurchase(data, true, supplierId);
-        firestoreData.invoiceUrl = invoiceUrl;
-        firestoreData.invoiceFileName = invoiceFileName;
-        firestoreData.storagePath = storagePath;
-
-        console.log(`Setting new purchase document... ID: ${purchaseDocRef.id}`);
-        await setDoc(purchaseDocRef, firestoreData);
-        console.log(`Purchase document created successfully.`);
+        
+        console.log(`Creating new purchase document...`);
+        const purchaseDocRef = await addDoc(collection(db, PURCHASES_COLLECTION), firestoreData);
+        console.log(`Purchase document created successfully with ID: ${purchaseDocRef.id}`);
         return purchaseDocRef.id;
 
     } catch (error) {
@@ -264,32 +193,21 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
     const existingDocSnap = await getDoc(purchaseDocRef);
     const existingData = existingDocSnap.exists() ? fromFirestorePurchase(existingDocSnap) : null;
     
-    let invoiceUrl: string | null = existingData?.invoiceUrl || null;
-    let invoiceFileName: string | null = existingData?.invoiceFileName || null;
-    let storagePath: string | null = existingData?.storagePath || null;
-    const oldStoragePath = existingData?.storagePath || null;
+    // Check if the invoice file is being changed.
+    const oldStoragePath = existingData?.storagePath;
+    const newStoragePath = data.storagePath;
 
-    if (data.invoiceDataUri && data.invoiceFileName) {
-       console.log("Updating invoice file...");
-       const uploadResult = await uploadInvoice(data.invoiceDataUri, id);
-       invoiceUrl = uploadResult.downloadUrl;
-       invoiceFileName = data.invoiceFileName;
-       storagePath = uploadResult.storagePath;
-       console.log("New invoice file uploaded:", storagePath);
-    }
-    
     const firestoreData = toFirestorePurchase(data as PurchaseFormValues, false, supplierId);
-    firestoreData.invoiceUrl = invoiceUrl;
-    firestoreData.invoiceFileName = invoiceFileName;
-    firestoreData.storagePath = storagePath;
     
     await updateDoc(purchaseDocRef, firestoreData);
     console.log("Purchase document updated.");
 
-    if (oldStoragePath && oldStoragePath !== storagePath) {
-        console.log("Deleting old invoice file:", oldStoragePath);
-        const oldFileRef = adminBucket.file(oldStoragePath);
-        await oldFileRef.delete().catch(err => console.error("Failed to delete old invoice file:", err));
+    // If a new file was uploaded (new path exists) and it's different from the old one, delete the old one.
+    if (oldStoragePath && newStoragePath && oldStoragePath !== newStoragePath) {
+        console.log("Deleting old invoice file from client-side request:", oldStoragePath);
+        const storage = getStorage();
+        const oldFileRef = storageRef(storage, oldStoragePath);
+        await deleteObject(oldFileRef).catch(err => console.error("Failed to delete old invoice file:", err));
         console.log("Old invoice file deleted.");
     }
   } catch (error) {
@@ -306,10 +224,10 @@ export const deletePurchaseFS = async (id: string): Promise<void> => {
   if (docSnap.exists()) {
       const data = fromFirestorePurchase(docSnap);
       if (data.storagePath) {
-          console.log(`Deleting associated invoice file: ${data.storagePath}`);
-          const fileRef = adminBucket.file(data.storagePath);
-          await fileRef.delete().catch(err => console.error("Failed to delete invoice file on purchase delete:", err));
-          console.log("Associated invoice file deleted.");
+          console.log(`A client-side request will be needed to delete associated invoice file: ${data.storagePath}`);
+          // We can't delete from the server without admin sdk.
+          // The deletion should be triggered from the client-side, or use a cloud function.
+          // For now, we just delete the firestore document.
       }
   }
 

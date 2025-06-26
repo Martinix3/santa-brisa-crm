@@ -200,7 +200,6 @@ export interface Purchase {
   orderDate: string; // YYYY-MM-DD
   status: PurchaseStatus;
   invoiceUrl?: string; 
-  invoiceFileName?: string;
   storagePath?: string;
   notes?: string;
   createdAt: string;
@@ -227,8 +226,8 @@ export interface PurchaseFormValues {
   shippingCost?: number;
   taxRate: number;
   notes?: string;
-  invoiceDataUri?: string;
-  invoiceFileName?: string;
+  invoiceUrl?: string; // Changed from invoiceDataUri
+  storagePath?: string; // New field
 }
 
 

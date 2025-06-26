@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { db } from '@/lib/firebase';
@@ -88,4 +87,3 @@ export const updateSampleRequestStatusFS = async (id: string, status: SampleRequ
   }
   await updateDoc(requestDocRef, updateData as any);
 };
-

@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { db } from '@/lib/firebase';
@@ -111,4 +110,3 @@ export const initializeMockDirectSalesInFirestore = async (mockData: DirectSale[
         console.log('Mock direct sales initialized in Firestore.');
     }
 };
-

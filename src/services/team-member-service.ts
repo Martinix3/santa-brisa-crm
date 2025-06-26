@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { db } from '@/lib/firebase';
@@ -78,7 +77,8 @@ export const getTeamMemberByIdFS = async (id: string): Promise<TeamMember | null
 
 export const getTeamMemberByAuthUidFS = async (authUid: string): Promise<TeamMember | null> => {
   if (!authUid) return null;
-  const q = query(collection(db, TEAM_MEMBERS_COLLECTION), where('authUid', '==', authUid), limit(1));
+  const membersCol = collection(db, TEAM_MEMBERS_COLLECTION);
+  const q = query(membersCol, where('authUid', '==', authUid), limit(1));
   const snapshot = await getDocs(q);
   if (!snapshot.empty) {
     return fromFirestoreTeamMember(snapshot.docs[0]);
@@ -88,7 +88,8 @@ export const getTeamMemberByAuthUidFS = async (authUid: string): Promise<TeamMem
 
 export const getTeamMemberByEmailFS = async (email: string): Promise<TeamMember | null> => {
   if (!email) return null;
-  const q = query(collection(db, TEAM_MEMBERS_COLLECTION), where('email', '==', email.toLowerCase()), limit(1));
+  const membersCol = collection(db, TEAM_MEMBERS_COLLECTION);
+  const q = query(membersCol, where('email', '==', email.toLowerCase()), limit(1));
   const snapshot = await getDocs(q);
   if (!snapshot.empty) {
     return fromFirestoreTeamMember(snapshot.docs[0]);
@@ -141,4 +142,3 @@ export const initializeMockTeamMembersInFirestore = async () => {
         console.log('Team members collection is not empty. Skipping initialization.');
     }
 };
-

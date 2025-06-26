@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { db } from '@/lib/firebase';
@@ -175,4 +174,3 @@ export const initializeMockAccountsInFirestore = async (mockAccounts: Account[])
         console.log('Accounts collection is not empty. Skipping initialization.');
     }
 };
-

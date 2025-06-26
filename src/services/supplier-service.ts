@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { db } from '@/lib/firebase';
@@ -115,4 +114,3 @@ export const deleteSupplierFS = async (id: string): Promise<void> => {
   const docRef = doc(db, SUPPLIERS_COLLECTION, id);
   await deleteDoc(docRef);
 };
-

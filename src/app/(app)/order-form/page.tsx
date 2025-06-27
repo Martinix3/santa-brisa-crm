@@ -24,7 +24,7 @@ import { addOrderFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
 import { extractClientData, type ClientDataExtractionOutput } from "@/ai/flows/client-data-extraction-flow";
-import { ArrowLeft, Check, ClipboardPaste, Edit, FileText, Loader2, Package, PlusCircle, Search, Send, UploadCloud, Users, Zap, Award, CreditCard, User, Building, Info, AlertTriangle, Sparkles } from "lucide-react";
+import { ArrowLeft, Check, ClipboardPaste, Edit, FileText, Loader2, Package, PlusCircle, Search, Send, UploadCloud, Users, Zap, Award, CreditCard, User, Building, Info, AlertTriangle, Sparkles, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { Label } from "@/components/ui/label";
 
@@ -121,8 +121,8 @@ export default function OrderFormWizardPage() {
     defaultValues: {
       outcome: undefined,
       clavadistaId: userRole === 'Clavadista' && teamMember ? teamMember.id : NO_CLAVADISTA_VALUE,
-      selectedSalesRepId: undefined,
-      clavadistaSelectedSalesRepId: undefined,
+      selectedSalesRepId: "",
+      clavadistaSelectedSalesRepId: "",
       canalOrigenColocacion: undefined,
       paymentMethod: 'Adelantado',
 
@@ -135,13 +135,13 @@ export default function OrderFormWizardPage() {
       direccionFiscal_street: "",
       direccionFiscal_number: "",
       direccionFiscal_city: "",
-      direccionFiscal_province: undefined,
+      direccionFiscal_province: "",
       direccionFiscal_postalCode: "",
       direccionFiscal_country: "España",
       direccionEntrega_street: "",
       direccionEntrega_number: "",
       direccionEntrega_city: "",
-      direccionEntrega_province: undefined,
+      direccionEntrega_province: "",
       direccionEntrega_postalCode: "",
       direccionEntrega_country: "España",
       contactoNombre: "",
@@ -528,7 +528,7 @@ export default function OrderFormWizardPage() {
                         <div className="space-y-2">
                             <Label htmlFor="text-block">Escribe o pega aquí todos los datos de facturación y entrega</Label>
                             <Textarea id="text-block" placeholder="Ej: BODEGAS MANOLO, S.L. - B12345678 - Calle del Vino, 42, 28004, Madrid..." className="min-h-[100px]" value={aiTextBlock} onChange={(e) => setAiTextBlock(e.target.value)} disabled={isAiProcessing}/>
-                            <Button className="w-full" onClick={handleAiTextProcess} disabled={isAiProcessing || !aiTextBlock.trim()}>
+                            <Button className="w-full" onClick={handleAiTextProcess} disabled={isAiProcessing}>
                                 {isAiProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Procesando...</> : <><Sparkles className="mr-2 h-4 w-4"/> Procesar con IA</>}
                             </Button>
                         </div>
@@ -602,5 +602,3 @@ export default function OrderFormWizardPage() {
     </div>
   );
 }
-
-    

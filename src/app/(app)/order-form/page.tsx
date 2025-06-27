@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -44,10 +45,10 @@ const formSchema = z.object({
   clavadistaId: z.string().optional(),
   selectedSalesRepId: z.string().optional(),
   clavadistaSelectedSalesRepId: z.string().optional(),
-  canalOrigenColocacion: z.enum(canalOrigenColocacionList).optional(),
-  paymentMethod: z.enum(paymentMethodList).optional(),
+  canalOrigenColocacion: z.enum(canalOrigenColocacionList as [string, ...string[]]).optional(),
+  paymentMethod: z.enum(paymentMethodList as [string, ...string[]]).optional(),
 
-  clientType: z.enum(clientTypeList).optional(),
+  clientType: z.enum(clientTypeList as [string, ...string[]]).optional(),
   numberOfUnits: z.coerce.number().optional(),
   unitPrice: z.coerce.number().optional(),
   
@@ -70,10 +71,10 @@ const formSchema = z.object({
   contactoTelefono: z.string().optional(),
   observacionesAlta: z.string().optional(),
 
-  nextActionType: z.enum(nextActionTypeList).optional(),
+  nextActionType: z.enum(nextActionTypeList as [string, ...string[]]).optional(),
   nextActionCustom: z.string().optional(),
   nextActionDate: z.date().optional(),
-  failureReasonType: z.enum(failureReasonList).optional(),
+  failureReasonType: z.enum(failureReasonList as [string, ...string[]]).optional(),
   failureReasonCustom: z.string().optional(),
   notes: z.string().optional(),
   assignedMaterials: z.array(assignedMaterialSchema).optional().default([]),
@@ -465,37 +466,70 @@ export default function OrderFormWizardPage() {
                                 <div className="space-y-4">
                                     <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades</FormLabel><FormControl><Input type="number" placeholder="Ej: 12" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)}/>
                                     <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Ej: 15.50" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage /></FormItem>)}/>
-                                    <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel>Forma de Pago</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar forma de pago"/></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(m=>(<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
+                                    <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel>Forma de Pago</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar forma de pago"/></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(m=>(<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
                                 </div>
                             )}
                             {outcomeWatched === 'follow-up' && (
                                 <div className="space-y-4">
-                                    <FormField control={form.control} name="nextActionType" render={({ field }) => (<FormItem><FormLabel>Próxima Acción</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar próxima acción..."/></SelectTrigger></FormControl><SelectContent>{nextActionTypeList.map(t=>(<SelectItem key={t} value={t}>{t}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
+                                    <FormField control={form.control} name="nextActionType" render={({ field }) => (<FormItem><FormLabel>Próxima Acción</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar próxima acción..."/></SelectTrigger></FormControl><SelectContent>{nextActionTypeList.map(t=>(<SelectItem key={t} value={t}>{t}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
                                     {form.watch('nextActionType') === 'Opción personalizada' && <FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Especificar Acción</FormLabel><FormControl><Input {...field}/></FormControl><FormMessage/></FormItem>)}/>}
                                 </div>
                             )}
                              {outcomeWatched === 'failed' && (
                                 <div className="space-y-4">
-                                     <FormField control={form.control} name="failureReasonType" render={({ field }) => (<FormItem><FormLabel>Motivo del Fallo</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar motivo..."/></SelectTrigger></FormControl><SelectContent>{failureReasonList.map(r=>(<SelectItem key={r} value={r}>{r}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
+                                     <FormField control={form.control} name="failureReasonType" render={({ field }) => (<FormItem><FormLabel>Motivo del Fallo</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar motivo..."/></SelectTrigger></FormControl><SelectContent>{failureReasonList.map(r=>(<SelectItem key={r} value={r}>{r}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
                                      {form.watch('failureReasonType') === 'Otro (especificar)' && <FormField control={form.control} name="failureReasonCustom" render={({ field }) => (<FormItem><FormLabel>Especificar Motivo</FormLabel><FormControl><Input {...field}/></FormControl><FormMessage/></FormItem>)}/>}
                                 </div>
                             )}
                             <Separator/>
-                            <FormField control={form.control} name="assignedMaterials" render={() => (
-                                <FormItem>
-                                    <FormLabel>Añadir Material Promocional (Opcional)</FormLabel>
-                                    <div className="space-y-2">
-                                        {materialFields.map((field, index) => (
-                                            <div key={field.id} className="flex items-end gap-2">
-                                                <FormField control={form.control} name={`assignedMaterials.${index}.materialId`} render={({ field }) => ( <FormItem className="flex-grow"> <Select onValueChange={field.onChange} defaultValue={field.value}> <FormControl> <SelectTrigger> <SelectValue placeholder="Seleccionar material..."/> </SelectTrigger> </FormControl> <SelectContent> {availableMaterials.map(m => <SelectItem key={m.id} value={m.id}>{m.name} (Stock: {m.stock})</SelectItem>)} </SelectContent> </Select> <FormMessage/> </FormItem> )}/>
-                                                <FormField control={form.control} name={`assignedMaterials.${index}.quantity`} render={({ field }) => ( <FormItem> <FormControl> <Input type="number" placeholder="Cant." className="w-20" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /> </FormControl> <FormMessage/> </FormItem> )}/>
-                                                <Button type="button" variant="destructive" size="icon" onClick={() => removeMaterial(index)}><Trash2 className="h-4 w-4"/></Button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <Button type="button" variant="outline" size="sm" onClick={() => appendMaterial({ materialId: '', quantity: 1 })}>Añadir Material</Button>
-                                </FormItem>
-                            )}/>
+                            <FormField
+                                control={form.control}
+                                name="assignedMaterials"
+                                render={() => (
+                                    <FormItem>
+                                        <FormLabel>Añadir Material Promocional (Opcional)</FormLabel>
+                                        <div className="space-y-2">
+                                            {materialFields.map((field, index) => (
+                                                <div key={field.id} className="flex items-end gap-2">
+                                                    <FormField
+                                                        control={form.control}
+                                                        name={`assignedMaterials.${index}.materialId`}
+                                                        render={({ field }) => (
+                                                            <FormItem className="flex-grow">
+                                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                                    <FormControl>
+                                                                        <SelectTrigger>
+                                                                            <SelectValue placeholder="Seleccionar material..."/>
+                                                                        </SelectTrigger>
+                                                                    </FormControl>
+                                                                    <SelectContent>
+                                                                        {availableMaterials.map(m => <SelectItem key={m.id} value={m.id}>{m.name} (Stock: {m.stock})</SelectItem>)}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                                <FormMessage/>
+                                                            </FormItem>
+                                                        )}
+                                                    />
+                                                    <FormField
+                                                        control={form.control}
+                                                        name={`assignedMaterials.${index}.quantity`}
+                                                        render={({ field }) => (
+                                                            <FormItem>
+                                                                <FormControl>
+                                                                    <Input type="number" placeholder="Cant." className="w-20" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} />
+                                                                </FormControl>
+                                                                <FormMessage/>
+                                                            </FormItem>
+                                                        )}
+                                                    />
+                                                    <Button type="button" variant="destructive" size="icon" onClick={() => removeMaterial(index)}><Trash2 className="h-4 w-4"/></Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <Button type="button" variant="outline" size="sm" onClick={() => appendMaterial({ materialId: '', quantity: 1 })}>Añadir Material</Button>
+                                    </FormItem>
+                                )}
+                            />
                         </CardContent>
                         <CardFooter className="flex justify-between">
                             <Button variant="ghost" onClick={handleBack}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
@@ -602,3 +636,4 @@ export default function OrderFormWizardPage() {
     </div>
   );
 }
+

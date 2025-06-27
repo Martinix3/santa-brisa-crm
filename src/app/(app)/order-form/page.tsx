@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -541,15 +542,31 @@ export default function OrderFormWizardPage() {
                                                     <Button
                                                         type="button"
                                                         variant={"outline"}
-                                                        className={cn("w-full justify-between pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                                                        className={cn(
+                                                            "w-full justify-between pl-3 text-left font-normal",
+                                                            !field.value && "text-muted-foreground"
+                                                        )}
                                                     >
-                                                        <span>{field.value ? format(field.value, "PPP", { locale: es }) : "Seleccione fecha"}</span>
+                                                        <span>
+                                                            {field.value ? (
+                                                                format(field.value, "PPP", { locale: es })
+                                                            ) : (
+                                                                "Seleccione fecha"
+                                                            )}
+                                                        </span>
                                                         <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                                                     </Button>
                                                 </FormControl>
                                             </PopoverTrigger>
                                             <PopoverContent className="w-auto p-0" align="start">
-                                                <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus locale={es} />
+                                                <Calendar
+                                                    mode="single"
+                                                    selected={field.value}
+                                                    onSelect={field.onChange}
+                                                    initialFocus
+                                                    disabled={(date) => date < subDays(new Date(),1) && !isEqual(date, subDays(new Date(),1))}
+                                                    locale={es}
+                                                />
                                             </PopoverContent>
                                         </Popover>
                                         <FormMessage />
@@ -703,7 +720,7 @@ export default function OrderFormWizardPage() {
   
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit)}>
         <header className="flex items-center space-x-2">
             <FileText className="h-8 w-8 text-primary" />
             <h1 className="text-3xl font-headline font-semibold">Registrar Interacción</h1>

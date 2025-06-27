@@ -45,7 +45,13 @@ const NO_SALES_REP_VALUE = "##NONE##";
 const accountFormSchemaBase = z.object({
   name: z.string().min(2, "El nombre comercial debe tener al menos 2 caracteres."),
   legalName: z.string().optional(),
-  cif: z.string().min(5, "El CIF/NIF debe tener al menos 5 caracteres."),
+  cif: z.string().optional().refine((val) => {
+    if (!val || val.trim() === '') return true; // Optional, so it's valid if empty
+    const cifRegex = /^([A-Z]{1}|[0-9]{1})[0-9]{7}[A-Z0-9]{1}$/i;
+    return cifRegex.test(val);
+  }, {
+    message: "Formato de CIF/NIF no válido. Use 1 letra, 7 números y 1 carácter de control.",
+  }),
   type: z.enum(accountTypeList as [AccountType, ...AccountType[]], { required_error: "El tipo de cuenta es obligatorio." }),
   status: z.enum(accountStatusList as [AccountStatus, ...AccountStatus[]], { required_error: "El estado de la cuenta es obligatorio." }),
   iban: z.string().optional(),
@@ -152,7 +158,7 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
         form.reset({
           name: account.name,
           legalName: account.legalName || "", 
-          cif: account.cif, 
+          cif: account.cif || "", 
           type: account.type, 
           status: account.status,
           iban: account.iban || "",
@@ -216,7 +222,7 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
                 <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Nombre Comercial</FormLabel><FormControl><Input placeholder="Ej: Bar Manolo" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="legalName" render={({ field }) => (<FormItem><FormLabel>Nombre Fiscal (Opcional)</FormLabel><FormControl><Input placeholder="Ej: Restauración Manolo S.L." {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
             </div>
-            <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF/NIF</FormLabel><FormControl><Input placeholder="Identificador fiscal" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF/NIF (Opcional)</FormLabel><FormControl><Input placeholder="Identificador fiscal" {...field} value={field.value ?? ""} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="type" render={({ field }) => (<FormItem><FormLabel>Tipo de Cuenta</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un tipo" /></SelectTrigger></FormControl><SelectContent>{accountTypeList.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado de la Cuenta</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un estado" /></SelectTrigger></FormControl><SelectContent>{accountStatusList.map(status => (<SelectItem key={status} value={status}>{status}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />

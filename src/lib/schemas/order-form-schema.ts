@@ -62,17 +62,29 @@ export type OrderFormValues = z.infer<typeof baseOrderFormSchema>;
 
 export const orderFormSchema = baseOrderFormSchema.superRefine((data, ctx) => {
     if (data.outcome === 'successful') {
-      if (!data.numberOfUnits || data.numberOfUnits <= 0) { ctx.addIssue({ path: ["numberOfUnits"], message: 'Unidades son obligatorias' }); }
-      if (!data.unitPrice || data.unitPrice <= 0) { ctx.addIssue({ path: ["unitPrice"], message: 'Precio es obligatorio' }); }
-      if (!data.paymentMethod) { ctx.addIssue({ path: ["paymentMethod"], message: "Forma de pago es obligatoria." }); }
-      if (data.paymentMethod === 'Giro Bancario' && (!data.iban || !/^[A-Z]{2}[0-9]{2}[0-9A-Z]{1,30}$/.test(data.iban.replace(/\s/g, '')))) {
-        ctx.addIssue({ path: ["iban"], message: "IBAN válido es obligatorio para el Giro Bancario." });
-      }
+        if (!data.numberOfUnits || data.numberOfUnits <= 0) { ctx.addIssue({ path: ["numberOfUnits"], message: 'Unidades son obligatorias' }); }
+        if (!data.unitPrice || data.unitPrice <= 0) { ctx.addIssue({ path: ["unitPrice"], message: 'Precio es obligatorio' }); }
+        if (!data.paymentMethod) { ctx.addIssue({ path: ["paymentMethod"], message: "Forma de pago es obligatoria." }); }
+        if (data.paymentMethod === 'Giro Bancario' && (!data.iban || !/^[A-Z]{2}[0-9]{2}[0-9A-Z]{1,30}$/.test(data.iban.replace(/\s/g, '')))) {
+            ctx.addIssue({ path: ["iban"], message: "IBAN válido es obligatorio para el Giro Bancario." });
+        }
     }
     
     if (data.outcome === 'successful' && data.isNewClient) {
         if (!data.nombreFiscal?.trim()) ctx.addIssue({ path: ["nombreFiscal"], message: "Nombre fiscal es obligatorio." });
-        if (!data.cif?.trim()) ctx.addIssue({ path: ["cif"], message: "CIF es obligatorio." });
+        
+        if (!data.cif?.trim()) {
+            ctx.addIssue({ path: ["cif"], message: "CIF es obligatorio." });
+        } else {
+            const cifRegex = /^([A-Z]{1}|[0-9]{1})[0-9]{7}[A-Z0-9]{1}$/i;
+            if (!cifRegex.test(data.cif)) {
+                ctx.addIssue({
+                    path: ["cif"],
+                    message: "Formato de CIF/NIF no válido. Use 1 letra, 7 números y 1 carácter de control."
+                });
+            }
+        }
+
         if (!data.direccionFiscal_street?.trim()) ctx.addIssue({ path: ["direccionFiscal_street"], message: "Calle es obligatoria." });
         if (!data.direccionFiscal_city?.trim()) ctx.addIssue({ path: ["direccionFiscal_city"], message: "Ciudad es obligatoria." });
         if (!data.direccionFiscal_province?.trim()) ctx.addIssue({ path: ["direccionFiscal_province"], message: "Provincia es obligatoria." });

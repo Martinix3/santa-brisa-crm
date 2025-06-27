@@ -225,7 +225,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         products: order.products?.join(",\n") || "",
         value: order.value,
         status: order.status,
-        salesRep: order.salesRep || (salesReps.length > 0 ? salesReps[0].name : ""),
+        salesRep: order.salesRep || "",
         clavadistaId: order.clavadistaId || NO_CLAVADISTA_VALUE,
         canalOrigenColocacion: order.canalOrigenColocacion || undefined,
         paymentMethod: order.paymentMethod || undefined,
@@ -249,7 +249,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     if (isOpen && !isLoadingDropdownData) { 
         initializeFormWithOrderAndAccountData();
     }
-  }, [order, isOpen, form, isLoadingDropdownData, salesReps, toast]);
+  }, [order, isOpen, form, isLoadingDropdownData]);
 
   const onSubmit = async (data: EditOrderFormValues) => {
     if (!order) return;

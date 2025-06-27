@@ -27,15 +27,18 @@ export const sampleRequestWizardSchema = z.object({
   shippingAddress_country: z.string().optional().default("España"),
 }).superRefine((data, ctx) => {
     if (data.isNewClient) {
-        const shippingFields = [data.shippingAddress_street, data.shippingAddress_city, data.shippingAddress_province, data.shippingAddress_postalCode];
-        const someShippingFieldFilled = shippingFields.some(field => field && field.trim() !== "");
-        // If user starts filling the address, make some fields mandatory.
-        if (someShippingFieldFilled) {
-            if (!data.shippingAddress_street?.trim()) ctx.addIssue({ path: ["shippingAddress_street"], message: "Calle es obligatoria si se rellena la dirección." });
-            if (!data.shippingAddress_city?.trim()) ctx.addIssue({ path: ["shippingAddress_city"], message: "Ciudad es obligatoria." });
-            if (!data.shippingAddress_province?.trim()) ctx.addIssue({ path: ["shippingAddress_province"], message: "Provincia es obligatoria." });
-            if (!data.shippingAddress_postalCode?.trim()) ctx.addIssue({ path: ["shippingAddress_postalCode"], message: "Código postal es obligatorio." });
-        }
+      if (!data.shippingAddress_street?.trim()) {
+        ctx.addIssue({ path: ["shippingAddress_street"], message: "La calle es obligatoria para nuevos clientes." });
+      }
+      if (!data.shippingAddress_city?.trim()) {
+        ctx.addIssue({ path: ["shippingAddress_city"], message: "La ciudad es obligatoria para nuevos clientes." });
+      }
+      if (!data.shippingAddress_province?.trim()) {
+        ctx.addIssue({ path: ["shippingAddress_province"], message: "La provincia es obligatoria para nuevos clientes." });
+      }
+      if (!data.shippingAddress_postalCode?.trim()) {
+        ctx.addIssue({ path: ["shippingAddress_postalCode"], message: "El código postal es obligatorio para nuevos clientes." });
+      }
     } else {
         // If existing client, accountId must be present
         if (!data.accountId) {

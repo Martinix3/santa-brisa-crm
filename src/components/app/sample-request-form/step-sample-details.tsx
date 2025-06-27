@@ -105,17 +105,17 @@ export const StepSampleDetails: React.FC<StepSampleDetailsProps> = ({
             <>
                 <Separator className="my-4"/>
                 <div className="space-y-1">
-                    <h3 className="text-md font-medium">Dirección de Envío (Opcional)</h3>
+                    <h3 className="text-md font-medium">Dirección de Envío*</h3>
                     <p className="text-sm text-muted-foreground">
-                        Si conoces la dirección de envío para esta nueva cuenta, puedes añadirla aquí para facilitar el envío.
+                        La dirección es obligatoria para el envío de muestras a nuevos clientes.
                     </p>
                 </div>
-                <FormField control={form.control} name="shippingAddress_street" render={({ field }) => (<FormItem><FormLabel>Calle</FormLabel><FormControl><Input placeholder="Ej: Calle Principal" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="shippingAddress_street" render={({ field }) => (<FormItem><FormLabel>Calle *</FormLabel><FormControl><Input placeholder="Ej: Calle Principal" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <FormField control={form.control} name="shippingAddress_number" render={({ field }) => (<FormItem><FormLabel>Número</FormLabel><FormControl><Input placeholder="Ej: 123" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="shippingAddress_postalCode" render={({ field }) => (<FormItem><FormLabel>Cód. Postal</FormLabel><FormControl><Input placeholder="Ej: 28001" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="shippingAddress_city" render={({ field }) => (<FormItem><FormLabel>Ciudad</FormLabel><FormControl><Input placeholder="Ej: Madrid" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="shippingAddress_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel><Select onValueChange={field.onChange} value={field.value ?? ''}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="shippingAddress_postalCode" render={({ field }) => (<FormItem><FormLabel>Cód. Postal *</FormLabel><FormControl><Input placeholder="Ej: 28001" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="shippingAddress_city" render={({ field }) => (<FormItem><FormLabel>Ciudad *</FormLabel><FormControl><Input placeholder="Ej: Madrid" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="shippingAddress_province" render={({ field }) => (<FormItem><FormLabel>Provincia *</FormLabel><Select onValueChange={field.onChange} value={field.value ?? ''}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                 </div>
             </>
         )}

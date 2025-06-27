@@ -35,21 +35,22 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { Purchase, PurchaseFormValues as PurchaseFormValuesType, PurchaseStatus, PromotionalMaterial } from "@/types";
-import { purchaseStatusList } from "@/lib/data";
-import { Loader2, Calendar as CalendarIcon, DollarSign, PlusCircle, Trash2, FileCheck2, Link2 } from "lucide-react";
+import type { Purchase, PurchaseFormValues as PurchaseFormValuesType, PurchaseStatus, PromotionalMaterial, PromotionalMaterialFormValues } from "@/types";
+import { purchaseStatusList, promotionalMaterialTypeList } from "@/lib/data";
+import { Loader2, Calendar as CalendarIcon, DollarSign, PlusCircle, Trash2, FileCheck2, Link2, Sparkles, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
 import { Separator } from "../ui/separator";
 import FormattedNumericValue from "../lib/formatted-numeric-value";
 import Link from 'next/link';
-import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
+import { getPromotionalMaterialsFS, addPromotionalMaterialFS } from "@/services/promotional-material-service";
 import { useToast } from "@/hooks/use-toast";
+import { matchMaterial } from "@/ai/flows/material-matching-flow";
 
 const purchaseItemSchema = z.object({
-  materialId: z.string().min(1, "Debe seleccionar un material."),
-  description: z.string().optional(), // Now optional, will be auto-filled
+  materialId: z.string().min(1, "Debe seleccionar un material del sistema."),
+  description: z.string().optional(),
   quantity: z.coerce.number().min(1, "La cantidad debe ser al menos 1."),
   unitPrice: z.coerce.number().min(0.01, "El precio debe ser positivo."),
 });
@@ -89,25 +90,8 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
   const [isSaving, setIsSaving] = React.useState(false);
   const [availableMaterials, setAvailableMaterials] = React.useState<PromotionalMaterial[]>([]);
   const [isLoadingMaterials, setIsLoadingMaterials] = React.useState(true);
+  const [matchingItems, setMatchingItems] = React.useState<Record<number, boolean>>({});
   const { toast } = useToast();
-
-  React.useEffect(() => {
-    async function loadMaterials() {
-        setIsLoadingMaterials(true);
-        try {
-            const materials = await getPromotionalMaterialsFS();
-            setAvailableMaterials(materials);
-        } catch (error) {
-            console.error("Failed to load promotional materials for purchase dialog:", error);
-            toast({ title: "Error", description: "No se pudieron cargar los materiales promocionales.", variant: "destructive" });
-        } finally {
-            setIsLoadingMaterials(false);
-        }
-    }
-    if (isOpen) {
-        loadMaterials();
-    }
-  }, [isOpen, toast]);
 
   const form = useForm<PurchaseFormValues>({
     resolver: zodResolver(purchaseFormSchema),
@@ -154,19 +138,59 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
     };
   }, [watchedItems, watchedShippingCost, watchedTaxRate]);
 
+  const fetchMaterials = React.useCallback(async () => {
+    setIsLoadingMaterials(true);
+    try {
+      const materials = await getPromotionalMaterialsFS();
+      setAvailableMaterials(materials);
+    } catch (error) {
+      console.error("Failed to load promotional materials:", error);
+      toast({ title: "Error", description: "No se pudieron cargar los materiales promocionales.", variant: "destructive" });
+    } finally {
+      setIsLoadingMaterials(false);
+    }
+  }, [toast]);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      fetchMaterials();
+    }
+  }, [isOpen, fetchMaterials]);
+
+  const runSmartMatching = React.useCallback(async (itemsToMatch: PurchaseFormValues['items']) => {
+    if (isLoadingMaterials) return;
+    setMatchingItems(itemsToMatch.reduce((acc, _, index) => ({ ...acc, [index]: true }), {}));
+    
+    const updatedItems = await Promise.all(itemsToMatch.map(async (item, index) => {
+      if (item.materialId) return item; // Already matched
+      const result = await matchMaterial({ 
+        itemName: item.description, 
+        existingMaterials: availableMaterials.map(m => ({ id: m.id, name: m.name, description: m.description, type: m.type }))
+      });
+      if (result.matchType === 'perfect' || result.matchType === 'suggested') {
+        return { ...item, materialId: result.matchedMaterialId! };
+      }
+      return item;
+    }));
+
+    form.setValue('items', updatedItems);
+    setMatchingItems({});
+  }, [availableMaterials, form, isLoadingMaterials]);
+
+  React.useEffect(() => {
+    if (isOpen && !isLoadingMaterials) {
+      const initialItems = prefilledData?.items || purchase?.items;
+      if (initialItems && initialItems.some(item => !item.materialId)) {
+        runSmartMatching(initialItems as PurchaseFormValues['items']);
+      }
+    }
+  }, [isOpen, isLoadingMaterials, prefilledData, purchase, runSmartMatching]);
+
+
   React.useEffect(() => {
     if (isOpen) {
       if (prefilledData) {
         form.reset(prefilledData as PurchaseFormValues);
-        const hasUnmappedItems = prefilledData.items?.some(item => !item.materialId);
-        if (hasUnmappedItems) {
-            toast({
-                title: "Revisión de artículos necesaria",
-                description: "Hemos cargado los artículos de la factura. Por favor, asocia cada uno a un material de nuestro sistema.",
-                variant: "default",
-                duration: 8000,
-            });
-        }
       } else if (purchase) {
         form.reset({
           supplier: purchase.supplier,
@@ -196,6 +220,29 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
       }
     }
   }, [purchase, prefilledData, isOpen, form, toast]);
+
+  const handleCreateNewMaterial = async (index: number, itemName: string) => {
+    setIsSaving(true);
+    try {
+        const result = await matchMaterial({ 
+          itemName, 
+          existingMaterials: availableMaterials.map(m => ({ id: m.id, name: m.name, description: m.description, type: m.type }))
+        });
+
+        const newMaterialData: PromotionalMaterialFormValues = {
+            name: result.suggestedName || itemName,
+            type: result.suggestedType || 'Otro',
+        };
+        const newMaterialId = await addPromotionalMaterialFS(newMaterialData);
+        await fetchMaterials(); // Refresh material list
+        update(index, { ...watchedItems[index], materialId: newMaterialId });
+        toast({ title: "Material Creado", description: `Se ha creado el material "${newMaterialData.name}".`});
+    } catch (error) {
+        toast({ title: "Error", description: "No se pudo crear el nuevo material.", variant: "destructive" });
+    } finally {
+        setIsSaving(false);
+    }
+  };
 
   const onSubmit = async (data: PurchaseFormValues) => {
     if (isReadOnly) return;
@@ -228,17 +275,16 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
                   <div className="flex-grow space-y-1">
                       <FormField control={form.control} name={`items.${index}.materialId`} render={({ field: selectField }) => (
                         <FormItem>
-                            <FormLabel className="text-xs">Concepto</FormLabel>
+                            <FormLabel className="text-xs flex items-center gap-1">
+                              {matchingItems[index] && <Loader2 className="h-3 w-3 animate-spin"/>}
+                              Concepto del Sistema
+                            </FormLabel>
                             <Select
-                                onValueChange={(value) => {
-                                    selectField.onChange(value);
-                                    const selectedMaterial = availableMaterials.find(m => m.id === value);
-                                    update(index, { ...watchedItems[index], materialId: value, description: selectedMaterial?.name || "" });
-                                }}
-                                value={selectField.value}
+                                onValueChange={selectField.onChange}
+                                value={selectField.value || ""}
                                 disabled={isReadOnly || isLoadingMaterials}
                             >
-                                <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar material" /></SelectTrigger></FormControl>
+                                <FormControl><SelectTrigger><SelectValue placeholder="Asociar a material..." /></SelectTrigger></FormControl>
                                 <SelectContent>
                                     {availableMaterials.map(material => (
                                         <SelectItem key={material.id} value={material.id}>{material.name}</SelectItem>
@@ -248,10 +294,20 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
                             <FormMessage />
                         </FormItem>
                       )} />
-                      {watchedItems[index]?.description && (
-                          <FormDescription className="text-xs pl-1">
-                              Concepto factura: "{watchedItems[index].description}"
-                          </FormDescription>
+                      {watchedItems[index]?.description && !watchedItems[index]?.materialId && (
+                           <div className="p-2 bg-yellow-100 dark:bg-yellow-900/50 rounded-md border border-yellow-300 dark:border-yellow-700">
+                             <div className="flex items-center gap-2">
+                               <HelpCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400"/>
+                               <p className="text-xs text-yellow-800 dark:text-yellow-200">
+                                 Concepto factura: <strong className="font-mono">"{watchedItems[index].description}"</strong>
+                               </p>
+                             </div>
+                             {!isReadOnly && (
+                                <Button size="sm" variant="link" type="button" className="text-xs h-auto p-0 mt-1" onClick={() => handleCreateNewMaterial(index, watchedItems[index].description)}>
+                                    <PlusCircle className="mr-1 h-3 w-3"/>Crear este material en el sistema
+                                </Button>
+                             )}
+                           </div>
                       )}
                   </div>
                   <FormField control={form.control} name={`items.${index}.quantity`} render={({ field: quantityField }) => (
@@ -281,7 +337,7 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
                   {!isReadOnly && <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>}
                 </div>
               ))}
-               {!isReadOnly && <Button type="button" variant="outline" size="sm" onClick={() => append({ materialId: "", description: "", quantity: 1, unitPrice: undefined })}><PlusCircle className="mr-2 h-4 w-4" />Añadir Artículo</Button>}
+               {!isReadOnly && <Button type="button" variant="outline" size="sm" onClick={() => append({ materialId: "", description: "", quantity: 1, unitPrice: undefined })}><PlusCircle className="mr-2 h-4 w-4" />Añadir Artículo Manual</Button>}
             </div>
 
             <Separator />

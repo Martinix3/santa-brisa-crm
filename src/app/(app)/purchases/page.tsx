@@ -8,8 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import type { Purchase, PurchaseStatus, UserRole } from "@/types";
-import { purchaseStatusList } from "@/lib/data";
+import type { Purchase, PurchaseStatus, UserRole, PromotionalMaterialType, PromotionalMaterial } from "@/types";
+import { purchaseStatusList, promotionalMaterialTypeList } from "@/lib/data";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, MoreHorizontal, Filter, ChevronDown, Edit, Trash2, Receipt, Loader2, UploadCloud, Download } from "lucide-react";
 import PurchaseDialog from "@/components/app/purchase-dialog";
@@ -22,11 +22,13 @@ import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { addPurchaseFS, updatePurchaseFS, deletePurchaseFS, getPurchasesFS } from "@/services/purchase-service";
 import Link from "next/link";
 import InvoiceUploadDialog from "@/components/app/invoice-upload-dialog";
+import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
 
 export default function PurchasesPage() {
   const { toast } = useToast();
   const { userRole, refreshDataSignature } = useAuth();
   const [purchases, setPurchases] = React.useState<Purchase[]>([]);
+  const [materials, setMaterials] = React.useState<PromotionalMaterial[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [editingPurchase, setEditingPurchase] = React.useState<Purchase | null>(null);
   const [isPurchaseDialogOpen, setIsPurchaseDialogOpen] = React.useState(false);
@@ -36,6 +38,7 @@ export default function PurchasesPage() {
   
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<PurchaseStatus | "Todos">("Todos");
+  const [categoryFilter, setCategoryFilter] = React.useState<PromotionalMaterialType | "Todas">("Todas");
 
   const isAdmin = userRole === 'Admin';
 
@@ -43,8 +46,12 @@ export default function PurchasesPage() {
     async function loadInitialData() {
         setIsLoading(true);
         try {
-            const fetchedPurchases = await getPurchasesFS();
+            const [fetchedPurchases, fetchedMaterials] = await Promise.all([
+              getPurchasesFS(),
+              getPromotionalMaterialsFS()
+            ]);
             setPurchases(fetchedPurchases);
+            setMaterials(fetchedMaterials);
         } catch (error) {
             console.error("Failed to load purchases:", error);
             toast({ title: "Error", description: "No se pudieron cargar las órdenes de compra.", variant: "destructive" });
@@ -129,12 +136,21 @@ export default function PurchasesPage() {
     }
   };
 
+  const materialsMap = React.useMemo(() => new Map(materials.map(m => [m.id, m])), [materials]);
+
   const filteredPurchases = purchases
     .filter(purchase =>
       (purchase.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
        (purchase.items && purchase.items.some(item => item.description.toLowerCase().includes(searchTerm.toLowerCase()))))
     )
-    .filter(purchase => statusFilter === "Todos" || purchase.status === statusFilter);
+    .filter(purchase => statusFilter === "Todos" || purchase.status === statusFilter)
+    .filter(purchase => {
+      if (categoryFilter === "Todas") return true;
+      return purchase.items.some(item => {
+        const material = materialsMap.get(item.materialId);
+        return material?.type === categoryFilter;
+      });
+    });
 
   if (!isAdmin) {
     return (
@@ -188,6 +204,20 @@ export default function PurchasesPage() {
                    <DropdownMenuCheckboxItem key={status} onSelect={() => setStatusFilter(status)} checked={statusFilter === status}>
                     {status}
                   </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-full sm:w-auto">
+                  <Filter className="mr-2 h-4 w-4" />
+                  Categoría: {categoryFilter} <ChevronDown className="ml-2 h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuCheckboxItem onSelect={() => setCategoryFilter("Todas")} checked={categoryFilter === "Todas"}>Todas</DropdownMenuCheckboxItem>
+                {promotionalMaterialTypeList.map(cat => (
+                  <DropdownMenuCheckboxItem key={cat} onSelect={() => setCategoryFilter(cat)} checked={categoryFilter === cat}>{cat}</DropdownMenuCheckboxItem>
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>

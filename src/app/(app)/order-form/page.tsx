@@ -21,10 +21,9 @@ import { useAuth } from "@/contexts/auth-context";
 import { useRouter } from "next/navigation";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { getAccountsFS, addAccountFS } from "@/services/account-service";
-import { addOrderFS } from "@/services/order-service";
+import { addOrderFS, updateOrderFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
-import { extractClientData, type ClientDataExtractionOutput } from "@/ai/flows/client-data-extraction-flow";
 import { ArrowLeft, Check, ClipboardPaste, Edit, FileText, Loader2, Package, PlusCircle, Search, Send, UploadCloud, Users, Zap, Award, CreditCard, User, Building, Info, AlertTriangle, Sparkles, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { Label } from "@/components/ui/label";
@@ -100,9 +99,6 @@ export default function OrderFormWizardPage() {
   const [clavadistas, setClavadistas] = React.useState<TeamMember[]>([]);
   const [salesRepsList, setSalesRepsList] = React.useState<TeamMember[]>([]);
   const [availableMaterials, setAvailableMaterials] = React.useState<PromotionalMaterial[]>([]);
-  const [isAiProcessing, setIsAiProcessing] = React.useState(false);
-  
-  const [aiTextBlock, setAiTextBlock] = React.useState("");
 
   React.useEffect(() => {
     const handler = setTimeout(() => { setDebouncedSearchTerm(searchTerm); }, 300);
@@ -209,64 +205,6 @@ export default function OrderFormWizardPage() {
     }
   };
   
-  const handleAiTextProcess = async () => {
-      if (!aiTextBlock.trim()) {
-          toast({ title: "Texto vacío", description: "Por favor, pega o escribe los datos del cliente.", variant: "destructive" });
-          return;
-      }
-      setIsAiProcessing(true);
-      try {
-          const result = await extractClientData({ textBlock: aiTextBlock });
-          setFormValuesFromAi(result);
-          setStep('verify');
-      } catch (error: any) {
-          toast({ title: "Error de IA", description: `No se pudieron procesar los datos: ${'message' in error ? error.message : 'Error desconocido'}`, variant: "destructive" });
-      } finally {
-          setIsAiProcessing(false);
-      }
-  };
-
-  const handleAiPhotoProcess = async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      if (!file) return;
-      
-      const MimeTypeMap: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
-      if (file.size > 4 * 1024 * 1024 || !MimeTypeMap[file.type]) {
-          toast({ title: "Archivo no válido", description: "Sube una imagen (JPG, PNG) de menos de 4MB.", variant: "destructive" });
-          return;
-      }
-
-      setIsAiProcessing(true);
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = async () => {
-          try {
-              const result = await extractClientData({ imageDataUri: reader.result as string });
-              setFormValuesFromAi(result);
-              setStep('verify');
-          } catch (error: any) {
-              toast({ title: "Error de IA", description: `No se pudieron procesar los datos de la imagen: ${'message' in error ? error.message : 'Error desconocido'}`, variant: "destructive" });
-          } finally {
-              setIsAiProcessing(false);
-          }
-      };
-  };
-
-  const setFormValuesFromAi = (data: ClientDataExtractionOutput) => {
-    form.setValue("nombreFiscal", data.legalName || (client as any)?.name);
-    form.setValue("cif", data.cif);
-    form.setValue("direccionFiscal_street", data.addressBilling?.street);
-    form.setValue("direccionFiscal_city", data.addressBilling?.city);
-    form.setValue("direccionFiscal_postalCode", data.addressBilling?.postalCode);
-    form.setValue("direccionFiscal_province", data.addressBilling?.province);
-    form.setValue("direccionEntrega_street", data.addressShipping?.street || data.addressBilling?.street);
-    form.setValue("direccionEntrega_city", data.addressShipping?.city || data.addressBilling?.city);
-    form.setValue("direccionEntrega_postalCode", data.addressShipping?.postalCode || data.addressBilling?.postalCode);
-    form.setValue("contactoNombre", data.mainContactName);
-    form.setValue("contactoCorreo", data.mainContactEmail);
-    form.setValue("contactoTelefono", data.mainContactPhone);
-  };
-  
   const validateFinalForm = (values: FormValues): boolean => {
     let isValid = true;
     if (values.outcome === 'successful') {
@@ -321,13 +259,13 @@ export default function OrderFormWizardPage() {
     let accountCreationMessage = "";
 
     try {
-        if (client?.id === 'new') {
+        if (client?.id === 'new' && values.outcome === 'successful') {
             const newAccountData: AccountFormValues = {
                 name: client.name,
                 legalName: values.nombreFiscal,
                 cif: values.cif,
-                type: values.outcome === 'successful' ? (values.clientType || 'Otro') : 'Otro',
-                status: values.outcome === 'successful' ? 'Activo' : 'Potencial',
+                type: values.clientType || 'Otro',
+                status: 'Activo',
                 addressBilling: { street: values.direccionFiscal_street!, number: values.direccionFiscal_number, city: values.direccionFiscal_city!, province: values.direccionFiscal_province!, postalCode: values.direccionFiscal_postalCode!, country: values.direccionFiscal_country! },
                 addressShipping: { street: values.direccionEntrega_street!, number: values.direccionEntrega_number, city: values.direccionEntrega_city!, province: values.direccionEntrega_province!, postalCode: values.direccionEntrega_postalCode!, country: values.direccionEntrega_country! },
                 mainContactName: values.contactoNombre,
@@ -491,37 +429,8 @@ export default function OrderFormWizardPage() {
                                         <div className="space-y-2">
                                             {materialFields.map((field, index) => (
                                                 <div key={field.id} className="flex items-end gap-2">
-                                                    <FormField
-                                                        control={form.control}
-                                                        name={`assignedMaterials.${index}.materialId`}
-                                                        render={({ field }) => (
-                                                            <FormItem className="flex-grow">
-                                                                <Select onValueChange={field.onChange} value={field.value}>
-                                                                    <FormControl>
-                                                                        <SelectTrigger>
-                                                                            <SelectValue placeholder="Seleccionar material..."/>
-                                                                        </SelectTrigger>
-                                                                    </FormControl>
-                                                                    <SelectContent>
-                                                                        {availableMaterials.map(m => <SelectItem key={m.id} value={m.id}>{m.name} (Stock: {m.stock})</SelectItem>)}
-                                                                    </SelectContent>
-                                                                </Select>
-                                                                <FormMessage/>
-                                                            </FormItem>
-                                                        )}
-                                                    />
-                                                    <FormField
-                                                        control={form.control}
-                                                        name={`assignedMaterials.${index}.quantity`}
-                                                        render={({ field }) => (
-                                                            <FormItem>
-                                                                <FormControl>
-                                                                    <Input type="number" placeholder="Cant." className="w-20" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} />
-                                                                </FormControl>
-                                                                <FormMessage/>
-                                                            </FormItem>
-                                                        )}
-                                                    />
+                                                    <FormField control={form.control} name={`assignedMaterials.${index}.materialId`} render={({ field }) => ( <FormItem className="flex-grow"> <Select onValueChange={field.onChange} value={field.value}> <FormControl> <SelectTrigger> <SelectValue placeholder="Seleccionar material..."/> </SelectTrigger> </FormControl> <SelectContent> {availableMaterials.map(m => <SelectItem key={m.id} value={m.id}>{m.name} (Stock: {m.stock})</SelectItem>)} </SelectContent> </Select> <FormMessage/> </FormItem> )}/>
+                                                    <FormField control={form.control} name={`assignedMaterials.${index}.quantity`} render={({ field }) => ( <FormItem> <FormControl> <Input type="number" placeholder="Cant." className="w-20" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /> </FormControl> <FormMessage/> </FormItem> )}/>
                                                     <Button type="button" variant="destructive" size="icon" onClick={() => removeMaterial(index)}><Trash2 className="h-4 w-4"/></Button>
                                                 </div>
                                             ))}
@@ -545,29 +454,25 @@ export default function OrderFormWizardPage() {
                 <motion.div key="new_client_data" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
                     <CardHeader>
                         <CardTitle>Paso 4: Datos de Facturación de "{client?.name}"</CardTitle>
-                        <CardDescription>Sube una foto o pega el texto con los datos del nuevo cliente. La IA los procesará.</CardDescription>
+                        <CardDescription>Completa la información fiscal y de entrega para el nuevo cliente. Todos los campos son obligatorios.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                           <Label htmlFor="photo-upload" className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50">
-                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                    <UploadCloud className="w-8 h-8 mb-2 text-primary"/>
-                                    <p className="mb-1 text-sm font-semibold">Subir Foto o Captura de Pantalla</p>
-                                    <p className="text-xs text-muted-foreground">de una tarjeta, Google Maps, etc.</p>
-                                </div>
-                                <Input id="photo-upload" type="file" className="hidden" accept="image/*" onChange={handleAiPhotoProcess} disabled={isAiProcessing}/>
-                            </Label>
-                        </div>
-                        <div className="relative"><div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div><div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">O</span></div></div>
-                        <div className="space-y-2">
-                            <Label htmlFor="text-block">Escribe o pega aquí todos los datos de facturación y entrega</Label>
-                            <Textarea id="text-block" placeholder="Ej: BODEGAS MANOLO, S.L. - B12345678 - Calle del Vino, 42, 28004, Madrid..." className="min-h-[100px]" value={aiTextBlock} onChange={(e) => setAiTextBlock(e.target.value)} disabled={isAiProcessing}/>
-                            <Button className="w-full" onClick={handleAiTextProcess} disabled={isAiProcessing}>
-                                {isAiProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Procesando...</> : <><Sparkles className="mr-2 h-4 w-4"/> Procesar con IA</>}
-                            </Button>
+                        <div className="space-y-4">
+                            <h3 className="font-semibold text-base">Datos de Facturación</h3>
+                            <FormField control={form.control} name="nombreFiscal" render={({ field }) => (<FormItem><FormLabel>Nombre Fiscal</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                            <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                            <FormField control={form.control} name="direccionFiscal_street" render={({ field }) => (<FormItem><FormLabel>Calle Fiscal</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <div className="grid grid-cols-3 gap-2">
+                                <FormField control={form.control} name="direccionFiscal_city" render={({ field }) => (<FormItem><FormLabel>Ciudad</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                <FormField control={form.control} name="direccionFiscal_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                                <FormField control={form.control} name="direccionFiscal_postalCode" render={({ field }) => (<FormItem><FormLabel>C.P.</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            </div>
                         </div>
                     </CardContent>
-                    <CardFooter><Button variant="ghost" onClick={handleBack}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button></CardFooter>
+                    <CardFooter className="flex justify-between">
+                      <Button variant="ghost" onClick={handleBack}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
+                      <Button type="button" onClick={handleNextStep}>Continuar <ArrowLeft className="mr-2 h-4 w-4 transform rotate-180" /></Button>
+                    </CardFooter>
                 </motion.div>
             )
 
@@ -578,7 +483,7 @@ export default function OrderFormWizardPage() {
                         <form onSubmit={form.handleSubmit(onSubmit)}>
                              <CardHeader>
                                 <CardTitle>Paso Final: Verifica y Confirma</CardTitle>
-                                <CardDescription>Comprueba que todos los datos son correctos. Puedes editarlos aquí si es necesario.</CardDescription>
+                                <CardDescription>Comprueba que todos los datos son correctos. Puedes volver atrás para editar si es necesario.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-6">
                                 <Card>
@@ -591,21 +496,19 @@ export default function OrderFormWizardPage() {
                                             <p><strong>Valor Total (IVA incl.):</strong> <FormattedNumericValue value={subtotal + ivaAmount} options={{style: 'currency', currency: 'EUR'}}/></p>
                                             <p><strong>Materiales:</strong> {formValuesWatched.assignedMaterials?.length || 0} items</p>
                                         </>}
+                                         {outcomeWatched !== 'successful' && <>
+                                            <p><strong>Próxima Acción:</strong> {formValuesWatched.nextActionType || 'N/A'}</p>
+                                         </>}
                                     </CardContent>
                                 </Card>
 
                                 {client?.id === 'new' && outcomeWatched === 'successful' && (
                                      <div className="space-y-4">
                                         <Separator />
-                                        <h3 className="font-semibold text-base">Datos de Facturación (Obligatorio)</h3>
-                                        <FormField control={form.control} name="nombreFiscal" render={({ field }) => (<FormItem><FormLabel>Nombre Fiscal</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                                        <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                                        <FormField control={form.control} name="direccionFiscal_street" render={({ field }) => (<FormItem><FormLabel>Calle Fiscal</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                        <div className="grid grid-cols-3 gap-2">
-                                          <FormField control={form.control} name="direccionFiscal_city" render={({ field }) => (<FormItem><FormLabel>Ciudad</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                          <FormField control={form.control} name="direccionFiscal_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                          <FormField control={form.control} name="direccionFiscal_postalCode" render={({ field }) => (<FormItem><FormLabel>C.P.</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                        </div>
+                                        <h3 className="font-semibold text-base">Datos de Facturación (Revisar)</h3>
+                                        <p><strong>Nombre Fiscal:</strong> {formValuesWatched.nombreFiscal}</p>
+                                        <p><strong>CIF:</strong> {formValuesWatched.cif}</p>
+                                        <p><strong>Dirección Fiscal:</strong> {`${formValuesWatched.direccionFiscal_street}, ${formValuesWatched.direccionFiscal_city}, ${formValuesWatched.direccionFiscal_province}, ${formValuesWatched.direccionFiscal_postalCode}`}</p>
                                     </div>
                                 )}
                             </CardContent>
@@ -636,4 +539,3 @@ export default function OrderFormWizardPage() {
     </div>
   );
 }
-

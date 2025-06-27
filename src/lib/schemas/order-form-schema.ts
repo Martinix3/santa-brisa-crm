@@ -1,6 +1,7 @@
 
 import * as z from "zod";
 import { accountTypeList, canalOrigenColocacionList, clientTypeList, failureReasonList, nextActionTypeList, paymentMethodList, provincesSpainList } from "@/lib/data";
+import type { PromotionalMaterial } from "@/types";
 
 export const NO_CLAVADISTA_VALUE = "##NONE##";
 export const ADMIN_SELF_REGISTER_VALUE = "##ADMIN_SELF##";
@@ -9,10 +10,11 @@ export type Step = "client" | "outcome" | "details" | "new_client_data" | "verif
 
 const assignedMaterialSchema = z.object({
   materialId: z.string().min(1, "Debe seleccionar un material."),
-  quantity: z.coerce.number().min(1, "La cantidad debe ser al menos 1."),
+  quantity: z.coerce.number().min(1, "La cantidad debe ser al menos 1.").optional(),
 });
 
-export const orderFormSchema = z.object({
+// Base schema object with all fields
+const baseOrderFormSchema = z.object({
   outcome: z.enum(["successful", "failed", "follow-up"]).optional(),
   clavadistaId: z.string().optional(),
   selectedSalesRepId: z.string().optional(),
@@ -53,12 +55,18 @@ export const orderFormSchema = z.object({
   failureReasonCustom: z.string().optional(),
   notes: z.string().optional(),
   assignedMaterials: z.array(assignedMaterialSchema).optional(),
+});
 
-}).superRefine((data, ctx) => {
+// Export the type inferred from the base schema
+export type OrderFormValues = z.infer<typeof baseOrderFormSchema>;
+
+// Export a factory function that adds contextual validations
+export const createOrderFormSchema = (availableMaterials: PromotionalMaterial[], isNewClient: boolean) => {
+  return baseOrderFormSchema.superRefine((data, ctx) => {
     // Validations for 'successful' outcome
     if (data.outcome === 'successful') {
-      if (!data.numberOfUnits || data.numberOfUnits <= 0) { ctx.addIssue({ path: ["numberOfUnits"], message: 'Campo obligatorio' }); }
-      if (!data.unitPrice || data.unitPrice <= 0) { ctx.addIssue({ path: ["unitPrice"], message: 'Campo obligatorio' }); }
+      if (!data.numberOfUnits || data.numberOfUnits <= 0) { ctx.addIssue({ path: ["numberOfUnits"], message: 'Unidades son obligatorias' }); }
+      if (!data.unitPrice || data.unitPrice <= 0) { ctx.addIssue({ path: ["unitPrice"], message: 'Precio es obligatorio' }); }
       if (!data.paymentMethod) { ctx.addIssue({ path: ["paymentMethod"], message: "Forma de pago es obligatoria." }); }
       if (data.paymentMethod === 'Giro Bancario' && (!data.iban || !/^[A-Z]{2}[0-9]{2}[0-9A-Z]{1,30}$/.test(data.iban.replace(/\s/g, '')))) {
         ctx.addIssue({ path: ["iban"], message: "IBAN válido es obligatorio para el Giro Bancario." });
@@ -66,7 +74,7 @@ export const orderFormSchema = z.object({
     }
     
     // Validations for 'new' client on 'successful' outcome
-    if (data.outcome === 'successful' && data.clientType === 'new') { // Note: clientType is not part of form, this needs client state
+    if (data.outcome === 'successful' && isNewClient) {
         if (!data.nombreFiscal?.trim()) ctx.addIssue({ path: ["nombreFiscal"], message: "Nombre fiscal es obligatorio." });
         if (!data.cif?.trim()) ctx.addIssue({ path: ["cif"], message: "CIF es obligatorio." });
         if (!data.direccionFiscal_street?.trim()) ctx.addIssue({ path: ["direccionFiscal_street"], message: "Calle es obligatoria." });
@@ -92,7 +100,20 @@ export const orderFormSchema = z.object({
          ctx.addIssue({ path: ["failureReasonCustom"], message: "Debe especificar el motivo del fallo." });
       }
     }
-});
 
-
-export type OrderFormValues = z.infer<typeof orderFormSchema>;
+    // Stock validation
+    if (data.assignedMaterials) {
+        data.assignedMaterials.forEach((item, index) => {
+            if (!item.quantity) return; // Skip if quantity is not set
+            const material = availableMaterials.find(m => m.id === item.materialId);
+            if (material && material.stock < item.quantity) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: `Stock: ${material.stock}. Pides: ${item.quantity}.`,
+                    path: [`assignedMaterials`, index, 'quantity'],
+                });
+            }
+        });
+    }
+  });
+};

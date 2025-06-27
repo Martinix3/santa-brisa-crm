@@ -13,7 +13,7 @@ import { runTransaction } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { collection, doc } from "firebase/firestore";
 import type { Account, Order, PromotionalMaterial, TeamMember, UserRole } from "@/types";
-import { orderFormSchema, type OrderFormValues, NO_CLAVADISTA_VALUE, ADMIN_SELF_REGISTER_VALUE, Step } from '@/lib/schemas/order-form-schema';
+import { createOrderFormSchema, type OrderFormValues, NO_CLAVADISTA_VALUE, ADMIN_SELF_REGISTER_VALUE, type Step } from '@/lib/schemas/order-form-schema';
 
 export function useOrderWizard() {
   const { toast } = useToast();
@@ -53,8 +53,11 @@ export function useOrderWizard() {
     );
   }, [debouncedSearchTerm, allAccounts]);
   
+  const formSchema = React.useMemo(() => createOrderFormSchema(availableMaterials, client?.id === 'new'), [availableMaterials, client]);
+  
   const form = useForm<OrderFormValues>({
-    resolver: zodResolver(orderFormSchema),
+    resolver: zodResolver(formSchema),
+    mode: "onBlur", // Validate on blur to avoid too aggressive error messages
     defaultValues: {
       outcome: undefined,
       clavadistaId: userRole === 'Clavadista' && teamMember ? teamMember.id : NO_CLAVADISTA_VALUE,
@@ -116,12 +119,14 @@ export function useOrderWizard() {
       form.setValue('direccionEntrega_postalCode', df_postalCode);
       form.setValue('direccionEntrega_country', df_country);
     } else {
-      form.setValue('direccionEntrega_street', '');
-      form.setValue('direccionEntrega_number', '');
-      form.setValue('direccionEntrega_city', '');
-      form.setValue('direccionEntrega_province', '');
-      form.setValue('direccionEntrega_postalCode', '');
-      form.setValue('direccionEntrega_country', 'España');
+      if (form.getValues('sameAsBilling') === false) { // Only clear if it was explicitly unchecked
+        form.setValue('direccionEntrega_street', '');
+        form.setValue('direccionEntrega_number', '');
+        form.setValue('direccionEntrega_city', '');
+        form.setValue('direccionEntrega_province', '');
+        form.setValue('direccionEntrega_postalCode', '');
+        form.setValue('direccionEntrega_country', 'España');
+      }
     }
   }, [watchSameAsBilling, df_street, df_number, df_city, df_province, df_postalCode, df_country, form]);
 
@@ -157,7 +162,7 @@ export function useOrderWizard() {
       }
     }
     loadData();
-  }, [searchParams, toast]);
+  }, [searchParams.get('originatingTaskId')]);
 
   const handleClientSelect = (selectedClient: Account | { id: 'new'; name: string }) => {
     setClient(selectedClient);
@@ -189,8 +194,9 @@ export function useOrderWizard() {
     if (step === 'details') {
       const outcome = form.getValues('outcome');
       if (outcome === 'successful') fieldsToValidate = ['numberOfUnits', 'unitPrice', 'paymentMethod', 'iban'];
-      else if (outcome === 'follow-up') fieldsToValidate = ['nextActionType', 'nextActionCustom', 'nextActionDate'];
+      else if (outcome === 'follow-up') fieldsToValidate = ['nextActionType', 'nextActionCustom', 'nextActionDate', 'selectedSalesRepId', 'clavadistaSelectedSalesRepId'];
       else if (outcome === 'failed') fieldsToValidate = ['failureReasonType', 'failureReasonCustom'];
+      fieldsToValidate.push('assignedMaterials');
     }
     
     if (step === 'new_client_data') {
@@ -209,19 +215,12 @@ export function useOrderWizard() {
       } else {
         setStep('verify');
       }
-    } else if (step === 'new_client_data' || step === "outcome") {
-      setStep('details');
+    } else if (step === 'new_client_data') {
+      setStep('verify');
     }
   };
   
   const onSubmit = async (values: OrderFormValues) => {
-    const isFormValidOnSubmit = await form.trigger();
-    if (!isFormValidOnSubmit) {
-      toast({ title: "Faltan campos obligatorios", description: "Por favor, revisa el formulario en el paso final.", variant: "destructive" });
-      setStep('verify');
-      return;
-    }
-    
     setIsSubmitting(true);
     if (!teamMember) {
         toast({ title: "Error", description: "No se pudo identificar al usuario.", variant: "destructive" });
@@ -260,12 +259,13 @@ export function useOrderWizard() {
                   addressBilling: { street: values.direccionFiscal_street, number: values.direccionFiscal_number, city: values.direccionFiscal_city, province: values.direccionFiscal_province, postalCode: values.direccionFiscal_postalCode, country: values.direccionFiscal_country },
                   addressShipping: { street: values.direccionEntrega_street, number: values.direccionEntrega_number, city: values.direccionEntrega_city, province: values.direccionEntrega_province, postalCode: values.direccionEntrega_postalCode, country: values.direccionEntrega_country },
                   mainContactName: values.contactoNombre, mainContactEmail: values.contactoCorreo, mainContactPhone: values.contactoTelefono, notes: values.observacionesAlta, salesRepId: salesRepIdForAccount, iban: values.iban,
+                  createdAt: new Date(), updatedAt: new Date(),
                 };
                 transaction.set(newAccountRef, newAccountData);
             } else if (client?.id !== 'new' && values.iban && client?.id) {
                 const existingAccount = allAccounts.find(a => a.id === client.id);
                 if (existingAccount && !existingAccount.iban) {
-                    transaction.update(doc(db, "accounts", client.id), { iban: values.iban });
+                    transaction.update(doc(db, "accounts", client.id), { iban: values.iban, updatedAt: new Date() });
                 }
             }
 
@@ -276,6 +276,7 @@ export function useOrderWizard() {
                 clientName: client!.name, visitDate: new Date(), clavadistaId: values.clavadistaId, canalOrigenColocacion: values.canalOrigenColocacion,
                 assignedMaterials: values.assignedMaterials || [], notes: values.notes, clientStatus: client!.id === 'new' ? 'new' : 'existing',
                 salesRep: salesRepNameForOrder, accountId: currentAccountId, iban: values.iban, originatingTaskId: originatingTask?.id,
+                createdAt: new Date(),
             };
 
             if (values.outcome === "successful") {
@@ -308,7 +309,7 @@ export function useOrderWizard() {
   };
 
   return {
-    form, step, setStep, client, handleClientSelect, searchTerm, setSearchTerm, filteredAccounts, handleBack,
+    form, step, setStep, client, handleClientSelect, searchTerm, setSearchTerm, filteredAccounts, debouncedSearchTerm, handleBack,
     handleNextStep, onSubmit, isLoading, isSubmitting, clavadistas, salesRepsList, availableMaterials,
     materialFields, appendMaterial, removeMaterial, userRole, teamMember
   };

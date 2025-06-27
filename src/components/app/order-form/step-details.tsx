@@ -45,6 +45,26 @@ export const StepDetails: React.FC<StepDetailsProps> = ({
   const paymentMethodWatched = useWatch({ control: form.control, name: 'paymentMethod' });
   const nextActionTypeWatched = useWatch({ control: form.control, name: 'nextActionType' });
   const failureReasonTypeWatched = useWatch({ control: form.control, name: 'failureReasonType' });
+  const watchedMaterials = useWatch({ control: form.control, name: 'assignedMaterials' });
+
+  // Imperative validation for stock, as it depends on external data
+  React.useEffect(() => {
+    if (watchedMaterials) {
+        watchedMaterials.forEach((item, index) => {
+            if (!item.quantity || !item.materialId) return;
+
+            const material = availableMaterials.find(m => m.id === item.materialId);
+            if (material && material.stock < item.quantity) {
+                form.setError(`assignedMaterials.${index}.quantity`, {
+                    type: 'manual',
+                    message: `Stock: ${material.stock}. Pides: ${item.quantity}.`
+                });
+            } else {
+                form.clearErrors(`assignedMaterials.${index}.quantity`);
+            }
+        });
+    }
+  }, [watchedMaterials, availableMaterials, form]);
 
   const salesRepFieldName = userRole === 'Admin' ? 'selectedSalesRepId' : 'clavadistaSelectedSalesRepId';
   const showSalesRepSelect = (userRole === 'Admin' || userRole === 'Clavadista') && outcomeWatched === 'follow-up';
@@ -57,7 +77,7 @@ export const StepDetails: React.FC<StepDetailsProps> = ({
       <CardContent className="space-y-6">
           {outcomeWatched === 'successful' && (
               <div className="space-y-4">
-                  <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades</FormLabel><FormControl><Input type="number" min={1} placeholder="Ej: 12" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)}/>
+                  <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades</FormLabel><FormControl><Input type="number" min={1} step={1} placeholder="Ej: 12" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)}/>
                   <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario (€ sin IVA)</FormLabel><FormControl><Input type="number" min={0.01} step={0.01} placeholder="Ej: 15.50" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage /></FormItem>)}/>
                   <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel>Forma de Pago</FormLabel><Select onValueChange={field.onChange} value={field.value ?? ""}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar forma de pago"/></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(m=>(<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
                    {paymentMethodWatched === 'Giro Bancario' && (
@@ -75,40 +95,40 @@ export const StepDetails: React.FC<StepDetailsProps> = ({
               <div className="space-y-4">
                   <FormField control={form.control} name="nextActionType" render={({ field }) => (<FormItem><FormLabel>Próxima Acción</FormLabel><Select onValueChange={field.onChange} value={field.value ?? ""} ><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar próxima acción..." /></SelectTrigger></FormControl><SelectContent>{nextActionTypeList.map((type) => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
                   {nextActionTypeWatched === 'Opción personalizada' && <FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Especificar Acción</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>}
-                   <FormField
+                  <FormField
                     control={form.control}
                     name="nextActionDate"
                     render={({ field }) => (
                       <FormItem className="flex flex-col">
                         <FormLabel>Fecha Próxima Acción (Opcional)</FormLabel>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button
-                                  type="button"
-                                  variant={"outline"}
-                                  className={cn(
-                                    "w-full justify-start text-left font-normal",
-                                    !field.value && "text-muted-foreground"
-                                  )}
-                                  aria-label="Abrir calendario para seleccionar fecha"
-                                >
-                                  <CalendarIcon className="mr-2 h-4 w-4" />
-                                  {field.value ? format(field.value, "PPP", { locale: es }) : "Seleccione fecha"}
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                              <Calendar
-                                mode="single"
-                                selected={field.value}
-                                onSelect={field.onChange}
-                                disabled={(date) => date < subDays(new Date(), 1) && !isEqual(date, subDays(new Date(),1))}
-                                initialFocus
-                                locale={es}
-                              />
-                            </PopoverContent>
-                          </Popover>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                type="button"
+                                variant={"outline"}
+                                className={cn(
+                                  "w-full justify-start text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                                aria-label="Abrir calendario para seleccionar fecha"
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {field.value ? format(field.value, "PPP", { locale: es }) : "Seleccione fecha"}
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={field.onChange}
+                              disabled={(date) => date < subDays(new Date(), 1) && !isEqual(date, subDays(new Date(),1))}
+                              initialFocus
+                              locale={es}
+                            />
+                          </PopoverContent>
+                        </Popover>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -154,7 +174,7 @@ export const StepDetails: React.FC<StepDetailsProps> = ({
             <FormDescription>Añade los materiales que se han entregado durante esta interacción (Opcional).</FormDescription>
             
             {materialFields.map((field, index) => (
-                <FormItem key={field.id} className="p-3 border rounded-md bg-muted/50">
+                <div key={field.id} className="p-3 border rounded-md bg-muted/50">
                   <div className="flex items-end gap-2">
                     <FormField
                       control={form.control}
@@ -186,6 +206,7 @@ export const StepDetails: React.FC<StepDetailsProps> = ({
                             <Input
                               type="number"
                               min={1}
+                              step={1}
                               placeholder="Cant."
                               className="w-24"
                               {...field}
@@ -199,7 +220,7 @@ export const StepDetails: React.FC<StepDetailsProps> = ({
                     />
                     <Button type="button" variant="destructive" size="icon" onClick={() => removeMaterial(index)}><Trash2 className="h-4 w-4" /></Button>
                   </div>
-                </FormItem>
+                </div>
             ))}
 
             <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => appendMaterial({ materialId: '', quantity: undefined })}>

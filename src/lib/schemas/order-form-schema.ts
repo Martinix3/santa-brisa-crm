@@ -1,7 +1,6 @@
 
 import * as z from "zod";
-import { accountTypeList, canalOrigenColocacionList, clientTypeList, failureReasonList, nextActionTypeList, paymentMethodList, provincesSpainList } from "@/lib/data";
-import type { PromotionalMaterial } from "@/types";
+import { canalOrigenColocacionList, paymentMethodList, nextActionTypeList, failureReasonList, clientTypeList } from "@/lib/data";
 
 export const NO_CLAVADISTA_VALUE = "##NONE##";
 export const ADMIN_SELF_REGISTER_VALUE = "##ADMIN_SELF##";
@@ -14,7 +13,9 @@ const assignedMaterialSchema = z.object({
 });
 
 // Base schema object with all fields
+// It now includes `isNewClient` to handle validation contextually within the schema itself.
 const baseOrderFormSchema = z.object({
+  isNewClient: z.boolean().default(false),
   outcome: z.enum(["successful", "failed", "follow-up"]).optional(),
   clavadistaId: z.string().optional(),
   selectedSalesRepId: z.string().optional(),
@@ -60,9 +61,8 @@ const baseOrderFormSchema = z.object({
 // Export the type inferred from the base schema
 export type OrderFormValues = z.infer<typeof baseOrderFormSchema>;
 
-// Export a factory function that adds contextual validations
-export const createOrderFormSchema = (availableMaterials: PromotionalMaterial[], isNewClient: boolean) => {
-  return baseOrderFormSchema.superRefine((data, ctx) => {
+// A single, static schema that uses the form's data to apply conditional validation.
+export const orderFormSchema = baseOrderFormSchema.superRefine((data, ctx) => {
     // Validations for 'successful' outcome
     if (data.outcome === 'successful') {
       if (!data.numberOfUnits || data.numberOfUnits <= 0) { ctx.addIssue({ path: ["numberOfUnits"], message: 'Unidades son obligatorias' }); }
@@ -73,8 +73,8 @@ export const createOrderFormSchema = (availableMaterials: PromotionalMaterial[],
       }
     }
     
-    // Validations for 'new' client on 'successful' outcome
-    if (data.outcome === 'successful' && isNewClient) {
+    // Validations for 'new' client on 'successful' outcome, now using the `isNewClient` form field.
+    if (data.outcome === 'successful' && data.isNewClient) {
         if (!data.nombreFiscal?.trim()) ctx.addIssue({ path: ["nombreFiscal"], message: "Nombre fiscal es obligatorio." });
         if (!data.cif?.trim()) ctx.addIssue({ path: ["cif"], message: "CIF es obligatorio." });
         if (!data.direccionFiscal_street?.trim()) ctx.addIssue({ path: ["direccionFiscal_street"], message: "Calle es obligatoria." });
@@ -100,20 +100,5 @@ export const createOrderFormSchema = (availableMaterials: PromotionalMaterial[],
          ctx.addIssue({ path: ["failureReasonCustom"], message: "Debe especificar el motivo del fallo." });
       }
     }
-
-    // Stock validation
-    if (data.assignedMaterials) {
-        data.assignedMaterials.forEach((item, index) => {
-            if (!item.quantity) return; // Skip if quantity is not set
-            const material = availableMaterials.find(m => m.id === item.materialId);
-            if (material && material.stock < item.quantity) {
-                ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    message: `Stock: ${material.stock}. Pides: ${item.quantity}.`,
-                    path: [`assignedMaterials`, index, 'quantity'],
-                });
-            }
-        });
-    }
   });
-};
+

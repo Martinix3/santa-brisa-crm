@@ -13,7 +13,7 @@ import { runTransaction } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { collection, doc } from "firebase/firestore";
 import type { Account, Order, PromotionalMaterial, TeamMember, UserRole } from "@/types";
-import { createOrderFormSchema, type OrderFormValues, NO_CLAVADISTA_VALUE, ADMIN_SELF_REGISTER_VALUE, type Step } from '@/lib/schemas/order-form-schema';
+import { orderFormSchema, type OrderFormValues, NO_CLAVADISTA_VALUE, ADMIN_SELF_REGISTER_VALUE, type Step } from '@/lib/schemas/order-form-schema';
 
 export function useOrderWizard() {
   const { toast } = useToast();
@@ -53,12 +53,11 @@ export function useOrderWizard() {
     );
   }, [debouncedSearchTerm, allAccounts]);
   
-  const formSchema = React.useMemo(() => createOrderFormSchema(availableMaterials, client?.id === 'new'), [availableMaterials, client]);
-  
   const form = useForm<OrderFormValues>({
-    resolver: zodResolver(formSchema),
-    mode: "onBlur", // Validate on blur to avoid too aggressive error messages
+    resolver: zodResolver(orderFormSchema), // Use the static schema
+    mode: "onBlur",
     defaultValues: {
+      isNewClient: false,
       outcome: undefined,
       clavadistaId: userRole === 'Clavadista' && teamMember ? teamMember.id : NO_CLAVADISTA_VALUE,
       selectedSalesRepId: "",
@@ -166,6 +165,7 @@ export function useOrderWizard() {
 
   const handleClientSelect = (selectedClient: Account | { id: 'new'; name: string }) => {
     setClient(selectedClient);
+    form.setValue('isNewClient', selectedClient.id === 'new');
     if(selectedClient.id === 'new') {
         form.setValue("clientType", "HORECA");
     } else {

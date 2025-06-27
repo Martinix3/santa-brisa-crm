@@ -25,7 +25,7 @@ import { getOrderByIdFS, addOrderFS, updateOrderFS } from "@/services/order-serv
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
 import { extractClientData } from "@/ai/flows/client-data-extraction-flow";
-import { ArrowLeft, Check, ClipboardPaste, Edit, FileText, Loader2, Package, PlusCircle, Search, Send, Trash2, UploadCloud, Users, Zap, Award, CreditCard, User, Building, Info, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Check, ClipboardPaste, Edit, FileText, Loader2, Package, PlusCircle, Search, Send, Sparkles, Trash2, UploadCloud, Users, Zap, Award, CreditCard, User, Building, Info, AlertTriangle } from "lucide-react";
 import { format, isValid, parseISO } from "date-fns";
 
 const SINGLE_PRODUCT_NAME = "Santa Brisa 750ml";

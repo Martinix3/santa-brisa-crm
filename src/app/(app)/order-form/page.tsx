@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -26,8 +27,7 @@ import { getTeamMembersFS } from "@/services/team-member-service";
 import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
 import { ArrowLeft, Building, CreditCard, Edit, FileText, Loader2, Package, PlusCircle, Search, Send, Trash2, Calendar as CalendarIcon, Sparkles } from "lucide-react";
 import { format, parseISO, isBefore, startOfDay, subDays, isEqual } from "date-fns";
-import { es } from 'date-fns/locale';
-import { Label } from "@/components/ui/label";
+import { es } from "date-fns/locale";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -490,7 +490,7 @@ export default function OrderFormWizardPage() {
                         <div className="space-y-4">
                             <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades</FormLabel><FormControl><Input type="number" placeholder="Ej: 12" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)}/>
                             <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Ej: 15.50" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage /></FormItem>)}/>
-                            <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel>Forma de Pago</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar forma de pago"/></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(m=>(<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
+                            <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel>Forma de Pago</FormLabel><Select onValueChange={field.onChange} value={field.value ?? ""}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar forma de pago"/></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(m=>(<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
                              {paymentMethodWatched === 'Giro Bancario' && (
                                 <FormField control={form.control} name="iban" render={({ field }) => (
                                     <FormItem>
@@ -529,7 +529,7 @@ export default function OrderFormWizardPage() {
                                 )}
                             />
                             {form.watch('nextActionType') === 'Opción personalizada' && <FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Especificar Acción</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>}
-                            <FormField control={form.control} name="nextActionDate" render={({ field }) => ( <FormItem className="flex flex-col"> <FormLabel>Fecha Próxima Acción (Opcional)</FormLabel> <Popover> <PopoverTrigger asChild> <FormControl> <Button type="button" variant={"outline"} className={cn( "w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground" )} > {field.value ? ( format(field.value, "PPP", { locale: es }) ) : ( <span>Seleccione fecha</span> )} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" /> </Button> </FormControl> </PopoverTrigger> <PopoverContent className="w-auto p-0" align="start"> <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus locale={es} /> </PopoverContent> </Popover> <FormMessage /> </FormItem> )}/>
+                            <FormField control={form.control} name="nextActionDate" render={({ field }) => ( <FormItem className="flex flex-col"> <FormLabel>Fecha Próxima Acción (Opcional)</FormLabel> <Popover> <PopoverTrigger asChild> <FormControl> <Button type="button" variant={"outline"} className={cn( "w-full justify-between pl-3 text-left font-normal", !field.value && "text-muted-foreground" )} > <span>{field.value ? ( format(field.value, "PPP", { locale: es }) ) : ( "Seleccione fecha" )}</span> <CalendarIcon className="ml-auto h-4 w-4 opacity-50" /> </Button> </FormControl> </PopoverTrigger> <PopoverContent className="w-auto p-0" align="start"> <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus locale={es} /> </PopoverContent> </Popover> <FormMessage /> </FormItem> )}/>
                              {(userRole === 'Admin') && (
                                 <FormField control={form.control} name="selectedSalesRepId" render={({ field }) => ( <FormItem> <FormLabel>Asignar Seguimiento a:</FormLabel> <Select onValueChange={field.onChange} value={field.value ?? ""}> <FormControl> <SelectTrigger> <SelectValue placeholder="Seleccionar comercial..." /> </SelectTrigger> </FormControl> <SelectContent> <SelectItem value={ADMIN_SELF_REGISTER_VALUE}> Yo mismo/a (Admin) </SelectItem> {salesRepsList.map((rep) => ( <SelectItem key={rep.id} value={rep.id}> {rep.name} </SelectItem> ))} </SelectContent> </Select> <FormMessage /> </FormItem> )} />
                             )}
@@ -595,7 +595,7 @@ export default function OrderFormWizardPage() {
                         
                         <Separator/><h3 className="font-semibold text-base mt-2">Datos de Entrega</h3>
                         <FormField control={form.control} name="sameAsBilling" render={({ field }) => (
-                            <FormItem className="flex flex-row items-center space-x-2 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><Label className="font-normal">La dirección de entrega es la misma que la de facturación</Label></FormItem>
+                            <FormItem className="flex flex-row items-center space-x-2 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="font-normal">La dirección de entrega es la misma que la de facturación</FormLabel></FormItem>
                         )} />
 
                         {!watchSameAsBilling && (
@@ -691,3 +691,4 @@ export default function OrderFormWizardPage() {
     </Form>
   );
 }
+

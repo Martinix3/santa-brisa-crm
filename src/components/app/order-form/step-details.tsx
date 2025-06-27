@@ -9,12 +9,12 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, ArrowRight, Trash2, PlusCircle, Calendar as CalendarIcon } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Trash2, PlusCircle, Calendar as CalendarIcon, Award } from 'lucide-react';
 import { format, subDays, isEqual } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { paymentMethodList, nextActionTypeList, failureReasonList } from '@/lib/data';
-import { ADMIN_SELF_REGISTER_VALUE } from '@/lib/schemas/order-form-schema';
+import { paymentMethodList, nextActionTypeList, failureReasonList, canalOrigenColocacionList } from '@/lib/data';
+import { ADMIN_SELF_REGISTER_VALUE, NO_CLAVADISTA_VALUE } from '@/lib/schemas/order-form-schema';
 import type { OrderFormValues } from '@/lib/schemas/order-form-schema';
 import type { PromotionalMaterial, TeamMember, UserRole } from '@/types';
 
@@ -28,6 +28,7 @@ interface StepDetailsProps {
     removeMaterial: (index: number) => void;
     userRole: UserRole | null;
     salesRepsList: TeamMember[];
+    clavadistas: TeamMember[];
 }
 
 export const StepDetails: React.FC<StepDetailsProps> = ({ 
@@ -39,7 +40,8 @@ export const StepDetails: React.FC<StepDetailsProps> = ({
     appendMaterial, 
     removeMaterial, 
     userRole, 
-    salesRepsList 
+    salesRepsList,
+    clavadistas
 }) => {
   const outcomeWatched = useWatch({ control: form.control, name: 'outcome' });
   const paymentMethodWatched = useWatch({ control: form.control, name: 'paymentMethod' });
@@ -169,6 +171,59 @@ export const StepDetails: React.FC<StepDetailsProps> = ({
           
           <Separator className="!mt-8" />
           
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                  control={form.control}
+                  name="canalOrigenColocacion"
+                  render={({ field }) => (
+                  <FormItem>
+                      <FormLabel>Canal Origen Colocación</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                      <FormControl>
+                          <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar canal de origen" />
+                          </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                          {canalOrigenColocacionList.map((canal) => (
+                          <SelectItem key={canal} value={canal}>
+                              {canal}
+                          </SelectItem>
+                          ))}
+                      </SelectContent>
+                      </Select>
+                      <FormMessage />
+                  </FormItem>
+                  )}
+              />
+              <FormField
+                control={form.control}
+                name="clavadistaId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center"><Award className="mr-2 h-4 w-4 text-primary" />Clavadista (Brand Ambassador)</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value ?? NO_CLAVADISTA_VALUE} disabled={userRole === 'Clavadista'}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar clavadista..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={NO_CLAVADISTA_VALUE}>Ninguno</SelectItem>
+                        {clavadistas.map((clava: TeamMember) => (
+                          <SelectItem key={clava.id} value={clava.id}>{clava.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      Si un Brand Ambassador participó en la visita, selecciónalo aquí.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+          </div>
+
           <FormField
               control={form.control}
               name="notes"

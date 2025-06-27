@@ -156,7 +156,7 @@ export default function OrdersDashboardPage() {
         products: canEditFullOrderDetails && updatedData.products ? updatedData.products.split(/[,;\n]+/).map(p => p.trim()).filter(p => p.length > 0) : orderToUpdate.products,
         value: canEditFullOrderDetails && updatedData.value !== undefined ? updatedData.value : orderToUpdate.value,
         salesRep: canEditFullOrderDetails ? updatedData.salesRep : orderToUpdate.salesRep,
-        clavadistaId: canEditFullOrderDetails ? updatedData.clavadistaId : orderToUpdate.clavadistaId,
+        clavadistaId: canEditFullOrderDetails ? (updatedData.clavadistaId === '##NONE##' ? null : updatedData.clavadistaId) : orderToUpdate.clavadistaId,
         paymentMethod: canEditFullOrderDetails ? updatedData.paymentMethod : orderToUpdate.paymentMethod,
         invoiceUrl: canEditFullOrderDetails ? updatedData.invoiceUrl : orderToUpdate.invoiceUrl,
         invoiceFileName: canEditFullOrderDetails ? updatedData.invoiceFileName : orderToUpdate.invoiceFileName,

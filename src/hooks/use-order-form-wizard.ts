@@ -12,8 +12,9 @@ import { getPromotionalMaterialsFS, updateMaterialStockFS } from "@/services/pro
 import { runTransaction } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { collection, doc } from "firebase/firestore";
-import type { Account, Order, PromotionalMaterial, TeamMember, UserRole } from "@/types";
+import type { Account, Order, PromotionalMaterial, TeamMember, UserRole, OrderStatus, ClientType, PaymentMethod, NextActionType, FailureReasonType } from "@/types";
 import { orderFormSchema, type OrderFormValues, NO_CLAVADISTA_VALUE, ADMIN_SELF_REGISTER_VALUE, type Step } from '@/lib/schemas/order-form-schema';
+import { format } from "date-fns";
 
 export function useOrderWizard() {
   const { toast } = useToast();
@@ -242,7 +243,6 @@ export function useOrderWizard() {
                     salesRepNameForOrder = selectedRepByClavadista.name;
                     salesRepIdForAccount = selectedRepByClavadista.id;
                 } else {
-                    // This case should be caught by Zod validation now
                     throw new Error("Comercial asignado no válido.");
                 }
             }
@@ -252,13 +252,13 @@ export function useOrderWizard() {
                 const newAccountRef = doc(collection(db, "accounts"));
                 currentAccountId = newAccountRef.id;
                 const newAccountData = {
-                  id: currentAccountId, name: client.name, legalName: values.nombreFiscal, cif: values.cif || "", type: values.clientType || 'Otro', status: 'Activo',
+                  id: currentAccountId, name: client.name, legalName: values.nombreFiscal, cif: values.cif || "", type: values.clientType || 'Otro', status: 'Activo' as AccountStatus,
                   addressBilling: { street: values.direccionFiscal_street, number: values.direccionFiscal_number, city: values.direccionFiscal_city, province: values.direccionFiscal_province, postalCode: values.direccionFiscal_postalCode, country: values.direccionFiscal_country },
                   addressShipping: { street: values.direccionEntrega_street, number: values.direccionEntrega_number, city: values.direccionEntrega_city, province: values.direccionEntrega_province, postalCode: values.direccionEntrega_postalCode, country: values.direccionEntrega_country },
                   mainContactName: values.contactoNombre, mainContactEmail: values.contactoCorreo, mainContactPhone: values.contactoTelefono, notes: values.observacionesAlta, salesRepId: salesRepIdForAccount, iban: values.iban,
-                  createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+                  createdAt: new Date(), updatedAt: new Date(),
                 };
-                transaction.set(newAccountRef, newAccountData);
+                transaction.set(newAccountRef, newAccountData as any);
             } else if (client?.id !== 'new' && values.iban && client?.id) {
                 const existingAccount = allAccounts.find(a => a.id === client.id);
                 if (existingAccount && !existingAccount.iban) {
@@ -269,26 +269,69 @@ export function useOrderWizard() {
             const subtotal = (values.numberOfUnits || 0) * (values.unitPrice || 0);
             const ivaAmount = subtotal * 0.21;
             const newOrderRef = doc(collection(db, "orders"));
+            
             const orderData: any = {
-                clientName: client!.name, visitDate: new Date(), clavadistaId: values.clavadistaId, canalOrigenColocacion: values.canalOrigenColocacion,
-                assignedMaterials: values.assignedMaterials || [], notes: values.notes, clientStatus: client!.id === 'new' ? 'new' : 'existing',
-                salesRep: salesRepNameForOrder, accountId: currentAccountId, iban: values.iban, originatingTaskId: originatingTask?.id,
+                clientName: client!.name,
+                accountId: currentAccountId,
+                visitDate: new Date(),
                 createdAt: new Date(),
+                lastUpdated: new Date(),
+                salesRep: salesRepNameForOrder,
+                clavadistaId: values.clavadistaId === NO_CLAVADISTA_VALUE ? undefined : values.clavadistaId,
+                clientStatus: (client!.id === 'new' ? 'new' : 'existing'),
+                status: 'Pendiente', // Default status
+                originatingTaskId: originatingTask?.id,
+                
+                products: undefined, value: undefined, clientType: undefined, paymentMethod: undefined, iban: undefined, numberOfUnits: undefined, unitPrice: undefined,
+                nextActionType: undefined, nextActionCustom: undefined, nextActionDate: undefined,
+                failureReasonType: undefined, failureReasonCustom: undefined,
+                
+                canalOrigenColocacion: values.canalOrigenColocacion,
+                assignedMaterials: values.assignedMaterials || [],
+                notes: values.notes,
+
+                invoiceUrl: undefined,
+                invoiceFileName: undefined,
             };
 
+            // Populate based on outcome
             if (values.outcome === "successful") {
-                orderData.status = 'Confirmado'; orderData.products = ["Santa Brisa 750ml"]; orderData.numberOfUnits = values.numberOfUnits; orderData.unitPrice = values.unitPrice;
-                orderData.value = subtotal + ivaAmount; orderData.clientType = values.clientType; orderData.paymentMethod = values.paymentMethod;
+                orderData.status = 'Confirmado';
+                orderData.products = ["Santa Brisa 750ml"];
+                orderData.numberOfUnits = values.numberOfUnits;
+                orderData.unitPrice = values.unitPrice;
+                orderData.value = subtotal + ivaAmount;
+                orderData.clientType = values.clientType;
+                orderData.paymentMethod = values.paymentMethod;
+                orderData.iban = values.iban;
             } else if (values.outcome === 'follow-up') {
-                orderData.status = 'Seguimiento'; orderData.nextActionType = values.nextActionType; orderData.nextActionCustom = values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : undefined;
-                orderData.nextActionDate = values.nextActionDate;
+                orderData.status = 'Seguimiento';
+                orderData.nextActionType = values.nextActionType;
+                orderData.nextActionCustom = values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : undefined;
+                orderData.nextActionDate = values.nextActionDate ? format(values.nextActionDate, 'yyyy-MM-dd') : undefined;
             } else if (values.outcome === 'failed') {
-                orderData.status = 'Fallido'; orderData.failureReasonType = values.failureReasonType; orderData.failureReasonCustom = values.failureReasonType === 'Otro (especificar)' ? values.failureReasonCustom : undefined;
+                orderData.status = 'Fallido';
+                orderData.failureReasonType = values.failureReasonType;
+                orderData.failureReasonCustom = values.failureReasonType === 'Otro (especificar)' ? values.failureReasonCustom : undefined;
             }
+            
             transaction.set(newOrderRef, orderData);
             
             if (originatingTask) {
-               transaction.update(doc(db, "orders", originatingTask.id), { status: "Completado" });
+               transaction.update(doc(db, "orders", originatingTask.id), { status: "Completado" as OrderStatus, lastUpdated: new Date() });
+            }
+
+             if (values.assignedMaterials && values.assignedMaterials.length > 0) {
+                for (const item of values.assignedMaterials) {
+                    if (item.materialId && item.quantity) {
+                        const materialRef = doc(db, 'promotionalMaterials', item.materialId);
+                        const materialDoc = await transaction.get(materialRef);
+                        if(materialDoc.exists()) {
+                            const currentStock = materialDoc.data().stock || 0;
+                            transaction.update(materialRef, { stock: currentStock - item.quantity });
+                        }
+                    }
+                }
             }
         });
 

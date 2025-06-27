@@ -15,8 +15,8 @@ const directSaleItemSchema = z.object({
 });
 
 export const directSaleWizardSchema = z.object({
-  customerId: z.string().min(1, "Debe seleccionar un cliente."),
-  customerName: z.string(),
+  customerId: z.string().optional(),
+  customerName: z.string().min(1, "El nombre del cliente es obligatorio."),
   channel: z.enum(directSaleChannelList as [DirectSaleChannel, ...DirectSaleChannel[]], { required_error: "El canal de venta es obligatorio." }),
   items: z.array(directSaleItemSchema).min(1, "Debe añadir al menos un producto a la venta."),
   issueDate: z.date({ required_error: "La fecha de emisión es obligatoria." }),

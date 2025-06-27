@@ -25,7 +25,7 @@ export const StepVerify: React.FC<StepVerifyProps> = ({ form, client, handleBack
           <Card>
               <CardHeader><CardTitle className="text-lg">Resumen de la Venta</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
-                  <p><strong>Cliente:</strong> {client?.name}</p>
+                  <p><strong>Cliente:</strong> {client?.name} {client?.id === 'new' && <span className="text-primary font-bold">(Nuevo)</span>}</p>
                   <p><strong>Canal de Venta:</strong> <span className="font-semibold">{formValues.channel || 'N/D'}</span></p>
                   <p><strong>Fecha de Emisión:</strong> <span className="font-semibold">{formValues.issueDate ? formValues.issueDate.toLocaleDateString('es-ES') : 'N/D'}</span></p>
                   <p><strong>Estado:</strong> <span className="font-semibold">{formValues.status}</span></p>

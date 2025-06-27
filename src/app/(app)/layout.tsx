@@ -608,23 +608,11 @@ function AppNavigation({ navStructure, userRole, teamMember }: AppNavigationProp
                   if (item.exact) {
                     isActive = pathname === item.href;
                   } else {
-                    if (item.href === '/dashboard') {
-                        isActive = pathname === item.href;
-                    } else if (item.href === '/admin/settings') {
-                        isActive = pathname === item.href || (pathname.startsWith('/admin/') && !pathname.startsWith('/admin/user-management') && !pathname.startsWith('/admin/objectives-management') && !pathname.startsWith('/admin/kpi-launch-targets') && !pathname.startsWith('/admin/promotional-materials') && !pathname.startsWith('/admin/sample-management') );
-                    } else if (item.href === '/direct-sales-sb') {
-                        isActive = pathname.startsWith(item.href);
-                    } else if (item.href === '/purchases') {
-                        isActive = pathname === item.href;
-                    } else {
-                        isActive = pathname.startsWith(item.href) && item.href !== '/dashboard';
-                    }
-                     if (pathname.startsWith('/admin/') && group.id === 'configuracion') {
-                        if (item.href.startsWith('/admin/')) {
-                            isActive = pathname.startsWith(item.href);
-                        }
-                        if (item.href === '/admin/settings' && pathname.startsWith('/admin/')) isActive = true;
-                     }
+                    isActive = pathname.startsWith(item.href) && item.href !== '/dashboard';
+                  }
+
+                  if (item.href === '/dashboard' && pathname === item.href) {
+                     isActive = true;
                   }
                   
                   return (

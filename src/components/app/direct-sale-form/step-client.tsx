@@ -16,7 +16,7 @@ export const StepClient: React.FC<StepClientProps> = ({ searchTerm, setSearchTer
   <>
     <CardHeader>
       <CardTitle>Paso 1: ¿Para qué cliente es la venta?</CardTitle>
-      <CardDescription>Busca un cliente existente de tipo Importador, Distribuidor o similar.</CardDescription>
+      <CardDescription>Busca un cliente existente de tipo Importador, Distribuidor o similar, o crea uno nuevo.</CardDescription>
     </CardHeader>
     <CardContent className="space-y-4">
       <div className="relative">
@@ -30,7 +30,10 @@ export const StepClient: React.FC<StepClientProps> = ({ searchTerm, setSearchTer
       )}
       {debouncedSearchTerm && filteredAccounts.length === 0 && (
         <div className="text-center p-4 border-dashed border-2 rounded-md">
-          <p className="text-sm text-muted-foreground">No se encontró al cliente. Las ventas directas solo pueden asociarse a cuentas existentes de tipo relevante.</p>
+          <p className="text-sm text-muted-foreground">No se encontró al cliente "{debouncedSearchTerm}".</p>
+          <Button type="button" className="mt-2" onClick={() => handleClientSelect({ id: 'new', name: debouncedSearchTerm })}>
+            <PlusCircle className="mr-2 h-4 w-4"/> Continuar como nuevo cliente
+          </Button>
         </div>
       )}
     </CardContent>

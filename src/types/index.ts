@@ -1,9 +1,4 @@
 
-
-
-
-
-
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
 
 export interface Kpi {
@@ -298,7 +293,7 @@ export type DirectSaleStatus = 'Borrador' | 'Confirmada' | 'Facturada' | 'Pagada
 export type DirectSaleChannel = 'Importador' | 'Online' | 'Estratégica' | 'Otro';
 
 export interface DirectSaleItem {
-  productId: string;
+  productId?: string | null;
   productName: string;
   quantity: number;
   netUnitPrice: number; 
@@ -322,6 +317,24 @@ export interface DirectSale {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface DirectSaleWizardFormValues {
+  customerId?: string;
+  customerName: string;
+  channel: DirectSaleChannel;
+  items: {
+    productId?: string;
+    productName: string;
+    quantity: number;
+    netUnitPrice?: number;
+  }[];
+  issueDate: Date;
+  dueDate?: Date;
+  invoiceNumber?: string;
+  status: DirectSaleStatus;
+  relatedPlacementOrders?: string;
+  notes?: string;
 }
 
 export interface Supplier {

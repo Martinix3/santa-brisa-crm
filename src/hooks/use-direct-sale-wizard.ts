@@ -2,14 +2,14 @@
 "use client";
 
 import * as React from "react";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { getAccountsFS } from "@/services/account-service";
 import { addDirectSaleFS } from "@/services/venta-directa-sb-service";
-import type { Account, AccountType, DirectSaleFormValues as DirectSaleFormValuesType, TeamMember } from "@/types";
+import type { Account, AccountType } from "@/types";
 import { directSaleWizardSchema, type DirectSaleWizardFormValues, type Step } from '@/lib/schemas/direct-sale-schema';
 
 const relevantAccountTypesForDirectSale: AccountType[] = ['Importador', 'Distribuidor', 'Cliente Final Directo', 'Evento Especial', 'Otro'];
@@ -17,10 +17,10 @@ const relevantAccountTypesForDirectSale: AccountType[] = ['Importador', 'Distrib
 export function useDirectSaleWizard() {
   const { toast } = useToast();
   const router = useRouter();
-  const { teamMember, userRole, refreshDataSignature } = useAuth();
+  const { teamMember, refreshDataSignature } = useAuth();
   
   const [step, setStep] = React.useState<Step>("client");
-  const [client, setClient] = React.useState<Account | null>(null);
+  const [client, setClient] = React.useState<Account | { id: 'new'; name: string } | null>(null);
   
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -60,11 +60,6 @@ export function useDirectSaleWizard() {
     },
   });
 
-  const { fields, append, remove } = useFieldArray({
-    control: form.control,
-    name: "items",
-  });
-
   const watchedItems = form.watch("items");
 
   const { subtotal, tax, totalAmount } = React.useMemo(() => {
@@ -93,10 +88,14 @@ export function useDirectSaleWizard() {
     loadData();
   }, [toast]);
 
-  const handleClientSelect = (selectedClient: Account) => {
+  const handleClientSelect = (selectedClient: Account | { id: 'new'; name: string }) => {
     setClient(selectedClient);
-    form.setValue('customerId', selectedClient.id);
     form.setValue('customerName', selectedClient.name);
+    if (selectedClient.id !== 'new') {
+      form.setValue('customerId', selectedClient.id);
+    } else {
+      form.setValue('customerId', undefined);
+    }
     setStep("details");
   };
 

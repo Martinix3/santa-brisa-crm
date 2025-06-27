@@ -165,7 +165,7 @@ export default function DirectSalesSbPage() {
                   {filteredSales.length > 0 ? filteredSales.map((sale) => (
                     <TableRow key={sale.id}>
                       <TableCell className="font-medium">{sale.customerName}</TableCell>
-                      <TableCell>{format(parseISO(sale.issueDate), "dd/MM/yy", { locale: es })}</TableCell>
+                      <TableCell>{sale.issueDate && isValid(parseISO(sale.issueDate)) ? format(parseISO(sale.issueDate), "dd/MM/yy", { locale: es }) : 'N/D'}</TableCell>
                       <TableCell>{sale.invoiceNumber || 'N/A'}</TableCell>
                       <TableCell className="text-right">
                         <FormattedNumericValue value={sale.totalAmount} options={{ style: 'currency', currency: 'EUR' }} />

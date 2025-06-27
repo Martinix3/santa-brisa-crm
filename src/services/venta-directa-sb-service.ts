@@ -6,7 +6,7 @@ import {
   collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
   type DocumentSnapshot,
 } from "firebase/firestore";
-import type { DirectSale, DirectSaleFormValues } from '@/types';
+import type { DirectSale, DirectSaleWizardFormValues as DirectSaleFormValues } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 
 const DIRECT_SALES_COLLECTION = 'directSales';
@@ -41,7 +41,7 @@ const toFirestoreDirectSale = (data: Partial<DirectSaleFormValues>, isNew: boole
   const totalAmount = subtotal + tax;
 
   const firestoreData: { [key: string]: any } = {
-      customerId: data.customerId,
+      customerId: data.customerId || null,
       customerName: data.customerName,
       channel: data.channel,
       items: data.items?.map(item => ({

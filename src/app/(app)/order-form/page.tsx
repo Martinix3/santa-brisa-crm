@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
@@ -23,7 +24,7 @@ import { getAccountByIdFS, addAccountFS, getAccountsFS } from "@/services/accoun
 import { getOrderByIdFS, addOrderFS, updateOrderFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
-import { extractClientData, type ClientDataExtractionOutput } from "@/ai/flows/client-data-extraction-flow";
+import { extractClientData } from "@/ai/flows/client-data-extraction-flow";
 import { ArrowLeft, Check, ClipboardPaste, Edit, FileText, Loader2, Package, PlusCircle, Search, Send, Trash2, UploadCloud, Users, Zap, Award, CreditCard, User, Building, Info, AlertTriangle } from "lucide-react";
 import { format, isValid, parseISO } from "date-fns";
 
@@ -162,7 +163,7 @@ export default function OrderFormWizardPage() {
           setFormValuesFromAi(result);
           setStep("verify");
       } catch (error: any) {
-          toast({ title: "Error de IA", description: `No se pudieron procesar los datos: ${error.message}`, variant: "destructive" });
+          toast({ title: "Error de IA", description: `No se pudieron procesar los datos: ${'message' in error ? error.message : 'Error desconocido'}`, variant: "destructive" });
       } finally {
           setIsAiProcessing(false);
       }
@@ -187,14 +188,14 @@ export default function OrderFormWizardPage() {
               setFormValuesFromAi(result);
               setStep("verify");
           } catch (error: any) {
-              toast({ title: "Error de IA", description: `No se pudieron procesar los datos de la imagen: ${error.message}`, variant: "destructive" });
+              toast({ title: "Error de IA", description: `No se pudieron procesar los datos de la imagen: ${'message' in error ? error.message : 'Error desconocido'}`, variant: "destructive" });
           } finally {
               setIsAiProcessing(false);
           }
       };
   };
 
-  const setFormValuesFromAi = (data: ClientDataExtractionOutput) => {
+  const setFormValuesFromAi = (data: { legalName?: string; cif?: string; addressBilling?: { street?: string; city?: string; postalCode?: string; province?: string; }; addressShipping?: { street?: string; city?: string; postalCode?: string; province?: string; }; mainContactName?: string; mainContactEmail?: string; mainContactPhone?: string; }) => {
     form.setValue("nombreFiscal", data.legalName || (client as any)?.name);
     form.setValue("cif", data.cif);
     
@@ -514,4 +515,3 @@ export default function OrderFormWizardPage() {
     </div>
   );
 }
-

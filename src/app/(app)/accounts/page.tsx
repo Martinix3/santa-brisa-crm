@@ -58,15 +58,36 @@ export default function AccountsPage() {
   }, [toast]);
   
   const ordersByAccountId = React.useMemo(() => {
-    return orders
-      .filter(order => order.status !== 'Programada' && order.status !== 'Seguimiento' && order.status !== 'Fallido')
-      .reduce((acc, order) => {
-        if (order.accountId) {
-          acc[order.accountId] = (acc[order.accountId] || 0) + 1;
+    // Create a map from lowercase client name to account ID for quick lookups.
+    const accountNameMap = new Map<string, string>();
+    accounts.forEach(account => {
+        // Handle cases where multiple accounts might have the same name, first one wins.
+        if (!accountNameMap.has(account.name.toLowerCase().trim())) {
+            accountNameMap.set(account.name.toLowerCase().trim(), account.id);
         }
-        return acc;
-    }, {} as Record<string, number>);
-  }, [orders]);
+    });
+
+    const counts: Record<string, number> = {};
+
+    // Filter for actual orders (not tasks) and iterate
+    orders
+      .filter(order => order.status !== 'Programada' && order.status !== 'Seguimiento' && order.status !== 'Fallido')
+      .forEach(order => {
+        let accountId = order.accountId;
+        
+        // If accountId is missing, try to find it by clientName as a fallback
+        if (!accountId) {
+          accountId = accountNameMap.get(order.clientName.toLowerCase().trim());
+        }
+
+        // If we found an associated account ID, increment its order count
+        if (accountId) {
+            counts[accountId] = (counts[accountId] || 0) + 1;
+        }
+      });
+      
+    return counts;
+  }, [orders, accounts]);
 
 
   const handleAddNewAccount = () => {

@@ -272,7 +272,7 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
             <div className="space-y-3">
               {fields.map((field, index) => (
                 <div key={field.id} className="flex items-end gap-2 p-3 border rounded-md bg-secondary/20">
-                  <div className="flex-grow space-y-1">
+                  <div className="flex-grow space-y-2">
                       <FormField control={form.control} name={`items.${index}.materialId`} render={({ field: selectField }) => (
                         <FormItem>
                             <FormLabel className="text-xs flex items-center gap-1">
@@ -294,20 +294,50 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
                             <FormMessage />
                         </FormItem>
                       )} />
-                      {watchedItems[index]?.description && !watchedItems[index]?.materialId && (
-                           <div className="p-2 bg-yellow-100 dark:bg-yellow-900/50 rounded-md border border-yellow-300 dark:border-yellow-700">
-                             <div className="flex items-center gap-2">
-                               <HelpCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400"/>
-                               <p className="text-xs text-yellow-800 dark:text-yellow-200">
-                                 Concepto factura: <strong className="font-mono">"{watchedItems[index].description}"</strong>
-                               </p>
-                             </div>
-                             {!isReadOnly && (
-                                <Button size="sm" variant="link" type="button" className="text-xs h-auto p-0 mt-1" onClick={() => handleCreateNewMaterial(index, watchedItems[index].description)}>
-                                    <PlusCircle className="mr-1 h-3 w-3"/>Crear este material en el sistema
-                                </Button>
-                             )}
-                           </div>
+                      
+                      <FormField
+                        control={form.control}
+                        name={`items.${index}.description`}
+                        render={({ field: descField }) => (
+                            <FormItem>
+                                <FormLabel className="text-xs text-muted-foreground">
+                                  {prefilledData ? 'Concepto de Factura (Editable)' : 'Descripción Manual'}
+                                </FormLabel>
+                                <FormControl>
+                                    <Textarea
+                                        {...descField}
+                                        placeholder="Descripción del artículo de la compra..."
+                                        className={cn(
+                                            "text-xs h-auto",
+                                            !watchedItems[index]?.materialId && watchedItems[index]?.description
+                                            ? "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-400 dark:border-yellow-700 focus:border-yellow-500"
+                                            : "bg-background"
+                                        )}
+                                        disabled={isReadOnly}
+                                        rows={2}
+                                    />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                      />
+
+                      {!watchedItems[index]?.materialId && watchedItems[index]?.description && (
+                         <div className="flex items-center gap-2 text-xs text-yellow-700 dark:text-yellow-300">
+                           <HelpCircle className="h-4 w-4" />
+                           <span>Asocia o crea un nuevo material.</span>
+                           {!isReadOnly && (
+                              <Button
+                                size="sm"
+                                variant="link"
+                                type="button"
+                                className="text-xs h-auto p-0"
+                                onClick={() => handleCreateNewMaterial(index, watchedItems[index].description || "")}
+                              >
+                                  <PlusCircle className="mr-1 h-3 w-3"/>Crear material desde esta descripción
+                              </Button>
+                           )}
+                         </div>
                       )}
                   </div>
                   <FormField control={form.control} name={`items.${index}.quantity`} render={({ field: quantityField }) => (

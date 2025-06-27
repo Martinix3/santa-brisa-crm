@@ -10,7 +10,9 @@ import { useDirectSaleWizard } from "@/hooks/use-direct-sale-wizard";
 
 // Step Components
 import { StepClient } from "@/components/app/direct-sale-form/step-client";
-import { StepDetails } from "@/components/app/direct-sale-form/step-details";
+import { StepCoreDetails } from "@/components/app/direct-sale-form/step-core-details";
+import { StepItems } from "@/components/app/direct-sale-form/step-items";
+import { StepOptionalInfo } from "@/components/app/direct-sale-form/step-optional-info";
 import { StepVerify } from "@/components/app/direct-sale-form/step-verify";
 
 export default function NewDirectSalePage() {
@@ -37,7 +39,19 @@ export default function NewDirectSalePage() {
       case "details":
         return (
           <motion.div key="details" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
-            <StepDetails {...wizard} />
+            <StepCoreDetails {...wizard} />
+          </motion.div>
+        );
+      case "items":
+        return (
+          <motion.div key="items" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
+            <StepItems {...wizard} />
+          </motion.div>
+        );
+      case "optional":
+        return (
+          <motion.div key="optional" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
+            <StepOptionalInfo {...wizard} />
           </motion.div>
         );
        case "verify":

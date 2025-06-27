@@ -100,21 +100,42 @@ export function useDirectSaleWizard() {
   };
 
   const handleBack = () => {
-    if (step === "details") setStep("client");
-    if (step === "verify") setStep("details");
+    switch(step) {
+        case "details": setStep("client"); break;
+        case "items": setStep("details"); break;
+        case "optional": setStep("items"); break;
+        case "verify": setStep("optional"); break;
+        default: setStep("client");
+    }
   };
 
   const handleNextStep = async () => {
     let fieldsToValidate: (keyof DirectSaleWizardFormValues)[] = [];
-    if (step === 'details') {
-      fieldsToValidate = ['channel', 'status', 'issueDate', 'items'];
-    }
     
+    switch(step) {
+        case "client":
+            // No validation needed to proceed from client selection, as it's not a form step
+            setStep("details");
+            return;
+        case "details":
+            fieldsToValidate = ['channel', 'issueDate'];
+            break;
+        case "items":
+            fieldsToValidate = ['items'];
+            break;
+        case "optional":
+            // No validation needed for optional step
+            break;
+    }
+
     const isValid = fieldsToValidate.length > 0 ? await form.trigger(fieldsToValidate) : true;
     if (!isValid) return;
 
-    if (step === 'details') {
-      setStep('verify');
+    // Navigate to the next step
+    switch(step) {
+        case "details": setStep("items"); break;
+        case "items": setStep("optional"); break;
+        case "optional": setStep("verify"); break;
     }
   };
   

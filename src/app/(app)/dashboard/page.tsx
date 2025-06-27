@@ -228,12 +228,12 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 gap-4">
           {userRole === 'Admin' ? (
             <>
-              <Button asChild variant="outline" className="h-20 text-base flex-col gap-1">
+              <Button asChild className="h-20 text-base flex-col gap-1 bg-accent text-accent-foreground hover:bg-accent/90">
                 <Link href="/direct-sales-sb/new">
                   <PlusCircle className="h-6 w-6 mb-1" /> Añadir Venta
                 </Link>
               </Button>
-              <Button asChild variant="outline" className="h-20 text-base flex-col gap-1">
+              <Button asChild className="h-20 text-base flex-col gap-1 bg-accent text-accent-foreground hover:bg-accent/90">
                 <Link href="/request-sample">
                   <SendHorizonal className="h-6 w-6 mb-1" /> Solicitar Muestras
                 </Link>
@@ -241,12 +241,12 @@ export default function DashboardPage() {
             </>
           ) : (
              <>
-              <Button asChild variant="outline" className="h-20 text-base flex-col gap-1">
+              <Button asChild className="h-20 text-base flex-col gap-1 bg-accent text-accent-foreground hover:bg-accent/90">
                 <Link href="/order-form">
                   <FileText className="h-6 w-6 mb-1" /> Registrar Interacción
                 </Link>
               </Button>
-              <Button asChild variant="outline" className="h-20 text-base flex-col gap-1">
+              <Button asChild className="h-20 text-base flex-col gap-1 bg-accent text-accent-foreground hover:bg-accent/90">
                 <Link href="/request-sample">
                   <SendHorizonal className="h-6 w-6 mb-1" /> Solicitar Muestras
                 </Link>

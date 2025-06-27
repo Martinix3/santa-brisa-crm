@@ -8,7 +8,7 @@ import { getOrdersFS } from "@/services/order-service";
 import { getAccountsFS } from "@/services/account-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { parseISO, isSameYear, isSameMonth, isValid } from 'date-fns';
-import { Loader2, PlusCircle, SendHorizonal, FileText, Target } from "lucide-react";
+import { Loader2, PlusCircle, SendHorizonal, FileText, Target, AlertTriangle } from "lucide-react";
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +26,7 @@ import { PieChart, Pie, Cell, Legend } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 
@@ -64,11 +65,6 @@ export default function DashboardPage() {
     const salesRepNamesSet = new Set(salesReps.map(m => m.name));
     const currentDate = new Date();
 
-    let totalBottlesSoldOverall = 0;
-    let teamBottlesSoldOverall = 0;
-    let ordersFromExistingCustomersCount = 0;
-    let totalValidOrdersCount = 0;
-
     const successfulOrders = orders
       .filter(o => VALID_SALE_STATUSES.includes(o.status) && (o.createdAt || o.visitDate))
       .map(o => ({
@@ -78,42 +74,40 @@ export default function DashboardPage() {
       .filter(o => isValid(o.relevantDate))
       .sort((a,b) => a.relevantDate.getTime() - b.relevantDate.getTime());
 
-    for (const order of successfulOrders) {
-      if (order.numberOfUnits) {
-        totalBottlesSoldOverall += order.numberOfUnits;
-        if (salesRepNamesSet.has(order.salesRep)) {
-          teamBottlesSoldOverall += order.numberOfUnits;
-        }
-      }
-      totalValidOrdersCount++;
-      if (order.clientStatus === 'existing') {
-        ordersFromExistingCustomersCount++;
-      }
-    }
+    const totalBottlesSoldOverall = successfulOrders.reduce((sum, o) => sum + (o.numberOfUnits || 0), 0);
+    const teamBottlesSoldOverall = successfulOrders.filter(o => salesRepNamesSet.has(o.salesRep)).reduce((sum, o) => sum + (o.numberOfUnits || 0), 0);
     
-    const salesRepIdSet = new Set(salesReps.map(m => m.id));
-    const accountsCreatedByTeamThisYear = new Set<string>();
-    const accountsCreatedByTeamThisMonth = new Set<string>();
+    // Correct way to count new accounts: based on first successful order
+    const uniqueAccountIdsWithSuccessfulOrders = new Set<string>();
+    const accountsWithFirstSuccessfulOrderDate = new Map<string, Date>();
 
-    for (const account of accounts) {
-        if (account.status === 'Activo' && account.salesRepId && salesRepIdSet.has(account.salesRepId) && account.createdAt && isValid(parseISO(account.createdAt))) {
-            const creationDate = parseISO(account.createdAt);
-            if (isSameYear(creationDate, currentDate)) {
-                accountsCreatedByTeamThisYear.add(account.id);
-            }
-            if (isSameMonth(creationDate, currentDate)) {
-                accountsCreatedByTeamThisMonth.add(account.id);
-            }
-        }
+    for(const order of successfulOrders) {
+      if(order.accountId && !accountsWithFirstSuccessfulOrderDate.has(order.accountId)) {
+        accountsWithFirstSuccessfulOrderDate.set(order.accountId, order.relevantDate);
+      }
     }
+
+    let newAccountsThisYear = 0;
+    let newAccountsThisMonth = 0;
+    accountsWithFirstSuccessfulOrderDate.forEach((date, accountId) => {
+        if(isSameYear(date, currentDate)) {
+            newAccountsThisYear++;
+        }
+        if(isSameMonth(date, currentDate)) {
+            newAccountsThisMonth++;
+        }
+    });
+
+    const totalValidOrdersCount = successfulOrders.length;
+    const ordersFromExistingCustomersCount = successfulOrders.filter(o => o.clientStatus === 'existing').length;
 
     const calculatedKpis = initialKpiDataLaunch.map(kpi => {
       let currentValue = 0;
       switch(kpi.id) {
         case 'kpi1': currentValue = totalBottlesSoldOverall; break;
         case 'kpi2': currentValue = teamBottlesSoldOverall; break;
-        case 'kpi3': currentValue = accountsCreatedByTeamThisYear.size; break;
-        case 'kpi4': currentValue = accountsCreatedByTeamThisMonth.size; break;
+        case 'kpi3': currentValue = newAccountsThisYear; break;
+        case 'kpi4': currentValue = newAccountsThisMonth; break;
         case 'kpi5':
           currentValue = totalValidOrdersCount > 0 
             ? Math.round((ordersFromExistingCustomersCount / totalValidOrdersCount) * 100) 
@@ -135,6 +129,7 @@ export default function DashboardPage() {
         isSameYear(parseISO(acc.createdAt), currentDate)
       );
       const monthlyAccounts = memberAccounts.length;
+      
       const monthlyVisits = orders.filter(o => 
         o.salesRep === teamMember.name && 
         isValid(parseISO(o.createdAt || o.visitDate)) && 
@@ -149,6 +144,14 @@ export default function DashboardPage() {
     } else if (userRole === 'Admin') {
        const teamMonthlyTargetAccounts = salesReps.reduce((sum, rep) => sum + (rep.monthlyTargetAccounts || 0), 0);
        const teamMonthlyTargetVisits = salesReps.reduce((sum, rep) => sum + (rep.monthlyTargetVisits || 0), 0);
+       
+       const teamMonthlyAccounts = accounts.filter(acc =>
+            acc.status === 'Activo' &&
+            acc.createdAt &&
+            isValid(parseISO(acc.createdAt)) &&
+            isSameMonth(parseISO(acc.createdAt), currentDate)
+       ).length;
+
        const teamMonthlyVisits = orders.filter(o => 
           salesRepNamesSet.has(o.salesRep) && 
           isValid(parseISO(o.createdAt || o.visitDate)) && 
@@ -157,7 +160,7 @@ export default function DashboardPage() {
         ).length;
 
       monthlyProgressMetrics = [
-        { title: "Cuentas Nuevas del Equipo", target: teamMonthlyTargetAccounts, current: accountsCreatedByTeamThisMonth.size, unit: 'cuentas', colorClass: "[&>div]:bg-[hsl(var(--brand-turquoise-hsl))]" },
+        { title: "Cuentas Nuevas del Equipo", target: teamMonthlyTargetAccounts, current: teamMonthlyAccounts, unit: 'cuentas', colorClass: "[&>div]:bg-[hsl(var(--brand-turquoise-hsl))]" },
         { title: "Visitas del Equipo", target: teamMonthlyTargetVisits, current: teamMonthlyVisits, unit: 'visitas', colorClass: "[&>div]:bg-[hsl(var(--brand-turquoise-hsl))]" },
       ];
     }
@@ -223,6 +226,16 @@ export default function DashboardPage() {
       <h1 className="text-3xl font-headline font-semibold">
         Hola, {teamMember?.name || "Santa Brisa"}
       </h1>
+
+      <Alert className="bg-amber-100 border-amber-300 text-amber-900 dark:bg-amber-950 dark:border-amber-800 dark:text-amber-100">
+        <AlertTriangle className="h-4 w-4 !text-amber-600 dark:!text-amber-400" />
+        <AlertTitle className="font-bold text-amber-900 dark:text-amber-200">¡Atención! Entorno de Pruebas con Datos Reales</AlertTitle>
+        <AlertDescription className="text-amber-800 dark:text-amber-300">
+          Este es un entorno de pruebas activo, pero toda la información que introduzcas (clientes, pedidos, interacciones) <strong>se está guardando en la base de datos real.</strong>
+          <br />
+          Tu feedback es crucial. Si encuentras algún fallo, tienes alguna duda o una sugerencia para mejorar la herramienta, por favor, <strong>comunícalo directamente al administrador.</strong> ¡Gracias por tu colaboración!
+        </AlertDescription>
+      </Alert>
       
       {showActionButtons && (
         <div className="grid grid-cols-2 gap-4">

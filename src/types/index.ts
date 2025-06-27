@@ -2,6 +2,7 @@
 
 
 
+
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
 
 export interface Kpi {
@@ -387,4 +388,19 @@ export interface AccountFormValues {
   notes?: string;
   internalNotes?: string;
   salesRepId?: string;
+}
+
+export type Step = "client" | "outcome" | "details" | "new_client_data" | "verify";
+export interface FollowUpResultFormValues {
+  outcome?: "successful" | "failed" | "follow-up";
+  paymentMethod?: PaymentMethod;
+  numberOfUnits?: number;
+  unitPrice?: number;
+  nextActionType?: NextActionType;
+  nextActionCustom?: string;
+  nextActionDate?: Date;
+  failureReasonType?: FailureReasonType;
+  failureReasonCustom?: string;
+  notes?: string;
+  assignedSalesRepId?: string;
 }

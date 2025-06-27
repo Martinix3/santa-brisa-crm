@@ -7,9 +7,9 @@ import {
   collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, setDoc,
   type DocumentSnapshot, runTransaction,
 } from "firebase/firestore";
-import type { Purchase, PurchaseFormValues, PromotionalMaterial } from '@/types';
+import type { Purchase, PurchaseFormValues, PromotionalMaterial, LatestPurchaseInfo } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
-import { updateMaterialStockFS } from './promotional-material-service';
+import { updateMaterialStockFS, processMaterialUpdateFromPurchase } from './promotional-material-service';
 
 const PURCHASES_COLLECTION = 'purchases';
 const SUPPLIERS_COLLECTION = 'suppliers';
@@ -175,13 +175,19 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
 
         const firestoreData = toFirestorePurchase(data, true, supplierId);
         
-        // Use the ref with the ID to set the data
         await setDoc(newDocRef, firestoreData);
 
         const completeStatuses = ['Completado', 'Factura Recibida', 'Pagado'];
         if (completeStatuses.includes(data.status)) {
             for (const item of data.items) {
-                await updateMaterialStockFS(item.materialId, item.quantity);
+                const purchaseInfo: LatestPurchaseInfo = {
+                    quantityPurchased: item.quantity,
+                    totalPurchaseCost: item.quantity * item.unitPrice,
+                    purchaseDate: format(data.orderDate, 'yyyy-MM-dd'),
+                    calculatedUnitCost: item.unitPrice,
+                    notes: `De compra ID: ${purchaseId}`
+                };
+                await processMaterialUpdateFromPurchase(item.materialId, item.quantity, purchaseInfo);
             }
         }
 
@@ -222,37 +228,44 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
     const wasComplete = completeStatuses.includes(oldData.status);
     const isNowComplete = completeStatuses.includes(data.status!);
 
-    // If status changed to complete, add new stock
-    if (!wasComplete && isNowComplete) {
-        for (const item of data.items || []) {
-            await updateMaterialStockFS(item.materialId, item.quantity);
-        }
-    }
-    // If status changed from complete, revert old stock
-    else if (wasComplete && !isNowComplete) {
-        for (const item of oldData.items) {
-            await updateMaterialStockFS(item.materialId, -item.quantity);
-        }
-    }
-    // If it was and still is complete, calculate the diff
-    else if (wasComplete && isNowComplete) {
-        const stockChanges = new Map<string, number>();
-        // Add new quantities
-        for (const newItem of data.items || []) {
-            stockChanges.set(newItem.materialId, (stockChanges.get(newItem.materialId) || 0) + newItem.quantity);
-        }
-        // Subtract old quantities
-        for (const oldItem of oldData.items) {
-            stockChanges.set(oldItem.materialId, (stockChanges.get(oldItem.materialId) || 0) - oldItem.quantity);
-        }
-        // Apply the changes
-        for (const [materialId, quantityChange] of stockChanges.entries()) {
-            if (quantityChange !== 0) {
-                await updateMaterialStockFS(materialId, quantityChange);
-            }
-        }
-    }
+    const stockChanges = new Map<string, number>();
+    const newItemsMap = new Map((data.items || []).map(i => [i.materialId, i]));
+    const oldItemsMap = new Map(oldData.items.map(i => [i.materialId, i]));
 
+    if (isNowComplete) {
+      // Calculate stock changes and update latest purchase info
+      const allMaterialIds = new Set([...newItemsMap.keys(), ...oldItemsMap.keys()]);
+      for (const materialId of allMaterialIds) {
+        const newItem = newItemsMap.get(materialId);
+        const oldItem = oldItemsMap.get(materialId);
+        const newQty = newItem?.quantity || 0;
+        const oldQty = wasComplete ? (oldItem?.quantity || 0) : 0;
+        const diff = newQty - oldQty;
+
+        if (diff !== 0) {
+            stockChanges.set(materialId, diff);
+        }
+
+        if (newItem) {
+          const purchaseInfo: LatestPurchaseInfo = {
+            quantityPurchased: newItem.quantity,
+            totalPurchaseCost: newItem.quantity * newItem.unitPrice,
+            purchaseDate: format(data.orderDate!, 'yyyy-MM-dd'),
+            calculatedUnitCost: newItem.unitPrice,
+            notes: `De compra ID: ${id}`
+          };
+          await processMaterialUpdateFromPurchase(materialId, diff, purchaseInfo);
+        } else if (stockChanges.has(materialId)) {
+          // Item removed, just update stock
+          await updateMaterialStockFS(materialId, stockChanges.get(materialId)!);
+        }
+      }
+    } else if (wasComplete && !isNowComplete) {
+      // Revert stock if status changes from complete
+      for (const oldItem of oldData.items) {
+        await updateMaterialStockFS(oldItem.materialId, -oldItem.quantity);
+      }
+    }
 
     console.log("Purchase document updated.");
   } catch (error) {

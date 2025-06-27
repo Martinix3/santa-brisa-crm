@@ -35,9 +35,9 @@ import {
 } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import type { PromotionalMaterial, PromotionalMaterialType } from "@/types"; // Removed LatestPurchaseInfo as it's part of form values
+import type { PromotionalMaterial, PromotionalMaterialType, PromotionalMaterialFormValues } from "@/types";
 import { promotionalMaterialTypeList } from "@/lib/data";
-import { Loader2, Calendar as CalendarIcon } from "lucide-react"; // Removed Euro icon as FormattedNumericValue handles it
+import { Loader2, Calendar as CalendarIcon } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid, subDays, isEqual } from "date-fns";
@@ -51,6 +51,7 @@ const materialFormSchema = z.object({
   type: z.enum(promotionalMaterialTypeList as [PromotionalMaterialType, ...PromotionalMaterialType[]], {
     required_error: "El tipo de material es obligatorio.",
   }),
+  sku: z.string().optional(),
   latestPurchaseQuantity: z.coerce.number().min(1, "La cantidad comprada debe ser al menos 1.").optional(),
   latestPurchaseTotalCost: z.coerce.number().min(0.01, "El coste total debe ser positivo.").optional(),
   latestPurchaseDate: z.date().optional(),
@@ -69,7 +70,6 @@ const materialFormSchema = z.object({
     }
 });
 
-export type PromotionalMaterialFormValues = z.infer<typeof materialFormSchema>;
 
 interface PromotionalMaterialDialogProps {
   material: PromotionalMaterial | null;
@@ -89,6 +89,7 @@ export default function PromotionalMaterialDialog({ material, isOpen, onOpenChan
       name: "",
       description: "",
       type: undefined,
+      sku: "",
       latestPurchaseQuantity: undefined,
       latestPurchaseTotalCost: undefined,
       latestPurchaseDate: undefined,
@@ -114,6 +115,7 @@ export default function PromotionalMaterialDialog({ material, isOpen, onOpenChan
           name: material.name,
           description: material.description || "",
           type: material.type,
+          sku: material.sku || "",
           latestPurchaseQuantity: material.latestPurchase?.quantityPurchased,
           latestPurchaseTotalCost: material.latestPurchase?.totalPurchaseCost,
           latestPurchaseDate: material.latestPurchase?.purchaseDate && isValid(parseISO(material.latestPurchase.purchaseDate)) ? parseISO(material.latestPurchase.purchaseDate) : undefined,
@@ -129,6 +131,7 @@ export default function PromotionalMaterialDialog({ material, isOpen, onOpenChan
           name: "",
           description: "",
           type: undefined,
+          sku: "",
           latestPurchaseQuantity: undefined,
           latestPurchaseTotalCost: undefined,
           latestPurchaseDate: new Date(), 
@@ -172,26 +175,41 @@ export default function PromotionalMaterialDialog({ material, isOpen, onOpenChan
                 </FormItem>
               )}
             />
-             <FormField
-              control={form.control}
-              name="type"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Tipo de Material</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <FormField
+                control={form.control}
+                name="type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tipo de Material</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}>
+                      <FormControl>
+                        <SelectTrigger><SelectValue placeholder="Seleccione un tipo" /></SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {promotionalMaterialTypeList.map(type => (
+                          <SelectItem key={type} value={type}>{type}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="sku"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>SKU / Lote (Opcional)</FormLabel>
                     <FormControl>
-                      <SelectTrigger><SelectValue placeholder="Seleccione un tipo" /></SelectTrigger>
+                      <Input placeholder="Ej: SB-CUB-001" {...field} disabled={isReadOnly} />
                     </FormControl>
-                    <SelectContent>
-                      {promotionalMaterialTypeList.map(type => (
-                        <SelectItem key={type} value={type}>{type}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             <FormField
               control={form.control}
               name="description"

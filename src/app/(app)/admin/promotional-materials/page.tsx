@@ -23,7 +23,7 @@ import { mockPromotionalMaterials as initialMockMaterialsForSeeding } from "@/li
 
 export default function PromotionalMaterialsPage() {
   const { toast } = useToast();
-  const { userRole } = useAuth();
+  const { userRole, refreshDataSignature } = useAuth();
   const [materials, setMaterials] = React.useState<PromotionalMaterial[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [editingMaterial, setEditingMaterial] = React.useState<PromotionalMaterial | null>(null);
@@ -50,7 +50,7 @@ export default function PromotionalMaterialsPage() {
       }
     }
     loadMaterials();
-  }, [toast]);
+  }, [toast, refreshDataSignature]);
 
 
   const handleAddNewMaterial = () => {
@@ -116,8 +116,10 @@ export default function PromotionalMaterialsPage() {
 
   const filteredMaterials = materials
     .filter(material =>
-      material.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (material.description && material.description.toLowerCase().includes(searchTerm.toLowerCase()))
+      (material.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (material.description && material.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (material.sku && material.sku.toLowerCase().includes(searchTerm.toLowerCase()))
+      )
     )
     .filter(material => typeFilter === "Todos" || material.type === typeFilter);
 
@@ -154,7 +156,7 @@ export default function PromotionalMaterialsPage() {
         <CardContent>
           <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
             <Input
-              placeholder="Buscar materiales (Nombre, Descripción)..."
+              placeholder="Buscar (Nombre, SKU, Desc)..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="max-w-sm"
@@ -185,10 +187,11 @@ export default function PromotionalMaterialsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[30%]">Nombre del Material</TableHead>
+                  <TableHead className="w-[25%]">Nombre del Material</TableHead>
+                  <TableHead className="w-[15%]">SKU/Lote</TableHead>
                   <TableHead className="w-[15%]">Tipo</TableHead>
-                  <TableHead className="text-right w-[15%]">Stock Disponible</TableHead>
-                  <TableHead className="text-right w-[15%]">Coste Unitario (€)</TableHead>
+                  <TableHead className="text-right w-[10%]">Stock Disp.</TableHead>
+                  <TableHead className="text-right w-[10%]">Coste Unit. (€)</TableHead>
                   <TableHead className="text-center w-[10%]">Última Compra</TableHead>
                   <TableHead className="text-right w-[15%]">Acciones</TableHead>
                 </TableRow>
@@ -197,6 +200,7 @@ export default function PromotionalMaterialsPage() {
                 {filteredMaterials.length > 0 ? filteredMaterials.map((material) => (
                   <TableRow key={material.id}>
                     <TableCell className="font-medium">{material.name}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{material.sku || 'N/A'}</TableCell>
                     <TableCell>{material.type}</TableCell>
                     <TableCell className="text-right font-bold">
                        <FormattedNumericValue value={material.stock} />
@@ -263,7 +267,7 @@ export default function PromotionalMaterialsPage() {
                   </TableRow>
                 )) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center">
+                    <TableCell colSpan={7} className="h-24 text-center">
                       No se encontraron materiales que coincidan con tu búsqueda o filtros. Puedes añadir nuevos materiales.
                     </TableCell>
                   </TableRow>

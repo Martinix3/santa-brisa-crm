@@ -42,6 +42,7 @@ const toFirestorePromotionalMaterial = (data: PromotionalMaterialFormValues, isN
     name: data.name,
     type: data.type,
     description: data.description || null,
+    sku: data.sku || null,
   };
   
   if (isNew) {
@@ -90,12 +91,68 @@ export const addPromotionalMaterialFS = async (data: PromotionalMaterialFormValu
 export const updatePromotionalMaterialFS = async (id: string, data: PromotionalMaterialFormValues): Promise<void> => {
   const materialDocRef = doc(db, PROMOTIONAL_MATERIALS_COLLECTION, id);
   const firestoreData = toFirestorePromotionalMaterial(data, false);
+  
+  // This is a special case. When we edit from the material dialog,
+  // we are potentially overriding purchase info and thus need to recalculate stock.
+  const existingDoc = await getDoc(materialDocRef);
+  if (existingDoc.exists()) {
+    const oldData = fromFirestorePromotionalMaterial(existingDoc);
+    const oldPurchaseQty = oldData.latestPurchase?.quantityPurchased || 0;
+    const newPurchaseQty = data.latestPurchaseQuantity || 0;
+    // We assume editing the latest purchase means replacing it, so stock diff is new - old.
+    const stockDifference = newPurchaseQty - oldPurchaseQty;
+    firestoreData.stock = (oldData.stock - oldPurchaseQty) + newPurchaseQty;
+  }
+  
   await updateDoc(materialDocRef, firestoreData);
 };
 
 export const deletePromotionalMaterialFS = async (id: string): Promise<void> => {
   const materialDocRef = doc(db, PROMOTIONAL_MATERIALS_COLLECTION, id);
   await deleteDoc(materialDocRef);
+};
+
+export const processMaterialUpdateFromPurchase = async (
+    materialId: string, 
+    quantityChange: number,
+    purchaseInfo?: {
+        quantityPurchased: number;
+        totalPurchaseCost: number;
+        purchaseDate: string; // YYYY-MM-DD
+        calculatedUnitCost: number;
+        notes?: string;
+    }
+): Promise<void> => {
+    const materialDocRef = doc(db, PROMOTIONAL_MATERIALS_COLLECTION, materialId);
+
+    try {
+        await runTransaction(db, async (transaction) => {
+            const materialDoc = await transaction.get(materialDocRef);
+            if (!materialDoc.exists()) {
+                throw new Error(`Material with ID ${materialId} does not exist.`);
+            }
+
+            const currentStock = materialDoc.data().stock || 0;
+            const newStock = currentStock + quantityChange;
+            
+            const updatePayload: { [key: string]: any } = { stock: newStock };
+
+            if (purchaseInfo) {
+                updatePayload.latestPurchase = {
+                    quantityPurchased: purchaseInfo.quantityPurchased,
+                    totalPurchaseCost: purchaseInfo.totalPurchaseCost,
+                    purchaseDate: Timestamp.fromDate(parseISO(purchaseInfo.purchaseDate)),
+                    calculatedUnitCost: purchaseInfo.calculatedUnitCost,
+                    notes: purchaseInfo.notes || null,
+                }
+            }
+            
+            transaction.update(materialDocRef, updatePayload);
+        });
+    } catch (e) {
+        console.error("Stock/Purchase update transaction failed: ", e);
+        throw e;
+    }
 };
 
 
@@ -133,12 +190,13 @@ export const initializeMockPromotionalMaterialsInFirestore = async (mockMaterial
     const snapshot = await getDocs(query(materialsCol, orderBy('name', 'asc')));
     if (snapshot.empty && mockMaterialsData.length > 0) {
         for (const material of mockMaterialsData) {
-            const { id, stock, sku, ...materialData } = material; 
+            const { id, stock, ...materialData } = material; 
             
             const formValues: PromotionalMaterialFormValues = {
                 name: material.name,
                 type: material.type,
                 description: material.description,
+                sku: material.sku,
                 latestPurchaseQuantity: material.latestPurchase?.quantityPurchased,
                 latestPurchaseTotalCost: material.latestPurchase?.totalPurchaseCost,
                 latestPurchaseDate: material.latestPurchase?.purchaseDate ? parseISO(material.latestPurchase.purchaseDate) : undefined,
@@ -146,7 +204,6 @@ export const initializeMockPromotionalMaterialsInFirestore = async (mockMaterial
             };
 
             const firestoreReadyData = toFirestorePromotionalMaterial(formValues, true);
-            if (sku) firestoreReadyData.sku = sku;
 
             await addDoc(materialsCol, firestoreReadyData);
         }

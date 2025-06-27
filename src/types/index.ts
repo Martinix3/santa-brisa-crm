@@ -342,3 +342,14 @@ export interface SupplierFormValues {
   address_country?: string;
   notes?: string;
 }
+
+export interface PromotionalMaterialFormValues {
+  name: string;
+  description?: string;
+  type: PromotionalMaterialType;
+  sku?: string;
+  latestPurchaseQuantity?: number;
+  latestPurchaseTotalCost?: number;
+  latestPurchaseDate?: Date;
+  latestPurchaseNotes?: string;
+}

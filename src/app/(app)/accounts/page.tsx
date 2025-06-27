@@ -9,21 +9,22 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { accountStatusList } from "@/lib/data"; 
-import type { Account, AccountStatus, UserRole } from "@/types";
+import type { Account, AccountStatus, UserRole, TeamMember } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { PlusCircle, Edit, Trash2, MoreHorizontal, Building2, Filter, ChevronDown, Eye, Loader2, MapPin } from "lucide-react";
+import { PlusCircle, Edit, Trash2, MoreHorizontal, Building2, Filter, ChevronDown, Eye, Loader2, MapPin, User as UserIcon } from "lucide-react";
 import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { format } from "date-fns";
 import StatusBadge from "@/components/app/status-badge";
 import Link from "next/link";
 import { getAccountsFS, addAccountFS, deleteAccountFS, initializeMockAccountsInFirestore } from "@/services/account-service";
+import { getTeamMembersFS } from "@/services/team-member-service";
 import { mockAccounts as initialMockAccounts } from "@/lib/data"; 
 
 export default function AccountsPage() {
   const { toast } = useToast();
   const { userRole } = useAuth();
   const [accounts, setAccounts] = React.useState<Account[]>([]);
+  const [allTeamMembers, setAllTeamMembers] = React.useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isAccountDialogOpen, setIsAccountDialogOpen] = React.useState(false);
   const [accountToDelete, setAccountToDelete] = React.useState<Account | null>(null);
@@ -36,22 +37,29 @@ export default function AccountsPage() {
 
 
   React.useEffect(() => {
-    async function loadAccounts() {
+    async function loadData() {
       setIsLoading(true);
       try {
-        // Descomentar la siguiente línea para inicializar con mocks si la BBDD está vacía
         await initializeMockAccountsInFirestore(initialMockAccounts); 
-        const firestoreAccounts = await getAccountsFS();
+        const [firestoreAccounts, firestoreTeamMembers] = await Promise.all([
+            getAccountsFS(),
+            getTeamMembersFS(['SalesRep', 'Admin'])
+        ]);
         setAccounts(firestoreAccounts);
+        setAllTeamMembers(firestoreTeamMembers);
       } catch (error) {
-        console.error("Error fetching accounts:", error);
-        toast({ title: "Error al Cargar Cuentas", description: "No se pudieron cargar las cuentas desde la base de datos.", variant: "destructive" });
+        console.error("Error fetching data:", error);
+        toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar los datos desde la base de datos.", variant: "destructive" });
       } finally {
         setIsLoading(false);
       }
     }
-    loadAccounts();
+    loadData();
   }, [toast]);
+
+  const teamMembersMap = React.useMemo(() => {
+    return new Map(allTeamMembers.map(member => [member.id, member.name]));
+  }, [allTeamMembers]);
 
   const handleAddNewAccount = () => {
     if (!isAdmin) return;
@@ -181,7 +189,7 @@ export default function AccountsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[25%]">Nombre Comercial</TableHead>
-                    <TableHead className="w-[15%]">CIF</TableHead>
+                    <TableHead className="w-[15%]">Comercial Asignado</TableHead>
                     <TableHead className="w-[15%]">Ubicación</TableHead>
                     <TableHead className="w-[15%]">Tipo</TableHead>
                     <TableHead className="text-center w-[10%]">Estado</TableHead>
@@ -196,7 +204,16 @@ export default function AccountsPage() {
                           {account.name}
                         </Link>
                       </TableCell>
-                      <TableCell>{account.cif || 'No especificado'}</TableCell>
+                      <TableCell>
+                        {account.salesRepId ? (
+                             <div className="flex items-center text-xs">
+                                <UserIcon size={14} className="mr-1 text-muted-foreground" />
+                                {teamMembersMap.get(account.salesRepId) || 'Desconocido'}
+                            </div>
+                        ) : (
+                            <span className="text-xs text-muted-foreground">No asignado</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                           {account.addressShipping?.city || account.addressBilling?.city ? (
                             <div className="flex items-center text-xs">

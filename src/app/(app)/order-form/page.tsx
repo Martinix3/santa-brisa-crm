@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import * as React from "react";
@@ -24,7 +23,7 @@ import { getAccountsFS, addAccountFS, getAccountByIdFS, updateAccountFS as updat
 import { addOrderFS, updateOrderFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
-import { ArrowLeft, Building, CreditCard, Edit, FileText, Loader2, Package, PlusCircle, Search, Send, Trash2, User, Sparkles, UploadCloud } from "lucide-react";
+import { ArrowLeft, Building, CreditCard, Edit, FileText, Loader2, Package, PlusCircle, Search, Send, Trash2, User, UploadCloud } from "lucide-react";
 import { format, parseISO, isBefore, startOfDay, subDays, isEqual } from "date-fns";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -48,7 +47,6 @@ const formSchema = (step: string) => z.object({
   canalOrigenColocacion: z.enum(canalOrigenColocacionList as [string, ...string[]]).optional(),
   paymentMethod: z.enum(paymentMethodList as [string, ...string[]]).optional(),
   iban: z.string().optional(),
-
   clientType: z.enum(clientTypeList as [string, ...string[]]).optional(),
   numberOfUnits: z.coerce.number().optional(),
   unitPrice: z.coerce.number().optional(),
@@ -133,8 +131,6 @@ export default function OrderFormWizardPage() {
   const [salesRepsList, setSalesRepsList] = React.useState<TeamMember[]>([]);
   const [availableMaterials, setAvailableMaterials] = React.useState<PromotionalMaterial[]>([]);
   const [originatingTask, setOriginatingTask] = React.useState<Order | null>(null);
-  const [isAiProcessing, setIsAiProcessing] = React.useState(false);
-  const [aiTextBlock, setAiTextBlock] = React.useState("");
 
   React.useEffect(() => {
     const handler = setTimeout(() => { setDebouncedSearchTerm(searchTerm); }, 300);
@@ -207,25 +203,24 @@ export default function OrderFormWizardPage() {
       direccionFiscal_country
   } = form.watch();
 
+  const df_street = form.watch('direccionFiscal_street');
+  const df_number = form.watch('direccionFiscal_number');
+  const df_city = form.watch('direccionFiscal_city');
+  const df_province = form.watch('direccionFiscal_province');
+  const df_postalCode = form.watch('direccionFiscal_postalCode');
+  const df_country = form.watch('direccionFiscal_country');
+
   React.useEffect(() => {
-    if (watchSameAsBilling) {
-        form.setValue('direccionEntrega_street', direccionFiscal_street || "");
-        form.setValue('direccionEntrega_number', direccionFiscal_number || "");
-        form.setValue('direccionEntrega_city', direccionFiscal_city || "");
-        form.setValue('direccionEntrega_province', direccionFiscal_province || "");
-        form.setValue('direccionEntrega_postalCode', direccionFiscal_postalCode || "");
-        form.setValue('direccionEntrega_country', direccionFiscal_country || "España");
-    }
-  }, [
-      watchSameAsBilling, 
-      direccionFiscal_street,
-      direccionFiscal_number,
-      direccionFiscal_city,
-      direccionFiscal_province,
-      direccionFiscal_postalCode,
-      direccionFiscal_country,
-      form
-  ]);
+      if (watchSameAsBilling) {
+          form.setValue('direccionEntrega_street', df_street);
+          form.setValue('direccionEntrega_number', df_number);
+          form.setValue('direccionEntrega_city', df_city);
+          form.setValue('direccionEntrega_province', df_province);
+          form.setValue('direccionEntrega_postalCode', df_postalCode);
+          form.setValue('direccionEntrega_country', df_country);
+      }
+  }, [watchSameAsBilling, df_street, df_number, df_city, df_province, df_postalCode, df_country, form]);
+
 
   const outcomeWatched = form.watch("outcome");
   const formValuesWatched = form.watch();
@@ -259,7 +254,10 @@ export default function OrderFormWizardPage() {
     }
     
     if (step === 'new_client_data') {
-        fieldsToValidate = ['nombreFiscal', 'cif', 'direccionFiscal_street', 'direccionFiscal_city', 'direccionFiscal_province', 'direccionFiscal_postalCode', 'direccionEntrega_street', 'direccionEntrega_city', 'direccionEntrega_province', 'direccionEntrega_postalCode'];
+        fieldsToValidate = ['nombreFiscal', 'cif', 'direccionFiscal_street', 'direccionFiscal_city', 'direccionFiscal_province', 'direccionFiscal_postalCode'];
+        if (!form.getValues('sameAsBilling')) {
+          fieldsToValidate.push('direccionEntrega_street', 'direccionEntrega_city', 'direccionEntrega_province', 'direccionEntrega_postalCode');
+        }
     }
 
     const isValid = fieldsToValidate.length > 0 ? await form.trigger(fieldsToValidate) : true;
@@ -394,7 +392,12 @@ export default function OrderFormWizardPage() {
         
         toast({ title: "¡Interacción Registrada!", description: `Se ha guardado el resultado para ${client!.name}.${accountCreationMessage}` });
         refreshDataSignature();
-        router.push('/dashboard');
+        
+        if (values.outcome === 'successful') {
+            router.push('/orders-dashboard');
+        } else {
+            router.push('/crm-follow-up');
+        }
 
     } catch (err: any) {
         toast({ title: "Error al Guardar", description: err.message, variant: "destructive" });
@@ -479,9 +482,9 @@ export default function OrderFormWizardPage() {
                 <CardContent className="space-y-6">
                     {outcomeWatched === 'successful' && (
                         <div className="space-y-4">
-                            <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades</FormLabel><FormControl><Input type="number" placeholder="Ej: 12" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                            <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Ej: 15.50" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                            <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel>Forma de Pago</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar forma de pago"/></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(m=>(<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
+                            <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades</FormLabel><FormControl><Input type="number" placeholder="Ej: 12" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)}/>
+                            <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Ej: 15.50" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage /></FormItem>)}/>
+                            <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel>Forma de Pago</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar forma de pago"/></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(m=>(<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
                              {paymentMethodWatched === 'Giro Bancario' && (
                                 <FormField control={form.control} name="iban" render={({ field }) => (
                                     <FormItem>
@@ -520,7 +523,7 @@ export default function OrderFormWizardPage() {
                                 )}
                             />
                             {form.watch('nextActionType') === 'Opción personalizada' && <FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Especificar Acción</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>}
-                            <FormField control={form.control} name="nextActionDate" render={({ field }) => ( <FormItem className="flex flex-col"> <FormLabel>Fecha Próxima Acción (Opcional)</FormLabel> <Popover> <PopoverTrigger asChild> <FormControl> <Button variant={"outline"} className={cn( "w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground" )} > {field.value ? ( format(field.value, "PPP", { locale: es }) ) : ( <span>Seleccione fecha</span> )} <CalendarIcon className="mr-2 h-4 w-4 opacity-50" /> </Button> </FormControl> </PopoverTrigger> <PopoverContent className="w-auto p-0" align="start"> <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus locale={es} /> </PopoverContent> </Popover> <FormMessage /> </FormItem> )}/>
+                            <FormField control={form.control} name="nextActionDate" render={({ field }) => ( <FormItem className="flex flex-col"> <FormLabel>Fecha Próxima Acción (Opcional)</FormLabel> <Popover> <PopoverTrigger asChild> <FormControl> <Button variant={"outline"} className={cn( "w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground" )} > {field.value ? ( format(field.value, "PPP", { locale: es }) ) : ( <span>Seleccione fecha</span> )} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" /> </Button> </FormControl> </PopoverTrigger> <PopoverContent className="w-auto p-0" align="start"> <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus locale={es} /> </PopoverContent> </Popover> <FormMessage /> </FormItem> )}/>
                              {(userRole === 'Admin') && (
                                 <FormField control={form.control} name="selectedSalesRepId" render={({ field }) => ( <FormItem> <FormLabel>Asignar Seguimiento a:</FormLabel> <Select onValueChange={field.onChange} value={field.value ?? ""}> <FormControl> <SelectTrigger> <SelectValue placeholder="Seleccionar comercial..." /> </SelectTrigger> </FormControl> <SelectContent> <SelectItem value={ADMIN_SELF_REGISTER_VALUE}> Yo mismo/a (Admin) </SelectItem> {salesRepsList.map((rep) => ( <SelectItem key={rep.id} value={rep.id}> {rep.name} </SelectItem> ))} </SelectContent> </Select> <FormMessage /> </FormItem> )} />
                             )}
@@ -531,7 +534,7 @@ export default function OrderFormWizardPage() {
                     )}
                       {outcomeWatched === 'failed' && (
                         <div className="space-y-4">
-                              <FormField control={form.control} name="failureReasonType" render={({ field }) => (<FormItem><FormLabel>Motivo del Fallo</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar motivo..."/></SelectTrigger></FormControl><SelectContent>{failureReasonList.map(r=>(<SelectItem key={r} value={r}>{r}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
+                              <FormField control={form.control} name="failureReasonType" render={({ field }) => (<FormItem><FormLabel>Motivo del Fallo</FormLabel><Select onValueChange={field.onChange} value={field.value ?? ""}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar motivo..."/></SelectTrigger></FormControl><SelectContent>{failureReasonList.map(r=>(<SelectItem key={r} value={r}>{r}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
                               {form.watch('failureReasonType') === 'Otro (especificar)' && <FormField control={form.control} name="failureReasonCustom" render={({ field }) => (<FormItem><FormLabel>Especificar Motivo</FormLabel><FormControl><Input {...field}/></FormControl><FormMessage/></FormItem>)}/>}
                         </div>
                     )}
@@ -546,7 +549,7 @@ export default function OrderFormWizardPage() {
                                     {materialFields.map((field, index) => (
                                         <div key={field.id} className="flex items-end gap-2">
                                             <FormField control={form.control} name={`assignedMaterials.${index}.materialId`} render={({ field }) => ( <FormItem className="flex-grow"> <Select onValueChange={field.onChange} value={field.value}> <FormControl> <SelectTrigger> <SelectValue placeholder="Seleccionar material..."/> </SelectTrigger> </FormControl> <SelectContent> {availableMaterials.map(m => <SelectItem key={m.id} value={m.id}>{m.name} (Stock: {m.stock})</SelectItem>)} </SelectContent> </Select> <FormMessage/> </FormItem> )}/>
-                                            <FormField control={form.control} name={`assignedMaterials.${index}.quantity`} render={({ field }) => ( <FormItem> <FormControl> <Input type="number" placeholder="Cant." className="w-20" {...field} /> </FormControl> <FormMessage/> </FormItem> )}/>
+                                            <FormField control={form.control} name={`assignedMaterials.${index}.quantity`} render={({ field }) => ( <FormItem> <FormControl> <Input type="number" placeholder="Cant." className="w-20" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /> </FormControl> <FormMessage/> </FormItem> )}/>
                                             <Button type="button" variant="destructive" size="icon" onClick={() => removeMaterial(index)}><Trash2 className="h-4 w-4"/></Button>
                                         </div>
                                     ))}
@@ -581,7 +584,7 @@ export default function OrderFormWizardPage() {
                             <FormField control={form.control} name="direccionFiscal_number" render={({ field }) => (<FormItem><FormLabel>Número</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                             <FormField control={form.control} name="direccionFiscal_postalCode" render={({ field }) => (<FormItem><FormLabel>C.P. *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                             <FormField control={form.control} name="direccionFiscal_city" render={({ field }) => (<FormItem><FormLabel>Ciudad *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="direccionFiscal_province" render={({ field }) => (<FormItem><FormLabel>Provincia *</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="direccionFiscal_province" render={({ field }) => (<FormItem><FormLabel>Provincia *</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                         </div>
                         
                         <Separator/><h3 className="font-semibold text-base mt-2">Datos de Entrega</h3>
@@ -596,7 +599,7 @@ export default function OrderFormWizardPage() {
                                     <FormField control={form.control} name="direccionEntrega_number" render={({ field }) => (<FormItem><FormLabel>Número</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                                     <FormField control={form.control} name="direccionEntrega_postalCode" render={({ field }) => (<FormItem><FormLabel>C.P.</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                                     <FormField control={form.control} name="direccionEntrega_city" render={({ field }) => (<FormItem><FormLabel>Ciudad</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                    <FormField control={form.control} name="direccionEntrega_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                                    <FormField control={form.control} name="direccionEntrega_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                                 </div>
                             </div>
                         )}
@@ -682,3 +685,6 @@ export default function OrderFormWizardPage() {
     </Form>
   );
 }
+
+
+    

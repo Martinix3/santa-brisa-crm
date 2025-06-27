@@ -1,4 +1,3 @@
-
 import * as React from 'react';
 import { CardHeader, CardTitle, CardDescription, CardContent, CardFooter, Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,6 +37,10 @@ export const StepVerify = ({ form, client, handleBack, isSubmitting, availableMa
                   )}
                   {outcomeWatched === 'failed' && (
                     <p><strong>Motivo Fallo:</strong> {formValuesWatched.failureReasonType || 'N/A'}</p>
+                  )}
+
+                  {formValuesWatched.notes && (
+                    <p><strong>Notas:</strong> {formValuesWatched.notes}</p>
                   )}
 
                   {formValuesWatched.assignedMaterials && formValuesWatched.assignedMaterials.length > 0 && (

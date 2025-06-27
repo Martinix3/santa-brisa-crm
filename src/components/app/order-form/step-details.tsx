@@ -1,4 +1,3 @@
-
 import * as React from 'react';
 import { useWatch, type UseFormReturn, type FieldArrayWithId } from 'react-hook-form';
 import { CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
@@ -9,6 +8,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, ArrowRight, Trash2, PlusCircle, Calendar as CalendarIcon } from 'lucide-react';
 import { format, subDays, isEqual } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -101,33 +101,33 @@ export const StepDetails: React.FC<StepDetailsProps> = ({
                     render={({ field }) => (
                       <FormItem className="flex flex-col">
                         <FormLabel>Fecha Próxima Acción (Opcional)</FormLabel>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                type="button"
-                                variant={"outline"}
-                                className={cn(
-                                  "w-full justify-start text-left font-normal",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                                aria-label="Abrir calendario para seleccionar fecha"
-                              >
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {field.value ? format(field.value, "PPP", { locale: es }) : "Seleccione fecha"}
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={field.value}
-                              onSelect={field.onChange}
-                              disabled={(date) => date < subDays(new Date(), 1) && !isEqual(date, subDays(new Date(),1))}
-                              initialFocus
-                              locale={es}
-                            />
-                          </PopoverContent>
+                         <Popover>
+                            <PopoverTrigger asChild>
+                                <FormControl>
+                                <Button
+                                    type="button"
+                                    variant={"outline"}
+                                    className={cn(
+                                    "w-full justify-start text-left font-normal",
+                                    !field.value && "text-muted-foreground"
+                                    )}
+                                    aria-label="Abrir calendario para seleccionar fecha"
+                                >
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    <span>{field.value ? format(field.value, "PPP", { locale: es }) : "Seleccione fecha"}</span>
+                                </Button>
+                                </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar
+                                mode="single"
+                                selected={field.value}
+                                onSelect={field.onChange}
+                                disabled={(date) => date < subDays(new Date(), 1) && !isEqual(date, subDays(new Date(),1))}
+                                initialFocus
+                                locale={es}
+                                />
+                            </PopoverContent>
                         </Popover>
                         <FormMessage />
                       </FormItem>
@@ -167,6 +167,28 @@ export const StepDetails: React.FC<StepDetailsProps> = ({
               </div>
           )}
           
+          <Separator className="!mt-8" />
+          
+          <FormField
+              control={form.control}
+              name="notes"
+              render={({ field }) => (
+                  <FormItem>
+                      <FormLabel>Notas Adicionales (Opcional)</FormLabel>
+                      <FormControl>
+                          <Textarea
+                              placeholder="Añade cualquier comentario sobre esta interacción..."
+                              {...field}
+                          />
+                      </FormControl>
+                      <FormDescription>
+                          Estas notas se guardarán con el registro de la interacción.
+                      </FormDescription>
+                      <FormMessage />
+                  </FormItem>
+              )}
+          />
+
           <Separator className="!mt-8" />
 
           <div className="space-y-2">

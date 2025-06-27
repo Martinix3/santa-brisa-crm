@@ -9,22 +9,22 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { accountStatusList } from "@/lib/data"; 
-import type { Account, AccountStatus, UserRole, TeamMember } from "@/types";
+import type { Account, AccountStatus, UserRole, Order } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { PlusCircle, Edit, Trash2, MoreHorizontal, Building2, Filter, ChevronDown, Eye, Loader2, MapPin, User as UserIcon } from "lucide-react";
+import { PlusCircle, Edit, Trash2, MoreHorizontal, Building2, Filter, ChevronDown, Eye, Loader2, MapPin, ShoppingCart } from "lucide-react";
 import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import StatusBadge from "@/components/app/status-badge";
 import Link from "next/link";
 import { getAccountsFS, addAccountFS, deleteAccountFS, initializeMockAccountsInFirestore } from "@/services/account-service";
-import { getTeamMembersFS } from "@/services/team-member-service";
+import { getOrdersFS } from "@/services/order-service";
 import { mockAccounts as initialMockAccounts } from "@/lib/data"; 
 
 export default function AccountsPage() {
   const { toast } = useToast();
   const { userRole } = useAuth();
   const [accounts, setAccounts] = React.useState<Account[]>([]);
-  const [allTeamMembers, setAllTeamMembers] = React.useState<TeamMember[]>([]);
+  const [orders, setOrders] = React.useState<Order[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isAccountDialogOpen, setIsAccountDialogOpen] = React.useState(false);
   const [accountToDelete, setAccountToDelete] = React.useState<Account | null>(null);
@@ -41,12 +41,12 @@ export default function AccountsPage() {
       setIsLoading(true);
       try {
         await initializeMockAccountsInFirestore(initialMockAccounts); 
-        const [firestoreAccounts, firestoreTeamMembers] = await Promise.all([
+        const [firestoreAccounts, firestoreOrders] = await Promise.all([
             getAccountsFS(),
-            getTeamMembersFS(['SalesRep', 'Admin'])
+            getOrdersFS(),
         ]);
         setAccounts(firestoreAccounts);
-        setAllTeamMembers(firestoreTeamMembers);
+        setOrders(firestoreOrders);
       } catch (error) {
         console.error("Error fetching data:", error);
         toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar los datos desde la base de datos.", variant: "destructive" });
@@ -56,10 +56,18 @@ export default function AccountsPage() {
     }
     loadData();
   }, [toast]);
+  
+  const ordersByAccountId = React.useMemo(() => {
+    return orders
+      .filter(order => order.status !== 'Programada' && order.status !== 'Seguimiento' && order.status !== 'Fallido')
+      .reduce((acc, order) => {
+        if (order.accountId) {
+          acc[order.accountId] = (acc[order.accountId] || 0) + 1;
+        }
+        return acc;
+    }, {} as Record<string, number>);
+  }, [orders]);
 
-  const teamMembersMap = React.useMemo(() => {
-    return new Map(allTeamMembers.map(member => [member.id, member.name]));
-  }, [allTeamMembers]);
 
   const handleAddNewAccount = () => {
     if (!isAdmin) return;
@@ -189,7 +197,7 @@ export default function AccountsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[25%]">Nombre Comercial</TableHead>
-                    <TableHead className="w-[15%]">Comercial Asignado</TableHead>
+                    <TableHead className="w-[15%] text-center">Nº Pedidos</TableHead>
                     <TableHead className="w-[15%]">Ubicación</TableHead>
                     <TableHead className="w-[15%]">Tipo</TableHead>
                     <TableHead className="text-center w-[10%]">Estado</TableHead>
@@ -204,15 +212,11 @@ export default function AccountsPage() {
                           {account.name}
                         </Link>
                       </TableCell>
-                      <TableCell>
-                        {account.salesRepId ? (
-                             <div className="flex items-center text-xs">
-                                <UserIcon size={14} className="mr-1 text-muted-foreground" />
-                                {teamMembersMap.get(account.salesRepId) || 'Desconocido'}
-                            </div>
-                        ) : (
-                            <span className="text-xs text-muted-foreground">No asignado</span>
-                        )}
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center font-medium">
+                            <ShoppingCart size={14} className="mr-1.5 text-muted-foreground" />
+                            {ordersByAccountId[account.id] || 0}
+                        </div>
                       </TableCell>
                       <TableCell>
                           {account.addressShipping?.city || account.addressBilling?.city ? (

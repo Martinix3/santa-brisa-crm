@@ -11,13 +11,13 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
-export const ClientDataExtractionInputSchema = z.object({
+const ClientDataExtractionInputSchema = z.object({
   textBlock: z.string().optional().describe('A block of text containing client information like name, address, contact details, CIF, etc.'),
   imageDataUri: z.string().optional().describe("A photo of a business card, storefront, or screenshot, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."),
 });
 export type ClientDataExtractionInput = z.infer<typeof ClientDataExtractionInputSchema>;
 
-export const ClientDataExtractionOutputSchema = z.object({
+const ClientDataExtractionOutputSchema = z.object({
   legalName: z.string().optional().describe("The official legal name of the business (e.g., 'Restaurante El Puerto S.L.')."),
   cif: z.string().optional().describe("The tax identification number (CIF/NIF) of the business."),
   addressBilling: z.object({

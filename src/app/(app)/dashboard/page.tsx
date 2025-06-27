@@ -8,7 +8,9 @@ import { getOrdersFS } from "@/services/order-service";
 import { getAccountsFS } from "@/services/account-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { parseISO, isSameYear, isSameMonth, isValid } from 'date-fns';
-import { Loader2 } from "lucide-react";
+import { Loader2, PlusCircle, SendHorizonal, FileText, Target } from "lucide-react";
+import Link from 'next/link';
+import { Button } from "@/components/ui/button";
 import {
   kpiDataLaunch as initialKpiDataLaunch,
   mockStrategicObjectives
@@ -24,6 +26,8 @@ import { PieChart, Pie, Cell, Legend } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
 
 
 export default function DashboardPage() {
@@ -87,9 +91,7 @@ export default function DashboardPage() {
       }
     }
     
-    // NEW "New Account" calculation based on Account's createdAt date and status
     const salesRepIdSet = new Set(salesReps.map(m => m.id));
-
     const accountsCreatedByTeamThisYear = new Set<string>();
     const accountsCreatedByTeamThisMonth = new Set<string>();
 
@@ -124,7 +126,6 @@ export default function DashboardPage() {
     // Monthly progress calculations
     let monthlyProgressMetrics: any[] = [];
     if(userRole === 'SalesRep' && teamMember) {
-      // Logic for individual SalesRep
       const memberAccounts = accounts.filter(acc => 
         acc.salesRepId === teamMember.id &&
         acc.status === 'Activo' &&
@@ -134,31 +135,30 @@ export default function DashboardPage() {
         isSameYear(parseISO(acc.createdAt), currentDate)
       );
       const monthlyAccounts = memberAccounts.length;
-
       const monthlyVisits = orders.filter(o => 
         o.salesRep === teamMember.name && 
-        isValid(parseISO(o.visitDate)) && 
-        isSameMonth(parseISO(o.visitDate), currentDate) &&
+        isValid(parseISO(o.createdAt || o.visitDate)) && 
+        isSameMonth(parseISO(o.createdAt || o.visitDate), currentDate) &&
         ALL_VISIT_STATUSES.includes(o.status)
       ).length;
 
       monthlyProgressMetrics = [
-        { title: "Cuentas Nuevas (Este Mes)", target: teamMember.monthlyTargetAccounts || 0, current: monthlyAccounts, unit: 'cuentas', colorClass: "[&>div]:bg-primary" },
-        { title: "Visitas Realizadas (Este Mes)", target: teamMember.monthlyTargetVisits || 0, current: monthlyVisits, unit: 'visitas', colorClass: "[&>div]:bg-primary" },
+        { title: "Cuentas Nuevas", target: teamMember.monthlyTargetAccounts || 0, current: monthlyAccounts, unit: 'cuentas', colorClass: "[&>div]:bg-primary" },
+        { title: "Visitas Realizadas", target: teamMember.monthlyTargetVisits || 0, current: monthlyVisits, unit: 'visitas', colorClass: "[&>div]:bg-primary" },
       ];
     } else if (userRole === 'Admin') {
        const teamMonthlyTargetAccounts = salesReps.reduce((sum, rep) => sum + (rep.monthlyTargetAccounts || 0), 0);
        const teamMonthlyTargetVisits = salesReps.reduce((sum, rep) => sum + (rep.monthlyTargetVisits || 0), 0);
        const teamMonthlyVisits = orders.filter(o => 
           salesRepNamesSet.has(o.salesRep) && 
-          isValid(parseISO(o.visitDate)) && 
-          isSameMonth(parseISO(o.visitDate), currentDate) &&
+          isValid(parseISO(o.createdAt || o.visitDate)) && 
+          isSameMonth(parseISO(o.createdAt || o.visitDate), currentDate) &&
           ALL_VISIT_STATUSES.includes(o.status)
         ).length;
 
       monthlyProgressMetrics = [
-        { title: "Cuentas Nuevas del Equipo (Este Mes)", target: teamMonthlyTargetAccounts, current: accountsCreatedByTeamThisMonth.size, unit: 'cuentas', colorClass: "[&>div]:bg-[hsl(var(--brand-turquoise-hsl))]" },
-        { title: "Visitas del Equipo (Este Mes)", target: teamMonthlyTargetVisits, current: teamMonthlyVisits, unit: 'visitas', colorClass: "[&>div]:bg-[hsl(var(--brand-turquoise-hsl))]" },
+        { title: "Cuentas Nuevas del Equipo", target: teamMonthlyTargetAccounts, current: accountsCreatedByTeamThisMonth.size, unit: 'cuentas', colorClass: "[&>div]:bg-[hsl(var(--brand-turquoise-hsl))]" },
+        { title: "Visitas del Equipo", target: teamMonthlyTargetVisits, current: teamMonthlyVisits, unit: 'visitas', colorClass: "[&>div]:bg-[hsl(var(--brand-turquoise-hsl))]" },
       ];
     }
     
@@ -216,17 +216,80 @@ export default function DashboardPage() {
   } = dashboardData;
 
   const showDashboardContent = userRole === 'Admin' || userRole === 'SalesRep' || userRole === 'Distributor' || userRole === 'Clavadista';
+  const showActionButtons = userRole === 'Admin' || userRole === 'SalesRep' || userRole === 'Clavadista';
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-headline font-semibold">Panel Principal: Lanzamiento de Producto</h1>
+      <h1 className="text-3xl font-headline font-semibold">
+        Hola, {teamMember?.name || "Santa Brisa"}
+      </h1>
       
+      {showActionButtons && (
+        <div className="grid grid-cols-2 gap-4">
+          {userRole === 'Admin' ? (
+            <>
+              <Button asChild variant="outline" className="h-20 text-base flex-col gap-1">
+                <Link href="/direct-sales-sb/new">
+                  <PlusCircle className="h-6 w-6 mb-1" /> Añadir Venta
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="h-20 text-base flex-col gap-1">
+                <Link href="/request-sample">
+                  <SendHorizonal className="h-6 w-6 mb-1" /> Solicitar Muestras
+                </Link>
+              </Button>
+            </>
+          ) : (
+             <>
+              <Button asChild variant="outline" className="h-20 text-base flex-col gap-1">
+                <Link href="/order-form">
+                  <FileText className="h-6 w-6 mb-1" /> Registrar Interacción
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="h-20 text-base flex-col gap-1">
+                <Link href="/request-sample">
+                  <SendHorizonal className="h-6 w-6 mb-1" /> Solicitar Muestras
+                </Link>
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+
+      {showMonthlyProgress && monthlyProgressMetrics.length > 0 && (
+        <Card className="shadow-subtle">
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Target className="mr-2 h-5 w-5 text-primary" />
+              Mis Objetivos del Mes
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {monthlyProgressMetrics.map((metric) => {
+              const progress = metric.target > 0 ? Math.min((metric.current / metric.target) * 100, 100) : (metric.current > 0 ? 100 : 0);
+              const isTargetAchieved = metric.target > 0 && metric.current >= metric.target;
+              return (
+                <div key={metric.title}>
+                  <div className="flex justify-between items-baseline mb-1">
+                    <span className="text-sm font-medium">{metric.title}</span>
+                    <span className="text-sm text-muted-foreground">
+                      <FormattedNumericValue value={metric.current} /> / <FormattedNumericValue value={metric.target} />
+                    </span>
+                  </div>
+                  <Progress value={progress} className={cn("h-2", isTargetAchieved ? "[&>div]:bg-green-500" : metric.colorClass)} />
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
+
       {showDashboardContent && (
         <>
+          <h2 className="text-2xl font-headline font-semibold pt-4 border-t">Panel de Lanzamiento</h2>
+          
           <KpiGrid kpis={kpis} />
-          {showMonthlyProgress && monthlyProgressMetrics.length > 0 && (
-            <MonthlyProgress title={monthlyProgressTitle} metrics={monthlyProgressMetrics} />
-          )}
 
           <section className="grid gap-6 md:grid-cols-3">
             <SalesDistributionChart teamSales={teamSales} otherSales={otherSales} />

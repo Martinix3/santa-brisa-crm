@@ -222,7 +222,7 @@ export default function OrderFormPage() {
         ]);
 
         setClavadistas(fetchedClavadistas as TeamMember[]);
-        setAvailableMaterials((fetchedMaterials as PromotionalMaterial[]).filter(m => m.latestPurchase && m.latestPurchase.calculatedUnitCost > 0));
+        setAvailableMaterials(fetchedMaterials as PromotionalMaterial[]);
         setAllAccounts(fetchedAccounts as Account[]);
 
         const assignableReps = (fetchedSalesRepsFromPromise as TeamMember[]).filter(
@@ -430,6 +430,18 @@ export default function OrderFormPage() {
 
 
   async function onSubmit(values: OrderFormValues) {
+    // Stock validation before submitting
+    for (const item of values.assignedMaterials || []) {
+      const material = availableMaterials.find(m => m.id === item.materialId);
+      if (material && material.stock < item.quantity) {
+        toast({
+          title: "Stock Insuficiente",
+          description: `No hay suficiente stock para "${material.name}". Disponible: ${material.stock}, Solicitado: ${item.quantity}.`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     setIsSubmitting(true);
 
     if (!teamMember) {
@@ -1035,7 +1047,7 @@ export default function OrderFormPage() {
                                   <FormControl><SelectTrigger><SelectValue placeholder={isLoadingDropdownData ? "Cargando..." : "Seleccionar material"} /></SelectTrigger></FormControl>
                                   <SelectContent>
                                     {availableMaterials.map(mat => (
-                                      <SelectItem key={mat.id} value={mat.id}>{mat.name} ({mat.type}) - <FormattedNumericValue value={mat.latestPurchase?.calculatedUnitCost || 0} options={{style:'currency', currency:'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4}}/></SelectItem>
+                                      <SelectItem key={mat.id} value={mat.id}>{mat.name} (Stock: {mat.stock})</SelectItem>
                                     ))}
                                   </SelectContent>
                                 </Select>

@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { promotionalMaterialTypeList } from "@/lib/data"; 
 import type { PromotionalMaterial, PromotionalMaterialType, UserRole, LatestPurchaseInfo } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { PlusCircle, Edit, Trash2, MoreHorizontal, PackagePlus, Filter, ChevronDown, AlertTriangle, CalendarDays, Loader2 } from "lucide-react";
+import { PlusCircle, Edit, Trash2, MoreHorizontal, PackagePlus, Filter, ChevronDown, AlertTriangle, CalendarDays, Loader2, Archive } from "lucide-react";
 import PromotionalMaterialDialog, { type PromotionalMaterialFormValues } from "@/components/app/promotional-material-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
@@ -138,8 +138,8 @@ export default function PromotionalMaterialsPage() {
     <div className="space-y-8">
       <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center space-x-2">
-            <PackagePlus className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-headline font-semibold">Gestión de Materiales Promocionales</h1>
+            <Archive className="h-8 w-8 text-primary" />
+            <h1 className="text-3xl font-headline font-semibold">Inventario de Materiales Promocionales</h1>
         </div>
         <Button onClick={handleAddNewMaterial} disabled={isLoading}>
           <PlusCircle className="mr-2 h-4 w-4" /> Añadir Nuevo Material
@@ -148,8 +148,8 @@ export default function PromotionalMaterialsPage() {
 
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
-          <CardTitle>Catálogo de Tipos de Materiales</CardTitle>
-          <CardDescription>Administra los tipos de materiales promocionales y la información de su última compra para calcular costes.</CardDescription>
+          <CardTitle>Catálogo de Inventario</CardTitle>
+          <CardDescription>Administra los materiales promocionales, su stock disponible y los costes asociados a través de las compras.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
@@ -178,7 +178,7 @@ export default function PromotionalMaterialsPage() {
           {isLoading ? (
             <div className="flex justify-center items-center h-64">
               <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              <p className="ml-4 text-muted-foreground">Cargando materiales...</p>
+              <p className="ml-4 text-muted-foreground">Cargando inventario...</p>
             </div>
           ) : (
           <div className="overflow-x-auto">
@@ -186,9 +186,10 @@ export default function PromotionalMaterialsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[30%]">Nombre del Material</TableHead>
-                  <TableHead className="w-[20%]">Tipo</TableHead>
-                  <TableHead className="text-right w-[20%]">Coste Unitario (€)</TableHead>
-                  <TableHead className="text-center w-[15%]">Última Compra</TableHead>
+                  <TableHead className="w-[15%]">Tipo</TableHead>
+                  <TableHead className="text-right w-[15%]">Stock Disponible</TableHead>
+                  <TableHead className="text-right w-[15%]">Coste Unitario (€)</TableHead>
+                  <TableHead className="text-center w-[10%]">Última Compra</TableHead>
                   <TableHead className="text-right w-[15%]">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -197,6 +198,9 @@ export default function PromotionalMaterialsPage() {
                   <TableRow key={material.id}>
                     <TableCell className="font-medium">{material.name}</TableCell>
                     <TableCell>{material.type}</TableCell>
+                    <TableCell className="text-right font-bold">
+                       <FormattedNumericValue value={material.stock} />
+                    </TableCell>
                     <TableCell className="text-right">
                        {material.latestPurchase && material.latestPurchase.calculatedUnitCost !== undefined ? (
                            <FormattedNumericValue value={material.latestPurchase.calculatedUnitCost} locale="es-ES" options={{ style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4 }} />
@@ -259,7 +263,7 @@ export default function PromotionalMaterialsPage() {
                   </TableRow>
                 )) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center">
+                    <TableCell colSpan={6} className="h-24 text-center">
                       No se encontraron materiales que coincidan con tu búsqueda o filtros. Puedes añadir nuevos materiales.
                     </TableCell>
                   </TableRow>

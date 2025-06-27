@@ -4,7 +4,7 @@
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Users, Goal, Target, Settings, PackagePlus } from "lucide-react"; // Added PackagePlus
+import { Users, Goal, Target, Settings, Archive } from "lucide-react"; 
 import { useAuth } from "@/contexts/auth-context";
 import { AlertTriangle } from "lucide-react";
 
@@ -28,10 +28,10 @@ const adminSections = [
     icon: Target,
   },
   {
-    title: "Gestión de Materiales Promocionales",
-    description: "Administrar materiales de marketing (cubiteras, PLV, etc.) y sus costes.",
+    title: "Inventario y Materiales",
+    description: "Gestionar el stock y los costes de los materiales promocionales.",
     href: "/admin/promotional-materials",
-    icon: PackagePlus,
+    icon: Archive,
   },
 ];
 

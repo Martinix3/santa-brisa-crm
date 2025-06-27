@@ -1,4 +1,3 @@
-
 'use server';
 
 import { db } from '@/lib/firebase';
@@ -86,4 +85,13 @@ export const updateSampleRequestStatusFS = async (id: string, status: SampleRequ
     updateData.adminNotes = adminNotes;
   }
   await updateDoc(requestDocRef, updateData as any);
+};
+
+export const deleteSampleRequestFS = async (id: string): Promise<void> => {
+  if (!id) {
+    console.error("deleteSampleRequestFS called with no ID.");
+    return;
+  }
+  const requestDocRef = doc(db, SAMPLE_REQUESTS_COLLECTION, id);
+  await deleteDoc(requestDocRef);
 };

@@ -5,21 +5,22 @@ import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import type { SampleRequest, SampleRequestStatus, UserRole, TeamMember, Account } from "@/types";
 import { sampleRequestStatusList } from "@/lib/data";
-import { Filter, ChevronDown, Loader2, PackageCheck, ListOrdered, Users, Printer, MoreHorizontal } from "lucide-react";
+import { Filter, ChevronDown, Loader2, PackageCheck, ListOrdered, Users, Printer, MoreHorizontal, Trash2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from 'date-fns/locale';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import StatusBadge from "@/components/app/status-badge";
-import { getSampleRequestsFS, updateSampleRequestStatusFS } from "@/services/sample-request-service";
+import { getSampleRequestsFS, updateSampleRequestStatusFS, deleteSampleRequestFS } from "@/services/sample-request-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { getAccountsFS } from "@/services/account-service";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import ShippingLabelDialog from "@/components/app/shipping-label-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 
 export default function SampleManagementPage() {
@@ -31,6 +32,7 @@ export default function SampleManagementPage() {
   const [accounts, setAccounts] = React.useState<Account[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [printingRequest, setPrintingRequest] = React.useState<SampleRequest | null>(null);
+  const [requestToDelete, setRequestToDelete] = React.useState<SampleRequest | null>(null);
 
   const [statusFilter, setStatusFilter] = React.useState<SampleRequestStatus | "Todos">("Todos");
   const [requesterFilter, setRequesterFilter] = React.useState<string>("Todos");
@@ -115,6 +117,23 @@ export default function SampleManagementPage() {
     }
   };
   
+  const confirmDeleteRequest = async () => {
+    if (!isAdmin || !requestToDelete) return;
+    setIsLoading(true);
+    try {
+        await deleteSampleRequestFS(requestToDelete.id);
+        setRequests(prev => prev.filter(req => req.id !== requestToDelete.id));
+        toast({ title: "¡Solicitud Eliminada!", description: `La solicitud de "${requestToDelete.clientName}" ha sido eliminada.`, variant: "destructive" });
+        refreshDataSignature(); // This should trigger recalculation of stats
+    } catch (error) {
+        console.error("Error deleting sample request:", error);
+        toast({ title: "Error al Eliminar", description: "No se pudo eliminar la solicitud.", variant: "destructive" });
+    } finally {
+        setIsLoading(false);
+        setRequestToDelete(null);
+    }
+  };
+
   if (!isAdmin) {
     return <Card><CardHeader><CardTitle>Acceso Denegado</CardTitle></CardHeader><CardContent><p>No tienes permiso para ver esta sección.</p></CardContent></Card>
   }
@@ -266,6 +285,33 @@ export default function SampleManagementPage() {
                             <DropdownMenuItem onSelect={() => setPrintingRequest(req)}>
                               <Printer className="mr-2 h-4 w-4" /> Imprimir Dirección
                             </DropdownMenuItem>
+                             <DropdownMenuSeparator />
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <DropdownMenuItem
+                                    className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                    onSelect={(e) => { e.preventDefault(); setRequestToDelete(req); }}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" /> Eliminar Solicitud
+                                  </DropdownMenuItem>
+                                </AlertDialogTrigger>
+                                {requestToDelete && requestToDelete.id === req.id && (
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Esta acción no se puede deshacer. Esto eliminará permanentemente la solicitud de muestras para:
+                                        <br />
+                                        <strong className="mt-2 block">"{requestToDelete.clientName}"</strong>
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel onClick={() => setRequestToDelete(null)}>Cancelar</AlertDialogCancel>
+                                      <AlertDialogAction onClick={confirmDeleteRequest} variant="destructive">Sí, eliminar</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                )}
+                              </AlertDialog>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>

@@ -64,14 +64,12 @@ export default function DashboardPage() {
             .filter(m => m.role === 'SalesRep')
             .map(m => m.name);
         
+        // --- START: New KPI Calculation Logic ---
+        const currentDate = new Date();
         let totalBottlesSoldOverall = 0;
         let teamBottlesSoldOverall = 0;
-        let accountsCreatedByTeamThisYear = 0;
-        let accountsCreatedByTeamThisMonth = 0;
         let ordersFromExistingCustomersCount = 0;
         let totalValidOrdersCount = 0;
-        const currentDate = new Date();
-
 
         fetchedOrders.forEach(order => {
           if (validSaleStatuses.includes(order.status)) {
@@ -85,20 +83,38 @@ export default function DashboardPage() {
             if (order.clientStatus === 'existing') {
               ordersFromExistingCustomersCount++;
             }
-            // Logic for New Accounts KPI based on successful orders of new clients
-            if (order.clientStatus === 'new') {
-                const orderDate = parseISO(order.visitDate);
-                if(isValid(orderDate)) {
-                    if(isSameYear(orderDate, currentDate)) {
-                        accountsCreatedByTeamThisYear++;
-                    }
-                    if(isSameMonth(orderDate, currentDate)) {
-                        accountsCreatedByTeamThisMonth++;
-                    }
-                }
-            }
           }
         });
+
+        // Correct "New Account" calculation based on first successful order date
+        const successfulOrders = fetchedOrders
+          .filter(o => validSaleStatuses.includes(o.status) && o.accountId && isValid(parseISO(o.createdAt)))
+          .sort((a,b) => parseISO(a.createdAt!).getTime() - parseISO(b.createdAt!).getTime());
+
+        const firstOrderDateByAccount = new Map<string, Date>();
+        for (const order of successfulOrders) {
+            if (order.accountId && !firstOrderDateByAccount.has(order.accountId)) {
+                firstOrderDateByAccount.set(order.accountId, parseISO(order.createdAt!));
+            }
+        }
+        
+        const uniqueAccountsThisYear = new Set<string>();
+        const uniqueAccountsThisMonth = new Set<string>();
+        
+        for (const [accountId, firstOrderDate] of firstOrderDateByAccount.entries()) {
+            const order = successfulOrders.find(o => o.accountId === accountId);
+            if(order && salesRepNames.includes(order.salesRep)) {
+                if (isSameYear(firstOrderDate, currentDate)) {
+                    uniqueAccountsThisYear.add(accountId);
+                }
+                if (isSameMonth(firstOrderDate, currentDate)) {
+                    uniqueAccountsThisMonth.add(accountId);
+                }
+            }
+        }
+        const accountsCreatedByTeamThisYear = uniqueAccountsThisYear.size;
+        const accountsCreatedByTeamThisMonth = uniqueAccountsThisMonth.size;
+        // --- END: New KPI Calculation Logic ---
 
 
         const updatedKpis = initialKpiDataLaunch.map(kpi => {
@@ -126,7 +142,7 @@ export default function DashboardPage() {
       }
     }
     loadDashboardData();
-  }, [dataSignature]); // Add dataSignature to dependencies
+  }, [dataSignature]);
 
   const currentMonthNewAccountsByRep = React.useMemo(() => {
     if (!teamMember || userRole !== 'SalesRep' || orders.length === 0) return 0;

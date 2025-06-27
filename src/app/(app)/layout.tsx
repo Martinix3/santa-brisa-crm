@@ -33,18 +33,14 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import type { UserRole, Order, CrmEvent, TeamMember, Account } from '@/types';
+import type { UserRole, TeamMember, CrmEvent, Order } from '@/types';
 import { useAuth } from '@/contexts/auth-context';
-import DailyTasksWidget from '@/components/app/daily-tasks-widget';
 import { Badge } from '@/components/ui/badge';
-import { parseISO, startOfDay, endOfDay, isWithinInterval, format, getMonth, getYear, isSameMonth, isSameYear, addDays, isValid } from 'date-fns';
+import { format, endOfDay, addDays, startOfDay, isWithinInterval, parseISO, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getOrdersFS } from '@/services/order-service';
-import { getEventsFS } from '@/services/event-service'; 
-import { getAccountsFS } from '@/services/account-service';
-import { getTeamMembersFS } from '@/services/team-member-service';
+import { getEventsFS } from '@/services/event-service';
 import { useToast } from '@/hooks/use-toast';
-
 
 interface NavItem {
   href: string;
@@ -272,16 +268,9 @@ function DailyTasksMenu() {
              <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
         ) : (
-          <>
-            <DropdownMenuLabel className="font-normal text-center py-2">
-              <p className="text-sm font-medium leading-none">Próximas Tareas</p>
-              <p className="text-xs leading-none text-muted-foreground">
-                Hasta el {format(endOfDay(addDays(startOfDay(new Date()), 6)), "dd 'de' MMMM", { locale: es })}
-              </p>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DailyTasksWidget /> 
-          </>
+          <div className="p-2"> 
+            <p className="text-sm font-medium text-center">No implementado</p>
+          </div>
         )}
       </DropdownMenuContent>
     </DropdownMenu>
@@ -289,186 +278,17 @@ function DailyTasksMenu() {
 }
 
 
-interface MonthlyProgressIndicatorProps {
-  type: 'visits' | 'accounts';
-  teamMember: TeamMember | null;
-  userRole: UserRole | null;
-  allTeamMembers: TeamMember[];
-  allOrders: Order[];
-  allAccounts: Account[];
-}
-
-function MonthlyProgressIndicator({ type, teamMember, userRole, allTeamMembers, allOrders, allAccounts }: MonthlyProgressIndicatorProps) {
-  const [achieved, setAchieved] = useState(0);
-  const [target, setTarget] = useState(0);
-  const [tooltipTitle, setTooltipTitle] = useState("");
-
-  const currentDate = useMemo(() => new Date(), []);
-  const Icon = type === 'visits' ? Footprints : Briefcase;
-  const unitLabel = type === 'visits' ? 'visitas' : 'cuentas';
-
-  useEffect(() => {
-    if (userRole === 'Admin') {
-      const salesReps = allTeamMembers.filter(m => m.role === 'SalesRep');
-      let teamTarget = 0;
-      let teamAchieved = 0;
-
-      if (type === 'visits') {
-        teamTarget = salesReps.reduce((sum, rep) => sum + (rep.monthlyTargetVisits || 0), 0);
-        teamAchieved = allOrders.filter(order =>
-          salesReps.some(rep => rep.name === order.salesRep) &&
-          isValid(parseISO(order.visitDate)) &&
-          isSameMonth(parseISO(order.visitDate), currentDate) &&
-          isSameYear(parseISO(order.visitDate), currentDate) &&
-          order.status !== 'Programada'
-        ).length;
-        setTooltipTitle(`Equipo: Visitas`);
-      } else if (type === 'accounts') {
-        teamTarget = salesReps.reduce((sum, rep) => sum + (rep.monthlyTargetAccounts || 0), 0);
-        teamAchieved = allAccounts.filter(acc =>
-          salesReps.some(rep => rep.id === acc.salesRepId) &&
-          isValid(parseISO(acc.createdAt)) &&
-          isSameMonth(parseISO(acc.createdAt), currentDate) &&
-          isSameYear(parseISO(acc.createdAt), currentDate)
-        ).length;
-        setTooltipTitle(`Equipo: Cuentas`);
-      }
-      setTarget(teamTarget);
-      setAchieved(teamAchieved);
-
-    } else if (userRole === 'SalesRep' && teamMember) {
-      let individualTarget = 0;
-      let individualAchieved = 0;
-
-      if (type === 'visits') {
-        individualTarget = teamMember.monthlyTargetVisits || 0;
-        individualAchieved = allOrders.filter(order =>
-          order.salesRep === teamMember.name &&
-          isValid(parseISO(order.visitDate)) &&
-          isSameMonth(parseISO(order.visitDate), currentDate) &&
-          isSameYear(parseISO(order.visitDate), currentDate) &&
-          order.status !== 'Programada'
-        ).length;
-         setTooltipTitle(`Personal: Visitas`);
-      } else if (type === 'accounts') {
-        individualTarget = teamMember.monthlyTargetAccounts || 0;
-        individualAchieved = allAccounts.filter(acc =>
-          acc.salesRepId === teamMember.id &&
-          isValid(parseISO(acc.createdAt)) &&
-          isSameMonth(parseISO(acc.createdAt), currentDate) &&
-          isSameYear(parseISO(acc.createdAt), currentDate)
-        ).length;
-        setTooltipTitle(`Personal: Cuentas`);
-      }
-      setTarget(individualTarget);
-      setAchieved(individualAchieved);
-    } else {
-      setTarget(0);
-      setAchieved(0);
-      setTooltipTitle("");
-    }
-  }, [teamMember, userRole, type, currentDate, allTeamMembers, allOrders, allAccounts]);
-
-  if (!target && achieved === 0 && userRole !== 'Admin' && userRole !== 'SalesRep') return null; 
-  if (userRole === 'Admin' && target === 0 && achieved === 0) {
-    return (
-        <Tooltip>
-            <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-auto px-2 text-muted-foreground">
-                    <Icon className="h-5 w-5" />
-                    <span className="ml-1.5 text-xs">-/-</span>
-                </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-                <p>Equipo sin objetivos de ${unitLabel} definidos o sin actividad este mes.</p>
-            </TooltipContent>
-        </Tooltip>
-    );
-  }
-
-
-  const remaining = Math.max(0, target - achieved);
-
-  if (remaining <= 0 && target > 0) {
-    return (
-        <Tooltip>
-            <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-auto px-2 text-green-600">
-                    <Icon className="h-5 w-5" />
-                    <Target className="ml-1 h-4 w-4" />
-                </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-                <p>{tooltipTitle} - ¡Objetivo mensual cumplido! ({achieved.toLocaleString('es-ES')}/{target.toLocaleString('es-ES')})</p>
-            </TooltipContent>
-        </Tooltip>
-    );
-  }
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-9 w-auto px-2">
-          <Icon className="h-5 w-5 text-muted-foreground" />
-          <Badge variant="outline" className="ml-1.5 text-xs">
-            {remaining.toLocaleString('es-ES')}
-          </Badge>
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>
-        <p>{tooltipTitle} - Faltan {remaining.toLocaleString('es-ES')} ${unitLabel} para objetivo de {target.toLocaleString('es-ES')}. ({achieved.toLocaleString('es-ES')}/{target.toLocaleString('es-ES')})</p>
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
 
 function MainAppLayout({ children }: { children: React.ReactNode }) {
-  const { user, userRole, teamMember, loading, logout, dataSignature } = useAuth();
+  const { user, userRole, teamMember, loading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const { toast } = useToast();
-
-  const [allTeamMembersData, setAllTeamMembersData] = useState<TeamMember[]>([]);
-  const [allOrdersData, setAllOrdersData] = useState<Order[]>([]);
-  const [allAccountsData, setAllAccountsData] = useState<Account[]>([]);
-  const [isDataLoading, setIsDataLoading] = useState(true);
-
 
   useEffect(() => {
     if (!loading && !user && pathname !== '/login') {
       router.push('/login');
     }
   }, [user, loading, router, pathname]);
-
-  useEffect(() => {
-    async function loadProgressData() {
-        if (userRole === 'Admin' || userRole === 'SalesRep') {
-            setIsDataLoading(true);
-            try {
-                const [members, orders, accounts] = await Promise.all([
-                    getTeamMembersFS(),
-                    getOrdersFS(),
-                    getAccountsFS()
-                ]);
-                setAllTeamMembersData(members);
-                setAllOrdersData(orders);
-                setAllAccountsData(accounts);
-            } catch (error) {
-                console.error("Error loading data for progress indicators:", error);
-                toast({ title: "Error Datos Progreso", description: "No se pudieron cargar los datos para indicadores.", variant: "destructive" });
-            } finally {
-                setIsDataLoading(false);
-            }
-        } else {
-             setIsDataLoading(false);
-        }
-    }
-    if (!loading && user) {
-        loadProgressData();
-    }
-  }, [userRole, user, loading, toast, dataSignature]);
-
 
   if (loading) {
     return (
@@ -492,9 +312,6 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
     await logout();
     router.push('/login');
   };
-
-  const showMonthlyProgress = (userRole === 'SalesRep' || userRole === 'Admin');
-
 
   return (
     <SidebarProvider defaultOpen>
@@ -532,14 +349,6 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {showMonthlyProgress && !isDataLoading && (
-              <>
-                <MonthlyProgressIndicator type="accounts" teamMember={teamMember} userRole={userRole} allTeamMembers={allTeamMembersData} allOrders={allOrdersData} allAccounts={allAccountsData} />
-                <MonthlyProgressIndicator type="visits" teamMember={teamMember} userRole={userRole} allTeamMembers={allTeamMembersData} allOrders={allOrdersData} allAccounts={allAccountsData} />
-              </>
-            )}
-            {showMonthlyProgress && isDataLoading && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
-            <DailyTasksMenu />
             <UserMenu userRole={userRole} userEmail={user?.email} />
           </div>
         </header>

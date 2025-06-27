@@ -11,16 +11,15 @@ import { useToast } from "@/hooks/use-toast";
 import type { DirectSale, DirectSaleStatus, UserRole, Account, AccountType } from "@/types";
 import { directSaleStatusList } from "@/lib/data";
 import { useAuth } from "@/contexts/auth-context";
-import { PlusCircle, MoreHorizontal, Filter, ChevronDown, Edit, Trash2, Briefcase, Loader2 } from "lucide-react";
-import VentaDirectaDialog from "@/components/app/venta-directa-dialog";
-import type { DirectSaleFormValues } from "@/components/app/venta-directa-dialog";
+import { PlusCircle, MoreHorizontal, Filter, ChevronDown, Trash2, Briefcase, Loader2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
 import StatusBadge from "@/components/app/status-badge";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-import { getDirectSalesFS, addDirectSaleFS, updateDirectSaleFS, deleteDirectSaleFS } from "@/services/venta-directa-sb-service"; 
+import { getDirectSalesFS, deleteDirectSaleFS } from "@/services/venta-directa-sb-service"; 
 import { getAccountsFS } from "@/services/account-service";
+import Link from 'next/link';
 
 
 export default function DirectSalesSbPage() {
@@ -29,8 +28,6 @@ export default function DirectSalesSbPage() {
   const [sales, setSales] = React.useState<DirectSale[]>([]);
   const [accounts, setAccounts] = React.useState<Account[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [editingSale, setEditingSale] = React.useState<DirectSale | null>(null);
-  const [isSaleDialogOpen, setIsSaleDialogOpen] = React.useState(false);
   const [saleToDelete, setSaleToDelete] = React.useState<DirectSale | null>(null);
 
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -63,43 +60,7 @@ export default function DirectSalesSbPage() {
         setIsLoading(false);
     }
   }, [toast, isAdmin, refreshDataSignature]);
-
-  const handleAddNewSale = () => {
-    if (!isAdmin) return;
-    setEditingSale(null);
-    setIsSaleDialogOpen(true);
-  };
   
-  const handleEditSale = (sale: DirectSale) => {
-    if (!isAdmin) return;
-    setEditingSale(sale);
-    setIsSaleDialogOpen(true);
-  };
-  
-  const handleSaveSale = async (data: DirectSaleFormValues, saleId?: string) => {
-    if (!isAdmin) return;
-    setIsLoading(true);
-    
-    try {
-      let successMessage = "";
-      if (saleId) { 
-        await updateDirectSaleFS(saleId, data);
-        successMessage = `La venta a "${data.customerName}" ha sido actualizada.`;
-      } else { 
-        await addDirectSaleFS(data);
-        successMessage = `La venta a "${data.customerName}" ha sido añadida.`;
-      }
-      refreshDataSignature();
-      toast({ title: "¡Operación Exitosa!", description: successMessage });
-    } catch (error) {
-        console.error("Error saving direct sale:", error);
-        toast({ title: "Error al Guardar", description: "No se pudo guardar la venta.", variant: "destructive"});
-    } finally {
-        setIsLoading(false);
-        setIsSaleDialogOpen(false);
-        setEditingSale(null);
-    }
-  };
 
   const handleDeleteSale = (sale: DirectSale) => {
     if (!isAdmin) return;
@@ -145,8 +106,10 @@ export default function DirectSalesSbPage() {
             <Briefcase className="h-8 w-8 text-primary" />
             <h1 className="text-3xl font-headline font-semibold">Facturación y Ventas Propias</h1>
         </div>
-        <Button onClick={handleAddNewSale} disabled={isLoading}>
-          <PlusCircle className="mr-2 h-4 w-4" /> Añadir Nueva Venta
+        <Button asChild disabled={isLoading}>
+          <Link href="/direct-sales-sb/new">
+            <PlusCircle className="mr-2 h-4 w-4" /> Añadir Nueva Venta
+          </Link>
         </Button>
       </header>
 
@@ -219,10 +182,6 @@ export default function DirectSalesSbPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onSelect={() => handleEditSale(sale)}>
-                              <Edit className="mr-2 h-4 w-4" /> Editar / Ver Detalles
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <DropdownMenuItem
@@ -271,17 +230,6 @@ export default function DirectSalesSbPage() {
             </CardFooter>
         )}
       </Card>
-
-      <VentaDirectaDialog
-          sale={editingSale}
-          isOpen={isSaleDialogOpen}
-          onOpenChange={(open) => {
-              setIsSaleDialogOpen(open);
-              if (!open) setEditingSale(null);
-          }}
-          onSave={handleSaveSale}
-          accounts={accounts}
-      />
     </div>
   );
 }

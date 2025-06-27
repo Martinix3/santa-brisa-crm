@@ -9,7 +9,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, ArrowRight, Trash2, PlusCircle, Calendar as CalendarIcon, Award } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Trash2, PlusCircle, Calendar as CalendarIcon, Award, Package } from 'lucide-react';
 import { format, subDays, isEqual } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -49,7 +49,6 @@ export const StepDetails: React.FC<StepDetailsProps> = ({
   const failureReasonTypeWatched = useWatch({ control: form.control, name: 'failureReasonType' });
   const watchedMaterials = useWatch({ control: form.control, name: 'assignedMaterials' });
 
-  // Imperative validation for stock, as it depends on external data
   React.useEffect(() => {
     if (watchedMaterials) {
         watchedMaterials.forEach((item, index) => {
@@ -113,7 +112,7 @@ export const StepDetails: React.FC<StepDetailsProps> = ({
                                     "w-full justify-start text-left font-normal",
                                     !field.value && "text-muted-foreground"
                                     )}
-                                    aria-label="Abrir calendario para seleccionar fecha"
+                                    aria-label="Abrir calendario para seleccionar fecha de próxima acción"
                                 >
                                     <CalendarIcon className="mr-2 h-4 w-4" />
                                     <span>{field.value ? format(field.value, "PPP", { locale: es }) : "Seleccione fecha"}</span>
@@ -299,10 +298,11 @@ export const StepDetails: React.FC<StepDetailsProps> = ({
                   </div>
                 </div>
             ))}
-
-            <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => appendMaterial({ materialId: '', quantity: undefined })}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Añadir Material
-            </Button>
+            <div className="pt-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => appendMaterial({ materialId: '', quantity: undefined })}>
+                  <PlusCircle className="mr-2 h-4 w-4" /> Añadir Material
+              </Button>
+            </div>
           </div>
       </CardContent>
       <CardFooter className="flex justify-between">

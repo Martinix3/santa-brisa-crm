@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -51,7 +52,6 @@ export function useDirectSaleWizard() {
       customerName: "",
       channel: undefined,
       items: [{ productName: "Santa Brisa 750ml", quantity: 1, netUnitPrice: undefined }],
-      issueDate: new Date(),
       status: "Borrador",
       relatedPlacementOrders: "",
       notes: "",

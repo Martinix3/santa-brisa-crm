@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as z from "zod";
@@ -26,7 +27,6 @@ export const directSaleWizardSchema = z.object({
   customerName: z.string().min(1, "El nombre del cliente es obligatorio."),
   channel: z.enum(directSaleChannelList as [DirectSaleChannel, ...DirectSaleChannel[]], { required_error: "El canal de venta es obligatorio." }),
   items: z.array(directSaleItemSchema).min(1, "Debe añadir al menos un producto a la venta."),
-  issueDate: z.date().optional(), // Made optional
   dueDate: z.date().optional(),
   invoiceNumber: z.string().optional(),
   status: z.enum(directSaleStatusList as [DirectSaleStatus, ...DirectSaleStatus[]]),

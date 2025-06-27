@@ -6,10 +6,14 @@ import {
   collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
   type DocumentSnapshot,
 } from "firebase/firestore";
-import type { DirectSale, DirectSaleWizardFormValues as DirectSaleFormValues } from '@/types';
+import type { DirectSale } from '@/types';
+import type { DirectSaleWizardFormValues } from '@/lib/schemas/direct-sale-schema';
 import { format, parseISO, isValid } from 'date-fns';
 
 const DIRECT_SALES_COLLECTION = 'directSales';
+
+type DirectSaleWithExtras = DirectSaleWizardFormValues & { issueDate: Date; customerId?: string };
+
 
 const fromFirestoreDirectSale = (docSnap: DocumentSnapshot): DirectSale => {
   const data = docSnap.data();
@@ -35,7 +39,7 @@ const fromFirestoreDirectSale = (docSnap: DocumentSnapshot): DirectSale => {
   };
 };
 
-const toFirestoreDirectSale = (data: Partial<DirectSaleFormValues>, isNew: boolean): any => {
+const toFirestoreDirectSale = (data: Partial<DirectSaleWithExtras>, isNew: boolean): any => {
   const subtotal = data.items?.reduce((sum, item) => sum + (item.quantity || 0) * (item.netUnitPrice || 0), 0) || 0;
   const tax = subtotal * 0.21;
   const totalAmount = subtotal + tax;
@@ -60,11 +64,11 @@ const toFirestoreDirectSale = (data: Partial<DirectSaleFormValues>, isNew: boole
       notes: data.notes || null,
   };
 
-  if (data.issueDate && isValid(data.issueDate)) {
-    firestoreData.issueDate = Timestamp.fromDate(data.issueDate);
-  } else if (isNew) {
-    firestoreData.issueDate = Timestamp.fromDate(new Date());
-  }
+  // Explicitly handle issueDate
+  firestoreData.issueDate = data.issueDate && isValid(data.issueDate) 
+    ? Timestamp.fromDate(data.issueDate) 
+    : Timestamp.fromDate(new Date());
+
 
   if (data.dueDate && isValid(data.dueDate)) {
     firestoreData.dueDate = Timestamp.fromDate(data.dueDate);
@@ -95,13 +99,13 @@ export const getDirectSalesFS = async (): Promise<DirectSale[]> => {
 };
 
 
-export const addDirectSaleFS = async (data: DirectSaleFormValues): Promise<string> => {
+export const addDirectSaleFS = async (data: DirectSaleWithExtras): Promise<string> => {
   const firestoreData = toFirestoreDirectSale(data, true);
   const docRef = await addDoc(collection(db, DIRECT_SALES_COLLECTION), firestoreData);
   return docRef.id;
 };
 
-export const updateDirectSaleFS = async (id: string, data: Partial<DirectSaleFormValues>): Promise<void> => {
+export const updateDirectSaleFS = async (id: string, data: Partial<DirectSaleWithExtras>): Promise<void> => {
   const saleDocRef = doc(db, DIRECT_SALES_COLLECTION, id);
   const firestoreData = toFirestoreDirectSale(data, false);
   await updateDoc(saleDocRef, firestoreData);

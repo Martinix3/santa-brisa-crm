@@ -1,4 +1,5 @@
 
+
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
 
 export interface Kpi {
@@ -317,24 +318,6 @@ export interface DirectSale {
   notes?: string;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface DirectSaleWizardFormValues {
-  customerId?: string;
-  customerName: string;
-  channel: DirectSaleChannel;
-  items: {
-    productId?: string;
-    productName: string;
-    quantity: number;
-    netUnitPrice?: number;
-  }[];
-  issueDate: Date;
-  dueDate?: Date;
-  invoiceNumber?: string;
-  status: DirectSaleStatus;
-  relatedPlacementOrders?: string;
-  notes?: string;
 }
 
 export interface Supplier {

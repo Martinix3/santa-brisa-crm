@@ -98,20 +98,6 @@ export default function TeamTrackingPage() {
         ]);
         const currentDate = new Date();
         
-        // Pre-calculate first successful order date for every account to optimize "new account" calculation
-        const firstOrderDateByAccount = new Map<string, Date>();
-        const successfulOrders = fetchedOrders
-          .filter(o => VALID_SALE_STATUSES.includes(o.status) && o.accountId && (o.createdAt || o.visitDate))
-          .map(o => ({...o, relevantDate: parseISO(o.createdAt || o.visitDate)}))
-          .filter(o => isValid(o.relevantDate))
-          .sort((a, b) => a.relevantDate.getTime() - b.relevantDate.getTime());
-
-        for (const order of successfulOrders) {
-          if (order.accountId && !firstOrderDateByAccount.has(order.accountId)) {
-            firstOrderDateByAccount.set(order.accountId, order.relevantDate);
-          }
-        }
-        
         const stats = salesTeamMembersBase.map(member => {
           let bottlesSold = 0;
           let ordersCount = 0;
@@ -138,17 +124,15 @@ export default function TeamTrackingPage() {
             ALL_VISIT_STATUSES.includes(order.status)
           ).length;
 
-          // Calculate Monthly New Accounts: clients whose first order was this month
-          const accountIdsOpenedThisMonth = new Set<string>();
-          for (const order of memberInteractions) {
-            if (VALID_SALE_STATUSES.includes(order.status) && order.accountId) {
-              const firstOrderDate = firstOrderDateByAccount.get(order.accountId);
-              if (firstOrderDate && isSameMonth(firstOrderDate, currentDate) && isSameYear(firstOrderDate, currentDate)) {
-                accountIdsOpenedThisMonth.add(order.accountId);
-              }
-            }
-          }
-          const monthlyAccountsAchieved = accountIdsOpenedThisMonth.size;
+          // NEW: Calculate Monthly New Accounts based on account creation date and status
+          const monthlyAccountsAchieved = fetchedAccounts.filter(acc => 
+            acc.salesRepId === member.id &&
+            acc.status === 'Activo' &&
+            acc.createdAt &&
+            isValid(parseISO(acc.createdAt)) &&
+            isSameMonth(parseISO(acc.createdAt), currentDate) &&
+            isSameYear(parseISO(acc.createdAt), currentDate)
+          ).length;
 
           return {
             ...member,

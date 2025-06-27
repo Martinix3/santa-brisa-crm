@@ -69,7 +69,6 @@ export default function DashboardPage() {
       .filter(o => VALID_SALE_STATUSES.includes(o.status) && (o.createdAt || o.visitDate))
       .map(o => ({
         ...o,
-        // Use createdAt for accuracy, fallback to visitDate for older records
         relevantDate: parseISO(o.createdAt || o.visitDate),
       }))
       .filter(o => isValid(o.relevantDate))
@@ -88,27 +87,22 @@ export default function DashboardPage() {
       }
     }
     
-    // Correct "New Account" calculation
-    const firstOrderDateByAccount = new Map<string, Date>();
-    for (const order of successfulOrders) {
-        if (order.accountId && !firstOrderDateByAccount.has(order.accountId)) {
-            firstOrderDateByAccount.set(order.accountId, order.relevantDate);
-        }
-    }
-    
+    // NEW "New Account" calculation based on Account's createdAt date and status
+    const salesRepIdSet = new Set(salesReps.map(m => m.id));
+
     const accountsCreatedByTeamThisYear = new Set<string>();
     const accountsCreatedByTeamThisMonth = new Set<string>();
-    
-    for (const [accountId, firstOrderDate] of firstOrderDateByAccount.entries()) {
-      const order = successfulOrders.find(o => o.accountId === accountId);
-      if(order && salesRepNamesSet.has(order.salesRep)) {
-          if (isSameYear(firstOrderDate, currentDate)) {
-              accountsCreatedByTeamThisYear.add(accountId);
-          }
-          if (isSameMonth(firstOrderDate, currentDate)) {
-              accountsCreatedByTeamThisMonth.add(accountId);
-          }
-      }
+
+    for (const account of accounts) {
+        if (account.status === 'Activo' && account.salesRepId && salesRepIdSet.has(account.salesRepId) && account.createdAt && isValid(parseISO(account.createdAt))) {
+            const creationDate = parseISO(account.createdAt);
+            if (isSameYear(creationDate, currentDate)) {
+                accountsCreatedByTeamThisYear.add(account.id);
+            }
+            if (isSameMonth(creationDate, currentDate)) {
+                accountsCreatedByTeamThisMonth.add(account.id);
+            }
+        }
     }
 
     const calculatedKpis = initialKpiDataLaunch.map(kpi => {
@@ -130,7 +124,17 @@ export default function DashboardPage() {
     // Monthly progress calculations
     let monthlyProgressMetrics: any[] = [];
     if(userRole === 'SalesRep' && teamMember) {
-      const monthlyAccounts = Array.from(accountsCreatedByTeamThisMonth).filter(id => successfulOrders.find(o => o.accountId === id)?.salesRep === teamMember.name).length;
+      // Logic for individual SalesRep
+      const memberAccounts = accounts.filter(acc => 
+        acc.salesRepId === teamMember.id &&
+        acc.status === 'Activo' &&
+        acc.createdAt &&
+        isValid(parseISO(acc.createdAt)) &&
+        isSameMonth(parseISO(acc.createdAt), currentDate) &&
+        isSameYear(parseISO(acc.createdAt), currentDate)
+      );
+      const monthlyAccounts = memberAccounts.length;
+
       const monthlyVisits = orders.filter(o => 
         o.salesRep === teamMember.name && 
         isValid(parseISO(o.visitDate)) && 

@@ -77,42 +77,42 @@ export default function DashboardPage() {
     const totalBottlesSoldOverall = successfulOrders.reduce((sum, o) => sum + (o.numberOfUnits || 0), 0);
     const teamBottlesSoldOverall = successfulOrders.filter(o => salesRepNamesSet.has(o.salesRep)).reduce((sum, o) => sum + (o.numberOfUnits || 0), 0);
     
-    // Correct way to count new accounts: based on first successful order
-    const uniqueAccountIdsWithSuccessfulOrders = new Set<string>();
-    const accountsWithFirstSuccessfulOrderDate = new Map<string, Date>();
+    // --- CORRECTED/NEW LOGIC ---
 
-    for(const order of successfulOrders) {
-      if(order.accountId && !accountsWithFirstSuccessfulOrderDate.has(order.accountId)) {
-        accountsWithFirstSuccessfulOrderDate.set(order.accountId, order.relevantDate);
-      }
-    }
-
-    let newAccountsThisYear = 0;
-    let newAccountsThisMonth = 0;
-    accountsWithFirstSuccessfulOrderDate.forEach((date, accountId) => {
-        if(isSameYear(date, currentDate)) {
-            newAccountsThisYear++;
+    // New Accounts calculation based on Account creation date and status
+    const activeAccounts = accounts.filter(acc => 
+        acc.status === 'Activo' && acc.createdAt && isValid(parseISO(acc.createdAt))
+    );
+    const newAccountsThisYear = activeAccounts.filter(acc => isSameYear(parseISO(acc.createdAt!), currentDate)).length;
+    const newAccountsThisMonth = activeAccounts.filter(acc => isSameMonth(parseISO(acc.createdAt!), currentDate)).length;
+    
+    // Repurchase Rate Calculation
+    const successfulOrdersWithAccount = successfulOrders.filter(o => o.accountId);
+    const ordersByAccount = successfulOrdersWithAccount.reduce((acc, order) => {
+        if (order.accountId) {
+            if (!acc[order.accountId]) acc[order.accountId] = [];
+            acc[order.accountId].push(order);
         }
-        if(isSameMonth(date, currentDate)) {
-            newAccountsThisMonth++;
-        }
-    });
+        return acc;
+    }, {} as Record<string, Order[]>);
 
-    const totalValidOrdersCount = successfulOrders.length;
-    const ordersFromExistingCustomersCount = successfulOrders.filter(o => o.clientStatus === 'existing').length;
+    const accountIdsWithOrders = Object.keys(ordersByAccount);
+    const totalAccountsWithOrders = accountIdsWithOrders.length;
+    const accountsWithRepurchase = accountIdsWithOrders.filter(id => ordersByAccount[id].length > 1).length;
+    const repurchaseRate = totalAccountsWithOrders > 0
+        ? Math.round((accountsWithRepurchase / totalAccountsWithOrders) * 100)
+        : 0;
+
+    // --- END OF CORRECTED LOGIC ---
 
     const calculatedKpis = initialKpiDataLaunch.map(kpi => {
       let currentValue = 0;
       switch(kpi.id) {
         case 'kpi1': currentValue = totalBottlesSoldOverall; break;
         case 'kpi2': currentValue = teamBottlesSoldOverall; break;
-        case 'kpi3': currentValue = newAccountsThisYear; break;
-        case 'kpi4': currentValue = newAccountsThisMonth; break;
-        case 'kpi5':
-          currentValue = totalValidOrdersCount > 0 
-            ? Math.round((ordersFromExistingCustomersCount / totalValidOrdersCount) * 100) 
-            : 0;
-          break;
+        case 'kpi3': currentValue = newAccountsThisYear; break; // Corrected logic
+        case 'kpi4': currentValue = newAccountsThisMonth; break; // Corrected logic
+        case 'kpi5': currentValue = repurchaseRate; break; // Corrected logic
       }
       return { ...kpi, currentValue };
     });
@@ -120,6 +120,7 @@ export default function DashboardPage() {
     // Monthly progress calculations
     let monthlyProgressMetrics: any[] = [];
     if(userRole === 'SalesRep' && teamMember) {
+      // Logic for individual SalesRep
       const memberAccounts = accounts.filter(acc => 
         acc.salesRepId === teamMember.id &&
         acc.status === 'Activo' &&
@@ -142,15 +143,11 @@ export default function DashboardPage() {
         { title: "Visitas Realizadas", target: teamMember.monthlyTargetVisits || 0, current: monthlyVisits, unit: 'visitas', colorClass: "[&>div]:bg-primary" },
       ];
     } else if (userRole === 'Admin') {
+       // Logic for Admin (Team view)
        const teamMonthlyTargetAccounts = salesReps.reduce((sum, rep) => sum + (rep.monthlyTargetAccounts || 0), 0);
        const teamMonthlyTargetVisits = salesReps.reduce((sum, rep) => sum + (rep.monthlyTargetVisits || 0), 0);
        
-       const teamMonthlyAccounts = accounts.filter(acc =>
-            acc.status === 'Activo' &&
-            acc.createdAt &&
-            isValid(parseISO(acc.createdAt)) &&
-            isSameMonth(parseISO(acc.createdAt), currentDate)
-       ).length;
+       const teamMonthlyAccounts = newAccountsThisMonth; // Reuse the already calculated correct value
 
        const teamMonthlyVisits = orders.filter(o => 
           salesRepNamesSet.has(o.salesRep) && 

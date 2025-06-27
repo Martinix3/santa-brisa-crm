@@ -23,9 +23,11 @@ import { getAccountsFS, addAccountFS } from "@/services/account-service";
 import { addOrderFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
-import { extractClientData } from "@/ai/flows/client-data-extraction-flow";
-import { ArrowLeft, Check, ClipboardPaste, Edit, FileText, Loader2, Package, PlusCircle, Search, Send, Sparkles, UploadCloud, Users, Zap, Award, CreditCard, User, Building, Info, AlertTriangle } from "lucide-react";
+import { extractClientData, type ClientDataExtractionOutput } from "@/ai/flows/client-data-extraction-flow";
+import { ArrowLeft, Check, ClipboardPaste, Edit, FileText, Loader2, Package, PlusCircle, Search, Send, UploadCloud, Users, Zap, Award, CreditCard, User, Building, Info, AlertTriangle, Sparkles } from "lucide-react";
 import { format } from "date-fns";
+import { Label } from "@/components/ui/label";
+
 
 const SINGLE_PRODUCT_NAME = "Santa Brisa 750ml";
 const IVA_RATE = 21;
@@ -117,8 +119,43 @@ export default function OrderFormWizardPage() {
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-        paymentMethod: 'Adelantado',
-        clavadistaId: userRole === 'Clavadista' && teamMember ? teamMember.id : NO_CLAVADISTA_VALUE,
+      outcome: undefined,
+      clavadistaId: userRole === 'Clavadista' && teamMember ? teamMember.id : NO_CLAVADISTA_VALUE,
+      selectedSalesRepId: undefined,
+      clavadistaSelectedSalesRepId: undefined,
+      canalOrigenColocacion: undefined,
+      paymentMethod: 'Adelantado',
+
+      clientType: undefined,
+      numberOfUnits: undefined,
+      unitPrice: undefined,
+      
+      nombreFiscal: "",
+      cif: "",
+      direccionFiscal_street: "",
+      direccionFiscal_number: "",
+      direccionFiscal_city: "",
+      direccionFiscal_province: undefined,
+      direccionFiscal_postalCode: "",
+      direccionFiscal_country: "España",
+      direccionEntrega_street: "",
+      direccionEntrega_number: "",
+      direccionEntrega_city: "",
+      direccionEntrega_province: undefined,
+      direccionEntrega_postalCode: "",
+      direccionEntrega_country: "España",
+      contactoNombre: "",
+      contactoCorreo: "",
+      contactoTelefono: "",
+      observacionesAlta: "",
+
+      nextActionType: undefined,
+      nextActionCustom: "",
+      nextActionDate: undefined,
+      failureReasonType: undefined,
+      failureReasonCustom: "",
+      notes: "",
+      assignedMaterials: [],
     },
   });
 
@@ -180,7 +217,7 @@ export default function OrderFormWizardPage() {
       try {
           const result = await extractClientData({ textBlock: aiTextBlock });
           setFormValuesFromAi(result);
-          handleNextStep();
+          setStep('verify');
       } catch (error: any) {
           toast({ title: "Error de IA", description: `No se pudieron procesar los datos: ${'message' in error ? error.message : 'Error desconocido'}`, variant: "destructive" });
       } finally {
@@ -205,7 +242,7 @@ export default function OrderFormWizardPage() {
           try {
               const result = await extractClientData({ imageDataUri: reader.result as string });
               setFormValuesFromAi(result);
-              handleNextStep();
+              setStep('verify');
           } catch (error: any) {
               toast({ title: "Error de IA", description: `No se pudieron procesar los datos de la imagen: ${'message' in error ? error.message : 'Error desconocido'}`, variant: "destructive" });
           } finally {
@@ -214,7 +251,7 @@ export default function OrderFormWizardPage() {
       };
   };
 
-  const setFormValuesFromAi = (data: any) => {
+  const setFormValuesFromAi = (data: ClientDataExtractionOutput) => {
     form.setValue("nombreFiscal", data.legalName || (client as any)?.name);
     form.setValue("cif", data.cif);
     form.setValue("direccionFiscal_street", data.addressBilling?.street);
@@ -224,7 +261,6 @@ export default function OrderFormWizardPage() {
     form.setValue("direccionEntrega_street", data.addressShipping?.street || data.addressBilling?.street);
     form.setValue("direccionEntrega_city", data.addressShipping?.city || data.addressBilling?.city);
     form.setValue("direccionEntrega_postalCode", data.addressShipping?.postalCode || data.addressBilling?.postalCode);
-    form.setValue("direccionEntrega_province", data.addressShipping?.province || data.addressBilling?.province);
     form.setValue("contactoNombre", data.mainContactName);
     form.setValue("contactoCorreo", data.mainContactEmail);
     form.setValue("contactoTelefono", data.mainContactPhone);
@@ -427,8 +463,8 @@ export default function OrderFormWizardPage() {
                         <CardContent className="space-y-6">
                             {outcomeWatched === 'successful' && (
                                 <div className="space-y-4">
-                                    <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades</FormLabel><FormControl><Input type="number" placeholder="Ej: 12" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                                    <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Ej: 15.50" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                                    <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades</FormLabel><FormControl><Input type="number" placeholder="Ej: 12" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)}/>
+                                    <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Ej: 15.50" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage /></FormItem>)}/>
                                     <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel>Forma de Pago</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar forma de pago"/></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(m=>(<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
                                 </div>
                             )}
@@ -452,7 +488,7 @@ export default function OrderFormWizardPage() {
                                         {materialFields.map((field, index) => (
                                             <div key={field.id} className="flex items-end gap-2">
                                                 <FormField control={form.control} name={`assignedMaterials.${index}.materialId`} render={({ field }) => ( <FormItem className="flex-grow"> <Select onValueChange={field.onChange} defaultValue={field.value}> <FormControl> <SelectTrigger> <SelectValue placeholder="Seleccionar material..."/> </SelectTrigger> </FormControl> <SelectContent> {availableMaterials.map(m => <SelectItem key={m.id} value={m.id}>{m.name} (Stock: {m.stock})</SelectItem>)} </SelectContent> </Select> <FormMessage/> </FormItem> )}/>
-                                                <FormField control={form.control} name={`assignedMaterials.${index}.quantity`} render={({ field }) => ( <FormItem> <FormControl> <Input type="number" placeholder="Cant." className="w-20" {...field}/> </FormControl> <FormMessage/> </FormItem> )}/>
+                                                <FormField control={form.control} name={`assignedMaterials.${index}.quantity`} render={({ field }) => ( <FormItem> <FormControl> <Input type="number" placeholder="Cant." className="w-20" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /> </FormControl> <FormMessage/> </FormItem> )}/>
                                                 <Button type="button" variant="destructive" size="icon" onClick={() => removeMaterial(index)}><Trash2 className="h-4 w-4"/></Button>
                                             </div>
                                         ))}
@@ -478,20 +514,22 @@ export default function OrderFormWizardPage() {
                         <CardDescription>Sube una foto o pega el texto con los datos del nuevo cliente. La IA los procesará.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <Label htmlFor="photo-upload" className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50">
-                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                <UploadCloud className="w-8 h-8 mb-2 text-primary"/>
-                                <p className="mb-1 text-sm font-semibold">Subir Foto o Captura</p>
-                                <p className="text-xs text-muted-foreground">de una tarjeta, Google Maps, etc.</p>
-                            </div>
-                            <Input id="photo-upload" type="file" className="hidden" accept="image/*" onChange={handleAiPhotoProcess} disabled={isAiProcessing}/>
-                        </Label>
+                        <div className="space-y-2">
+                           <Label htmlFor="photo-upload" className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50">
+                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                    <UploadCloud className="w-8 h-8 mb-2 text-primary"/>
+                                    <p className="mb-1 text-sm font-semibold">Subir Foto o Captura de Pantalla</p>
+                                    <p className="text-xs text-muted-foreground">de una tarjeta, Google Maps, etc.</p>
+                                </div>
+                                <Input id="photo-upload" type="file" className="hidden" accept="image/*" onChange={handleAiPhotoProcess} disabled={isAiProcessing}/>
+                            </Label>
+                        </div>
                         <div className="relative"><div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div><div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">O</span></div></div>
                         <div className="space-y-2">
                             <Label htmlFor="text-block">Escribe o pega aquí todos los datos de facturación y entrega</Label>
                             <Textarea id="text-block" placeholder="Ej: BODEGAS MANOLO, S.L. - B12345678 - Calle del Vino, 42, 28004, Madrid..." className="min-h-[100px]" value={aiTextBlock} onChange={(e) => setAiTextBlock(e.target.value)} disabled={isAiProcessing}/>
                             <Button className="w-full" onClick={handleAiTextProcess} disabled={isAiProcessing || !aiTextBlock.trim()}>
-                                {isAiProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Procesando...</> : <><Sparkles className="mr-2 h-4 w-4"/> Procesar con IA y Continuar</>}
+                                {isAiProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Procesando...</> : <><Sparkles className="mr-2 h-4 w-4"/> Procesar con IA</>}
                             </Button>
                         </div>
                     </CardContent>
@@ -564,3 +602,5 @@ export default function OrderFormWizardPage() {
     </div>
   );
 }
+
+    

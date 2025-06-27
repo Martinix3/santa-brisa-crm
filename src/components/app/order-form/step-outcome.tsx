@@ -1,0 +1,21 @@
+
+import * as React from 'react';
+import { CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from 'lucide-react';
+
+export const StepOutcome = ({ form, client, setStep, handleBack }) => (
+  <>
+    <CardHeader>
+      <CardTitle>Paso 2: ¿Cuál fue el resultado para "{client?.name}"?</CardTitle>
+    </CardHeader>
+    <CardContent className="grid grid-cols-1 gap-4">
+        <Button type="button" variant="outline" className="w-full h-16 text-lg" onClick={() => { form.setValue("outcome", "successful"); setStep("details"); }}>Pedido Exitoso</Button>
+        <Button type="button" variant="outline" className="w-full h-16 text-lg" onClick={() => { form.setValue("outcome", "follow-up"); setStep("details"); }}>Requiere Seguimiento</Button>
+        <Button type="button" variant="outline" className="w-full h-16 text-lg" onClick={() => { form.setValue("outcome", "failed"); setStep("details"); }}>Visita Fallida / Sin Pedido</Button>
+    </CardContent>
+    <CardFooter>
+        <Button type="button" variant="ghost" onClick={handleBack}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
+    </CardFooter>
+  </>
+);

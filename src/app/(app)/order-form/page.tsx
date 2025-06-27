@@ -21,13 +21,16 @@ import { useAuth } from "@/contexts/auth-context";
 import { useRouter } from "next/navigation";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { getAccountsFS, addAccountFS, getAccountByIdFS, updateAccountFS as updateAccountInFirestore } from "@/services/account-service";
-import { addOrderFS } from "@/services/order-service";
+import { addOrderFS, updateOrderFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
-import { ArrowLeft, Building, CreditCard, Edit, FileText, Loader2, Package, PlusCircle, Search, Send, Trash2, User } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { ArrowLeft, Building, CreditCard, Edit, FileText, Loader2, Package, PlusCircle, Search, Send, Trash2, User, Sparkles, UploadCloud } from "lucide-react";
+import { format, parseISO, isBefore, startOfDay, subDays, isEqual } from "date-fns";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Calendar as CalendarIcon } from "lucide-react";
 
 const NO_CLAVADISTA_VALUE = "##NONE##";
 const ADMIN_SELF_REGISTER_VALUE = "##ADMIN_SELF##";
@@ -37,8 +40,8 @@ const assignedMaterialSchema = z.object({
   quantity: z.coerce.number().min(1, "La cantidad debe ser al menos 1."),
 });
 
-const formSchema = z.object({
-  outcome: z.enum(["successful", "failed", "follow-up"]),
+const formSchema = (step: string) => z.object({
+  outcome: z.enum(["successful", "failed", "follow-up"]).optional(),
   clavadistaId: z.string().optional(),
   selectedSalesRepId: z.string().optional(),
   clavadistaSelectedSalesRepId: z.string().optional(),
@@ -57,15 +60,15 @@ const formSchema = z.object({
   direccionFiscal_city: z.string().optional(),
   direccionFiscal_province: z.string().optional(),
   direccionFiscal_postalCode: z.string().optional(),
-  direccionFiscal_country: z.string().optional().default("España"),
+  direccionFiscal_country: z.string().optional(),
   
-  sameAsBilling: z.boolean().optional().default(true),
+  sameAsBilling: z.boolean().optional(),
   direccionEntrega_street: z.string().optional(),
   direccionEntrega_number: z.string().optional(),
   direccionEntrega_city: z.string().optional(),
   direccionEntrega_province: z.string().optional(),
   direccionEntrega_postalCode: z.string().optional(),
-  direccionEntrega_country: z.string().optional().default("España"),
+  direccionEntrega_country: z.string().optional(),
   
   contactoNombre: z.string().optional(),
   contactoCorreo: z.string().email("Formato de correo no válido.").optional().or(z.literal('')),
@@ -78,19 +81,39 @@ const formSchema = z.object({
   failureReasonType: z.enum(failureReasonList as [string, ...string[]]).optional(),
   failureReasonCustom: z.string().optional(),
   notes: z.string().optional(),
-  assignedMaterials: z.array(assignedMaterialSchema).optional().default([]),
+  assignedMaterials: z.array(assignedMaterialSchema).optional(),
 
 }).superRefine((data, ctx) => {
-    if (data.paymentMethod === 'Giro Bancario') {
-        if (!data.iban || data.iban.trim() === '') {
-             ctx.addIssue({ path: ["iban"], message: "El IBAN es obligatorio para el Giro Bancario." });
-        } else if (!/^[A-Z]{2}[0-9]{2}[0-9A-Z]{1,30}$/.test(data.iban.replace(/\s/g, ''))) { // Simple IBAN format check
-             ctx.addIssue({ path: ["iban"], message: "Formato de IBAN no válido." });
-        }
+    if (step !== 'verify') return; 
+
+    if (data.outcome === 'successful') {
+      if (!data.numberOfUnits || data.numberOfUnits <= 0) { ctx.addIssue({ path: ["numberOfUnits"], message: 'Campo obligatorio' }); }
+      if (!data.unitPrice || data.unitPrice <= 0) { ctx.addIssue({ path: ["unitPrice"], message: 'Campo obligatorio' }); }
+      if (!data.paymentMethod) { ctx.addIssue({ path: ["paymentMethod"], message: "Forma de pago es obligatoria." }); }
+      if (data.paymentMethod === 'Giro Bancario' && (!data.iban || !/^[A-Z]{2}[0-9]{2}[0-9A-Z]{1,30}$/.test(data.iban.replace(/\s/g, '')))) {
+        ctx.addIssue({ path: ["iban"], message: "IBAN válido es obligatorio para el Giro Bancario." });
+      }
+    }
+    
+    if (data.outcome === 'follow-up') {
+      if (!data.nextActionType) {
+         ctx.addIssue({ path: ["nextActionType"], message: "La próxima acción es obligatoria." });
+      } else if (data.nextActionType === 'Opción personalizada' && (!data.nextActionCustom || data.nextActionCustom.trim() === '')) {
+         ctx.addIssue({ path: ["nextActionCustom"], message: "Debe especificar la próxima acción." });
+      }
+    }
+    
+    if (data.outcome === 'failed') {
+       if (!data.failureReasonType) {
+         ctx.addIssue({ path: ["failureReasonType"], message: "El motivo del fallo es obligatorio." });
+      } else if (data.failureReasonType === 'Otro (especificar)' && (!data.failureReasonCustom || data.failureReasonCustom.trim() === '')) {
+         ctx.addIssue({ path: ["failureReasonCustom"], message: "Debe especificar el motivo del fallo." });
+      }
     }
 });
 
-type FormValues = z.infer<typeof formSchema>;
+
+type FormValues = z.infer<ReturnType<typeof formSchema>>;
 type Step = "client" | "outcome" | "details" | "new_client_data" | "verify";
 
 export default function OrderFormWizardPage() {
@@ -109,6 +132,9 @@ export default function OrderFormWizardPage() {
   const [clavadistas, setClavadistas] = React.useState<TeamMember[]>([]);
   const [salesRepsList, setSalesRepsList] = React.useState<TeamMember[]>([]);
   const [availableMaterials, setAvailableMaterials] = React.useState<PromotionalMaterial[]>([]);
+  const [originatingTask, setOriginatingTask] = React.useState<Order | null>(null);
+  const [isAiProcessing, setIsAiProcessing] = React.useState(false);
+  const [aiTextBlock, setAiTextBlock] = React.useState("");
 
   React.useEffect(() => {
     const handler = setTimeout(() => { setDebouncedSearchTerm(searchTerm); }, 300);
@@ -124,7 +150,7 @@ export default function OrderFormWizardPage() {
   }, [debouncedSearchTerm, allAccounts]);
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(formSchema(step)),
     defaultValues: {
       outcome: undefined,
       clavadistaId: userRole === 'Clavadista' && teamMember ? teamMember.id : NO_CLAVADISTA_VALUE,
@@ -172,7 +198,6 @@ export default function OrderFormWizardPage() {
   const watchSameAsBilling = form.watch('sameAsBilling');
   const paymentMethodWatched = form.watch("paymentMethod");
 
-  // Use individual watches or destructure from a single watch() call to get stable primitive values
   const { 
       direccionFiscal_street,
       direccionFiscal_number,
@@ -181,7 +206,6 @@ export default function OrderFormWizardPage() {
       direccionFiscal_postalCode,
       direccionFiscal_country
   } = form.watch();
-
 
   React.useEffect(() => {
     if (watchSameAsBilling) {
@@ -192,8 +216,16 @@ export default function OrderFormWizardPage() {
         form.setValue('direccionEntrega_postalCode', direccionFiscal_postalCode || "");
         form.setValue('direccionEntrega_country', direccionFiscal_country || "España");
     }
-  }, [watchSameAsBilling, direccionFiscal_street, direccionFiscal_number, direccionFiscal_city, direccionFiscal_province, direccionFiscal_postalCode, direccionFiscal_country, form]);
-
+  }, [
+      watchSameAsBilling, 
+      direccionFiscal_street,
+      direccionFiscal_number,
+      direccionFiscal_city,
+      direccionFiscal_province,
+      direccionFiscal_postalCode,
+      direccionFiscal_country,
+      form
+  ]);
 
   const outcomeWatched = form.watch("outcome");
   const formValuesWatched = form.watch();
@@ -222,7 +254,7 @@ export default function OrderFormWizardPage() {
     let fieldsToValidate: (keyof FormValues)[] = [];
     if (step === 'details') {
       if (outcomeWatched === 'successful') fieldsToValidate = ['numberOfUnits', 'unitPrice', 'paymentMethod', 'iban'];
-      else if (outcomeWatched === 'follow-up') fieldsToValidate = ['nextActionType', 'nextActionCustom'];
+      else if (outcomeWatched === 'follow-up') fieldsToValidate = ['nextActionType', 'nextActionCustom', 'nextActionDate'];
       else if (outcomeWatched === 'failed') fieldsToValidate = ['failureReasonType', 'failureReasonCustom'];
     }
     
@@ -244,26 +276,12 @@ export default function OrderFormWizardPage() {
     }
   };
   
-  const validateFinalForm = (values: FormValues): boolean => {
-    let isValid = true;
-    if (values.outcome === 'successful') {
-      if (!values.numberOfUnits) { form.setError('numberOfUnits', { message: 'Campo obligatorio' }); isValid = false; }
-      if (!values.unitPrice) { form.setError('unitPrice', { message: 'Campo obligatorio' }); isValid = false; }
-      if (client?.id === 'new') {
-        if (!values.nombreFiscal) { form.setError('nombreFiscal', { message: 'Campo obligatorio' }); isValid = false; }
-        if (!values.cif) { form.setError('cif', { message: 'Campo obligatorio' }); isValid = false; }
-        if (!values.direccionFiscal_street) { form.setError('direccionFiscal_street', { message: 'Campo obligatorio' }); isValid = false; }
-        if (!values.direccionFiscal_city) { form.setError('direccionFiscal_city', { message: 'Campo obligatorio' }); isValid = false; }
-        if (!values.direccionFiscal_province) { form.setError('direccionFiscal_province', { message: 'Campo obligatorio' }); isValid = false; }
-        if (!values.direccionFiscal_postalCode) { form.setError('direccionFiscal_postalCode', { message: 'Campo obligatorio' }); isValid = false; }
-      }
-    }
-    if (!isValid) toast({ title: "Faltan campos obligatorios", description: "Por favor, revisa el formulario.", variant: "destructive" });
-    return isValid;
-  };
-  
   const onSubmit = async (values: FormValues) => {
-    if (!validateFinalForm(values)) return;
+    const isFormValidOnSubmit = await form.trigger();
+    if (!isFormValidOnSubmit) {
+      toast({ title: "Faltan campos obligatorios", description: "Por favor, revisa el formulario en el paso final.", variant: "destructive" });
+      return;
+    }
     
     setIsSubmitting(true);
     if (!teamMember) {
@@ -302,21 +320,21 @@ export default function OrderFormWizardPage() {
             const newAccountData: AccountFormValues = {
                 name: client.name,
                 legalName: values.nombreFiscal,
-                cif: values.cif,
+                cif: values.cif || "",
                 type: values.clientType || 'Otro',
                 status: 'Activo',
-                addressBilling_street: values.direccionFiscal_street || "",
+                addressBilling_street: values.direccionFiscal_street,
                 addressBilling_number: values.direccionFiscal_number,
-                addressBilling_city: values.direccionFiscal_city || "",
-                addressBilling_province: values.direccionFiscal_province || "",
-                addressBilling_postalCode: values.direccionFiscal_postalCode || "",
-                addressBilling_country: values.direccionFiscal_country || "España",
-                addressShipping_street: values.direccionEntrega_street || "",
+                addressBilling_city: values.direccionFiscal_city,
+                addressBilling_province: values.direccionFiscal_province,
+                addressBilling_postalCode: values.direccionFiscal_postalCode,
+                addressBilling_country: values.direccionFiscal_country,
+                addressShipping_street: values.direccionEntrega_street,
                 addressShipping_number: values.direccionEntrega_number,
-                addressShipping_city: values.direccionEntrega_city || "",
-                addressShipping_province: values.direccionEntrega_province || "",
-                addressShipping_postalCode: values.direccionEntrega_postalCode || "",
-                addressShipping_country: values.direccionEntrega_country || "España",
+                addressShipping_city: values.direccionEntrega_city,
+                addressShipping_province: values.direccionEntrega_province,
+                addressShipping_postalCode: values.direccionEntrega_postalCode,
+                addressShipping_country: values.direccionEntrega_country,
                 mainContactName: values.contactoNombre,
                 mainContactEmail: values.contactoCorreo,
                 mainContactPhone: values.contactoTelefono,
@@ -326,14 +344,13 @@ export default function OrderFormWizardPage() {
             };
             currentAccountId = await addAccountFS(newAccountData);
             accountCreationMessage = ` Nueva cuenta "${client.name}" creada.`;
-        } else if (client?.id !== 'new' && values.iban) {
-            const existingAccount = await getAccountByIdFS(client!.id!);
+        } else if (client?.id !== 'new' && values.iban && client?.id) {
+            const existingAccount = await getAccountByIdFS(client.id);
             if (existingAccount && !existingAccount.iban) {
-                await updateAccountInFirestore(client!.id!, { iban: values.iban });
+                await updateAccountInFirestore(client.id, { iban: values.iban });
                 toast({ title: "Cuenta Actualizada", description: "Se ha guardado el IBAN en la ficha del cliente." });
             }
         }
-
 
         const orderData: Partial<Order> = {
             clientName: client!.name,
@@ -346,6 +363,7 @@ export default function OrderFormWizardPage() {
             salesRep: salesRepNameForOrder,
             accountId: currentAccountId,
             iban: values.iban,
+            originatingTaskId: originatingTask?.id,
         };
 
         if (values.outcome === "successful") {
@@ -363,14 +381,17 @@ export default function OrderFormWizardPage() {
             orderData.nextActionDate = values.nextActionDate ? format(values.nextActionDate, "yyyy-MM-dd") : undefined;
         } else if (values.outcome === 'failed') {
             orderData.status = 'Fallido';
-            orderData.nextActionType = values.nextActionType;
-            orderData.nextActionCustom = values.nextActionType === 'Opción personalizada' ? values.failureReasonCustom : undefined;
-            orderData.nextActionDate = values.nextActionDate ? format(values.nextActionDate, "yyyy-MM-dd") : undefined;
             orderData.failureReasonType = values.failureReasonType;
             orderData.failureReasonCustom = values.failureReasonType === 'Otro (especificar)' ? values.failureReasonCustom : undefined;
         }
 
         await addOrderFS(orderData as Order);
+        
+        if (originatingTask) {
+           await updateOrderFS(originatingTask.id, { status: "Completado" });
+           toast({ title: "Tarea Completada", description: `La tarea original para ${originatingTask.clientName} ha sido marcada como completada.` });
+        }
+        
         toast({ title: "¡Interacción Registrada!", description: `Se ha guardado el resultado para ${client!.name}.${accountCreationMessage}` });
         refreshDataSignature();
         router.push('/dashboard');
@@ -458,14 +479,14 @@ export default function OrderFormWizardPage() {
                 <CardContent className="space-y-6">
                     {outcomeWatched === 'successful' && (
                         <div className="space-y-4">
-                            <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades</FormLabel><FormControl><Input type="number" placeholder="Ej: 12" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)}/>
-                            <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Ej: 15.50" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage /></FormItem>)}/>
+                            <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades</FormLabel><FormControl><Input type="number" placeholder="Ej: 12" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                            <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Ej: 15.50" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                             <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel>Forma de Pago</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar forma de pago"/></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(m=>(<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
                              {paymentMethodWatched === 'Giro Bancario' && (
                                 <FormField control={form.control} name="iban" render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>IBAN</FormLabel>
-                                        <FormControl><Input placeholder="ES00 0000 0000 0000 0000 0000" {...field} value={field.value ?? ''} /></FormControl>
+                                        <FormControl><Input placeholder="ES00 0000 0000 0000 0000 0000" {...field} /></FormControl>
                                         <FormMessage />
                                     </FormItem>
                                 )}/>
@@ -474,8 +495,38 @@ export default function OrderFormWizardPage() {
                     )}
                     {outcomeWatched === 'follow-up' && (
                         <div className="space-y-4">
-                            <FormField control={form.control} name="nextActionType" render={({ field }) => (<FormItem><FormLabel>Próxima Acción</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar próxima acción..."/></SelectTrigger></FormControl><SelectContent>{nextActionTypeList.map(t=>(<SelectItem key={t} value={t}>{t}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
-                            {form.watch('nextActionType') === 'Opción personalizada' && <FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Especificar Acción</FormLabel><FormControl><Input {...field}/></FormControl><FormMessage/></FormItem>)}/>}
+                            <FormField
+                                control={form.control}
+                                name="nextActionType"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Próxima Acción</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value ?? ""} >
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Seleccionar próxima acción..." />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                {nextActionTypeList.map((type) => (
+                                                    <SelectItem key={type} value={type}>
+                                                        {type}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            {form.watch('nextActionType') === 'Opción personalizada' && <FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Especificar Acción</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>}
+                            <FormField control={form.control} name="nextActionDate" render={({ field }) => ( <FormItem className="flex flex-col"> <FormLabel>Fecha Próxima Acción (Opcional)</FormLabel> <Popover> <PopoverTrigger asChild> <FormControl> <Button variant={"outline"} className={cn( "w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground" )} > {field.value ? ( format(field.value, "PPP", { locale: es }) ) : ( <span>Seleccione fecha</span> )} <CalendarIcon className="mr-2 h-4 w-4 opacity-50" /> </Button> </FormControl> </PopoverTrigger> <PopoverContent className="w-auto p-0" align="start"> <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus locale={es} /> </PopoverContent> </Popover> <FormMessage /> </FormItem> )}/>
+                             {(userRole === 'Admin') && (
+                                <FormField control={form.control} name="selectedSalesRepId" render={({ field }) => ( <FormItem> <FormLabel>Asignar Seguimiento a:</FormLabel> <Select onValueChange={field.onChange} value={field.value ?? ""}> <FormControl> <SelectTrigger> <SelectValue placeholder="Seleccionar comercial..." /> </SelectTrigger> </FormControl> <SelectContent> <SelectItem value={ADMIN_SELF_REGISTER_VALUE}> Yo mismo/a (Admin) </SelectItem> {salesRepsList.map((rep) => ( <SelectItem key={rep.id} value={rep.id}> {rep.name} </SelectItem> ))} </SelectContent> </Select> <FormMessage /> </FormItem> )} />
+                            )}
+                             {(userRole === 'Clavadista') && (
+                                <FormField control={form.control} name="clavadistaSelectedSalesRepId" render={({ field }) => ( <FormItem> <FormLabel>Asignar Seguimiento a:</FormLabel> <Select onValueChange={field.onChange} value={field.value ?? ""}> <FormControl> <SelectTrigger> <SelectValue placeholder="Seleccionar comercial..." /> </SelectTrigger> </FormControl> <SelectContent> {salesRepsList.map((rep) => ( <SelectItem key={rep.id} value={rep.id}> {rep.name} </SelectItem> ))} </SelectContent> </Select> <FormMessage /> </FormItem> )} />
+                            )}
                         </div>
                     )}
                       {outcomeWatched === 'failed' && (
@@ -495,7 +546,7 @@ export default function OrderFormWizardPage() {
                                     {materialFields.map((field, index) => (
                                         <div key={field.id} className="flex items-end gap-2">
                                             <FormField control={form.control} name={`assignedMaterials.${index}.materialId`} render={({ field }) => ( <FormItem className="flex-grow"> <Select onValueChange={field.onChange} value={field.value}> <FormControl> <SelectTrigger> <SelectValue placeholder="Seleccionar material..."/> </SelectTrigger> </FormControl> <SelectContent> {availableMaterials.map(m => <SelectItem key={m.id} value={m.id}>{m.name} (Stock: {m.stock})</SelectItem>)} </SelectContent> </Select> <FormMessage/> </FormItem> )}/>
-                                            <FormField control={form.control} name={`assignedMaterials.${index}.quantity`} render={({ field }) => ( <FormItem> <FormControl> <Input type="number" placeholder="Cant." className="w-20" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /> </FormControl> <FormMessage/> </FormItem> )}/>
+                                            <FormField control={form.control} name={`assignedMaterials.${index}.quantity`} render={({ field }) => ( <FormItem> <FormControl> <Input type="number" placeholder="Cant." className="w-20" {...field} /> </FormControl> <FormMessage/> </FormItem> )}/>
                                             <Button type="button" variant="destructive" size="icon" onClick={() => removeMaterial(index)}><Trash2 className="h-4 w-4"/></Button>
                                         </div>
                                     ))}
@@ -549,6 +600,13 @@ export default function OrderFormWizardPage() {
                                 </div>
                             </div>
                         )}
+                         <Separator/><h3 className="font-semibold text-base mt-2">Datos de Contacto (Opcional)</h3>
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <FormField control={form.control} name="contactoNombre" render={({ field }) => (<FormItem><FormLabel>Nombre Contacto</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                            <FormField control={form.control} name="contactoTelefono" render={({ field }) => (<FormItem><FormLabel>Teléfono Contacto</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                         </div>
+                         <FormField control={form.control} name="contactoCorreo" render={({ field }) => (<FormItem><FormLabel>Email Contacto</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
+
                     </CardContent>
                     <CardFooter className="flex justify-between">
                       <Button variant="ghost" onClick={handleBack}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
@@ -576,8 +634,11 @@ export default function OrderFormWizardPage() {
                                     <p><strong>Valor Total (IVA incl.):</strong> <FormattedNumericValue value={subtotal + ivaAmount} options={{style: 'currency', currency: 'EUR'}}/></p>
                                     <p><strong>Materiales:</strong> {formValuesWatched.assignedMaterials?.length || 0} items</p>
                                 </>}
-                                  {outcomeWatched !== 'successful' && <>
+                                  {outcomeWatched === 'follow-up' && <>
                                     <p><strong>Próxima Acción:</strong> {formValuesWatched.nextActionType || 'N/A'}</p>
+                                  </>}
+                                  {outcomeWatched === 'failed' && <>
+                                    <p><strong>Motivo Fallo:</strong> {formValuesWatched.failureReasonType || 'N/A'}</p>
                                   </>}
                             </CardContent>
                         </Card>
@@ -588,8 +649,8 @@ export default function OrderFormWizardPage() {
                                 <CardContent className="space-y-2 text-sm">
                                     <p><strong>Nombre Fiscal:</strong> {formValuesWatched.nombreFiscal}</p>
                                     <p><strong>CIF:</strong> {formValuesWatched.cif}</p>
-                                    <p><strong>Dirección Fiscal:</strong> {`${formValuesWatched.direccionFiscal_street}, ${formValuesWatched.direccionFiscal_city}, ${formValuesWatched.direccionFiscal_province}, ${formValuesWatched.direccionFiscal_postalCode}`}</p>
-                                    <p><strong>Dirección Entrega:</strong> {watchSameAsBilling ? '(Misma que facturación)' : `${formValuesWatched.direccionEntrega_street}, ${formValuesWatched.direccionEntrega_city}, ${formValuesWatched.direccionEntrega_province}, ${formValuesWatched.direccionEntrega_postalCode}`}</p>
+                                    <p><strong>Dirección Fiscal:</strong> {`${formValuesWatched.direccionFiscal_street || ''}, ${formValuesWatched.direccionFiscal_city || ''}, ${formValuesWatched.direccionFiscal_province || ''}, ${formValuesWatched.direccionFiscal_postalCode || ''}`}</p>
+                                    <p><strong>Dirección Entrega:</strong> {watchSameAsBilling ? '(Misma que facturación)' : `${formValuesWatched.direccionEntrega_street || ''}, ${formValuesWatched.direccionEntrega_city || ''}, ${formValuesWatched.direccionEntrega_province || ''}, ${formValuesWatched.direccionEntrega_postalCode || ''}`}</p>
                                 </CardContent>
                             </Card>
                         )}
@@ -606,20 +667,18 @@ export default function OrderFormWizardPage() {
   };
   
   return (
-    <div className="space-y-6">
-        <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)}>
-                <header className="flex items-center space-x-2">
-                    <FileText className="h-8 w-8 text-primary" />
-                    <h1 className="text-3xl font-headline font-semibold">Registrar Interacción</h1>
-                </header>
-                <Card className="max-w-4xl mx-auto shadow-lg mt-6">
-                    <AnimatePresence mode="wait">
-                    {renderStepContent()}
-                    </AnimatePresence>
-                </Card>
-            </form>
-        </Form>
-    </div>
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <header className="flex items-center space-x-2">
+            <FileText className="h-8 w-8 text-primary" />
+            <h1 className="text-3xl font-headline font-semibold">Registrar Interacción</h1>
+        </header>
+        <Card className="max-w-4xl mx-auto shadow-lg mt-6">
+            <AnimatePresence mode="wait">
+            {renderStepContent()}
+            </AnimatePresence>
+        </Card>
+      </form>
+    </Form>
   );
 }

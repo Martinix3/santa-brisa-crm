@@ -24,13 +24,13 @@ import { getAccountsFS, addAccountFS, getAccountByIdFS, updateAccountFS as updat
 import { addOrderFS, updateOrderFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
-import { ArrowLeft, Building, CreditCard, Edit, FileText, Loader2, Package, PlusCircle, Search, Send, Trash2, User, UploadCloud, Sparkles } from "lucide-react";
+import { ArrowLeft, Building, CreditCard, Edit, FileText, Loader2, Package, PlusCircle, Search, Send, Trash2, Calendar as CalendarIcon, Sparkles } from "lucide-react";
 import { format, parseISO, isBefore, startOfDay, subDays, isEqual } from "date-fns";
+import { es } from 'date-fns/locale';
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Calendar as CalendarIcon } from "lucide-react";
 
 
 const NO_CLAVADISTA_VALUE = "##NONE##";

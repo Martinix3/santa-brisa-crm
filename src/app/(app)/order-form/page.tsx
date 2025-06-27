@@ -3,30 +3,29 @@
 
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useFieldArray, Controller } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import * as z from "zod";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { accountTypeList, canalOrigenColocacionList, clientTypeList, failureReasonList, nextActionTypeList, paymentMethodList, provincesSpainList } from "@/lib/data";
-import type { Account, AccountStatus, AccountType, AddressDetails, AssignedPromotionalMaterial, CanalOrigenColocacion, ClientType, FailureReasonType, NextActionType, Order, PaymentMethod, PromotionalMaterial, TeamMember, UserRole } from "@/types";
+import type { Account, AccountFormValues, Order, PromotionalMaterial, TeamMember, UserRole } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-import { getAccountByIdFS, addAccountFS, getAccountsFS } from "@/services/account-service";
-import { getOrderByIdFS, addOrderFS, updateOrderFS } from "@/services/order-service";
+import { getAccountsFS, addAccountFS } from "@/services/account-service";
+import { addOrderFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
 import { extractClientData } from "@/ai/flows/client-data-extraction-flow";
-import { ArrowLeft, Check, ClipboardPaste, Edit, FileText, Loader2, Package, PlusCircle, Search, Send, Sparkles, Trash2, UploadCloud, Users, Zap, Award, CreditCard, User, Building, Info, AlertTriangle } from "lucide-react";
-import { format, isValid, parseISO } from "date-fns";
+import { ArrowLeft, Check, ClipboardPaste, Edit, FileText, Loader2, Package, PlusCircle, Search, Send, Sparkles, UploadCloud, Users, Zap, Award, CreditCard, User, Building, Info, AlertTriangle } from "lucide-react";
+import { format } from "date-fns";
 
 const SINGLE_PRODUCT_NAME = "Santa Brisa 750ml";
 const IVA_RATE = 21;
@@ -43,15 +42,13 @@ const formSchema = z.object({
   clavadistaId: z.string().optional(),
   selectedSalesRepId: z.string().optional(),
   clavadistaSelectedSalesRepId: z.string().optional(),
-  canalOrigenColocacion: z.enum(canalOrigenColocacionList as [CanalOrigenColocacion, ...CanalOrigenColocacion[]]).optional(),
-  paymentMethod: z.enum(paymentMethodList as [PaymentMethod, ...PaymentMethod[]]).optional(),
+  canalOrigenColocacion: z.enum(canalOrigenColocacionList).optional(),
+  paymentMethod: z.enum(paymentMethodList).optional(),
 
-  clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
-  numberOfUnits: z.coerce.number().positive("El número de unidades debe ser un número positivo.").optional(),
-  unitPrice: z.coerce.number().positive("El precio unitario debe ser un número positivo.").optional(),
-  orderValue: z.coerce.number().positive("El valor del pedido debe ser positivo.").optional(),
-
-  // Campos de cuenta nueva (para verificación)
+  clientType: z.enum(clientTypeList).optional(),
+  numberOfUnits: z.coerce.number().optional(),
+  unitPrice: z.coerce.number().optional(),
+  
   nombreFiscal: z.string().optional(),
   cif: z.string().optional(),
   direccionFiscal_street: z.string().optional(),
@@ -71,25 +68,22 @@ const formSchema = z.object({
   contactoTelefono: z.string().optional(),
   observacionesAlta: z.string().optional(),
 
-  nextActionType: z.enum(nextActionTypeList as [NextActionType, ...NextActionType[]]).optional(),
+  nextActionType: z.enum(nextActionTypeList).optional(),
   nextActionCustom: z.string().optional(),
   nextActionDate: z.date().optional(),
-  failureReasonType: z.enum(failureReasonList as [FailureReasonType, ...FailureReasonType[]]).optional(),
+  failureReasonType: z.enum(failureReasonList).optional(),
   failureReasonCustom: z.string().optional(),
   notes: z.string().optional(),
   assignedMaterials: z.array(assignedMaterialSchema).optional().default([]),
 
-}).superRefine((data, ctx) => {
-  // Las validaciones se aplicarán en el paso de verificación
 });
 
 type FormValues = z.infer<typeof formSchema>;
-type Step = "client" | "outcome" | "details" | "verify";
+type Step = "client" | "outcome" | "details" | "new_client_data" | "verify";
 
 export default function OrderFormWizardPage() {
   const { toast } = useToast();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { teamMember, userRole, refreshDataSignature } = useAuth();
   
   const [step, setStep] = React.useState<Step>("client");
@@ -108,13 +102,8 @@ export default function OrderFormWizardPage() {
   const [aiTextBlock, setAiTextBlock] = React.useState("");
 
   React.useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm);
-    }, 300);
-
-    return () => {
-      clearTimeout(handler);
-    };
+    const handler = setTimeout(() => { setDebouncedSearchTerm(searchTerm); }, 300);
+    return () => { clearTimeout(handler); };
   }, [searchTerm]);
 
   const filteredAccounts = React.useMemo(() => {
@@ -138,7 +127,8 @@ export default function OrderFormWizardPage() {
   });
 
   const outcomeWatched = form.watch("outcome");
-  const subtotal = (form.watch("numberOfUnits") || 0) * (form.watch("unitPrice") || 0);
+  const formValuesWatched = form.watch();
+  const subtotal = (formValuesWatched.numberOfUnits || 0) * (formValuesWatched.unitPrice || 0);
   const ivaAmount = subtotal * (IVA_RATE / 100);
 
   const handleClientSelect = (selectedClient: Account | { id: 'new', name: string }) => {
@@ -149,9 +139,38 @@ export default function OrderFormWizardPage() {
   const handleBack = () => {
     if (step === "outcome") setStep("client");
     if (step === "details") setStep("outcome");
-    if (step === "verify") setStep("details");
+    if (step === "new_client_data") setStep("details");
+    if (step === "verify") {
+      if (client?.id === 'new' && outcomeWatched === 'successful') {
+        setStep("new_client_data");
+      } else {
+        setStep("details");
+      }
+    }
   };
 
+  const handleNextStep = async () => {
+    let fieldsToValidate: (keyof FormValues)[] = [];
+    if (step === 'details') {
+      if (outcomeWatched === 'successful') fieldsToValidate = ['numberOfUnits', 'unitPrice', 'paymentMethod'];
+      else if (outcomeWatched === 'follow-up') fieldsToValidate = ['nextActionType', 'nextActionCustom'];
+      else if (outcomeWatched === 'failed') fieldsToValidate = ['failureReasonType', 'failureReasonCustom'];
+    }
+    
+    const isValid = fieldsToValidate.length > 0 ? await form.trigger(fieldsToValidate) : true;
+    if (!isValid) return;
+
+    if (step === 'details') {
+      if (client?.id === 'new' && outcomeWatched === 'successful') {
+        setStep('new_client_data');
+      } else {
+        setStep('verify');
+      }
+    } else if (step === 'new_client_data') {
+      setStep('verify');
+    }
+  };
+  
   const handleAiTextProcess = async () => {
       if (!aiTextBlock.trim()) {
           toast({ title: "Texto vacío", description: "Por favor, pega o escribe los datos del cliente.", variant: "destructive" });
@@ -161,7 +180,7 @@ export default function OrderFormWizardPage() {
       try {
           const result = await extractClientData({ textBlock: aiTextBlock });
           setFormValuesFromAi(result);
-          setStep("verify");
+          handleNextStep();
       } catch (error: any) {
           toast({ title: "Error de IA", description: `No se pudieron procesar los datos: ${'message' in error ? error.message : 'Error desconocido'}`, variant: "destructive" });
       } finally {
@@ -186,7 +205,7 @@ export default function OrderFormWizardPage() {
           try {
               const result = await extractClientData({ imageDataUri: reader.result as string });
               setFormValuesFromAi(result);
-              setStep("verify");
+              handleNextStep();
           } catch (error: any) {
               toast({ title: "Error de IA", description: `No se pudieron procesar los datos de la imagen: ${'message' in error ? error.message : 'Error desconocido'}`, variant: "destructive" });
           } finally {
@@ -195,34 +214,45 @@ export default function OrderFormWizardPage() {
       };
   };
 
-  const setFormValuesFromAi = (data: { legalName?: string; cif?: string; addressBilling?: { street?: string; city?: string; postalCode?: string; province?: string; }; addressShipping?: { street?: string; city?: string; postalCode?: string; province?: string; }; mainContactName?: string; mainContactEmail?: string; mainContactPhone?: string; }) => {
+  const setFormValuesFromAi = (data: any) => {
     form.setValue("nombreFiscal", data.legalName || (client as any)?.name);
     form.setValue("cif", data.cif);
-    
     form.setValue("direccionFiscal_street", data.addressBilling?.street);
     form.setValue("direccionFiscal_city", data.addressBilling?.city);
     form.setValue("direccionFiscal_postalCode", data.addressBilling?.postalCode);
     form.setValue("direccionFiscal_province", data.addressBilling?.province);
-
     form.setValue("direccionEntrega_street", data.addressShipping?.street || data.addressBilling?.street);
     form.setValue("direccionEntrega_city", data.addressShipping?.city || data.addressBilling?.city);
     form.setValue("direccionEntrega_postalCode", data.addressShipping?.postalCode || data.addressBilling?.postalCode);
     form.setValue("direccionEntrega_province", data.addressShipping?.province || data.addressBilling?.province);
-    
     form.setValue("contactoNombre", data.mainContactName);
     form.setValue("contactoCorreo", data.mainContactEmail);
     form.setValue("contactoTelefono", data.mainContactPhone);
   };
-
-  // ... onSubmit logic similar to before, adapted for wizard state ...
+  
+  const validateFinalForm = (values: FormValues): boolean => {
+    let isValid = true;
+    if (values.outcome === 'successful') {
+      if (!values.numberOfUnits) { form.setError('numberOfUnits', { message: 'Campo obligatorio' }); isValid = false; }
+      if (!values.unitPrice) { form.setError('unitPrice', { message: 'Campo obligatorio' }); isValid = false; }
+      if (client?.id === 'new') {
+        if (!values.nombreFiscal) { form.setError('nombreFiscal', { message: 'Campo obligatorio' }); isValid = false; }
+        if (!values.cif) { form.setError('cif', { message: 'Campo obligatorio' }); isValid = false; }
+        if (!values.direccionFiscal_street) { form.setError('direccionFiscal_street', { message: 'Campo obligatorio' }); isValid = false; }
+        if (!values.direccionFiscal_city) { form.setError('direccionFiscal_city', { message: 'Campo obligatorio' }); isValid = false; }
+        if (!values.direccionFiscal_province) { form.setError('direccionFiscal_province', { message: 'Campo obligatorio' }); isValid = false; }
+        if (!values.direccionFiscal_postalCode) { form.setError('direccionFiscal_postalCode', { message: 'Campo obligatorio' }); isValid = false; }
+      }
+    }
+    if (!isValid) toast({ title: "Faltan campos obligatorios", description: "Por favor, revisa el formulario.", variant: "destructive" });
+    return isValid;
+  };
+  
   const onSubmit = async (values: FormValues) => {
-    // This function will be called from the final "verify" step
-    setIsSubmitting(true);
-    // Logic to create account and order based on `client` state and `form.getValues()`
-    // This is a complex combination of the old logic
-    console.log("Final submission values:", { client, formValues: values });
+    if (!validateFinalForm(values)) return;
     
-     if (!teamMember) {
+    setIsSubmitting(true);
+    if (!teamMember) {
         toast({ title: "Error", description: "No se pudo identificar al usuario.", variant: "destructive" });
         setIsSubmitting(false);
         return;
@@ -255,14 +285,14 @@ export default function OrderFormWizardPage() {
 
     try {
         if (client?.id === 'new') {
-            const newAccountData: AccountFormValues & { [key: string]: any } = {
+            const newAccountData: AccountFormValues = {
                 name: client.name,
                 legalName: values.nombreFiscal,
                 cif: values.cif,
                 type: values.outcome === 'successful' ? (values.clientType || 'Otro') : 'Otro',
                 status: values.outcome === 'successful' ? 'Activo' : 'Potencial',
-                addressBilling_street: values.direccionFiscal_street, addressBilling_number: values.direccionFiscal_number, addressBilling_city: values.direccionFiscal_city, addressBilling_province: values.direccionFiscal_province, addressBilling_postalCode: values.direccionFiscal_postalCode, addressBilling_country: values.direccionFiscal_country,
-                addressShipping_street: values.direccionEntrega_street, addressShipping_number: values.direccionEntrega_number, addressShipping_city: values.direccionEntrega_city, addressShipping_province: values.direccionEntrega_province, addressShipping_postalCode: values.direccionEntrega_postalCode, addressShipping_country: values.direccionEntrega_country,
+                addressBilling: { street: values.direccionFiscal_street!, number: values.direccionFiscal_number, city: values.direccionFiscal_city!, province: values.direccionFiscal_province!, postalCode: values.direccionFiscal_postalCode!, country: values.direccionFiscal_country! },
+                addressShipping: { street: values.direccionEntrega_street!, number: values.direccionEntrega_number, city: values.direccionEntrega_city!, province: values.direccionEntrega_province!, postalCode: values.direccionEntrega_postalCode!, country: values.direccionEntrega_country! },
                 mainContactName: values.contactoNombre,
                 mainContactEmail: values.contactoCorreo,
                 mainContactPhone: values.contactoTelefono,
@@ -278,7 +308,6 @@ export default function OrderFormWizardPage() {
             visitDate: format(new Date(), "yyyy-MM-dd"),
             clavadistaId: values.clavadistaId === NO_CLAVADISTA_VALUE ? undefined : values.clavadistaId,
             canalOrigenColocacion: values.canalOrigenColocacion,
-            paymentMethod: values.paymentMethod,
             assignedMaterials: values.assignedMaterials || [],
             notes: values.notes,
             clientStatus: client!.id === 'new' ? 'new' : 'existing',
@@ -287,13 +316,13 @@ export default function OrderFormWizardPage() {
         };
 
         if (values.outcome === "successful") {
-            // Full validation should be done here before submitting
             orderData.status = 'Confirmado';
             orderData.products = [SINGLE_PRODUCT_NAME];
             orderData.numberOfUnits = values.numberOfUnits;
             orderData.unitPrice = values.unitPrice;
             orderData.value = (subtotal + ivaAmount);
             orderData.clientType = values.clientType;
+            orderData.paymentMethod = values.paymentMethod;
         } else if (values.outcome === 'follow-up') {
             orderData.status = 'Seguimiento';
             orderData.nextActionType = values.nextActionType;
@@ -342,7 +371,6 @@ export default function OrderFormWizardPage() {
     }
     loadData();
   }, [toast]);
-  
 
   const renderStepContent = () => {
     switch (step) {
@@ -350,34 +378,23 @@ export default function OrderFormWizardPage() {
         return (
           <motion.div key="client" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
             <CardHeader>
-              <CardTitle>Paso 1: ¿Con qué cliente fue la interacción?</CardTitle>
-              <CardDescription>Busca un cliente existente o introduce el nombre de uno nuevo.</CardDescription>
+              <CardTitle>Paso 1: ¿A qué cliente has visitado?</CardTitle>
+              <CardDescription>Busca un cliente existente o introduce el nombre de uno nuevo para continuar.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar por nombre o CIF..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
+                <Input placeholder="Buscar por nombre o CIF..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10"/>
               </div>
               {filteredAccounts.length > 0 && (
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {filteredAccounts.map(acc => (
-                    <Button key={acc.id} variant="outline" className="w-full justify-start" onClick={() => handleClientSelect(acc)}>
-                      <Building className="mr-2 h-4 w-4 text-muted-foreground"/> {acc.name}
-                    </Button>
-                  ))}
+                <div className="space-y-2 max-h-60 overflow-y-auto p-1">
+                  {filteredAccounts.map(acc => ( <Button key={acc.id} variant="outline" className="w-full justify-start" onClick={() => handleClientSelect(acc)}> <Building className="mr-2 h-4 w-4 text-muted-foreground"/> {acc.name} </Button> ))}
                 </div>
               )}
               {debouncedSearchTerm && filteredAccounts.length === 0 && (
                 <div className="text-center p-4 border-dashed border-2 rounded-md">
-                  <p className="text-sm text-muted-foreground">No se encontró ningún cliente. ¿Quieres crear uno nuevo?</p>
-                  <Button className="mt-2" onClick={() => handleClientSelect({ id: 'new', name: debouncedSearchTerm })}>
-                    <PlusCircle className="mr-2 h-4 w-4"/> Continuar con "{debouncedSearchTerm}"
-                  </Button>
+                  <p className="text-sm text-muted-foreground">No se encontró al cliente "{debouncedSearchTerm}".</p>
+                  <Button className="mt-2" onClick={() => handleClientSelect({ id: 'new', name: debouncedSearchTerm })}> <PlusCircle className="mr-2 h-4 w-4"/> Continuar como nuevo cliente </Button>
                 </div>
               )}
             </CardContent>
@@ -388,75 +405,99 @@ export default function OrderFormWizardPage() {
         return (
           <motion.div key="outcome" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
             <CardHeader>
-              <CardTitle>Paso 2: ¿Cuál fue el resultado de la visita a "{client?.name}"?</CardTitle>
+              <CardTitle>Paso 2: ¿Cuál fue el resultado para "{client?.name}"?</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="grid grid-cols-1 gap-4">
                 <Button variant="outline" className="w-full h-16 text-lg" onClick={() => { form.setValue("outcome", "successful"); setStep("details"); }}>Pedido Exitoso</Button>
                 <Button variant="outline" className="w-full h-16 text-lg" onClick={() => { form.setValue("outcome", "follow-up"); setStep("details"); }}>Requiere Seguimiento</Button>
                 <Button variant="outline" className="w-full h-16 text-lg" onClick={() => { form.setValue("outcome", "failed"); setStep("details"); }}>Visita Fallida / Sin Pedido</Button>
             </CardContent>
-            <CardFooter>
-                <Button variant="ghost" onClick={handleBack}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
-            </CardFooter>
+            <CardFooter> <Button variant="ghost" onClick={handleBack}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button> </CardFooter>
           </motion.div>
         );
       
       case "details":
-        if (client?.id === 'new' && outcomeWatched === 'successful') {
+        return (
+            <motion.div key="details" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
+                 <Form {...form}>
+                    <form>
+                        <CardHeader>
+                            <CardTitle>Paso 3: Completa los Detalles</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            {outcomeWatched === 'successful' && (
+                                <div className="space-y-4">
+                                    <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades</FormLabel><FormControl><Input type="number" placeholder="Ej: 12" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                                    <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Ej: 15.50" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                                    <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel>Forma de Pago</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar forma de pago"/></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(m=>(<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
+                                </div>
+                            )}
+                            {outcomeWatched === 'follow-up' && (
+                                <div className="space-y-4">
+                                    <FormField control={form.control} name="nextActionType" render={({ field }) => (<FormItem><FormLabel>Próxima Acción</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar próxima acción..."/></SelectTrigger></FormControl><SelectContent>{nextActionTypeList.map(t=>(<SelectItem key={t} value={t}>{t}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
+                                    {form.watch('nextActionType') === 'Opción personalizada' && <FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Especificar Acción</FormLabel><FormControl><Input {...field}/></FormControl><FormMessage/></FormItem>)}/>}
+                                </div>
+                            )}
+                             {outcomeWatched === 'failed' && (
+                                <div className="space-y-4">
+                                     <FormField control={form.control} name="failureReasonType" render={({ field }) => (<FormItem><FormLabel>Motivo del Fallo</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar motivo..."/></SelectTrigger></FormControl><SelectContent>{failureReasonList.map(r=>(<SelectItem key={r} value={r}>{r}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
+                                     {form.watch('failureReasonType') === 'Otro (especificar)' && <FormField control={form.control} name="failureReasonCustom" render={({ field }) => (<FormItem><FormLabel>Especificar Motivo</FormLabel><FormControl><Input {...field}/></FormControl><FormMessage/></FormItem>)}/>}
+                                </div>
+                            )}
+                            <Separator/>
+                            <FormField control={form.control} name="assignedMaterials" render={() => (
+                                <FormItem>
+                                    <FormLabel>Añadir Material Promocional (Opcional)</FormLabel>
+                                    <div className="space-y-2">
+                                        {materialFields.map((field, index) => (
+                                            <div key={field.id} className="flex items-end gap-2">
+                                                <FormField control={form.control} name={`assignedMaterials.${index}.materialId`} render={({ field }) => ( <FormItem className="flex-grow"> <Select onValueChange={field.onChange} defaultValue={field.value}> <FormControl> <SelectTrigger> <SelectValue placeholder="Seleccionar material..."/> </SelectTrigger> </FormControl> <SelectContent> {availableMaterials.map(m => <SelectItem key={m.id} value={m.id}>{m.name} (Stock: {m.stock})</SelectItem>)} </SelectContent> </Select> <FormMessage/> </FormItem> )}/>
+                                                <FormField control={form.control} name={`assignedMaterials.${index}.quantity`} render={({ field }) => ( <FormItem> <FormControl> <Input type="number" placeholder="Cant." className="w-20" {...field}/> </FormControl> <FormMessage/> </FormItem> )}/>
+                                                <Button type="button" variant="destructive" size="icon" onClick={() => removeMaterial(index)}><Trash2 className="h-4 w-4"/></Button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <Button type="button" variant="outline" size="sm" onClick={() => appendMaterial({ materialId: '', quantity: 1 })}>Añadir Material</Button>
+                                </FormItem>
+                            )}/>
+                        </CardContent>
+                        <CardFooter className="flex justify-between">
+                            <Button variant="ghost" onClick={handleBack}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
+                            <Button type="button" onClick={handleNextStep}>Continuar <ArrowLeft className="mr-2 h-4 w-4 transform rotate-180" /></Button>
+                        </CardFooter>
+                    </form>
+                 </Form>
+            </motion.div>
+        );
+
+        case "new_client_data":
             return (
-                <motion.div key="details-new-success" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
+                <motion.div key="new_client_data" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
                     <CardHeader>
-                        <CardTitle>Paso 3: Datos de Facturación de "{client.name}"</CardTitle>
-                        <CardDescription>Añade los datos del nuevo cliente. Puedes subir una foto o pegar el texto.</CardDescription>
+                        <CardTitle>Paso 4: Datos de Facturación de "{client?.name}"</CardTitle>
+                        <CardDescription>Sube una foto o pega el texto con los datos del nuevo cliente. La IA los procesará.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                        <Label htmlFor="photo-upload" className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50">
+                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                <UploadCloud className="w-8 h-8 mb-2 text-primary"/>
+                                <p className="mb-1 text-sm font-semibold">Subir Foto o Captura</p>
+                                <p className="text-xs text-muted-foreground">de una tarjeta, Google Maps, etc.</p>
+                            </div>
+                            <Input id="photo-upload" type="file" className="hidden" accept="image/*" onChange={handleAiPhotoProcess} disabled={isAiProcessing}/>
+                        </Label>
+                        <div className="relative"><div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div><div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">O</span></div></div>
                         <div className="space-y-2">
-                           <Label htmlFor="photo-upload" className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50">
-                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                    <UploadCloud className="w-8 h-8 mb-2 text-primary"/>
-                                    <p className="mb-1 text-sm font-semibold">Subir Foto o Captura de Pantalla</p>
-                                    <p className="text-xs text-muted-foreground">de una tarjeta, Google Maps, etc.</p>
-                                </div>
-                                <Input id="photo-upload" type="file" className="hidden" accept="image/*" onChange={handleAiPhotoProcess} disabled={isAiProcessing}/>
-                           </Label>
-                        </div>
-
-                        <div className="relative">
-                            <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                            <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">O</span></div>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="text-block">Pegar o escribir datos en bloque</Label>
+                            <Label htmlFor="text-block">Escribe o pega aquí todos los datos de facturación y entrega</Label>
                             <Textarea id="text-block" placeholder="Ej: BODEGAS MANOLO, S.L. - B12345678 - Calle del Vino, 42, 28004, Madrid..." className="min-h-[100px]" value={aiTextBlock} onChange={(e) => setAiTextBlock(e.target.value)} disabled={isAiProcessing}/>
-                            <Button className="w-full" onClick={handleAiTextProcess} disabled={isAiProcessing}>
-                                {isAiProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Procesando...</> : <><Sparkles className="mr-2 h-4 w-4"/> Procesar con IA</>}
+                            <Button className="w-full" onClick={handleAiTextProcess} disabled={isAiProcessing || !aiTextBlock.trim()}>
+                                {isAiProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Procesando...</> : <><Sparkles className="mr-2 h-4 w-4"/> Procesar con IA y Continuar</>}
                             </Button>
                         </div>
                     </CardContent>
-                    <CardFooter>
-                        <Button variant="ghost" onClick={handleBack}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
-                    </CardFooter>
+                    <CardFooter><Button variant="ghost" onClick={handleBack}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button></CardFooter>
                 </motion.div>
             )
-        }
-        // Fallback for other cases (existing client, follow-up, fail)
-        // This is where we'd put the simplified forms
-        return (
-            <motion.div key="details-simple" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
-                 <CardHeader>
-                    <CardTitle>Paso 3: Completar Detalles</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    {/* Render simplified forms here based on outcome */}
-                    <p>Formulario simplificado para "{outcomeWatched}"</p>
-                    <Button onClick={() => setStep('verify')}>Continuar a Verificación</Button>
-                </CardContent>
-                 <CardFooter>
-                    <Button variant="ghost" onClick={handleBack}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
-                </CardFooter>
-            </motion.div>
-        );
 
         case "verify":
             return(
@@ -464,34 +505,42 @@ export default function OrderFormWizardPage() {
                      <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit)}>
                              <CardHeader>
-                                <CardTitle>Paso 4: Revisión Final</CardTitle>
-                                <CardDescription>Verifica que todos los datos son correctos antes de guardar.</CardDescription>
+                                <CardTitle>Paso Final: Verifica y Confirma</CardTitle>
+                                <CardDescription>Comprueba que todos los datos son correctos. Puedes editarlos aquí si es necesario.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-6">
-                                {/* All form fields go here, pre-filled */}
-                                <Separator />
-                                <h3 className="text-lg font-semibold">Resumen de la Interacción</h3>
-                                <p><strong>Cliente:</strong> {client?.name}</p>
-                                <p><strong>Resultado:</strong> {outcomeWatched}</p>
+                                <Card>
+                                    <CardHeader><CardTitle className="text-lg">Resumen de la Interacción</CardTitle></CardHeader>
+                                    <CardContent className="space-y-2 text-sm">
+                                        <p><strong>Cliente:</strong> {client?.name} {client?.id === 'new' && <span className="text-primary font-bold">(Nuevo)</span>}</p>
+                                        <p><strong>Resultado:</strong> <span className="font-semibold">{outcomeWatched === 'successful' ? 'Pedido Exitoso' : outcomeWatched === 'follow-up' ? 'Requiere Seguimiento' : 'Visita Fallida'}</span></p>
+                                        {outcomeWatched === 'successful' && <>
+                                            <p><strong>Unidades:</strong> {formValuesWatched.numberOfUnits}</p>
+                                            <p><strong>Valor Total (IVA incl.):</strong> <FormattedNumericValue value={subtotal + ivaAmount} options={{style: 'currency', currency: 'EUR'}}/></p>
+                                            <p><strong>Materiales:</strong> {formValuesWatched.assignedMaterials?.length || 0} items</p>
+                                        </>}
+                                    </CardContent>
+                                </Card>
 
                                 {client?.id === 'new' && outcomeWatched === 'successful' && (
-                                     <>
+                                     <div className="space-y-4">
                                         <Separator />
-                                        <h3 className="font-semibold">Datos del Nuevo Cliente</h3>
+                                        <h3 className="font-semibold text-base">Datos de Facturación (Obligatorio)</h3>
                                         <FormField control={form.control} name="nombreFiscal" render={({ field }) => (<FormItem><FormLabel>Nombre Fiscal</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
                                         <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                                        <h4 className="font-medium text-muted-foreground">Dirección Fiscal</h4>
-                                        <FormField control={form.control} name="direccionFiscal_street" render={({ field }) => (<FormItem><FormLabel>Calle</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                        {/* ... other address fields ... */}
-                                    </>
+                                        <FormField control={form.control} name="direccionFiscal_street" render={({ field }) => (<FormItem><FormLabel>Calle Fiscal</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                        <div className="grid grid-cols-3 gap-2">
+                                          <FormField control={form.control} name="direccionFiscal_city" render={({ field }) => (<FormItem><FormLabel>Ciudad</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                          <FormField control={form.control} name="direccionFiscal_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                          <FormField control={form.control} name="direccionFiscal_postalCode" render={({ field }) => (<FormItem><FormLabel>C.P.</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                        </div>
+                                    </div>
                                 )}
-                                {/* ... other sections for successful, followup, fail ... */}
-
                             </CardContent>
                              <CardFooter className="flex justify-between">
                                 <Button variant="ghost" onClick={handleBack} disabled={isSubmitting}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
                                 <Button type="submit" disabled={isSubmitting}>
-                                    {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Guardando...</> : <><Send className="mr-2 h-4 w-4"/> Guardar Interacción</>}
+                                    {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Guardando...</> : <><Send className="mr-2 h-4 w-4"/> Confirmar y Guardar</>}
                                 </Button>
                             </CardFooter>
                         </form>

@@ -165,7 +165,7 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
         }
         
         const purchasesCol = collection(db, PURCHASES_COLLECTION);
-        const newDocRef = doc(purchasesCol); // Create ref to get ID first
+        const newDocRef = doc(purchasesCol);
         const purchaseId = newDocRef.id;
 
         if (data.invoiceDataUri) {
@@ -230,12 +230,10 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
     const wasComplete = completeStatuses.includes(oldData.status);
     const isNowComplete = completeStatuses.includes(data.status!);
 
-    const stockChanges = new Map<string, number>();
     const newItemsMap = new Map((data.items || []).map(i => [i.materialId, i]));
     const oldItemsMap = new Map(oldData.items.map(i => [i.materialId, i]));
 
     if (isNowComplete) {
-      // Calculate stock changes and update latest purchase info
       const allMaterialIds = new Set([...newItemsMap.keys(), ...oldItemsMap.keys()]);
       for (const materialId of allMaterialIds) {
         const newItem = newItemsMap.get(materialId);
@@ -245,25 +243,17 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
         const diff = newQty - oldQty;
 
         if (diff !== 0) {
-            stockChanges.set(materialId, diff);
-        }
-
-        if (newItem) {
-          const purchaseInfo: LatestPurchaseInfo = {
-            quantityPurchased: newItem.quantity,
-            totalPurchaseCost: newItem.quantity * newItem.unitPrice,
-            purchaseDate: format(data.orderDate!, 'yyyy-MM-dd'),
-            calculatedUnitCost: newItem.unitPrice,
-            notes: `De compra ID: ${id}`
-          };
-          await processMaterialUpdateFromPurchase(materialId, diff, purchaseInfo);
-        } else if (stockChanges.has(materialId)) {
-          // Item removed, just update stock
-          await updateMaterialStockFS(materialId, stockChanges.get(materialId)!);
+            const purchaseInfo: LatestPurchaseInfo | undefined = newItem ? {
+                quantityPurchased: newItem.quantity,
+                totalPurchaseCost: newItem.quantity * newItem.unitPrice,
+                purchaseDate: format(data.orderDate!, 'yyyy-MM-dd'),
+                calculatedUnitCost: newItem.unitPrice,
+                notes: `De compra ID: ${id}`
+            } : undefined;
+            await processMaterialUpdateFromPurchase(materialId, diff, purchaseInfo);
         }
       }
     } else if (wasComplete && !isNowComplete) {
-      // Revert stock if status changes from complete
       for (const oldItem of oldData.items) {
         await updateMaterialStockFS(oldItem.materialId, -oldItem.quantity);
       }
@@ -284,7 +274,6 @@ export const deletePurchaseFS = async (id: string): Promise<void> => {
   if (docSnap.exists()) {
       const data = fromFirestorePurchase(docSnap);
       const completeStatuses = ['Completado', 'Factura Recibida', 'Pagado'];
-      // If purchase was completed, revert the stock addition on deletion
       if (completeStatuses.includes(data.status)) {
         for (const item of data.items) {
             await updateMaterialStockFS(item.materialId, -item.quantity);

@@ -92,15 +92,11 @@ export const updatePromotionalMaterialFS = async (id: string, data: PromotionalM
   const materialDocRef = doc(db, PROMOTIONAL_MATERIALS_COLLECTION, id);
   const firestoreData = toFirestorePromotionalMaterial(data, false);
   
-  // This is a special case. When we edit from the material dialog,
-  // we are potentially overriding purchase info and thus need to recalculate stock.
   const existingDoc = await getDoc(materialDocRef);
   if (existingDoc.exists()) {
     const oldData = fromFirestorePromotionalMaterial(existingDoc);
     const oldPurchaseQty = oldData.latestPurchase?.quantityPurchased || 0;
     const newPurchaseQty = data.latestPurchaseQuantity || 0;
-    // We assume editing the latest purchase means replacing it, so stock diff is new - old.
-    const stockDifference = newPurchaseQty - oldPurchaseQty;
     firestoreData.stock = (oldData.stock - oldPurchaseQty) + newPurchaseQty;
   }
   

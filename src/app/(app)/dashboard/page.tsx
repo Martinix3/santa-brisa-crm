@@ -69,7 +69,7 @@ export default function DashboardPage() {
       .filter(o => VALID_SALE_STATUSES.includes(o.status) && (o.createdAt || o.visitDate))
       .map(o => ({
         ...o,
-        relevantDate: parseISO(o.createdAt || o.visitDate),
+        relevantDate: parseISO(o.createdAt || o.visitDate!),
       }))
       .filter(o => isValid(o.relevantDate))
       .sort((a,b) => a.relevantDate.getTime() - b.relevantDate.getTime());
@@ -87,11 +87,23 @@ export default function DashboardPage() {
     const newAccountsThisMonth = activeAccounts.filter(acc => isSameMonth(parseISO(acc.createdAt!), currentDate)).length;
     
     // Repurchase Rate Calculation
-    const successfulOrdersWithAccount = successfulOrders.filter(o => o.accountId);
-    const ordersByAccount = successfulOrdersWithAccount.reduce((acc, order) => {
-        if (order.accountId) {
-            if (!acc[order.accountId]) acc[order.accountId] = [];
-            acc[order.accountId].push(order);
+    const accountNameMap = new Map<string, string>();
+    accounts.forEach(account => {
+        if (!accountNameMap.has(account.name.toLowerCase().trim())) {
+            accountNameMap.set(account.name.toLowerCase().trim(), account.id);
+        }
+    });
+
+    const ordersByAccount = successfulOrders.reduce((acc, order) => {
+        let accountId = order.accountId;
+        // Fallback to name matching if accountId is missing
+        if (!accountId && order.clientName) {
+            accountId = accountNameMap.get(order.clientName.toLowerCase().trim());
+        }
+
+        if (accountId) {
+            if (!acc[accountId]) acc[accountId] = [];
+            acc[accountId].push(order);
         }
         return acc;
     }, {} as Record<string, Order[]>);
@@ -133,8 +145,8 @@ export default function DashboardPage() {
       
       const monthlyVisits = orders.filter(o => 
         o.salesRep === teamMember.name && 
-        isValid(parseISO(o.createdAt || o.visitDate)) && 
-        isSameMonth(parseISO(o.createdAt || o.visitDate), currentDate) &&
+        isValid(parseISO(o.createdAt || o.visitDate!)) && 
+        isSameMonth(parseISO(o.createdAt || o.visitDate!), currentDate) &&
         ALL_VISIT_STATUSES.includes(o.status)
       ).length;
 
@@ -151,8 +163,8 @@ export default function DashboardPage() {
 
        const teamMonthlyVisits = orders.filter(o => 
           salesRepNamesSet.has(o.salesRep) && 
-          isValid(parseISO(o.createdAt || o.visitDate)) && 
-          isSameMonth(parseISO(o.createdAt || o.visitDate), currentDate) &&
+          isValid(parseISO(o.createdAt || o.visitDate!)) && 
+          isSameMonth(parseISO(o.createdAt || o.visitDate!), currentDate) &&
           ALL_VISIT_STATUSES.includes(o.status)
         ).length;
 

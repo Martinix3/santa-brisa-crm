@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { DirectSale, DirectSaleStatus, UserRole, Account, AccountType } from "@/types";
 import { directSaleStatusList } from "@/lib/data";
 import { useAuth } from "@/contexts/auth-context";
-import { PlusCircle, MoreHorizontal, Filter, ChevronDown, Trash2, Briefcase, Loader2 } from "lucide-react";
+import { PlusCircle, MoreHorizontal, Filter, ChevronDown, Trash2, Briefcase, Loader2, Eye, Printer } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
@@ -20,6 +20,8 @@ import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { getDirectSalesFS, deleteDirectSaleFS } from "@/services/venta-directa-sb-service"; 
 import { getAccountsFS } from "@/services/account-service";
 import Link from 'next/link';
+import DirectSaleShippingLabelDialog from "@/components/app/direct-sale-shipping-label-dialog";
+import DeliveryNoteDialog from "@/components/app/delivery-note-dialog";
 
 
 export default function DirectSalesSbPage() {
@@ -29,6 +31,8 @@ export default function DirectSalesSbPage() {
   const [accounts, setAccounts] = React.useState<Account[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [saleToDelete, setSaleToDelete] = React.useState<DirectSale | null>(null);
+  const [labelSale, setLabelSale] = React.useState<DirectSale | null>(null);
+  const [deliveryNoteSale, setDeliveryNoteSale] = React.useState<DirectSale | null>(null);
 
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<DirectSaleStatus | "Todos">("Todos");
@@ -46,7 +50,7 @@ export default function DirectSalesSbPage() {
                 getAccountsFS()
             ]);
             setSales(fetchedSales);
-            setAccounts(fetchedAccounts.filter(acc => relevantAccountTypesForDirectSale.includes(acc.type)));
+            setAccounts(fetchedAccounts); // No need to filter here, map will handle it.
         } catch (error) {
             console.error("Failed to load direct sales:", error);
             toast({ title: "Error", description: "No se pudieron cargar las ventas directas o las cuentas.", variant: "destructive" });
@@ -61,6 +65,7 @@ export default function DirectSalesSbPage() {
     }
   }, [toast, isAdmin, refreshDataSignature]);
   
+  const accountsMap = React.useMemo(() => new Map(accounts.map(acc => [acc.id, acc])), [accounts]);
 
   const handleDeleteSale = (sale: DirectSale) => {
     if (!isAdmin) return;
@@ -182,6 +187,17 @@ export default function DirectSalesSbPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem onSelect={() => { /* TODO: Implement view/edit dialog */ }}>
+                              <Eye className="mr-2 h-4 w-4" /> Ver/Editar Detalles
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onSelect={() => setLabelSale(sale)}>
+                                <Printer className="mr-2 h-4 w-4" /> Imprimir Etiqueta
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => setDeliveryNoteSale(sale)}>
+                                <Printer className="mr-2 h-4 w-4" /> Generar Albarán
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <DropdownMenuItem
@@ -230,6 +246,20 @@ export default function DirectSalesSbPage() {
             </CardFooter>
         )}
       </Card>
+      
+      <DirectSaleShippingLabelDialog
+        sale={labelSale}
+        account={labelSale?.customerId ? accountsMap.get(labelSale.customerId) ?? null : null}
+        isOpen={!!labelSale}
+        onOpenChange={(open) => !open && setLabelSale(null)}
+      />
+
+      <DeliveryNoteDialog
+        sale={deliveryNoteSale}
+        account={deliveryNoteSale?.customerId ? accountsMap.get(deliveryNoteSale.customerId) ?? null : null}
+        isOpen={!!deliveryNoteSale}
+        onOpenChange={(open) => !open && setDeliveryNoteSale(null)}
+      />
     </div>
   );
 }

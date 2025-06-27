@@ -203,7 +203,7 @@ body {
     content: "" !important; 
   }
   
-  .shipping-label-dialog {
+  .shipping-label-dialog, .delivery-note-dialog {
     display: block !important;
     position: absolute;
     left: 0;
@@ -233,6 +233,19 @@ body {
     visibility: visible !important;
     color: #000 !important;
     background-color: transparent !important;
+  }
+
+  .delivery-note-dialog-content {
+     padding: 1cm;
+     margin: 1cm;
+     page-break-inside: avoid;
+  }
+  
+  .delivery-note-dialog-content * {
+    visibility: visible !important;
+    color: #000 !important;
+    background-color: transparent !important;
+    font-size: 10pt;
   }
 
   .print-dialog-content {

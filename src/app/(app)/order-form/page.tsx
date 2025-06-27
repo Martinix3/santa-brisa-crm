@@ -29,7 +29,6 @@ import { format, parseISO } from "date-fns";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 
-
 const NO_CLAVADISTA_VALUE = "##NONE##";
 const ADMIN_SELF_REGISTER_VALUE = "##ADMIN_SELF##";
 
@@ -89,7 +88,7 @@ const formSchema = z.object({
              ctx.addIssue({ path: ["iban"], message: "Formato de IBAN no válido." });
         }
     }
-});;
+});
 
 type FormValues = z.infer<typeof formSchema>;
 type Step = "client" | "outcome" | "details" | "new_client_data" | "verify";
@@ -171,19 +170,29 @@ export default function OrderFormWizardPage() {
   });
   
   const watchSameAsBilling = form.watch('sameAsBilling');
-  const watchBillingAddress = form.watch(['direccionFiscal_street', 'direccionFiscal_number', 'direccionFiscal_city', 'direccionFiscal_province', 'direccionFiscal_postalCode', 'direccionFiscal_country']);
   const paymentMethodWatched = form.watch("paymentMethod");
+
+  // Use individual watches or destructure from a single watch() call to get stable primitive values
+  const { 
+      direccionFiscal_street,
+      direccionFiscal_number,
+      direccionFiscal_city,
+      direccionFiscal_province,
+      direccionFiscal_postalCode,
+      direccionFiscal_country
+  } = form.watch();
+
 
   React.useEffect(() => {
     if (watchSameAsBilling) {
-        form.setValue('direccionEntrega_street', watchBillingAddress[0] || "");
-        form.setValue('direccionEntrega_number', watchBillingAddress[1] || "");
-        form.setValue('direccionEntrega_city', watchBillingAddress[2] || "");
-        form.setValue('direccionEntrega_province', watchBillingAddress[3] || "");
-        form.setValue('direccionEntrega_postalCode', watchBillingAddress[4] || "");
-        form.setValue('direccionEntrega_country', watchBillingAddress[5] || "España");
+        form.setValue('direccionEntrega_street', direccionFiscal_street || "");
+        form.setValue('direccionEntrega_number', direccionFiscal_number || "");
+        form.setValue('direccionEntrega_city', direccionFiscal_city || "");
+        form.setValue('direccionEntrega_province', direccionFiscal_province || "");
+        form.setValue('direccionEntrega_postalCode', direccionFiscal_postalCode || "");
+        form.setValue('direccionEntrega_country', direccionFiscal_country || "España");
     }
-  }, [watchSameAsBilling, watchBillingAddress, form]);
+  }, [watchSameAsBilling, direccionFiscal_street, direccionFiscal_number, direccionFiscal_city, direccionFiscal_province, direccionFiscal_postalCode, direccionFiscal_country, form]);
 
 
   const outcomeWatched = form.watch("outcome");
@@ -296,8 +305,18 @@ export default function OrderFormWizardPage() {
                 cif: values.cif,
                 type: values.clientType || 'Otro',
                 status: 'Activo',
-                addressBilling: { street: values.direccionFiscal_street || "", number: values.direccionFiscal_number, city: values.direccionFiscal_city || "", province: values.direccionFiscal_province || "", postalCode: values.direccionFiscal_postalCode || "", country: values.direccionFiscal_country || "España" },
-                addressShipping: { street: values.direccionEntrega_street || "", number: values.direccionEntrega_number, city: values.direccionEntrega_city || "", province: values.direccionEntrega_province || "", postalCode: values.direccionEntrega_postalCode || "", country: values.direccionEntrega_country || "España" },
+                addressBilling_street: values.direccionFiscal_street || "",
+                addressBilling_number: values.direccionFiscal_number,
+                addressBilling_city: values.direccionFiscal_city || "",
+                addressBilling_province: values.direccionFiscal_province || "",
+                addressBilling_postalCode: values.direccionFiscal_postalCode || "",
+                addressBilling_country: values.direccionFiscal_country || "España",
+                addressShipping_street: values.direccionEntrega_street || "",
+                addressShipping_number: values.direccionEntrega_number,
+                addressShipping_city: values.direccionEntrega_city || "",
+                addressShipping_province: values.direccionEntrega_province || "",
+                addressShipping_postalCode: values.direccionEntrega_postalCode || "",
+                addressShipping_country: values.direccionEntrega_country || "España",
                 mainContactName: values.contactoNombre,
                 mainContactEmail: values.contactoCorreo,
                 mainContactPhone: values.contactoTelefono,
@@ -604,6 +623,3 @@ export default function OrderFormWizardPage() {
     </div>
   );
 }
-
-
-

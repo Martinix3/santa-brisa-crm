@@ -1,6 +1,7 @@
 
 import * as z from "zod";
-import { canalOrigenColocacionList, paymentMethodList, nextActionTypeList, failureReasonList, clientTypeList } from "@/lib/data";
+import { canalOrigenColocacionList, paymentMethodList, nextActionTypeList, failureReasonList, clientTypeList, userRolesList } from "@/lib/data";
+import type { UserRole } from "@/types";
 
 export const NO_CLAVADISTA_VALUE = "##NONE##";
 export const ADMIN_SELF_REGISTER_VALUE = "##ADMIN_SELF##";
@@ -12,9 +13,8 @@ const assignedMaterialSchema = z.object({
   quantity: z.coerce.number().min(1, "La cantidad debe ser al menos 1.").optional(),
 });
 
-// Base schema object with all fields
-// It now includes `isNewClient` to handle validation contextually within the schema itself.
 const baseOrderFormSchema = z.object({
+  userRole: z.enum(userRolesList as [UserRole, ...UserRole[]]).optional(),
   isNewClient: z.boolean().default(false),
   outcome: z.enum(["successful", "failed", "follow-up"]).optional(),
   clavadistaId: z.string().optional(),
@@ -58,12 +58,9 @@ const baseOrderFormSchema = z.object({
   assignedMaterials: z.array(assignedMaterialSchema).optional(),
 });
 
-// Export the type inferred from the base schema
 export type OrderFormValues = z.infer<typeof baseOrderFormSchema>;
 
-// A single, static schema that uses the form's data to apply conditional validation.
 export const orderFormSchema = baseOrderFormSchema.superRefine((data, ctx) => {
-    // Validations for 'successful' outcome
     if (data.outcome === 'successful') {
       if (!data.numberOfUnits || data.numberOfUnits <= 0) { ctx.addIssue({ path: ["numberOfUnits"], message: 'Unidades son obligatorias' }); }
       if (!data.unitPrice || data.unitPrice <= 0) { ctx.addIssue({ path: ["unitPrice"], message: 'Precio es obligatorio' }); }
@@ -73,7 +70,6 @@ export const orderFormSchema = baseOrderFormSchema.superRefine((data, ctx) => {
       }
     }
     
-    // Validations for 'new' client on 'successful' outcome, now using the `isNewClient` form field.
     if (data.outcome === 'successful' && data.isNewClient) {
         if (!data.nombreFiscal?.trim()) ctx.addIssue({ path: ["nombreFiscal"], message: "Nombre fiscal es obligatorio." });
         if (!data.cif?.trim()) ctx.addIssue({ path: ["cif"], message: "CIF es obligatorio." });
@@ -83,7 +79,6 @@ export const orderFormSchema = baseOrderFormSchema.superRefine((data, ctx) => {
         if (!data.direccionFiscal_postalCode?.trim()) ctx.addIssue({ path: ["direccionFiscal_postalCode"], message: "Código postal es obligatorio." });
     }
 
-    // Validations for 'follow-up' outcome
     if (data.outcome === 'follow-up') {
       if (!data.nextActionType) {
          ctx.addIssue({ path: ["nextActionType"], message: "La próxima acción es obligatoria." });
@@ -92,7 +87,6 @@ export const orderFormSchema = baseOrderFormSchema.superRefine((data, ctx) => {
       }
     }
     
-    // Validations for 'failed' outcome
     if (data.outcome === 'failed') {
        if (!data.failureReasonType) {
          ctx.addIssue({ path: ["failureReasonType"], message: "El motivo del fallo es obligatorio." });
@@ -100,5 +94,10 @@ export const orderFormSchema = baseOrderFormSchema.superRefine((data, ctx) => {
          ctx.addIssue({ path: ["failureReasonCustom"], message: "Debe especificar el motivo del fallo." });
       }
     }
+    
+    if (data.userRole === 'Clavadista' && data.outcome === 'follow-up') {
+        if (!data.clavadistaSelectedSalesRepId || data.clavadistaSelectedSalesRepId.trim() === '') {
+            ctx.addIssue({ path: ["clavadistaSelectedSalesRepId"], message: "Debes asignar un comercial para el seguimiento." });
+        }
+    }
   });
-

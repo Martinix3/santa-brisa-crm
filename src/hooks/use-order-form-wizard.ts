@@ -5,10 +5,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
-import { getAccountsFS, addAccountFS, getAccountByIdFS, updateAccountInFirestore } from "@/services/account-service";
+import { getAccountsFS, addAccountFS, getAccountByIdFS } from "@/services/account-service";
 import { addOrderFS, updateOrderFS, getOrderByIdFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
-import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
+import { getPromotionalMaterialsFS, updateMaterialStockFS } from "@/services/promotional-material-service";
 import { runTransaction } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { collection, doc } from "firebase/firestore";
@@ -21,22 +21,18 @@ export function useOrderWizard() {
   const searchParams = useSearchParams();
   const { teamMember, userRole, refreshDataSignature } = useAuth();
   
-  // Wizard State
   const [step, setStep] = React.useState<Step>("client");
   const [client, setClient] = React.useState<Account | { id: 'new'; name: string } | null>(null);
   
-  // Data Fetching State
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   
-  // Fetched Data
   const [allAccounts, setAllAccounts] = React.useState<Account[]>([]);
   const [clavadistas, setClavadistas] = React.useState<TeamMember[]>([]);
   const [salesRepsList, setSalesRepsList] = React.useState<TeamMember[]>([]);
   const [availableMaterials, setAvailableMaterials] = React.useState<PromotionalMaterial[]>([]);
   const [originatingTask, setOriginatingTask] = React.useState<Order | null>(null);
   
-  // Search State
   const [searchTerm, setSearchTerm] = React.useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = React.useState("");
 
@@ -54,9 +50,10 @@ export function useOrderWizard() {
   }, [debouncedSearchTerm, allAccounts]);
   
   const form = useForm<OrderFormValues>({
-    resolver: zodResolver(orderFormSchema), // Use the static schema
+    resolver: zodResolver(orderFormSchema),
     mode: "onBlur",
     defaultValues: {
+      userRole: userRole,
       isNewClient: false,
       outcome: undefined,
       clavadistaId: userRole === 'Clavadista' && teamMember ? teamMember.id : NO_CLAVADISTA_VALUE,
@@ -161,7 +158,7 @@ export function useOrderWizard() {
       }
     }
     loadData();
-  }, [searchParams.get('originatingTaskId')]);
+  }, [searchParams]);
 
   const handleClientSelect = (selectedClient: Account | { id: 'new'; name: string }) => {
     setClient(selectedClient);
@@ -240,12 +237,12 @@ export function useOrderWizard() {
                     salesRepIdForAccount = selectedRep.id;
                 }
             } else if (userRole === 'Clavadista') {
-                if (!values.clavadistaSelectedSalesRepId) throw new Error("Debes asignar un comercial a esta interacción.");
                 const selectedRepByClavadista = salesRepsList.find(sr => sr.id === values.clavadistaSelectedSalesRepId);
                 if (selectedRepByClavadista) {
                     salesRepNameForOrder = selectedRepByClavadista.name;
                     salesRepIdForAccount = selectedRepByClavadista.id;
                 } else {
+                    // This case should be caught by Zod validation now
                     throw new Error("Comercial asignado no válido.");
                 }
             }
@@ -255,11 +252,11 @@ export function useOrderWizard() {
                 const newAccountRef = doc(collection(db, "accounts"));
                 currentAccountId = newAccountRef.id;
                 const newAccountData = {
-                  name: client.name, legalName: values.nombreFiscal, cif: values.cif || "", type: values.clientType || 'Otro', status: 'Activo',
+                  id: currentAccountId, name: client.name, legalName: values.nombreFiscal, cif: values.cif || "", type: values.clientType || 'Otro', status: 'Activo',
                   addressBilling: { street: values.direccionFiscal_street, number: values.direccionFiscal_number, city: values.direccionFiscal_city, province: values.direccionFiscal_province, postalCode: values.direccionFiscal_postalCode, country: values.direccionFiscal_country },
                   addressShipping: { street: values.direccionEntrega_street, number: values.direccionEntrega_number, city: values.direccionEntrega_city, province: values.direccionEntrega_province, postalCode: values.direccionEntrega_postalCode, country: values.direccionEntrega_country },
                   mainContactName: values.contactoNombre, mainContactEmail: values.contactoCorreo, mainContactPhone: values.contactoTelefono, notes: values.observacionesAlta, salesRepId: salesRepIdForAccount, iban: values.iban,
-                  createdAt: new Date(), updatedAt: new Date(),
+                  createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
                 };
                 transaction.set(newAccountRef, newAccountData);
             } else if (client?.id !== 'new' && values.iban && client?.id) {

@@ -1,140 +1,50 @@
 
 "use client";
 
-import React from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import type { Kpi, StrategicObjective, Order, Account, TeamMember, UserRole, OrderStatus } from "@/types";
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, LabelList, PieChart, Pie, Cell, Legend } from "recharts";
-import { Progress } from "@/components/ui/progress";
-import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
-import { cn } from "@/lib/utils";
-import {
-  kpiDataLaunch as initialKpiDataLaunch, 
-  objetivoTotalVentasEquipo, 
-  objetivoTotalCuentasEquipoAnual,
-  mockStrategicObjectives
-} from "@/lib/launch-dashboard-data";
-
-import { CheckCircle2, Circle, Loader2 } from "lucide-react";
-import { parseISO, getYear, getMonth, isSameYear, isSameMonth, isValid } from 'date-fns';
-import { useAuth } from "@/contexts/auth-context"; 
+import React, { useMemo, useState, useEffect } from "react";
+import type { Order, Account, TeamMember, UserRole, Kpi, StrategicObjective } from "@/types";
+import { useAuth } from "@/contexts/auth-context";
 import { getOrdersFS } from "@/services/order-service";
 import { getAccountsFS } from "@/services/account-service";
-import { getTeamMembersFS } from "@/services/team-member-service"; 
+import { getTeamMembersFS } from "@/services/team-member-service";
+import { parseISO, isSameYear, isSameMonth, isValid } from 'date-fns';
+import { Loader2 } from "lucide-react";
+import {
+  kpiDataLaunch as initialKpiDataLaunch,
+  mockStrategicObjectives
+} from "@/lib/launch-dashboard-data";
+import { VALID_SALE_STATUSES, ALL_VISIT_STATUSES } from "@/lib/constants";
 
-
-const distributionChartConfig = {
-  value: { label: "Botellas" },
-  VentasEquipo: { label: "Ventas Equipo", color: "hsl(var(--brand-turquoise-hsl))" },
-  RestoCanales: { label: "Resto Canales", color: "hsl(var(--primary))" },
-};
-
-const calculateProgressValue = (current: number, target: number): number => {
-  if (target <= 0) return current > 0 ? 100 : 0;
-  return Math.min((current / target) * 100, 100);
-};
+// Import new widget components
+import { KpiGrid } from "@/components/app/dashboard/kpi-grid";
+import { MonthlyProgress } from "@/components/app/dashboard/monthly-progress";
+import { SalesDistributionChart } from "@/components/app/dashboard/sales-distribution-chart";
+import { StrategicObjectivesList } from "@/components/app/dashboard/strategic-objectives-list";
+import { PieChart, Pie, Cell, Legend } from "recharts"
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 
 
 export default function DashboardPage() {
-  const { userRole, teamMember, dataSignature } = useAuth(); 
-  const [isLoading, setIsLoading] = React.useState(true);
-  const [orders, setOrders] = React.useState<Order[]>([]);
-  const [accounts, setAccounts] = React.useState<Account[]>([]);
-  const [allTeamMembers, setAllTeamMembers] = React.useState<TeamMember[]>([]); 
-  const [calculatedKpiData, setCalculatedKpiData] = React.useState<Kpi[]>(initialKpiDataLaunch);
+  const { userRole, teamMember, dataSignature } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [salesReps, setSalesReps] = useState<TeamMember[]>([]);
 
-
-  React.useEffect(() => {
+  useEffect(() => {
     async function loadDashboardData() {
       setIsLoading(true);
       try {
         const [fetchedOrders, fetchedAccounts, fetchedTeamMembers] = await Promise.all([
           getOrdersFS(),
           getAccountsFS(),
-          getTeamMembersFS(['SalesRep']), 
+          getTeamMembersFS(['SalesRep']),
         ]);
         setOrders(fetchedOrders);
         setAccounts(fetchedAccounts);
-        setAllTeamMembers(fetchedTeamMembers); 
-
-        const validSaleStatuses: OrderStatus[] = ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado'];
-        
-        const salesRepNames = fetchedTeamMembers
-            .filter(m => m.role === 'SalesRep')
-            .map(m => m.name);
-        
-        // --- START: New KPI Calculation Logic ---
-        const currentDate = new Date();
-        let totalBottlesSoldOverall = 0;
-        let teamBottlesSoldOverall = 0;
-        let ordersFromExistingCustomersCount = 0;
-        let totalValidOrdersCount = 0;
-
-        fetchedOrders.forEach(order => {
-          if (validSaleStatuses.includes(order.status)) {
-            if (order.numberOfUnits) {
-              totalBottlesSoldOverall += order.numberOfUnits;
-              if (salesRepNames.includes(order.salesRep)) {
-                teamBottlesSoldOverall += order.numberOfUnits;
-              }
-            }
-            totalValidOrdersCount++;
-            if (order.clientStatus === 'existing') {
-              ordersFromExistingCustomersCount++;
-            }
-          }
-        });
-
-        // Correct "New Account" calculation based on first successful order date
-        const successfulOrders = fetchedOrders
-          .filter(o => validSaleStatuses.includes(o.status) && o.accountId && isValid(parseISO(o.createdAt)))
-          .sort((a,b) => parseISO(a.createdAt!).getTime() - parseISO(b.createdAt!).getTime());
-
-        const firstOrderDateByAccount = new Map<string, Date>();
-        for (const order of successfulOrders) {
-            if (order.accountId && !firstOrderDateByAccount.has(order.accountId)) {
-                firstOrderDateByAccount.set(order.accountId, parseISO(order.createdAt!));
-            }
-        }
-        
-        const uniqueAccountsThisYear = new Set<string>();
-        const uniqueAccountsThisMonth = new Set<string>();
-        
-        for (const [accountId, firstOrderDate] of firstOrderDateByAccount.entries()) {
-            const order = successfulOrders.find(o => o.accountId === accountId);
-            if(order && salesRepNames.includes(order.salesRep)) {
-                if (isSameYear(firstOrderDate, currentDate)) {
-                    uniqueAccountsThisYear.add(accountId);
-                }
-                if (isSameMonth(firstOrderDate, currentDate)) {
-                    uniqueAccountsThisMonth.add(accountId);
-                }
-            }
-        }
-        const accountsCreatedByTeamThisYear = uniqueAccountsThisYear.size;
-        const accountsCreatedByTeamThisMonth = uniqueAccountsThisMonth.size;
-        // --- END: New KPI Calculation Logic ---
-
-
-        const updatedKpis = initialKpiDataLaunch.map(kpi => {
-          let newCurrentValue = 0;
-          switch (kpi.id) {
-            case 'kpi1': newCurrentValue = totalBottlesSoldOverall; break;
-            case 'kpi2': newCurrentValue = teamBottlesSoldOverall; break;
-            case 'kpi3': newCurrentValue = accountsCreatedByTeamThisYear; break;
-            case 'kpi4': newCurrentValue = accountsCreatedByTeamThisMonth; break; 
-            case 'kpi5':
-              newCurrentValue = totalValidOrdersCount > 0 
-                ? Math.round((ordersFromExistingCustomersCount / totalValidOrdersCount) * 100) 
-                : 0;
-              break;
-            default: newCurrentValue = kpi.currentValue; 
-          }
-          return { ...kpi, currentValue: newCurrentValue };
-        });
-        setCalculatedKpiData(updatedKpis);
-
+        setSalesReps(fetchedTeamMembers);
       } catch (error) {
         console.error("Error loading dashboard data:", error);
       } finally {
@@ -144,412 +54,221 @@ export default function DashboardPage() {
     loadDashboardData();
   }, [dataSignature]);
 
-  const currentMonthNewAccountsByRep = React.useMemo(() => {
-    if (!teamMember || userRole !== 'SalesRep' || orders.length === 0) return 0;
+  const dashboardData = useMemo(() => {
+    if (isLoading) return null;
+
+    const salesRepNamesSet = new Set(salesReps.map(m => m.name));
     const currentDate = new Date();
-    const validSaleStatuses: OrderStatus[] = ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado'];
-    return orders.filter(order =>
-      order.salesRep === teamMember.name &&
-      validSaleStatuses.includes(order.status) &&
-      order.clientStatus === 'new' &&
-      isValid(parseISO(order.visitDate)) &&
-      isSameMonth(parseISO(order.visitDate), currentDate) &&
-      isSameYear(parseISO(order.visitDate), currentDate)
-    ).length;
-  }, [teamMember, userRole, orders]);
 
-  const currentMonthVisitsByRep = React.useMemo(() => {
-    if (!teamMember || userRole !== 'SalesRep' || orders.length === 0) return 0; 
-    const currentDate = new Date();
-    const visitStatuses: OrderStatus[] = ['Programada', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Fallido', 'Seguimiento', 'Cancelado'];
-    return orders.filter(order =>
-      order.salesRep === teamMember.name &&
-      isValid(parseISO(order.visitDate)) &&
-      isSameMonth(parseISO(order.visitDate), currentDate) &&
-      isSameYear(parseISO(order.visitDate), currentDate) &&
-      visitStatuses.includes(order.status)
-    ).length;
-  }, [teamMember, userRole, orders]);
+    let totalBottlesSoldOverall = 0;
+    let teamBottlesSoldOverall = 0;
+    let ordersFromExistingCustomersCount = 0;
+    let totalValidOrdersCount = 0;
 
-  const salesRepsForTeamProgress = React.useMemo(() => allTeamMembers.filter(m => m.role === 'SalesRep'), [allTeamMembers]);
-  
-  const teamMonthlyTargetAccounts = React.useMemo(() => {
-    if (userRole !== 'Admin') return 0;
-    return salesRepsForTeamProgress.reduce((sum, rep) => sum + (rep.monthlyTargetAccounts || 0), 0);
-  }, [userRole, salesRepsForTeamProgress]);
+    const successfulOrders = orders
+      .filter(o => VALID_SALE_STATUSES.includes(o.status) && (o.createdAt || o.visitDate))
+      .map(o => ({
+        ...o,
+        // Use createdAt for accuracy, fallback to visitDate for older records
+        relevantDate: parseISO(o.createdAt || o.visitDate),
+      }))
+      .filter(o => isValid(o.relevantDate))
+      .sort((a,b) => a.relevantDate.getTime() - b.relevantDate.getTime());
 
-  const teamMonthlyAchievedAccounts = React.useMemo(() => {
-    if (userRole !== 'Admin' || orders.length === 0 || salesRepsForTeamProgress.length === 0) return 0;
-    const currentDate = new Date();
-    const salesRepNames = salesRepsForTeamProgress.map(rep => rep.name);
-    const validSaleStatuses: OrderStatus[] = ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado'];
-    return orders.filter(order => 
-      salesRepNames.includes(order.salesRep) &&
-      validSaleStatuses.includes(order.status) &&
-      order.clientStatus === 'new' &&
-      isValid(parseISO(order.visitDate)) &&
-      isSameMonth(parseISO(order.visitDate), currentDate) &&
-      isSameYear(parseISO(order.visitDate), currentDate)
-    ).length;
-  }, [userRole, salesRepsForTeamProgress, orders]);
+    for (const order of successfulOrders) {
+      if (order.numberOfUnits) {
+        totalBottlesSoldOverall += order.numberOfUnits;
+        if (salesRepNamesSet.has(order.salesRep)) {
+          teamBottlesSoldOverall += order.numberOfUnits;
+        }
+      }
+      totalValidOrdersCount++;
+      if (order.clientStatus === 'existing') {
+        ordersFromExistingCustomersCount++;
+      }
+    }
+    
+    // Correct "New Account" calculation
+    const firstOrderDateByAccount = new Map<string, Date>();
+    for (const order of successfulOrders) {
+        if (order.accountId && !firstOrderDateByAccount.has(order.accountId)) {
+            firstOrderDateByAccount.set(order.accountId, order.relevantDate);
+        }
+    }
+    
+    const accountsCreatedByTeamThisYear = new Set<string>();
+    const accountsCreatedByTeamThisMonth = new Set<string>();
+    
+    for (const [accountId, firstOrderDate] of firstOrderDateByAccount.entries()) {
+      const order = successfulOrders.find(o => o.accountId === accountId);
+      if(order && salesRepNamesSet.has(order.salesRep)) {
+          if (isSameYear(firstOrderDate, currentDate)) {
+              accountsCreatedByTeamThisYear.add(accountId);
+          }
+          if (isSameMonth(firstOrderDate, currentDate)) {
+              accountsCreatedByTeamThisMonth.add(accountId);
+          }
+      }
+    }
 
-  const teamMonthlyTargetVisits = React.useMemo(() => {
-    if (userRole !== 'Admin') return 0;
-    return salesRepsForTeamProgress.reduce((sum, rep) => sum + (rep.monthlyTargetVisits || 0), 0);
-  }, [userRole, salesRepsForTeamProgress]);
+    const calculatedKpis = initialKpiDataLaunch.map(kpi => {
+      let currentValue = 0;
+      switch(kpi.id) {
+        case 'kpi1': currentValue = totalBottlesSoldOverall; break;
+        case 'kpi2': currentValue = teamBottlesSoldOverall; break;
+        case 'kpi3': currentValue = accountsCreatedByTeamThisYear.size; break;
+        case 'kpi4': currentValue = accountsCreatedByTeamThisMonth.size; break;
+        case 'kpi5':
+          currentValue = totalValidOrdersCount > 0 
+            ? Math.round((ordersFromExistingCustomersCount / totalValidOrdersCount) * 100) 
+            : 0;
+          break;
+      }
+      return { ...kpi, currentValue };
+    });
 
-  const teamMonthlyAchievedVisits = React.useMemo(() => {
-    if (userRole !== 'Admin' || orders.length === 0 || salesRepsForTeamProgress.length === 0) return 0;
-    const currentDate = new Date();
-    const salesRepNames = salesRepsForTeamProgress.map(rep => rep.name);
-    const visitStatuses: OrderStatus[] = ['Programada', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Fallido', 'Seguimiento', 'Cancelado'];
-    return orders.filter(order =>
-      salesRepNames.includes(order.salesRep) &&
-      isValid(parseISO(order.visitDate)) &&
-      isSameMonth(parseISO(order.visitDate), currentDate) &&
-      isSameYear(parseISO(order.visitDate), currentDate) &&
-      visitStatuses.includes(order.status)
-    ).length;
-  }, [userRole, salesRepsForTeamProgress, orders]);
+    // Monthly progress calculations
+    let monthlyProgressMetrics: any[] = [];
+    if(userRole === 'SalesRep' && teamMember) {
+      const monthlyAccounts = Array.from(accountsCreatedByTeamThisMonth).filter(id => successfulOrders.find(o => o.accountId === id)?.salesRep === teamMember.name).length;
+      const monthlyVisits = orders.filter(o => 
+        o.salesRep === teamMember.name && 
+        isValid(parseISO(o.visitDate)) && 
+        isSameMonth(parseISO(o.visitDate), currentDate) &&
+        ALL_VISIT_STATUSES.includes(o.status)
+      ).length;
 
+      monthlyProgressMetrics = [
+        { title: "Cuentas Nuevas (Este Mes)", target: teamMember.monthlyTargetAccounts || 0, current: monthlyAccounts, unit: 'cuentas', colorClass: "[&>div]:bg-primary" },
+        { title: "Visitas Realizadas (Este Mes)", target: teamMember.monthlyTargetVisits || 0, current: monthlyVisits, unit: 'visitas', colorClass: "[&>div]:bg-primary" },
+      ];
+    } else if (userRole === 'Admin') {
+       const teamMonthlyTargetAccounts = salesReps.reduce((sum, rep) => sum + (rep.monthlyTargetAccounts || 0), 0);
+       const teamMonthlyTargetVisits = salesReps.reduce((sum, rep) => sum + (rep.monthlyTargetVisits || 0), 0);
+       const teamMonthlyVisits = orders.filter(o => 
+          salesRepNamesSet.has(o.salesRep) && 
+          isValid(parseISO(o.visitDate)) && 
+          isSameMonth(parseISO(o.visitDate), currentDate) &&
+          ALL_VISIT_STATUSES.includes(o.status)
+        ).length;
 
-  const kpiVentasTotales = calculatedKpiData.find(k => k.id === 'kpi1');
-  const kpiVentasEquipo = calculatedKpiData.find(k => k.id === 'kpi2');
-  const kpiCuentasAnual = calculatedKpiData.find(k => k.id === 'kpi3');
+      monthlyProgressMetrics = [
+        { title: "Cuentas Nuevas del Equipo (Este Mes)", target: teamMonthlyTargetAccounts, current: accountsCreatedByTeamThisMonth.size, unit: 'cuentas', colorClass: "[&>div]:bg-[hsl(var(--brand-turquoise-hsl))]" },
+        { title: "Visitas del Equipo (Este Mes)", target: teamMonthlyTargetVisits, current: teamMonthlyVisits, unit: 'visitas', colorClass: "[&>div]:bg-[hsl(var(--brand-turquoise-hsl))]" },
+      ];
+    }
+    
+    // Chart data
+    const kpiVentasEquipo = calculatedKpis.find(k => k.id === 'kpi2');
+    const objetivoTotalVentasEquipo = kpiVentasEquipo?.targetValue ?? 0;
+    const ventasEquipoActuales = kpiVentasEquipo?.currentValue ?? 0;
+    const faltanteVentasEquipo = Math.max(0, objetivoTotalVentasEquipo - ventasEquipoActuales);
+    const progresoVentasEquipoData = [
+        { name: "Alcanzado", value: ventasEquipoActuales, color: "hsl(var(--brand-turquoise-hsl))" },
+        { name: "Faltante", value: faltanteVentasEquipo, color: "hsl(var(--muted))" },
+    ];
+    
+    const kpiCuentasAnual = calculatedKpis.find(k => k.id === 'kpi3');
+    const objetivoTotalCuentasEquipoAnual = kpiCuentasAnual?.targetValue ?? 0;
+    const cuentasEquipoActualesAnual = kpiCuentasAnual?.currentValue ?? 0;
+    const faltanteCuentasEquipoAnual = Math.max(0, objetivoTotalCuentasEquipoAnual - cuentasEquipoActualesAnual);
+    const progresoCuentasEquipoData = [
+        { name: "Alcanzado", value: cuentasEquipoActualesAnual, color: "hsl(var(--brand-turquoise-hsl))" },
+        { name: "Faltante", value: faltanteCuentasEquipoAnual, color: "hsl(var(--muted))" },
+    ];
 
-  const ventasTotalesActuales = kpiVentasTotales?.currentValue ?? 0;
-  const ventasEquipoActuales = kpiVentasEquipo?.currentValue ?? 0;
-  const restoCanalesVentas = Math.max(0, ventasTotalesActuales - ventasEquipoActuales);
+    return {
+      kpis: calculatedKpis,
+      monthlyProgressTitle: userRole === 'Admin' ? "Progreso Mensual del Equipo" : "Tu Progreso Mensual",
+      showMonthlyProgress: userRole === 'Admin' || userRole === 'SalesRep',
+      monthlyProgressMetrics,
+      teamSales: teamBottlesSoldOverall,
+      otherSales: Math.max(0, totalBottlesSoldOverall - teamBottlesSoldOverall),
+      progresoVentasEquipoData,
+      progresoCuentasEquipoData,
+      objectives: mockStrategicObjectives,
+    };
+  }, [isLoading, orders, accounts, salesReps, userRole, teamMember]);
 
-  const ventasDistribucionData = [
-    { name: "Ventas Equipo", value: ventasEquipoActuales, fill: "hsl(var(--brand-turquoise-hsl))" },
-    { name: "Resto Canales", value: restoCanalesVentas, fill: "hsl(var(--primary))" }, 
-  ];
-
-  const faltanteVentasEquipo = Math.max(0, objetivoTotalVentasEquipo - ventasEquipoActuales);
-  const progresoVentasEquipoData = [
-    { name: "Alcanzado", value: ventasEquipoActuales, color: "hsl(var(--brand-turquoise-hsl))" },
-    { name: "Faltante", value: faltanteVentasEquipo, color: "hsl(var(--muted))" },
-  ];
-
-  const cuentasEquipoActualesAnual = kpiCuentasAnual?.currentValue ?? 0;
-  const faltanteCuentasEquipoAnual = Math.max(0, objetivoTotalCuentasEquipoAnual - cuentasEquipoActualesAnual);
-  const progresoCuentasEquipoData = [
-    { name: "Alcanzado", value: cuentasEquipoActualesAnual, color: "hsl(var(--brand-turquoise-hsl))" },
-    { name: "Faltante", value: faltanteCuentasEquipoAnual, color: "hsl(var(--muted))" },
-  ];
-
-  const monthlyProgressTitle = userRole === 'Admin' ? "Progreso Mensual del Equipo" : "Tu Progreso Mensual";
-  const showMonthlyProgressSection = userRole === 'Admin' || (userRole === 'SalesRep' && teamMember);
-
-  if (isLoading) {
+  if (isLoading || !dashboardData) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-8">
+      <div className="flex flex-col items-center justify-center h-full p-8" role="status" aria-live="polite">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
         <p className="mt-4 text-muted-foreground">Cargando datos del dashboard...</p>
       </div>
     );
   }
 
+  const {
+    kpis,
+    monthlyProgressTitle,
+    showMonthlyProgress,
+    monthlyProgressMetrics,
+    teamSales,
+    otherSales,
+    progresoVentasEquipoData,
+    progresoCuentasEquipoData,
+    objectives
+  } = dashboardData;
+
+  const showDashboardContent = userRole === 'Admin' || userRole === 'SalesRep' || userRole === 'Distributor' || userRole === 'Clavadista';
+
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-headline font-semibold">Panel Principal: Lanzamiento de Producto</h1>
       
-      {(userRole === 'Admin' || userRole === 'SalesRep' || userRole === 'Distributor' || userRole === 'Clavadista') && (
-        <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-            {calculatedKpiData.map((kpi: Kpi) => {
-            const progress = kpi.targetValue > 0 ? Math.min((kpi.currentValue / kpi.targetValue) * 100, 100) : (kpi.currentValue > 0 ? 100 : 0);
-            const isTurquoiseKpi = ['kpi2', 'kpi3', 'kpi4'].includes(kpi.id);
-            const isPrimaryKpi = kpi.id === 'kpi1';
-            const isAccentKpi = kpi.id === 'kpi5';
+      {showDashboardContent && (
+        <>
+          <KpiGrid kpis={kpis} />
+          {showMonthlyProgress && monthlyProgressMetrics.length > 0 && (
+            <MonthlyProgress title={monthlyProgressTitle} metrics={monthlyProgressMetrics} />
+          )}
+
+          <section className="grid gap-6 md:grid-cols-3">
+            <SalesDistributionChart teamSales={teamSales} otherSales={otherSales} />
             
-            let progressBarClass = "";
-            if (isTurquoiseKpi) progressBarClass = "[&>div]:bg-[hsl(var(--brand-turquoise-hsl))]";
-            else if (isPrimaryKpi) progressBarClass = "[&>div]:bg-primary";
-            else if (isAccentKpi) progressBarClass = "[&>div]:bg-accent";
-
-            return (
-                <Card key={kpi.id} className="shadow-subtle hover:shadow-md transition-shadow duration-300">
-                <CardHeader className="pb-2">
-                    <div className="flex flex-row items-center justify-between space-y-0">
-                    <CardTitle className="text-sm font-medium">{kpi.title}</CardTitle>
-                    {kpi.icon && <kpi.icon className="h-5 w-5 text-muted-foreground" />}
-                    </div>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                    <div className="text-3xl font-bold">
-                    <FormattedNumericValue value={kpi.currentValue} locale="es-ES" />
-                    {kpi.unit === '%' && '%'}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                    Objetivo: <FormattedNumericValue value={kpi.targetValue} locale="es-ES" /> {kpi.unit}
-                    </p>
-                    <Progress
-                    value={progress}
-                    aria-label={`${progress.toFixed(0)}% completado`}
-                    className={cn("h-2", progressBarClass)}
-                    />
-                </CardContent>
-                </Card>
-            );
-            })}
-        </section>
-      )}
-
-      {showMonthlyProgressSection && (
-        <section className="mt-6">
-          <h2 className="text-2xl font-headline font-semibold mb-4">{monthlyProgressTitle}</h2>
-          <div className="grid gap-6 md:grid-cols-2">
-            {userRole === 'Admin' && (
-              <>
-                <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
-                  <CardHeader>
-                    <CardTitle>Cuentas Nuevas del Equipo (Este Mes)</CardTitle>
-                    <CardDescription>
-                      Objetivo Equipo: <FormattedNumericValue value={teamMonthlyTargetAccounts} locale="es-ES" /> cuentas
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold">
-                      <FormattedNumericValue value={teamMonthlyAchievedAccounts} locale="es-ES" />
-                    </div>
-                    <Progress 
-                      value={calculateProgressValue(teamMonthlyAchievedAccounts, teamMonthlyTargetAccounts)} 
-                      className={cn("mt-2 h-2", calculateProgressValue(teamMonthlyAchievedAccounts, teamMonthlyTargetAccounts) >= 100 ? "[&>div]:bg-green-500" : "[&>div]:bg-[hsl(var(--brand-turquoise-hsl))]")} 
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {teamMonthlyAchievedAccounts >= teamMonthlyTargetAccounts && teamMonthlyTargetAccounts > 0
-                        ? "¡Objetivo mensual del equipo cumplido!"
-                        : `Faltan: ${Math.max(0, teamMonthlyTargetAccounts - teamMonthlyAchievedAccounts)} cuentas`}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
-                  <CardHeader>
-                    <CardTitle>Visitas del Equipo (Este Mes)</CardTitle>
-                    <CardDescription>
-                      Objetivo Equipo: <FormattedNumericValue value={teamMonthlyTargetVisits} locale="es-ES" /> visitas
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold">
-                      <FormattedNumericValue value={teamMonthlyAchievedVisits} locale="es-ES" />
-                    </div>
-                    <Progress 
-                        value={calculateProgressValue(teamMonthlyAchievedVisits, teamMonthlyTargetVisits)} 
-                        className={cn("mt-2 h-2", calculateProgressValue(teamMonthlyAchievedVisits, teamMonthlyTargetVisits) >= 100 ? "[&>div]:bg-green-500" : "[&>div]:bg-[hsl(var(--brand-turquoise-hsl))]")} 
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                        {teamMonthlyAchievedVisits >= teamMonthlyTargetVisits && teamMonthlyTargetVisits > 0
-                          ? "¡Objetivo mensual del equipo cumplido!"
-                          : `Faltan: ${Math.max(0, teamMonthlyTargetVisits - teamMonthlyAchievedVisits)} visitas`}
-                    </p>
-                  </CardContent>
-                </Card>
-              </>
-            )}
-            {userRole === 'SalesRep' && teamMember && (
-              <>
-                <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
-                  <CardHeader>
-                    <CardTitle>Cuentas Nuevas (Este Mes)</CardTitle>
-                    <CardDescription>
-                      Objetivo: <FormattedNumericValue value={teamMember.monthlyTargetAccounts || 0} locale="es-ES" /> cuentas
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold">
-                      <FormattedNumericValue value={currentMonthNewAccountsByRep} locale="es-ES" />
-                    </div>
-                    <Progress 
-                      value={calculateProgressValue(currentMonthNewAccountsByRep, teamMember.monthlyTargetAccounts || 0)} 
-                      className={cn("mt-2 h-2", calculateProgressValue(currentMonthNewAccountsByRep, teamMember.monthlyTargetAccounts || 0) >= 100 ? "[&>div]:bg-green-500" : "[&>div]:bg-primary")} 
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                        {currentMonthNewAccountsByRep >= (teamMember.monthlyTargetAccounts || 0) && (teamMember.monthlyTargetAccounts || 0) > 0
-                          ? "¡Objetivo mensual cumplido!"
-                          : `Faltan: ${Math.max(0, (teamMember.monthlyTargetAccounts || 0) - currentMonthNewAccountsByRep)} cuentas`}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
-                  <CardHeader>
-                    <CardTitle>Visitas Realizadas (Este Mes)</CardTitle>
-                    <CardDescription>
-                      Objetivo: <FormattedNumericValue value={teamMember.monthlyTargetVisits || 0} locale="es-ES" /> visitas
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold">
-                      <FormattedNumericValue value={currentMonthVisitsByRep} locale="es-ES" />
-                    </div>
-                    <Progress 
-                        value={calculateProgressValue(currentMonthVisitsByRep, teamMember.monthlyTargetVisits || 0)} 
-                        className={cn("mt-2 h-2", calculateProgressValue(currentMonthVisitsByRep, teamMember.monthlyTargetVisits || 0) >= 100 ? "[&>div]:bg-green-500" : "[&>div]:bg-primary")} 
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                        {currentMonthVisitsByRep >= (teamMember.monthlyTargetVisits || 0) && (teamMember.monthlyTargetVisits || 0) > 0
-                          ? "¡Objetivo mensual cumplido!"
-                          : `Faltan: ${Math.max(0, (teamMember.monthlyTargetVisits || 0) - currentMonthVisitsByRep)} visitas`}
-                    </p>
-                  </CardContent>
-                </Card>
-              </>
-            )}
-          </div>
-        </section>
-      )}
-
-      {(userRole === 'Admin' || userRole === 'SalesRep' || userRole === 'Distributor' || userRole === 'Clavadista') && (
-        <section className="grid gap-6 md:grid-cols-3">
-            <Card className="md:col-span-2 shadow-subtle hover:shadow-md transition-shadow duration-300">
-            <CardHeader>
-                <CardTitle>Distribución de Ventas (Botellas)</CardTitle>
-                <CardDescription>Visualiza la contribución de las ventas del equipo frente a otros canales de venta de la empresa.</CardDescription>
-            </CardHeader>
-            <CardContent className="h-[300px] pr-0">
-                <ChartContainer config={distributionChartConfig} className="h-full w-full">
-                    <BarChart data={ventasDistribucionData} layout="vertical" margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                    <XAxis type="number" tickFormatter={(value) => `${value / 1000}k`} />
-                    <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} width={100} />
-                    <ChartTooltip cursor={{fill: 'hsl(var(--muted)/0.5)'}} content={<ChartTooltipContent hideLabel />} />
-                    <Bar dataKey="value" radius={4}>
-                        {ventasDistribucionData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.fill} />
-                        ))}
-                        <LabelList dataKey="value" position="right" offset={8} className="fill-foreground" fontSize={12} formatter={(value: number) => value.toLocaleString('es-ES')} />
-                    </Bar>
-                    </BarChart>
-                </ChartContainer>
-            </CardContent>
-            </Card>
-
             <div className="space-y-6 md:col-span-1">
-            <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
-                <CardHeader>
-                <CardTitle>Progreso Ventas del Equipo</CardTitle>
-                <CardDescription>Seguimiento del objetivo anual de ventas en botellas para el equipo comercial.</CardDescription>
-                </CardHeader>
-                <CardContent className="h-[150px] flex items-center justify-center">
-                <ChartContainer config={{}} className="h-full w-full aspect-square">
-                    <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-                        <Pie
-                        data={progresoVentasEquipoData}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        innerRadius="60%"
-                        outerRadius="80%"
-                        paddingAngle={2}
-                        labelLine={false}
-                        >
-                        {progresoVentasEquipoData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} stroke={entry.color} />
-                        ))}
-                        </Pie>
-                        <ChartTooltip cursor={false} content={<ChartTooltipContent hideIndicator formatter={(value, name, props) => (
-                            <div className="flex flex-col items-center">
-                            <span className="font-medium text-sm" style={{color: props.payload?.color}}>{props.payload?.name}</span>
-                            <span className="text-xs"><FormattedNumericValue value={props.payload?.value} /> botellas</span>
-                            </div>
-                        )} />} />
-                        <Legend verticalAlign="bottom" height={36} content={({ payload }) => (
-                            <ul className="flex items-center justify-center gap-x-4 text-xs">
-                            {payload?.map((entry, index) => (
-                                <li key={`item-${index}`} className="flex items-center gap-1">
-                                <span className="size-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
-                                {entry.value}
-                                </li>
-                            ))}
-                            </ul>
-                        )}/>
-                    </PieChart>
-                </ChartContainer>
-                </CardContent>
-            </Card>
-            
-            <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
-                <CardHeader>
-                <CardTitle>Progreso Cuentas Equipo (Anual)</CardTitle>
-                <CardDescription>Seguimiento del objetivo anual de creación de nuevas cuentas para el equipo comercial.</CardDescription>
-                </CardHeader>
-                <CardContent className="h-[150px] flex items-center justify-center">
-                    <ChartContainer config={{}} className="h-full w-full aspect-square">
+                 <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
+                    <CardHeader>
+                    <CardTitle>Progreso Ventas del Equipo</CardTitle>
+                    <CardDescription>Seguimiento del objetivo anual de ventas en botellas para el equipo comercial.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="h-[150px] flex items-center justify-center">
+                    <ChartContainer config={{}} className="h-full w-full aspect-square" aria-label="Gráfico de progreso de ventas del equipo">
                         <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-                            <Pie
-                            data={progresoCuentasEquipoData}
-                            dataKey="value"
-                            nameKey="name"
-                            cx="50%"
-                            cy="50%"
-                            innerRadius="60%"
-                            outerRadius="80%"
-                            paddingAngle={2}
-                            labelLine={false}
-                            >
-                            {progresoCuentasEquipoData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} stroke={entry.color}/>
-                            ))}
+                            <Pie data={progresoVentasEquipoData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius="60%" outerRadius="80%" paddingAngle={2} labelLine={false}>
+                                {progresoVentasEquipoData.map((entry) => (<Cell key={`cell-${entry.name}`} fill={entry.color} stroke={entry.color} /> ))}
                             </Pie>
-                            <ChartTooltip cursor={false} content={<ChartTooltipContent hideIndicator formatter={(value, name, props) => (
-                                <div className="flex flex-col items-center">
-                                <span className="font-medium text-sm" style={{color: props.payload?.color}}>{props.payload?.name}</span>
-                                <span className="text-xs"><FormattedNumericValue value={props.payload?.value} /> cuentas</span>
-                                </div>
-                            )} />} />
-                            <Legend verticalAlign="bottom" height={36} content={({ payload }) => (
-                                <ul className="flex items-center justify-center gap-x-4 text-xs">
-                                {payload?.map((entry, index) => (
-                                    <li key={`item-${index}`} className="flex items-center gap-1">
-                                    <span className="size-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
-                                    {entry.value}
-                                    </li>
-                                ))}
-                                </ul>
-                            )}/>
+                             <ChartTooltip cursor={false} content={<ChartTooltipContent hideIndicator formatter={(value, name, props) => ( <div className="flex flex-col items-center"> <span className="font-medium text-sm" style={{color: props.payload?.color}}>{props.payload?.name}</span> <span className="text-xs"><FormattedNumericValue value={props.payload?.value as number} /> botellas</span> </div> )}/>} />
+                             <Legend verticalAlign="bottom" height={36} content={({ payload }) => ( <ul className="flex items-center justify-center gap-x-4 text-xs"> {payload?.map((entry) => ( <li key={`item-${entry.value}`} className="flex items-center gap-1"> <span className="size-2.5 rounded-full" style={{ backgroundColor: entry.color }} /> {entry.value} </li> ))} </ul> )}/>
                         </PieChart>
                     </ChartContainer>
-                </CardContent>
-            </Card>
+                    </CardContent>
+                </Card>
+                
+                <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
+                    <CardHeader>
+                    <CardTitle>Progreso Cuentas Equipo (Anual)</CardTitle>
+                    <CardDescription>Seguimiento del objetivo anual de creación de nuevas cuentas para el equipo comercial.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="h-[150px] flex items-center justify-center">
+                        <ChartContainer config={{}} className="h-full w-full aspect-square" aria-label="Gráfico de progreso de cuentas anuales del equipo">
+                            <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                                <Pie data={progresoCuentasEquipoData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius="60%" outerRadius="80%" paddingAngle={2} labelLine={false}>
+                                    {progresoCuentasEquipoData.map((entry) => ( <Cell key={`cell-${entry.name}`} fill={entry.color} stroke={entry.color}/> ))}
+                                </Pie>
+                                <ChartTooltip cursor={false} content={<ChartTooltipContent hideIndicator formatter={(value, name, props) => ( <div className="flex flex-col items-center"> <span className="font-medium text-sm" style={{color: props.payload?.color}}>{props.payload?.name}</span> <span className="text-xs"><FormattedNumericValue value={props.payload?.value as number} /> cuentas</span> </div> )}/>} />
+                                <Legend verticalAlign="bottom" height={36} content={({ payload }) => ( <ul className="flex items-center justify-center gap-x-4 text-xs"> {payload?.map((entry) => ( <li key={`item-${entry.value}`} className="flex items-center gap-1"> <span className="size-2.5 rounded-full" style={{ backgroundColor: entry.color }} /> {entry.value} </li> ))} </ul> )}/>
+                            </PieChart>
+                        </ChartContainer>
+                    </CardContent>
+                </Card>
             </div>
-        </section>
-      )}
+          </section>
 
-      <section>
-        <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
-            <CardHeader>
-                <CardTitle>Objetivos Estratégicos Clave</CardTitle>
-                <CardDescription>Resumen de los principales objetivos estratégicos cualitativos de la empresa. Gestión completa en Configuración.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                {mockStrategicObjectives.length > 0 ? (
-                    <ul className="space-y-3">
-                        {mockStrategicObjectives.slice(0, 5).map((objective: StrategicObjective) => (
-                            <li key={objective.id} className="flex items-start space-x-3 p-3 bg-secondary/20 rounded-md shadow-sm">
-                                {objective.completed ? (
-                                    <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
-                                ) : (
-                                    <Circle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
-                                )}
-                                <p className={cn("text-sm", objective.completed && "line-through text-muted-foreground")}>
-                                    {objective.text}
-                                </p>
-                            </li>
-                        ))}
-                    </ul>
-                ) : (
-                    <p className="text-sm text-muted-foreground">No hay objetivos estratégicos definidos. Pueden gestionarse desde la sección de Configuración.</p>
-                )}
-                {mockStrategicObjectives.length > 5 && (
-                    <p className="text-xs text-muted-foreground mt-3">
-                        Y {mockStrategicObjectives.length - 5} más objetivos. Ver todos en Configuración.
-                    </p>
-                )}
-            </CardContent>
-        </Card>
-      </section>
+          <StrategicObjectivesList objectives={objectives} />
+        </>
+      )}
     </div>
   );
 }

@@ -17,8 +17,8 @@ import { getAccountsFS } from '@/services/account-service';
 import { getTeamMembersFS } from '@/services/team-member-service';
 import { parseISO, isSameMonth, isSameYear, isValid } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from "@/contexts/auth-context"; // Import useAuth
-
+import { useAuth } from "@/contexts/auth-context";
+import { VALID_SALE_STATUSES, ALL_VISIT_STATUSES } from '@/lib/constants';
 
 const renderProgress = (current: number, target: number, unit: string, targetAchievedText: string) => {
   const progress = target > 0 ? Math.min((current / target) * 100, 100) : (current > 0 ? 100 : 0);
@@ -97,17 +97,18 @@ export default function TeamTrackingPage() {
           getAccountsFS(),
         ]);
         const currentDate = new Date();
-        const saleStatuses: OrderStatus[] = ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado'];
         
         // Pre-calculate first successful order date for every account to optimize "new account" calculation
         const firstOrderDateByAccount = new Map<string, Date>();
         const successfulOrders = fetchedOrders
-          .filter(o => saleStatuses.includes(o.status) && o.accountId && isValid(parseISO(o.createdAt)))
-          .sort((a, b) => parseISO(a.createdAt!).getTime() - parseISO(b.createdAt!).getTime());
+          .filter(o => VALID_SALE_STATUSES.includes(o.status) && o.accountId && (o.createdAt || o.visitDate))
+          .map(o => ({...o, relevantDate: parseISO(o.createdAt || o.visitDate)}))
+          .filter(o => isValid(o.relevantDate))
+          .sort((a, b) => a.relevantDate.getTime() - b.relevantDate.getTime());
 
         for (const order of successfulOrders) {
           if (order.accountId && !firstOrderDateByAccount.has(order.accountId)) {
-            firstOrderDateByAccount.set(order.accountId, parseISO(order.createdAt!));
+            firstOrderDateByAccount.set(order.accountId, order.relevantDate);
           }
         }
         
@@ -120,8 +121,10 @@ export default function TeamTrackingPage() {
 
           // Calculate total stats
           memberInteractions.forEach(order => {
-            totalVisitsCount++; // Every interaction is a visit
-            if (saleStatuses.includes(order.status)) {
+            if (ALL_VISIT_STATUSES.includes(order.status)) {
+                totalVisitsCount++;
+            }
+            if (VALID_SALE_STATUSES.includes(order.status)) {
               if (order.numberOfUnits) bottlesSold += order.numberOfUnits;
               ordersCount++;
             }
@@ -129,25 +132,20 @@ export default function TeamTrackingPage() {
           
           // Calculate Monthly Visits: all interactions created this month
           const monthlyVisitsAchieved = memberInteractions.filter(order =>
-            isValid(parseISO(order.createdAt)) &&
-            isSameMonth(parseISO(order.createdAt), currentDate) &&
-            isSameYear(parseISO(order.createdAt), currentDate)
+            isValid(parseISO(order.createdAt || order.visitDate)) &&
+            isSameMonth(parseISO(order.createdAt || order.visitDate), currentDate) &&
+            isSameYear(parseISO(order.createdAt || order.visitDate), currentDate) &&
+            ALL_VISIT_STATUSES.includes(order.status)
           ).length;
 
           // Calculate Monthly New Accounts: clients whose first order was this month
           const accountIdsOpenedThisMonth = new Set<string>();
-          const memberSuccessfulOrdersThisMonth = memberInteractions.filter(order =>
-            saleStatuses.includes(order.status) &&
-            order.accountId &&
-            isValid(parseISO(order.createdAt)) &&
-            isSameMonth(parseISO(order.createdAt), currentDate) &&
-            isSameYear(parseISO(order.createdAt), currentDate)
-          );
-          
-          for (const order of memberSuccessfulOrdersThisMonth) {
-            const firstOrderDate = firstOrderDateByAccount.get(order.accountId!);
-            if (firstOrderDate && isSameMonth(firstOrderDate, currentDate) && isSameYear(firstOrderDate, currentDate)) {
-              accountIdsOpenedThisMonth.add(order.accountId!);
+          for (const order of memberInteractions) {
+            if (VALID_SALE_STATUSES.includes(order.status) && order.accountId) {
+              const firstOrderDate = firstOrderDateByAccount.get(order.accountId);
+              if (firstOrderDate && isSameMonth(firstOrderDate, currentDate) && isSameYear(firstOrderDate, currentDate)) {
+                accountIdsOpenedThisMonth.add(order.accountId);
+              }
             }
           }
           const monthlyAccountsAchieved = accountIdsOpenedThisMonth.size;

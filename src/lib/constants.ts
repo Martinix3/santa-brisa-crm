@@ -1,0 +1,5 @@
+
+import type { OrderStatus } from "@/types";
+
+export const VALID_SALE_STATUSES: readonly OrderStatus[] = ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado'];
+export const ALL_VISIT_STATUSES: readonly OrderStatus[] = ['Programada', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Fallido', 'Seguimiento', 'Cancelado'];

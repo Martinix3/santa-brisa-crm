@@ -6,7 +6,7 @@ import {
   collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
   type DocumentSnapshot,
 } from "firebase/firestore";
-import type { DirectSale } from '@/types';
+import type { DirectSale, DirectSaleFormValues } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 
 const DIRECT_SALES_COLLECTION = 'directSales';
@@ -35,18 +35,39 @@ const fromFirestoreDirectSale = (docSnap: DocumentSnapshot): DirectSale => {
   };
 };
 
-const toFirestoreDirectSale = (data: Partial<DirectSale>, isNew: boolean): any => {
-  const firestoreData: { [key: string]: any } = { ...data };
+const toFirestoreDirectSale = (data: Partial<DirectSaleFormValues>, isNew: boolean): any => {
+  const subtotal = data.items?.reduce((sum, item) => sum + (item.quantity || 0) * (item.netUnitPrice || 0), 0) || 0;
+  const tax = subtotal * 0.21;
+  const totalAmount = subtotal + tax;
 
-  if (data.issueDate && typeof data.issueDate === 'string') {
-    firestoreData.issueDate = Timestamp.fromDate(parseISO(data.issueDate));
-  } else if (data.issueDate instanceof Date) {
-     firestoreData.issueDate = Timestamp.fromDate(data.issueDate);
+  const firestoreData: { [key: string]: any } = {
+      customerId: data.customerId,
+      customerName: data.customerName,
+      channel: data.channel,
+      items: data.items?.map(item => ({
+          productId: item.productId || null,
+          productName: item.productName,
+          quantity: item.quantity,
+          netUnitPrice: item.netUnitPrice,
+          total: (item.quantity || 0) * (item.netUnitPrice || 0)
+      })) || [],
+      subtotal,
+      tax,
+      totalAmount,
+      status: data.status,
+      invoiceNumber: data.invoiceNumber || null,
+      relatedPlacementOrders: data.relatedPlacementOrders ? data.relatedPlacementOrders.split(',').map(s => s.trim()) : [],
+      notes: data.notes || null,
+  };
+
+  if (data.issueDate && isValid(data.issueDate)) {
+    firestoreData.issueDate = Timestamp.fromDate(data.issueDate);
+  } else if (isNew) {
+    firestoreData.issueDate = Timestamp.fromDate(new Date());
   }
-   if (data.dueDate && typeof data.dueDate === 'string') {
-    firestoreData.dueDate = Timestamp.fromDate(parseISO(data.dueDate));
-  } else if (data.dueDate instanceof Date) {
-     firestoreData.dueDate = Timestamp.fromDate(data.dueDate);
+
+  if (data.dueDate && isValid(data.dueDate)) {
+    firestoreData.dueDate = Timestamp.fromDate(data.dueDate);
   } else {
     firestoreData.dueDate = null;
   }
@@ -74,13 +95,13 @@ export const getDirectSalesFS = async (): Promise<DirectSale[]> => {
 };
 
 
-export const addDirectSaleFS = async (data: Partial<DirectSale>): Promise<string> => {
+export const addDirectSaleFS = async (data: DirectSaleFormValues): Promise<string> => {
   const firestoreData = toFirestoreDirectSale(data, true);
   const docRef = await addDoc(collection(db, DIRECT_SALES_COLLECTION), firestoreData);
   return docRef.id;
 };
 
-export const updateDirectSaleFS = async (id: string, data: Partial<DirectSale>): Promise<void> => {
+export const updateDirectSaleFS = async (id: string, data: Partial<DirectSaleFormValues>): Promise<void> => {
   const saleDocRef = doc(db, DIRECT_SALES_COLLECTION, id);
   const firestoreData = toFirestoreDirectSale(data, false);
   await updateDoc(saleDocRef, firestoreData);

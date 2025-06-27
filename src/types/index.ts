@@ -3,6 +3,7 @@
 
 
 
+
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
 
 export interface Kpi {

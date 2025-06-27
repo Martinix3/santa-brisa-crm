@@ -8,31 +8,26 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import type { DirectSale, DirectSaleStatus, UserRole } from "@/types";
+import type { DirectSale, DirectSaleStatus, UserRole, Account, AccountType } from "@/types";
 import { directSaleStatusList } from "@/lib/data";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, MoreHorizontal, Filter, ChevronDown, Edit, Trash2, Briefcase, Loader2 } from "lucide-react";
-// import VentaDirectaDialog from "@/components/app/venta-directa-dialog"; // This component needs to be created
+import VentaDirectaDialog from "@/components/app/venta-directa-dialog";
+import type { DirectSaleFormValues } from "@/components/app/venta-directa-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
 import StatusBadge from "@/components/app/status-badge";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { getDirectSalesFS, addDirectSaleFS, updateDirectSaleFS, deleteDirectSaleFS } from "@/services/venta-directa-sb-service"; 
-
-// Placeholder for dialog component until it's created
-const VentaDirectaDialog = ({ isOpen, onOpenChange }: { isOpen: boolean, onOpenChange: (open: boolean) => void }) => (
-    <div style={{ display: isOpen ? 'block' : 'none', position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', padding: '2rem', background: 'white', border: '1px solid black', zIndex: 100 }}>
-        <h2>Venta Directa Dialog (Placeholder)</h2>
-        <button onClick={() => onOpenChange(false)}>Close</button>
-    </div>
-);
+import { getAccountsFS } from "@/services/account-service";
 
 
 export default function DirectSalesSbPage() {
   const { toast } = useToast();
   const { userRole, refreshDataSignature } = useAuth();
   const [sales, setSales] = React.useState<DirectSale[]>([]);
+  const [accounts, setAccounts] = React.useState<Account[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [editingSale, setEditingSale] = React.useState<DirectSale | null>(null);
   const [isSaleDialogOpen, setIsSaleDialogOpen] = React.useState(false);
@@ -42,16 +37,22 @@ export default function DirectSalesSbPage() {
   const [statusFilter, setStatusFilter] = React.useState<DirectSaleStatus | "Todos">("Todos");
 
   const isAdmin = userRole === 'Admin';
+  
+  const relevantAccountTypesForDirectSale: AccountType[] = ['Importador', 'Distribuidor', 'Cliente Final Directo', 'Evento Especial', 'Otro'];
 
   React.useEffect(() => {
     async function loadInitialData() {
         setIsLoading(true);
         try {
-            const fetchedSales = await getDirectSalesFS();
+            const [fetchedSales, fetchedAccounts] = await Promise.all([
+                getDirectSalesFS(),
+                getAccountsFS()
+            ]);
             setSales(fetchedSales);
+            setAccounts(fetchedAccounts.filter(acc => relevantAccountTypesForDirectSale.includes(acc.type)));
         } catch (error) {
             console.error("Failed to load direct sales:", error);
-            toast({ title: "Error", description: "No se pudieron cargar las ventas directas.", variant: "destructive" });
+            toast({ title: "Error", description: "No se pudieron cargar las ventas directas o las cuentas.", variant: "destructive" });
         } finally {
             setIsLoading(false);
         }
@@ -66,17 +67,40 @@ export default function DirectSalesSbPage() {
   const handleAddNewSale = () => {
     if (!isAdmin) return;
     setEditingSale(null);
-    toast({ title: "Función no implementada", description: "La creación de ventas directas aún no está disponible." });
-    // setIsSaleDialogOpen(true);
+    setIsSaleDialogOpen(true);
   };
   
   const handleEditSale = (sale: DirectSale) => {
     if (!isAdmin) return;
     setEditingSale(sale);
-    toast({ title: "Función no implementada", description: "La edición de ventas directas aún no está disponible." });
-    // setIsSaleDialogOpen(true);
+    setIsSaleDialogOpen(true);
   };
   
+  const handleSaveSale = async (data: DirectSaleFormValues, saleId?: string) => {
+    if (!isAdmin) return;
+    setIsLoading(true);
+    
+    try {
+      let successMessage = "";
+      if (saleId) { 
+        await updateDirectSaleFS(saleId, data);
+        successMessage = `La venta a "${data.customerName}" ha sido actualizada.`;
+      } else { 
+        await addDirectSaleFS(data);
+        successMessage = `La venta a "${data.customerName}" ha sido añadida.`;
+      }
+      refreshDataSignature();
+      toast({ title: "¡Operación Exitosa!", description: successMessage });
+    } catch (error) {
+        console.error("Error saving direct sale:", error);
+        toast({ title: "Error al Guardar", description: "No se pudo guardar la venta.", variant: "destructive"});
+    } finally {
+        setIsLoading(false);
+        setIsSaleDialogOpen(false);
+        setEditingSale(null);
+    }
+  };
+
   const handleDeleteSale = (sale: DirectSale) => {
     if (!isAdmin) return;
     setSaleToDelete(sale);
@@ -249,11 +273,14 @@ export default function DirectSalesSbPage() {
       </Card>
 
       <VentaDirectaDialog
+          sale={editingSale}
           isOpen={isSaleDialogOpen}
           onOpenChange={(open) => {
               setIsSaleDialogOpen(open);
               if (!open) setEditingSale(null);
           }}
+          onSave={handleSaveSale}
+          accounts={accounts}
       />
     </div>
   );

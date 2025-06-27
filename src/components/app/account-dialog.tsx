@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -47,6 +48,7 @@ const accountFormSchemaBase = z.object({
   cif: z.string().min(5, "El CIF/NIF debe tener al menos 5 caracteres."),
   type: z.enum(accountTypeList as [AccountType, ...AccountType[]], { required_error: "El tipo de cuenta es obligatorio." }),
   status: z.enum(accountStatusList as [AccountStatus, ...AccountStatus[]], { required_error: "El estado de la cuenta es obligatorio." }),
+  iban: z.string().optional(),
   
   // Campos de dirección de facturación desglosados
   addressBilling_street: z.string().optional(),
@@ -128,7 +130,7 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
   const form = useForm<AccountFormValues>({
     resolver: zodResolver(accountFormSchema),
     defaultValues: {
-      name: "", legalName: "", cif: "", type: undefined, status: "Potencial",
+      name: "", legalName: "", cif: "", type: undefined, status: "Potencial", iban: "",
       addressBilling_street: "", addressBilling_number: "", addressBilling_city: "", addressBilling_province: "", addressBilling_postalCode: "", addressBilling_country: "España",
       addressShipping_street: "", addressShipping_number: "", addressShipping_city: "", addressShipping_province: "", addressShipping_postalCode: "", addressShipping_country: "España",
       mainContactName: "", mainContactEmail: "", mainContactPhone: "", notes: "", internalNotes: "", salesRepId: NO_SALES_REP_VALUE,
@@ -153,6 +155,7 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
           cif: account.cif, 
           type: account.type, 
           status: account.status,
+          iban: account.iban || "",
           addressBilling_street: account.addressBilling?.street || "",
           addressBilling_number: account.addressBilling?.number || "",
           addressBilling_city: account.addressBilling?.city || "",
@@ -174,7 +177,7 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
         });
       } else {
         form.reset({ 
-          name: "", legalName: "", cif: "", type: undefined, status: "Potencial",
+          name: "", legalName: "", cif: "", type: undefined, status: "Potencial", iban: "",
           addressBilling_street: "", addressBilling_number: "", addressBilling_city: "", addressBilling_province: "", addressBilling_postalCode: "", addressBilling_country: "España",
           addressShipping_street: "", addressShipping_number: "", addressShipping_city: "", addressShipping_province: "", addressShipping_postalCode: "", addressShipping_country: "España",
           mainContactName: "", mainContactEmail: "", mainContactPhone: "", 
@@ -219,6 +222,10 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
                 <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado de la Cuenta</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un estado" /></SelectTrigger></FormControl><SelectContent>{accountStatusList.map(status => (<SelectItem key={status} value={status}>{status}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
             </div>
             
+            <Separator className="my-4"/><h3 className="text-md font-medium text-muted-foreground">Datos Financieros</h3>
+            <FormField control={form.control} name="iban" render={({ field }) => (<FormItem><FormLabel>IBAN (Opcional)</FormLabel><FormControl><Input placeholder="ES00 0000 0000 0000 0000 0000" {...field} value={field.value ?? ""} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+
+
             <Separator className="my-4"/><h3 className="text-md font-medium text-muted-foreground">Dirección Fiscal/Facturación (Opcional)</h3>
             <FormField control={form.control} name="addressBilling_street" render={({ field }) => (<FormItem><FormLabel>Calle</FormLabel><FormControl><Input placeholder="Ej: Calle Mayor" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

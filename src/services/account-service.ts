@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { db } from '@/lib/firebase';
@@ -22,6 +23,7 @@ const fromFirestore = (docSnap: DocumentSnapshot): Account => {
     cif: data.cif || '',
     type: data.type, 
     status: data.status,
+    iban: data.iban || undefined,
     addressBilling: data.addressBilling,
     addressShipping: data.addressShipping,
     mainContactName: data.mainContactName || '',
@@ -35,16 +37,14 @@ const fromFirestore = (docSnap: DocumentSnapshot): Account => {
   };
 };
 
-const toFirestore = (data: AccountFormValues & {
-    addressBilling_street?: string, addressBilling_number?: string, addressBilling_city?: string, addressBilling_province?: string, addressBilling_postalCode?: string, addressBilling_country?: string,
-    addressShipping_street?: string, addressShipping_number?: string, addressShipping_city?: string, addressShipping_province?: string, addressShipping_postalCode?: string, addressShipping_country?: string,
-}, isNew: boolean): any => {
+const toFirestore = (data: AccountFormValues, isNew: boolean): any => {
   const firestoreData: { [key: string]: any } = {
     name: data.name,
     legalName: data.legalName || null,
     cif: data.cif || null,
     type: data.type,
     status: data.status,
+    iban: data.iban || null,
     mainContactName: data.mainContactName || null,
     mainContactEmail: data.mainContactEmail || null,
     mainContactPhone: data.mainContactPhone || null,
@@ -120,19 +120,13 @@ export const getAccountByIdFS = async (id: string): Promise<Account | null> => {
   }
 };
 
-export const addAccountFS = async (data: AccountFormValues & {
-    addressBilling_street?: string, addressBilling_number?: string, addressBilling_city?: string, addressBilling_province?: string, addressBilling_postalCode?: string, addressBilling_country?: string,
-    addressShipping_street?: string, addressShipping_number?: string, addressShipping_city?: string, addressShipping_province?: string, addressShipping_postalCode?: string, addressShipping_country?: string,
-}): Promise<string> => {
+export const addAccountFS = async (data: AccountFormValues): Promise<string> => {
   const firestoreData = toFirestore(data, true);
   const docRef = await addDoc(collection(db, ACCOUNTS_COLLECTION), firestoreData);
   return docRef.id;
 };
 
-export const updateAccountFS = async (id: string, data: Partial<AccountFormValues & {
-    addressBilling_street?: string, addressBilling_number?: string, addressBilling_city?: string, addressBilling_province?: string, addressBilling_postalCode?: string, addressBilling_country?: string,
-    addressShipping_street?: string, addressShipping_number?: string, addressShipping_city?: string, addressShipping_province?: string, addressShipping_postalCode?: string, addressShipping_country?: string,
-}>): Promise<void> => {
+export const updateAccountFS = async (id: string, data: Partial<AccountFormValues>): Promise<void> => {
   const accountDocRef = doc(db, ACCOUNTS_COLLECTION, id);
   const firestoreData = toFirestore(data as any, false); 
   await updateDoc(accountDocRef, firestoreData);
@@ -161,7 +155,7 @@ export const initializeMockAccountsInFirestore = async (mockAccounts: Account[])
             };
             
             Object.keys(firestoreReadyData).forEach(key => {
-              if (firestoreReadyData[key] === undefined && key !== 'salesRepId' && key !== 'notes' && key !== 'internalNotes' && key !== 'legalName' && key !== 'mainContactName' && key !== 'mainContactEmail' && key !== 'mainContactPhone' && key !== 'addressBilling' && key !== 'addressShipping') {
+              if (firestoreReadyData[key] === undefined && key !== 'salesRepId' && key !== 'notes' && key !== 'internalNotes' && key !== 'legalName' && key !== 'mainContactName' && key !== 'mainContactEmail' && key !== 'mainContactPhone' && key !== 'addressBilling' && key !== 'addressShipping' && key !== 'iban') {
                   delete firestoreReadyData[key];
               } else if (firestoreReadyData[key] === undefined) {
                   firestoreReadyData[key] = null; 

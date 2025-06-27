@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { db } from '@/lib/firebase';
@@ -29,6 +30,7 @@ const fromFirestoreOrder = (docSnap: DocumentSnapshot): Order => {
     assignedMaterials: data.assignedMaterials || [],
     canalOrigenColocacion: data.canalOrigenColocacion || undefined,
     paymentMethod: data.paymentMethod || undefined,
+    iban: data.iban || undefined,
     invoiceUrl: data.invoiceUrl || undefined,
     invoiceFileName: data.invoiceFileName || undefined,
 
@@ -58,7 +60,7 @@ const toFirestoreOrder = (data: Partial<Order> & { visitDate?: Date | string, ne
 
   const directOrderKeys: (keyof Order)[] = [
     'clientName', 'products', 'value', 'status', 'salesRep', 'clavadistaId', 
-    'assignedMaterials', 'canalOrigenColocacion', 'paymentMethod', 'invoiceUrl', 'invoiceFileName', 
+    'assignedMaterials', 'canalOrigenColocacion', 'paymentMethod', 'iban', 'invoiceUrl', 'invoiceFileName', 
     'clientType', 'numberOfUnits', 'unitPrice', 'clientStatus', 
     'notes', 'nextActionType', 'nextActionCustom', 'failureReasonType', 
     'failureReasonCustom', 'accountId', 'originatingTaskId'
@@ -68,7 +70,7 @@ const toFirestoreOrder = (data: Partial<Order> & { visitDate?: Date | string, ne
     if (data[key] !== undefined) {
       firestoreData[key] = data[key];
     } else {
-      if (['clavadistaId', 'canalOrigenColocacion', 'paymentMethod', 'invoiceUrl', 'invoiceFileName', 'clientType', 'value', 'numberOfUnits', 'unitPrice', 'clientStatus', 'notes', 'nextActionType', 'nextActionCustom', 'failureReasonType', 'failureReasonCustom', 'accountId', 'originatingTaskId'].includes(key)) {
+      if (['clavadistaId', 'canalOrigenColocacion', 'paymentMethod', 'iban', 'invoiceUrl', 'invoiceFileName', 'clientType', 'value', 'numberOfUnits', 'unitPrice', 'clientStatus', 'notes', 'nextActionType', 'nextActionCustom', 'failureReasonType', 'failureReasonCustom', 'accountId', 'originatingTaskId'].includes(key)) {
         firestoreData[key] = null;
       }
     }
@@ -210,6 +212,7 @@ export const initializeMockOrdersInFirestore = async (mockOrdersData: Order[]) =
             firestoreReadyData.assignedMaterials = order.assignedMaterials || [];
             firestoreReadyData.canalOrigenColocacion = order.canalOrigenColocacion || null;
             firestoreReadyData.paymentMethod = order.paymentMethod || null;
+            firestoreReadyData.iban = order.iban || null;
             firestoreReadyData.invoiceUrl = order.invoiceUrl || null;
             firestoreReadyData.invoiceFileName = order.invoiceFileName || null;
             firestoreReadyData.originatingTaskId = order.originatingTaskId || null;

@@ -20,13 +20,14 @@ import type { Account, AccountFormValues, Order, PromotionalMaterial, TeamMember
 import { useAuth } from "@/contexts/auth-context";
 import { useRouter } from "next/navigation";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-import { getAccountsFS, addAccountFS } from "@/services/account-service";
+import { getAccountsFS, addAccountFS, getAccountByIdFS, updateAccountFS as updateAccountInFirestore } from "@/services/account-service";
 import { addOrderFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
 import { ArrowLeft, Building, CreditCard, Edit, FileText, Loader2, Package, PlusCircle, Search, Send, Trash2, User } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 
 
 const NO_CLAVADISTA_VALUE = "##NONE##";
@@ -44,6 +45,7 @@ const formSchema = z.object({
   clavadistaSelectedSalesRepId: z.string().optional(),
   canalOrigenColocacion: z.enum(canalOrigenColocacionList as [string, ...string[]]).optional(),
   paymentMethod: z.enum(paymentMethodList as [string, ...string[]]).optional(),
+  iban: z.string().optional(),
 
   clientType: z.enum(clientTypeList as [string, ...string[]]).optional(),
   numberOfUnits: z.coerce.number().optional(),
@@ -57,12 +59,15 @@ const formSchema = z.object({
   direccionFiscal_province: z.string().optional(),
   direccionFiscal_postalCode: z.string().optional(),
   direccionFiscal_country: z.string().optional().default("España"),
+  
+  sameAsBilling: z.boolean().optional().default(true),
   direccionEntrega_street: z.string().optional(),
   direccionEntrega_number: z.string().optional(),
   direccionEntrega_city: z.string().optional(),
   direccionEntrega_province: z.string().optional(),
   direccionEntrega_postalCode: z.string().optional(),
   direccionEntrega_country: z.string().optional().default("España"),
+  
   contactoNombre: z.string().optional(),
   contactoCorreo: z.string().email("Formato de correo no válido.").optional().or(z.literal('')),
   contactoTelefono: z.string().optional(),
@@ -76,7 +81,15 @@ const formSchema = z.object({
   notes: z.string().optional(),
   assignedMaterials: z.array(assignedMaterialSchema).optional().default([]),
 
-});
+}).superRefine((data, ctx) => {
+    if (data.paymentMethod === 'Giro Bancario') {
+        if (!data.iban || data.iban.trim() === '') {
+             ctx.addIssue({ path: ["iban"], message: "El IBAN es obligatorio para el Giro Bancario." });
+        } else if (!/^[A-Z]{2}[0-9]{2}[0-9A-Z]{1,30}$/.test(data.iban.replace(/\s/g, ''))) { // Simple IBAN format check
+             ctx.addIssue({ path: ["iban"], message: "Formato de IBAN no válido." });
+        }
+    }
+});;
 
 type FormValues = z.infer<typeof formSchema>;
 type Step = "client" | "outcome" | "details" | "new_client_data" | "verify";
@@ -120,11 +133,10 @@ export default function OrderFormWizardPage() {
       clavadistaSelectedSalesRepId: "",
       canalOrigenColocacion: undefined,
       paymentMethod: 'Adelantado',
-
+      iban: "",
       clientType: undefined,
       numberOfUnits: undefined,
       unitPrice: undefined,
-      
       nombreFiscal: "",
       cif: "",
       direccionFiscal_street: "",
@@ -133,6 +145,7 @@ export default function OrderFormWizardPage() {
       direccionFiscal_province: "",
       direccionFiscal_postalCode: "",
       direccionFiscal_country: "España",
+      sameAsBilling: true,
       direccionEntrega_street: "",
       direccionEntrega_number: "",
       direccionEntrega_city: "",
@@ -143,7 +156,6 @@ export default function OrderFormWizardPage() {
       contactoCorreo: "",
       contactoTelefono: "",
       observacionesAlta: "",
-
       nextActionType: undefined,
       nextActionCustom: "",
       nextActionDate: undefined,
@@ -157,6 +169,22 @@ export default function OrderFormWizardPage() {
   const { fields: materialFields, append: appendMaterial, remove: removeMaterial } = useFieldArray({
     control: form.control, name: "assignedMaterials",
   });
+  
+  const watchSameAsBilling = form.watch('sameAsBilling');
+  const watchBillingAddress = form.watch(['direccionFiscal_street', 'direccionFiscal_number', 'direccionFiscal_city', 'direccionFiscal_province', 'direccionFiscal_postalCode', 'direccionFiscal_country']);
+  const paymentMethodWatched = form.watch("paymentMethod");
+
+  React.useEffect(() => {
+    if (watchSameAsBilling) {
+        form.setValue('direccionEntrega_street', watchBillingAddress[0] || "");
+        form.setValue('direccionEntrega_number', watchBillingAddress[1] || "");
+        form.setValue('direccionEntrega_city', watchBillingAddress[2] || "");
+        form.setValue('direccionEntrega_province', watchBillingAddress[3] || "");
+        form.setValue('direccionEntrega_postalCode', watchBillingAddress[4] || "");
+        form.setValue('direccionEntrega_country', watchBillingAddress[5] || "España");
+    }
+  }, [watchSameAsBilling, watchBillingAddress, form]);
+
 
   const outcomeWatched = form.watch("outcome");
   const formValuesWatched = form.watch();
@@ -184,11 +212,15 @@ export default function OrderFormWizardPage() {
   const handleNextStep = async () => {
     let fieldsToValidate: (keyof FormValues)[] = [];
     if (step === 'details') {
-      if (outcomeWatched === 'successful') fieldsToValidate = ['numberOfUnits', 'unitPrice', 'paymentMethod'];
+      if (outcomeWatched === 'successful') fieldsToValidate = ['numberOfUnits', 'unitPrice', 'paymentMethod', 'iban'];
       else if (outcomeWatched === 'follow-up') fieldsToValidate = ['nextActionType', 'nextActionCustom'];
       else if (outcomeWatched === 'failed') fieldsToValidate = ['failureReasonType', 'failureReasonCustom'];
     }
     
+    if (step === 'new_client_data') {
+        fieldsToValidate = ['nombreFiscal', 'cif', 'direccionFiscal_street', 'direccionFiscal_city', 'direccionFiscal_province', 'direccionFiscal_postalCode', 'direccionEntrega_street', 'direccionEntrega_city', 'direccionEntrega_province', 'direccionEntrega_postalCode'];
+    }
+
     const isValid = fieldsToValidate.length > 0 ? await form.trigger(fieldsToValidate) : true;
     if (!isValid) return;
 
@@ -264,17 +296,25 @@ export default function OrderFormWizardPage() {
                 cif: values.cif,
                 type: values.clientType || 'Otro',
                 status: 'Activo',
-                addressBilling: { street: values.direccionFiscal_street!, number: values.direccionFiscal_number, city: values.direccionFiscal_city!, province: values.direccionFiscal_province!, postalCode: values.direccionFiscal_postalCode!, country: values.direccionFiscal_country! },
-                addressShipping: { street: values.direccionEntrega_street!, number: values.direccionEntrega_number, city: values.direccionEntrega_city!, province: values.direccionEntrega_province!, postalCode: values.direccionEntrega_postalCode!, country: values.direccionEntrega_country! },
+                addressBilling: { street: values.direccionFiscal_street || "", number: values.direccionFiscal_number, city: values.direccionFiscal_city || "", province: values.direccionFiscal_province || "", postalCode: values.direccionFiscal_postalCode || "", country: values.direccionFiscal_country || "España" },
+                addressShipping: { street: values.direccionEntrega_street || "", number: values.direccionEntrega_number, city: values.direccionEntrega_city || "", province: values.direccionEntrega_province || "", postalCode: values.direccionEntrega_postalCode || "", country: values.direccionEntrega_country || "España" },
                 mainContactName: values.contactoNombre,
                 mainContactEmail: values.contactoCorreo,
                 mainContactPhone: values.contactoTelefono,
                 notes: values.observacionesAlta,
                 salesRepId: salesRepIdForAccount,
+                iban: values.iban,
             };
             currentAccountId = await addAccountFS(newAccountData);
             accountCreationMessage = ` Nueva cuenta "${client.name}" creada.`;
+        } else if (client?.id !== 'new' && values.iban) {
+            const existingAccount = await getAccountByIdFS(client!.id!);
+            if (existingAccount && !existingAccount.iban) {
+                await updateAccountInFirestore(client!.id!, { iban: values.iban });
+                toast({ title: "Cuenta Actualizada", description: "Se ha guardado el IBAN en la ficha del cliente." });
+            }
         }
+
 
         const orderData: Partial<Order> = {
             clientName: client!.name,
@@ -286,6 +326,7 @@ export default function OrderFormWizardPage() {
             clientStatus: client!.id === 'new' ? 'new' : 'existing',
             salesRep: salesRepNameForOrder,
             accountId: currentAccountId,
+            iban: values.iban,
         };
 
         if (values.outcome === "successful") {
@@ -401,6 +442,15 @@ export default function OrderFormWizardPage() {
                             <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades</FormLabel><FormControl><Input type="number" placeholder="Ej: 12" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)}/>
                             <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Ej: 15.50" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage /></FormItem>)}/>
                             <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel>Forma de Pago</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar forma de pago"/></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(m=>(<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
+                             {paymentMethodWatched === 'Giro Bancario' && (
+                                <FormField control={form.control} name="iban" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>IBAN</FormLabel>
+                                        <FormControl><Input placeholder="ES00 0000 0000 0000 0000 0000" {...field} value={field.value ?? ''} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}/>
+                            )}
                         </div>
                     )}
                     {outcomeWatched === 'follow-up' && (
@@ -447,21 +497,39 @@ export default function OrderFormWizardPage() {
             return (
                 <motion.div key="new_client_data" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
                     <CardHeader>
-                        <CardTitle>Paso 4: Datos de Facturación de "{client?.name}"</CardTitle>
-                        <CardDescription>Completa la información fiscal y de entrega para el nuevo cliente. Los campos con * son obligatorios.</CardDescription>
+                        <CardTitle>Paso 4: Datos de Facturación y Entrega de "{client?.name}"</CardTitle>
+                        <CardDescription>Completa la información para el nuevo cliente. Los campos con * son obligatorios.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="space-y-4">
-                            <h3 className="font-semibold text-base">Datos de Facturación</h3>
+                        <Separator/><h3 className="font-semibold text-base mt-2">Datos de Facturación</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <FormField control={form.control} name="nombreFiscal" render={({ field }) => (<FormItem><FormLabel>Nombre Fiscal *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
                             <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                            <FormField control={form.control} name="direccionFiscal_street" render={({ field }) => (<FormItem><FormLabel>Calle Fiscal *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                            <div className="grid grid-cols-3 gap-2">
-                                <FormField control={form.control} name="direccionFiscal_city" render={({ field }) => (<FormItem><FormLabel>Ciudad *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                <FormField control={form.control} name="direccionFiscal_province" render={({ field }) => (<FormItem><FormLabel>Provincia *</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                                <FormField control={form.control} name="direccionFiscal_postalCode" render={({ field }) => (<FormItem><FormLabel>C.P. *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                            </div>
                         </div>
+                        <FormField control={form.control} name="direccionFiscal_street" render={({ field }) => (<FormItem><FormLabel>Calle Fiscal *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            <FormField control={form.control} name="direccionFiscal_number" render={({ field }) => (<FormItem><FormLabel>Número</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="direccionFiscal_postalCode" render={({ field }) => (<FormItem><FormLabel>C.P. *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="direccionFiscal_city" render={({ field }) => (<FormItem><FormLabel>Ciudad *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="direccionFiscal_province" render={({ field }) => (<FormItem><FormLabel>Provincia *</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                        </div>
+                        
+                        <Separator/><h3 className="font-semibold text-base mt-2">Datos de Entrega</h3>
+                        <FormField control={form.control} name="sameAsBilling" render={({ field }) => (
+                            <FormItem className="flex flex-row items-center space-x-2 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><Label className="font-normal">La dirección de entrega es la misma que la de facturación</Label></FormItem>
+                        )} />
+
+                        {!watchSameAsBilling && (
+                            <div className="space-y-4 pt-2 border-l-2 pl-4 border-primary">
+                                <FormField control={form.control} name="direccionEntrega_street" render={({ field }) => (<FormItem><FormLabel>Calle Entrega</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                    <FormField control={form.control} name="direccionEntrega_number" render={({ field }) => (<FormItem><FormLabel>Número</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                    <FormField control={form.control} name="direccionEntrega_postalCode" render={({ field }) => (<FormItem><FormLabel>C.P.</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                    <FormField control={form.control} name="direccionEntrega_city" render={({ field }) => (<FormItem><FormLabel>Ciudad</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                    <FormField control={form.control} name="direccionEntrega_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                                </div>
+                            </div>
+                        )}
                     </CardContent>
                     <CardFooter className="flex justify-between">
                       <Button variant="ghost" onClick={handleBack}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
@@ -485,6 +553,7 @@ export default function OrderFormWizardPage() {
                                 <p><strong>Resultado:</strong> <span className="font-semibold">{outcomeWatched === 'successful' ? 'Pedido Exitoso' : outcomeWatched === 'follow-up' ? 'Requiere Seguimiento' : 'Visita Fallida'}</span></p>
                                 {outcomeWatched === 'successful' && <>
                                     <p><strong>Unidades:</strong> {formValuesWatched.numberOfUnits}</p>
+                                    <p><strong>Forma de Pago:</strong> {formValuesWatched.paymentMethod} {formValuesWatched.paymentMethod === 'Giro Bancario' && `- ${formValuesWatched.iban}`}</p>
                                     <p><strong>Valor Total (IVA incl.):</strong> <FormattedNumericValue value={subtotal + ivaAmount} options={{style: 'currency', currency: 'EUR'}}/></p>
                                     <p><strong>Materiales:</strong> {formValuesWatched.assignedMaterials?.length || 0} items</p>
                                 </>}
@@ -495,13 +564,15 @@ export default function OrderFormWizardPage() {
                         </Card>
 
                         {client?.id === 'new' && outcomeWatched === 'successful' && (
-                              <div className="space-y-4">
-                                <Separator />
-                                <h3 className="font-semibold text-base">Datos de Facturación (Revisar)</h3>
-                                <p><strong>Nombre Fiscal:</strong> {formValuesWatched.nombreFiscal}</p>
-                                <p><strong>CIF:</strong> {formValuesWatched.cif}</p>
-                                <p><strong>Dirección Fiscal:</strong> {`${formValuesWatched.direccionFiscal_street}, ${formValuesWatched.direccionFiscal_city}, ${formValuesWatched.direccionFiscal_province}, ${formValuesWatched.direccionFiscal_postalCode}`}</p>
-                            </div>
+                              <Card>
+                                <CardHeader><CardTitle className="text-lg">Datos de la Nueva Cuenta (Revisar)</CardTitle></CardHeader>
+                                <CardContent className="space-y-2 text-sm">
+                                    <p><strong>Nombre Fiscal:</strong> {formValuesWatched.nombreFiscal}</p>
+                                    <p><strong>CIF:</strong> {formValuesWatched.cif}</p>
+                                    <p><strong>Dirección Fiscal:</strong> {`${formValuesWatched.direccionFiscal_street}, ${formValuesWatched.direccionFiscal_city}, ${formValuesWatched.direccionFiscal_province}, ${formValuesWatched.direccionFiscal_postalCode}`}</p>
+                                    <p><strong>Dirección Entrega:</strong> {watchSameAsBilling ? '(Misma que facturación)' : `${formValuesWatched.direccionEntrega_street}, ${formValuesWatched.direccionEntrega_city}, ${formValuesWatched.direccionEntrega_province}, ${formValuesWatched.direccionEntrega_postalCode}`}</p>
+                                </CardContent>
+                            </Card>
                         )}
                     </CardContent>
                       <CardFooter className="flex justify-between">
@@ -517,20 +588,22 @@ export default function OrderFormWizardPage() {
   
   return (
     <div className="space-y-6">
-      <header className="flex items-center space-x-2">
-        <FileText className="h-8 w-8 text-primary" />
-        <h1 className="text-3xl font-headline font-semibold">Registrar Interacción</h1>
-      </header>
-      <Card className="max-w-4xl mx-auto shadow-lg">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
-            <AnimatePresence mode="wait">
-              {renderStepContent()}
-            </AnimatePresence>
-          </form>
+            <form onSubmit={form.handleSubmit(onSubmit)}>
+                <header className="flex items-center space-x-2">
+                    <FileText className="h-8 w-8 text-primary" />
+                    <h1 className="text-3xl font-headline font-semibold">Registrar Interacción</h1>
+                </header>
+                <Card className="max-w-4xl mx-auto shadow-lg mt-6">
+                    <AnimatePresence mode="wait">
+                    {renderStepContent()}
+                    </AnimatePresence>
+                </Card>
+            </form>
         </Form>
-      </Card>
     </div>
   );
 }
+
+
 

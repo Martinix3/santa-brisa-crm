@@ -74,7 +74,7 @@ export const purchaseCategoryList: PurchaseCategory[] = ['Material Promocional',
 
 export const canalOrigenColocacionList: CanalOrigenColocacion[] = ['Equipo Santa Brisa', 'Iniciativa Importador', 'Marketing Digital', 'Referido', 'Otro'];
 
-export const paymentMethodList: PaymentMethod[] = ['Adelantado', 'Contado', 'Transferencia 30 días'];
+export const paymentMethodList: PaymentMethod[] = ['Adelantado', 'Contado', 'Transferencia 30 días', 'Giro Bancario'];
 
 export const sampleRequestStatusList: SampleRequestStatus[] = ['Pendiente', 'Aprobada', 'Rechazada', 'Enviada'];
 export const sampleRequestPurposeList: SampleRequestPurpose[] = ['Captación Cliente Nuevo', 'Seguimiento Cliente Existente', 'Material para Evento', 'Uso Interno/Formación', 'Otro'];

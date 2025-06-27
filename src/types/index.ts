@@ -1,6 +1,7 @@
 
 
 
+
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
 
 export interface Kpi {
@@ -77,7 +78,7 @@ export interface AddressDetails {
   country?: string | null; 
 }
 
-export type PaymentMethod = 'Adelantado' | 'Contado' | 'Transferencia 30 días';
+export type PaymentMethod = 'Adelantado' | 'Contado' | 'Transferencia 30 días' | 'Giro Bancario';
 
 export interface Order {
   id: string;
@@ -92,6 +93,7 @@ export interface Order {
   assignedMaterials?: AssignedPromotionalMaterial[]; 
   canalOrigenColocacion?: CanalOrigenColocacion;
   paymentMethod?: PaymentMethod; 
+  iban?: string;
   invoiceUrl?: string;
   invoiceFileName?: string;
 
@@ -144,6 +146,7 @@ export interface Account {
   mainContactName?: string;
   mainContactEmail?: string;
   mainContactPhone?: string;
+  iban?: string;
   notes?: string; 
   internalNotes?: string;
   salesRepId?: string; 
@@ -327,6 +330,7 @@ export interface Supplier {
   contactEmail?: string;
   contactPhone?: string;
   address?: AddressDetails;
+  iban?: string;
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -356,4 +360,31 @@ export interface PromotionalMaterialFormValues {
   latestPurchaseTotalCost?: number;
   latestPurchaseDate?: Date;
   latestPurchaseNotes?: string;
+}
+
+export interface AccountFormValues {
+  name: string;
+  legalName?: string;
+  cif: string;
+  type: AccountType;
+  status: AccountStatus;
+  iban?: string;
+  addressBilling_street?: string;
+  addressBilling_number?: string;
+  addressBilling_city?: string;
+  addressBilling_province?: string;
+  addressBilling_postalCode?: string;
+  addressBilling_country?: string;
+  addressShipping_street?: string;
+  addressShipping_number?: string;
+  addressShipping_city?: string;
+  addressShipping_province?: string;
+  addressShipping_postalCode?: string;
+  addressShipping_country?: string;
+  mainContactName?: string;
+  mainContactEmail?: string;
+  mainContactPhone?: string;
+  notes?: string;
+  internalNotes?: string;
+  salesRepId?: string;
 }

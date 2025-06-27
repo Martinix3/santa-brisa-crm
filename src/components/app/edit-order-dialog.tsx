@@ -138,31 +138,6 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const [isLoadingAccountDetails, setIsLoadingAccountDetails] = React.useState(false); 
   const { toast } = useToast();
 
-  React.useEffect(() => {
-    async function loadDataForDialog() {
-      if (isOpen) {
-        setIsLoadingDropdownData(true);
-        try {
-          const [fetchedClavadistas, fetchedSalesReps, fetchedMaterials] = await Promise.all([
-            getTeamMembersFS(['Clavadista']),
-            getTeamMembersFS(['SalesRep', 'Admin']),
-            getPromotionalMaterialsFS()
-          ]);
-          setClavadistas(fetchedClavadistas);
-          setSalesReps(fetchedSalesReps);
-          setAvailableMaterials(fetchedMaterials.filter(m => m.latestPurchase && m.latestPurchase.calculatedUnitCost > 0));
-        } catch (error) {
-          console.error("Error loading data for edit order dialog:", error);
-          toast({ title: "Error Datos Diálogo", description: "No se pudieron cargar datos para el diálogo.", variant: "destructive"});
-        } finally {
-          setIsLoadingDropdownData(false);
-        }
-      }
-    }
-    loadDataForDialog();
-  }, [isOpen, toast]);
-
-
   const form = useForm<EditOrderFormValues>({
     resolver: zodResolver(editOrderFormSchema),
     defaultValues: {
@@ -176,6 +151,24 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
       failureReasonType: undefined, failureReasonCustom: "",
     },
   });
+
+  const watchedNumberOfUnits = form.watch("numberOfUnits");
+  const watchedUnitPrice = form.watch("unitPrice");
+
+  // Auto-calculate total value
+  React.useEffect(() => {
+    const units = typeof watchedNumberOfUnits === 'number' ? watchedNumberOfUnits : 0;
+    const price = typeof watchedUnitPrice === 'number' ? watchedUnitPrice : 0;
+    
+    if (units > 0 && price > 0) {
+      const subtotal = units * price;
+      const totalValue = subtotal * 1.21;
+      form.setValue("value", parseFloat(totalValue.toFixed(2)), { 
+        shouldDirty: true, 
+        shouldValidate: true 
+      });
+    }
+  }, [watchedNumberOfUnits, watchedUnitPrice, form]);
 
   const { fields: materialFields, append: appendMaterial, remove: removeMaterial } = useFieldArray({
     control: form.control, name: "assignedMaterials",
@@ -198,58 +191,68 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const isDistributor = currentUserRole === 'Distributor';
 
   React.useEffect(() => {
-    async function initializeFormWithOrderAndAccountData() {
-      if (!order) {
-        form.reset();
-        setAssociatedAccount(null);
-        setIsLoadingAccountDetails(false); 
-        return;
-      }
-      
-      setIsLoadingAccountDetails(true);
-      if (order.accountId) {
-        try {
-          const accountData = await getAccountByIdFS(order.accountId);
-          setAssociatedAccount(accountData);
-        } catch (err) {
-          console.error("Error fetching account details for order dialog:", err);
-          toast({ title: "Error Cuenta", description: "No se pudieron cargar los detalles de la cuenta asociada.", variant: "destructive"});
-          setAssociatedAccount(null);
+    // Effect for dropdown data
+    if (isOpen) {
+        setIsLoadingDropdownData(true);
+        Promise.all([
+            getTeamMembersFS(['Clavadista']),
+            getTeamMembersFS(['SalesRep', 'Admin']),
+            getPromotionalMaterialsFS()
+        ]).then(([fetchedClavadistas, fetchedSalesReps, fetchedMaterials]) => {
+            setClavadistas(fetchedClavadistas);
+            setSalesReps(fetchedSalesReps);
+            setAvailableMaterials(fetchedMaterials.filter(m => m.latestPurchase && m.latestPurchase.calculatedUnitCost > 0));
+        }).catch(error => {
+            console.error("Error loading data for edit order dialog:", error);
+            toast({ title: "Error Datos Diálogo", description: "No se pudieron cargar datos para el diálogo.", variant: "destructive"});
+        }).finally(() => {
+            setIsLoadingDropdownData(false);
+        });
+    }
+  }, [isOpen, toast]);
+
+  React.useEffect(() => {
+    // Effect for resetting form and fetching account data
+    if (isOpen && order) {
+        // Reset form with the order data
+        form.reset({
+            clientName: order.clientName,
+            products: order.products?.join(",\n") || "",
+            value: order.value,
+            status: order.status,
+            salesRep: order.salesRep || "",
+            clavadistaId: order.clavadistaId || NO_CLAVADISTA_VALUE,
+            canalOrigenColocacion: order.canalOrigenColocacion || undefined,
+            paymentMethod: order.paymentMethod || undefined,
+            invoiceUrl: order.invoiceUrl || "",
+            invoiceFileName: order.invoiceFileName || "",
+            assignedMaterials: order.assignedMaterials || [],
+            clientType: order.clientType,
+            numberOfUnits: order.numberOfUnits,
+            unitPrice: order.unitPrice,
+            notes: order.notes || "",
+            nextActionType: order.nextActionType,
+            nextActionCustom: order.nextActionCustom || "",
+            nextActionDate: order.nextActionDate && isValid(parseISO(order.nextActionDate)) ? parseISO(order.nextActionDate) : undefined,
+            failureReasonType: order.failureReasonType,
+            failureReasonCustom: order.failureReasonCustom || "",
+        });
+
+        // Fetch associated account data in parallel
+        if (order.accountId) {
+            setIsLoadingAccountDetails(true);
+            getAccountByIdFS(order.accountId)
+                .then(setAssociatedAccount)
+                .catch(err => {
+                    console.error("Error fetching account:", err);
+                    setAssociatedAccount(null);
+                })
+                .finally(() => setIsLoadingAccountDetails(false));
+        } else {
+            setAssociatedAccount(null);
         }
-      } else {
-        setAssociatedAccount(null);
-      }
-      
-      form.reset({
-        clientName: order.clientName,
-        products: order.products?.join(",\n") || "",
-        value: order.value,
-        status: order.status,
-        salesRep: order.salesRep || "",
-        clavadistaId: order.clavadistaId || NO_CLAVADISTA_VALUE,
-        canalOrigenColocacion: order.canalOrigenColocacion || undefined,
-        paymentMethod: order.paymentMethod || undefined,
-        invoiceUrl: order.invoiceUrl || "",
-        invoiceFileName: order.invoiceFileName || "",
-        assignedMaterials: order.assignedMaterials || [],
-        clientType: order.clientType,
-        numberOfUnits: order.numberOfUnits,
-        unitPrice: order.unitPrice,
-        notes: order.notes || "",
-        nextActionType: order.nextActionType,
-        nextActionCustom: order.nextActionCustom || "",
-        nextActionDate: order.nextActionDate && isValid(parseISO(order.nextActionDate)) ? parseISO(order.nextActionDate) : undefined,
-        failureReasonType: order.failureReasonType,
-        failureReasonCustom: order.failureReasonCustom || "",
-      });
-
-      setIsLoadingAccountDetails(false); 
     }
-
-    if (isOpen && !isLoadingDropdownData) { 
-        initializeFormWithOrderAndAccountData();
-    }
-  }, [order, isOpen, form, isLoadingDropdownData]);
+  }, [order, isOpen, form]);
 
   const onSubmit = async (data: EditOrderFormValues) => {
     if (!order) return;
@@ -378,7 +381,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Nº Unidades Totales</FormLabel><FormControl><Input type="number" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value,10))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
                     <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario Medio (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
-                    <FormField control={form.control} name="value" render={({ field }) => (<FormItem><FormLabel>Valor Total Pedido (€ IVA incl.)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="p. ej., 250.75" {...field} onChange={event => field.onChange(event.target.value === '' ? undefined : parseFloat(event.target.value))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="value" render={({ field }) => (<FormItem><FormLabel>Valor Total Pedido (€ IVA incl.)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Calculado automáticamente" {...field} value={field.value ?? ""} readOnly disabled={productRelatedFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
                 </div>
               </>
             ) : (

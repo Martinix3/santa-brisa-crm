@@ -21,16 +21,14 @@ import { useAuth } from "@/contexts/auth-context";
 import { useRouter } from "next/navigation";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { getAccountsFS, addAccountFS } from "@/services/account-service";
-import { addOrderFS, updateOrderFS } from "@/services/order-service";
+import { addOrderFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
-import { ArrowLeft, Check, ClipboardPaste, Edit, FileText, Loader2, Package, PlusCircle, Search, Send, UploadCloud, Users, Zap, Award, CreditCard, User, Building, Info, AlertTriangle, Sparkles, Trash2 } from "lucide-react";
+import { ArrowLeft, Building, CreditCard, Edit, FileText, Loader2, Package, PlusCircle, Search, Send, Trash2, User } from "lucide-react";
 import { format } from "date-fns";
 import { Label } from "@/components/ui/label";
 
 
-const SINGLE_PRODUCT_NAME = "Santa Brisa 750ml";
-const IVA_RATE = 21;
 const NO_CLAVADISTA_VALUE = "##NONE##";
 const ADMIN_SELF_REGISTER_VALUE = "##ADMIN_SELF##";
 
@@ -163,7 +161,7 @@ export default function OrderFormWizardPage() {
   const outcomeWatched = form.watch("outcome");
   const formValuesWatched = form.watch();
   const subtotal = (formValuesWatched.numberOfUnits || 0) * (formValuesWatched.unitPrice || 0);
-  const ivaAmount = subtotal * (IVA_RATE / 100);
+  const ivaAmount = subtotal * 0.21;
 
   const handleClientSelect = (selectedClient: Account | { id: 'new', name: string }) => {
     setClient(selectedClient);
@@ -292,7 +290,7 @@ export default function OrderFormWizardPage() {
 
         if (values.outcome === "successful") {
             orderData.status = 'Confirmado';
-            orderData.products = [SINGLE_PRODUCT_NAME];
+            orderData.products = ["Santa Brisa 750ml"];
             orderData.numberOfUnits = values.numberOfUnits;
             orderData.unitPrice = values.unitPrice;
             orderData.value = (subtotal + ivaAmount);
@@ -394,58 +392,54 @@ export default function OrderFormWizardPage() {
       case "details":
         return (
             <motion.div key="details" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
-                 <Form {...form}>
-                    <form>
-                        <CardHeader>
-                            <CardTitle>Paso 3: Completa los Detalles</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
-                            {outcomeWatched === 'successful' && (
-                                <div className="space-y-4">
-                                    <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades</FormLabel><FormControl><Input type="number" placeholder="Ej: 12" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)}/>
-                                    <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Ej: 15.50" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage /></FormItem>)}/>
-                                    <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel>Forma de Pago</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar forma de pago"/></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(m=>(<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
-                                </div>
-                            )}
-                            {outcomeWatched === 'follow-up' && (
-                                <div className="space-y-4">
-                                    <FormField control={form.control} name="nextActionType" render={({ field }) => (<FormItem><FormLabel>Próxima Acción</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar próxima acción..."/></SelectTrigger></FormControl><SelectContent>{nextActionTypeList.map(t=>(<SelectItem key={t} value={t}>{t}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
-                                    {form.watch('nextActionType') === 'Opción personalizada' && <FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Especificar Acción</FormLabel><FormControl><Input {...field}/></FormControl><FormMessage/></FormItem>)}/>}
-                                </div>
-                            )}
-                             {outcomeWatched === 'failed' && (
-                                <div className="space-y-4">
-                                     <FormField control={form.control} name="failureReasonType" render={({ field }) => (<FormItem><FormLabel>Motivo del Fallo</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar motivo..."/></SelectTrigger></FormControl><SelectContent>{failureReasonList.map(r=>(<SelectItem key={r} value={r}>{r}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
-                                     {form.watch('failureReasonType') === 'Otro (especificar)' && <FormField control={form.control} name="failureReasonCustom" render={({ field }) => (<FormItem><FormLabel>Especificar Motivo</FormLabel><FormControl><Input {...field}/></FormControl><FormMessage/></FormItem>)}/>}
-                                </div>
-                            )}
-                            <Separator/>
-                            <FormField
-                                control={form.control}
-                                name="assignedMaterials"
-                                render={() => (
-                                    <FormItem>
-                                        <FormLabel>Añadir Material Promocional (Opcional)</FormLabel>
-                                        <div className="space-y-2">
-                                            {materialFields.map((field, index) => (
-                                                <div key={field.id} className="flex items-end gap-2">
-                                                    <FormField control={form.control} name={`assignedMaterials.${index}.materialId`} render={({ field }) => ( <FormItem className="flex-grow"> <Select onValueChange={field.onChange} value={field.value}> <FormControl> <SelectTrigger> <SelectValue placeholder="Seleccionar material..."/> </SelectTrigger> </FormControl> <SelectContent> {availableMaterials.map(m => <SelectItem key={m.id} value={m.id}>{m.name} (Stock: {m.stock})</SelectItem>)} </SelectContent> </Select> <FormMessage/> </FormItem> )}/>
-                                                    <FormField control={form.control} name={`assignedMaterials.${index}.quantity`} render={({ field }) => ( <FormItem> <FormControl> <Input type="number" placeholder="Cant." className="w-20" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /> </FormControl> <FormMessage/> </FormItem> )}/>
-                                                    <Button type="button" variant="destructive" size="icon" onClick={() => removeMaterial(index)}><Trash2 className="h-4 w-4"/></Button>
-                                                </div>
-                                            ))}
+                <CardHeader>
+                    <CardTitle>Paso 3: Completa los Detalles</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    {outcomeWatched === 'successful' && (
+                        <div className="space-y-4">
+                            <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades</FormLabel><FormControl><Input type="number" placeholder="Ej: 12" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)}/>
+                            <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Ej: 15.50" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage /></FormItem>)}/>
+                            <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel>Forma de Pago</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar forma de pago"/></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(m=>(<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
+                        </div>
+                    )}
+                    {outcomeWatched === 'follow-up' && (
+                        <div className="space-y-4">
+                            <FormField control={form.control} name="nextActionType" render={({ field }) => (<FormItem><FormLabel>Próxima Acción</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar próxima acción..."/></SelectTrigger></FormControl><SelectContent>{nextActionTypeList.map(t=>(<SelectItem key={t} value={t}>{t}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
+                            {form.watch('nextActionType') === 'Opción personalizada' && <FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Especificar Acción</FormLabel><FormControl><Input {...field}/></FormControl><FormMessage/></FormItem>)}/>}
+                        </div>
+                    )}
+                      {outcomeWatched === 'failed' && (
+                        <div className="space-y-4">
+                              <FormField control={form.control} name="failureReasonType" render={({ field }) => (<FormItem><FormLabel>Motivo del Fallo</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar motivo..."/></SelectTrigger></FormControl><SelectContent>{failureReasonList.map(r=>(<SelectItem key={r} value={r}>{r}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
+                              {form.watch('failureReasonType') === 'Otro (especificar)' && <FormField control={form.control} name="failureReasonCustom" render={({ field }) => (<FormItem><FormLabel>Especificar Motivo</FormLabel><FormControl><Input {...field}/></FormControl><FormMessage/></FormItem>)}/>}
+                        </div>
+                    )}
+                    <Separator/>
+                    <FormField
+                        control={form.control}
+                        name="assignedMaterials"
+                        render={() => (
+                            <FormItem>
+                                <FormLabel>Añadir Material Promocional (Opcional)</FormLabel>
+                                <div className="space-y-2">
+                                    {materialFields.map((field, index) => (
+                                        <div key={field.id} className="flex items-end gap-2">
+                                            <FormField control={form.control} name={`assignedMaterials.${index}.materialId`} render={({ field }) => ( <FormItem className="flex-grow"> <Select onValueChange={field.onChange} value={field.value}> <FormControl> <SelectTrigger> <SelectValue placeholder="Seleccionar material..."/> </SelectTrigger> </FormControl> <SelectContent> {availableMaterials.map(m => <SelectItem key={m.id} value={m.id}>{m.name} (Stock: {m.stock})</SelectItem>)} </SelectContent> </Select> <FormMessage/> </FormItem> )}/>
+                                            <FormField control={form.control} name={`assignedMaterials.${index}.quantity`} render={({ field }) => ( <FormItem> <FormControl> <Input type="number" placeholder="Cant." className="w-20" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /> </FormControl> <FormMessage/> </FormItem> )}/>
+                                            <Button type="button" variant="destructive" size="icon" onClick={() => removeMaterial(index)}><Trash2 className="h-4 w-4"/></Button>
                                         </div>
-                                        <Button type="button" variant="outline" size="sm" onClick={() => appendMaterial({ materialId: '', quantity: 1 })}>Añadir Material</Button>
-                                    </FormItem>
-                                )}
-                            />
-                        </CardContent>
-                        <CardFooter className="flex justify-between">
-                            <Button variant="ghost" onClick={handleBack}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
-                            <Button type="button" onClick={handleNextStep}>Continuar <ArrowLeft className="mr-2 h-4 w-4 transform rotate-180" /></Button>
-                        </CardFooter>
-                    </form>
-                 </Form>
+                                    ))}
+                                </div>
+                                <Button type="button" variant="outline" size="sm" onClick={() => appendMaterial({ materialId: '', quantity: 1 })}>Añadir Material</Button>
+                            </FormItem>
+                        )}
+                    />
+                </CardContent>
+                <CardFooter className="flex justify-between">
+                    <Button variant="ghost" onClick={handleBack}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
+                    <Button type="button" onClick={handleNextStep}>Continuar <ArrowLeft className="mr-2 h-4 w-4 transform rotate-180" /></Button>
+                </CardFooter>
             </motion.div>
         );
 
@@ -454,18 +448,18 @@ export default function OrderFormWizardPage() {
                 <motion.div key="new_client_data" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
                     <CardHeader>
                         <CardTitle>Paso 4: Datos de Facturación de "{client?.name}"</CardTitle>
-                        <CardDescription>Completa la información fiscal y de entrega para el nuevo cliente. Todos los campos son obligatorios.</CardDescription>
+                        <CardDescription>Completa la información fiscal y de entrega para el nuevo cliente. Los campos con * son obligatorios.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="space-y-4">
                             <h3 className="font-semibold text-base">Datos de Facturación</h3>
-                            <FormField control={form.control} name="nombreFiscal" render={({ field }) => (<FormItem><FormLabel>Nombre Fiscal</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                            <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                            <FormField control={form.control} name="direccionFiscal_street" render={({ field }) => (<FormItem><FormLabel>Calle Fiscal</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="nombreFiscal" render={({ field }) => (<FormItem><FormLabel>Nombre Fiscal *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                            <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                            <FormField control={form.control} name="direccionFiscal_street" render={({ field }) => (<FormItem><FormLabel>Calle Fiscal *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                             <div className="grid grid-cols-3 gap-2">
-                                <FormField control={form.control} name="direccionFiscal_city" render={({ field }) => (<FormItem><FormLabel>Ciudad</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                <FormField control={form.control} name="direccionFiscal_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                                <FormField control={form.control} name="direccionFiscal_postalCode" render={({ field }) => (<FormItem><FormLabel>C.P.</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                <FormField control={form.control} name="direccionFiscal_city" render={({ field }) => (<FormItem><FormLabel>Ciudad *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                <FormField control={form.control} name="direccionFiscal_province" render={({ field }) => (<FormItem><FormLabel>Provincia *</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                                <FormField control={form.control} name="direccionFiscal_postalCode" render={({ field }) => (<FormItem><FormLabel>C.P. *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                             </div>
                         </div>
                     </CardContent>
@@ -479,47 +473,43 @@ export default function OrderFormWizardPage() {
         case "verify":
             return(
                 <motion.div key="verify" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
-                     <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)}>
-                             <CardHeader>
-                                <CardTitle>Paso Final: Verifica y Confirma</CardTitle>
-                                <CardDescription>Comprueba que todos los datos son correctos. Puedes volver atrás para editar si es necesario.</CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-6">
-                                <Card>
-                                    <CardHeader><CardTitle className="text-lg">Resumen de la Interacción</CardTitle></CardHeader>
-                                    <CardContent className="space-y-2 text-sm">
-                                        <p><strong>Cliente:</strong> {client?.name} {client?.id === 'new' && <span className="text-primary font-bold">(Nuevo)</span>}</p>
-                                        <p><strong>Resultado:</strong> <span className="font-semibold">{outcomeWatched === 'successful' ? 'Pedido Exitoso' : outcomeWatched === 'follow-up' ? 'Requiere Seguimiento' : 'Visita Fallida'}</span></p>
-                                        {outcomeWatched === 'successful' && <>
-                                            <p><strong>Unidades:</strong> {formValuesWatched.numberOfUnits}</p>
-                                            <p><strong>Valor Total (IVA incl.):</strong> <FormattedNumericValue value={subtotal + ivaAmount} options={{style: 'currency', currency: 'EUR'}}/></p>
-                                            <p><strong>Materiales:</strong> {formValuesWatched.assignedMaterials?.length || 0} items</p>
-                                        </>}
-                                         {outcomeWatched !== 'successful' && <>
-                                            <p><strong>Próxima Acción:</strong> {formValuesWatched.nextActionType || 'N/A'}</p>
-                                         </>}
-                                    </CardContent>
-                                </Card>
-
-                                {client?.id === 'new' && outcomeWatched === 'successful' && (
-                                     <div className="space-y-4">
-                                        <Separator />
-                                        <h3 className="font-semibold text-base">Datos de Facturación (Revisar)</h3>
-                                        <p><strong>Nombre Fiscal:</strong> {formValuesWatched.nombreFiscal}</p>
-                                        <p><strong>CIF:</strong> {formValuesWatched.cif}</p>
-                                        <p><strong>Dirección Fiscal:</strong> {`${formValuesWatched.direccionFiscal_street}, ${formValuesWatched.direccionFiscal_city}, ${formValuesWatched.direccionFiscal_province}, ${formValuesWatched.direccionFiscal_postalCode}`}</p>
-                                    </div>
-                                )}
+                    <CardHeader>
+                        <CardTitle>Paso Final: Verifica y Confirma</CardTitle>
+                        <CardDescription>Comprueba que todos los datos son correctos. Puedes volver atrás para editar si es necesario.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        <Card>
+                            <CardHeader><CardTitle className="text-lg">Resumen de la Interacción</CardTitle></CardHeader>
+                            <CardContent className="space-y-2 text-sm">
+                                <p><strong>Cliente:</strong> {client?.name} {client?.id === 'new' && <span className="text-primary font-bold">(Nuevo)</span>}</p>
+                                <p><strong>Resultado:</strong> <span className="font-semibold">{outcomeWatched === 'successful' ? 'Pedido Exitoso' : outcomeWatched === 'follow-up' ? 'Requiere Seguimiento' : 'Visita Fallida'}</span></p>
+                                {outcomeWatched === 'successful' && <>
+                                    <p><strong>Unidades:</strong> {formValuesWatched.numberOfUnits}</p>
+                                    <p><strong>Valor Total (IVA incl.):</strong> <FormattedNumericValue value={subtotal + ivaAmount} options={{style: 'currency', currency: 'EUR'}}/></p>
+                                    <p><strong>Materiales:</strong> {formValuesWatched.assignedMaterials?.length || 0} items</p>
+                                </>}
+                                  {outcomeWatched !== 'successful' && <>
+                                    <p><strong>Próxima Acción:</strong> {formValuesWatched.nextActionType || 'N/A'}</p>
+                                  </>}
                             </CardContent>
-                             <CardFooter className="flex justify-between">
-                                <Button variant="ghost" onClick={handleBack} disabled={isSubmitting}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
-                                <Button type="submit" disabled={isSubmitting}>
-                                    {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Guardando...</> : <><Send className="mr-2 h-4 w-4"/> Confirmar y Guardar</>}
-                                </Button>
-                            </CardFooter>
-                        </form>
-                     </Form>
+                        </Card>
+
+                        {client?.id === 'new' && outcomeWatched === 'successful' && (
+                              <div className="space-y-4">
+                                <Separator />
+                                <h3 className="font-semibold text-base">Datos de Facturación (Revisar)</h3>
+                                <p><strong>Nombre Fiscal:</strong> {formValuesWatched.nombreFiscal}</p>
+                                <p><strong>CIF:</strong> {formValuesWatched.cif}</p>
+                                <p><strong>Dirección Fiscal:</strong> {`${formValuesWatched.direccionFiscal_street}, ${formValuesWatched.direccionFiscal_city}, ${formValuesWatched.direccionFiscal_province}, ${formValuesWatched.direccionFiscal_postalCode}`}</p>
+                            </div>
+                        )}
+                    </CardContent>
+                      <CardFooter className="flex justify-between">
+                        <Button variant="ghost" onClick={handleBack} disabled={isSubmitting}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
+                        <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Guardando...</> : <><Send className="mr-2 h-4 w-4"/> Confirmar y Guardar</>}
+                        </Button>
+                    </CardFooter>
                 </motion.div>
             )
     }
@@ -531,11 +521,16 @@ export default function OrderFormWizardPage() {
         <FileText className="h-8 w-8 text-primary" />
         <h1 className="text-3xl font-headline font-semibold">Registrar Interacción</h1>
       </header>
-      <Card className="max-w-2xl mx-auto shadow-lg">
-        <AnimatePresence mode="wait">
-            {renderStepContent()}
-        </AnimatePresence>
+      <Card className="max-w-4xl mx-auto shadow-lg">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)}>
+            <AnimatePresence mode="wait">
+              {renderStepContent()}
+            </AnimatePresence>
+          </form>
+        </Form>
       </Card>
     </div>
   );
 }
+

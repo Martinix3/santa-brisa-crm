@@ -51,33 +51,37 @@ export const StepDetails = ({ form, handleBack, handleNextStep, availableMateria
                     render={({ field }) => (
                       <FormItem className="flex flex-col">
                         <FormLabel>Fecha Próxima Acción (Opcional)</FormLabel>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button
-                                  type="button"
-                                  variant={"outline"}
-                                  className={cn(
-                                    "w-full justify-start text-left font-normal",
-                                    !field.value && "text-muted-foreground"
-                                  )}
-                                >
-                                  <CalendarIcon className="mr-2 h-4 w-4" />
-                                  <span>{field.value ? format(field.value, "PPP", { locale: es }) : "Seleccione fecha"}</span>
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                              <Calendar
-                                mode="single"
-                                selected={field.value}
-                                onSelect={field.onChange}
-                                disabled={(date) => date < subDays(new Date(),1) && !isEqual(date, subDays(new Date(),1))}
-                                initialFocus
-                                locale={es}
-                              />
-                            </PopoverContent>
-                          </Popover>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                type="button"
+                                variant={"outline"}
+                                className={cn(
+                                  "w-full justify-start text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                <span>
+                                  {field.value
+                                    ? format(field.value, "PPP", { locale: es })
+                                    : "Seleccione fecha"}
+                                </span>
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={field.onChange}
+                              disabled={(date) => date < subDays(new Date(), 1) && !isEqual(date, subDays(new Date(),1))}
+                              initialFocus
+                              locale={es}
+                            />
+                          </PopoverContent>
+                        </Popover>
                         <FormMessage />
                       </FormItem>
                     )}

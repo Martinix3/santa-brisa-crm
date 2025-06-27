@@ -7,7 +7,7 @@ import {
   collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, setDoc,
   type DocumentSnapshot, runTransaction,
 } from "firebase/firestore";
-import type { Purchase, PurchaseFormValues, PromotionalMaterial, LatestPurchaseInfo } from '@/types';
+import type { Purchase, PurchaseFormValues, PromotionalMaterial, LatestPurchaseInfo, PurchaseCategory } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 import { updateMaterialStockFS, processMaterialUpdateFromPurchase } from './promotional-material-service';
 
@@ -37,6 +37,7 @@ const fromFirestorePurchase = (docSnap: DocumentSnapshot): Purchase => {
     id: docSnap.id,
     supplier: data.supplier || '',
     supplierId: data.supplierId || undefined,
+    category: data.category || 'Otro',
     items: data.items || [],
     subtotal: data.subtotal || 0,
     tax: data.tax || 0,
@@ -63,6 +64,7 @@ const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean, 
 
   const firestoreData: { [key: string]: any } = {
     supplier: data.supplier,
+    category: data.category,
     orderDate: data.orderDate instanceof Date && isValid(data.orderDate) ? Timestamp.fromDate(data.orderDate) : Timestamp.fromDate(new Date()),
     status: data.status,
     items: data.items?.map(item => ({ materialId: item.materialId, description: item.description, quantity: item.quantity, unitPrice: item.unitPrice, total: (item.quantity || 0) * (item.unitPrice || 0) })) || [],

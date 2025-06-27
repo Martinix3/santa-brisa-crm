@@ -8,8 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import type { Purchase, PurchaseStatus, UserRole, PromotionalMaterialType, PromotionalMaterial } from "@/types";
-import { purchaseStatusList, promotionalMaterialTypeList } from "@/lib/data";
+import type { Purchase, PurchaseStatus, UserRole, PromotionalMaterialType, PromotionalMaterial, PurchaseCategory } from "@/types";
+import { purchaseStatusList, purchaseCategoryList } from "@/lib/data";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, MoreHorizontal, Filter, ChevronDown, Edit, Trash2, Receipt, Loader2, UploadCloud, Download } from "lucide-react";
 import PurchaseDialog from "@/components/app/purchase-dialog";
@@ -38,7 +38,7 @@ export default function PurchasesPage() {
   
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<PurchaseStatus | "Todos">("Todos");
-  const [categoryFilter, setCategoryFilter] = React.useState<PromotionalMaterialType | "Todas">("Todas");
+  const [categoryFilter, setCategoryFilter] = React.useState<PurchaseCategory | "Todas">("Todas");
 
   const isAdmin = userRole === 'Admin';
 
@@ -95,10 +95,10 @@ export default function PurchasesPage() {
       let successMessage = "";
       if (purchaseId) {
         await updatePurchaseFS(purchaseId, data);
-        successMessage = `La compra a "${data.supplier}" ha sido actualizada.`;
+        successMessage = `El gasto a "${data.supplier}" ha sido actualizado.`;
       } else {
         await addPurchaseFS(data);
-        successMessage = `La compra a "${data.supplier}" ha sido añadida.`;
+        successMessage = `El gasto a "${data.supplier}" ha sido añadido.`;
       }
       refreshDataSignature();
       const updatedPurchases = await getPurchasesFS();
@@ -106,7 +106,7 @@ export default function PurchasesPage() {
       toast({ title: "¡Operación Exitosa!", description: successMessage });
     } catch (error: any) {
       console.error("Error saving purchase:", error);
-      toast({ title: "Error al Guardar", description: `No se pudo guardar la orden de compra. Error: ${error.message}`, variant: "destructive" });
+      toast({ title: "Error al Guardar", description: `No se pudo guardar el gasto. Error: ${error.message}`, variant: "destructive" });
     } finally {
       setIsLoading(false);
       setIsPurchaseDialogOpen(false);
@@ -126,10 +126,10 @@ export default function PurchasesPage() {
     try {
       await deletePurchaseFS(purchaseToDelete.id);
       setPurchases(prev => prev.filter(p => p.id !== purchaseToDelete.id));
-      toast({ title: "¡Compra Eliminada!", description: `La compra de "${purchaseToDelete.supplier}" ha sido eliminada.`, variant: "destructive" });
+      toast({ title: "¡Gasto Eliminado!", description: `El gasto de "${purchaseToDelete.supplier}" ha sido eliminado.`, variant: "destructive" });
     } catch (error) {
       console.error("Error deleting purchase:", error);
-      toast({ title: "Error al Eliminar", description: "No se pudo eliminar la compra.", variant: "destructive" });
+      toast({ title: "Error al Eliminar", description: "No se pudo eliminar el gasto.", variant: "destructive" });
     } finally {
       setIsLoading(false);
       setPurchaseToDelete(null);
@@ -144,13 +144,7 @@ export default function PurchasesPage() {
        (purchase.items && purchase.items.some(item => item.description.toLowerCase().includes(searchTerm.toLowerCase()))))
     )
     .filter(purchase => statusFilter === "Todos" || purchase.status === statusFilter)
-    .filter(purchase => {
-      if (categoryFilter === "Todas") return true;
-      return purchase.items.some(item => {
-        const material = materialsMap.get(item.materialId);
-        return material?.type === categoryFilter;
-      });
-    });
+    .filter(purchase => categoryFilter === "Todas" || purchase.category === categoryFilter);
 
   if (!isAdmin) {
     return (
@@ -166,11 +160,11 @@ export default function PurchasesPage() {
       <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center space-x-2">
             <Receipt className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-headline font-semibold">Gestión de Compras y Gastos</h1>
+            <h1 className="text-3xl font-headline font-semibold">Gestión de Gastos</h1>
         </div>
         <div className="flex items-center gap-2">
           <Button onClick={handleAddNewPurchase} disabled={isLoading}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Añadir Compra Manual
+            <PlusCircle className="mr-2 h-4 w-4" /> Añadir Gasto Manual
           </Button>
            <Button onClick={() => setIsInvoiceUploadOpen(true)} disabled={isLoading} variant="outline">
             <UploadCloud className="mr-2 h-4 w-4" /> Crear desde Factura (IA)
@@ -180,7 +174,7 @@ export default function PurchasesPage() {
 
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
-          <CardTitle>Listado de Órdenes de Compra</CardTitle>
+          <CardTitle>Listado de Gastos Registrados</CardTitle>
           <CardDescription>Administra las compras a proveedores, los gastos generales y sigue el estado de los pagos y facturas.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -216,7 +210,7 @@ export default function PurchasesPage() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
                 <DropdownMenuCheckboxItem onSelect={() => setCategoryFilter("Todas")} checked={categoryFilter === "Todas"}>Todas</DropdownMenuCheckboxItem>
-                {promotionalMaterialTypeList.map(cat => (
+                {purchaseCategoryList.map(cat => (
                   <DropdownMenuCheckboxItem key={cat} onSelect={() => setCategoryFilter(cat)} checked={categoryFilter === cat}>{cat}</DropdownMenuCheckboxItem>
                 ))}
               </DropdownMenuContent>
@@ -225,7 +219,7 @@ export default function PurchasesPage() {
           {isLoading ? (
              <div className="flex justify-center items-center h-64">
               <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              <p className="ml-4 text-muted-foreground">Cargando compras...</p>
+              <p className="ml-4 text-muted-foreground">Cargando gastos...</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -233,11 +227,11 @@ export default function PurchasesPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[20%]">Proveedor</TableHead>
-                    <TableHead className="w-[30%]">Concepto Principal</TableHead>
+                    <TableHead className="w-[15%]">Categoría</TableHead>
                     <TableHead className="w-[15%]">Fecha Pedido</TableHead>
                     <TableHead className="text-right w-[15%]">Importe Total</TableHead>
-                    <TableHead className="text-center w-[10%]">Estado</TableHead>
-                    <TableHead className="text-right w-[10%]">Acciones</TableHead>
+                    <TableHead className="text-center w-[15%]">Estado</TableHead>
+                    <TableHead className="text-right w-[20%]">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -252,7 +246,7 @@ export default function PurchasesPage() {
                           purchase.supplier
                         )}
                       </TableCell>
-                      <TableCell>{purchase.items[0]?.description || 'Varios'}{purchase.items.length > 1 ? ` y ${purchase.items.length - 1} más...` : ''}</TableCell>
+                      <TableCell>{purchase.category}</TableCell>
                       <TableCell>{format(parseISO(purchase.orderDate), "dd/MM/yy", { locale: es })}</TableCell>
                       <TableCell className="text-right">
                         <FormattedNumericValue value={purchase.totalAmount} options={{ style: 'currency', currency: 'EUR' }} />
@@ -286,7 +280,7 @@ export default function PurchasesPage() {
                                   className="text-destructive focus:text-destructive focus:bg-destructive/10"
                                   onSelect={(e) => { e.preventDefault(); handleDeletePurchase(purchase); }}
                                 >
-                                  <Trash2 className="mr-2 h-4 w-4" /> Eliminar Compra
+                                  <Trash2 className="mr-2 h-4 w-4" /> Eliminar Gasto
                                 </DropdownMenuItem>
                               </AlertDialogTrigger>
                               {purchaseToDelete && purchaseToDelete.id === purchase.id && (
@@ -294,7 +288,7 @@ export default function PurchasesPage() {
                                       <AlertDialogHeader>
                                       <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                                       <AlertDialogDescription>
-                                          Esta acción no se puede deshacer. Esto eliminará permanentemente la compra de:
+                                          Esta acción no se puede deshacer. Esto eliminará permanentemente el gasto de:
                                           <br />
                                           <strong className="mt-2 block">{purchaseToDelete.supplier} - {purchaseToDelete.items[0]?.description}</strong>
                                       </AlertDialogDescription>
@@ -313,7 +307,7 @@ export default function PurchasesPage() {
                   )) : (
                     <TableRow>
                       <TableCell colSpan={6} className="h-24 text-center">
-                        No se encontraron compras o gastos que coincidan con tu búsqueda.
+                        No se encontraron gastos que coincidan con tu búsqueda.
                       </TableCell>
                     </TableRow>
                   )}
@@ -324,7 +318,7 @@ export default function PurchasesPage() {
         </CardContent>
         {!isLoading && filteredPurchases.length > 0 && (
             <CardFooter>
-                <p className="text-xs text-muted-foreground">Total de compras mostradas: {filteredPurchases.length} de {purchases.length}</p>
+                <p className="text-xs text-muted-foreground">Total de gastos mostrados: {filteredPurchases.length} de {purchases.length}</p>
             </CardFooter>
         )}
       </Card>

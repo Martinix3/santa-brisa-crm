@@ -1,5 +1,6 @@
 
 
+
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
 
 export interface Kpi {
@@ -181,6 +182,7 @@ export interface TeamMemberFormValues {
 }
 
 export type PurchaseStatus = 'Borrador' | 'Proforma Recibida' | 'Pagado' | 'Pago a 30 días' | 'Factura Recibida' | 'Completado' | 'Cancelado';
+export type PurchaseCategory = 'Material Promocional' | 'Gasto de Marketing' | 'Gasto Operativo' | 'COGS' | 'Otro';
 
 export interface PurchaseItem {
   materialId: string;
@@ -194,6 +196,7 @@ export interface Purchase {
   id: string;
   supplier: string;
   supplierId?: string;
+  category: PurchaseCategory;
   items: PurchaseItem[];
   subtotal: number;
   tax: number;
@@ -221,6 +224,7 @@ export interface PurchaseFormValues {
 
   orderDate: Date;
   status: PurchaseStatus;
+  category: PurchaseCategory;
   items: {
     materialId: string;
     description: string;

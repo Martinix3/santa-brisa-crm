@@ -35,8 +35,8 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { Purchase, PurchaseFormValues as PurchaseFormValuesType, PurchaseStatus, PromotionalMaterial, PromotionalMaterialFormValues } from "@/types";
-import { purchaseStatusList, promotionalMaterialTypeList } from "@/lib/data";
+import type { Purchase, PurchaseFormValues as PurchaseFormValuesType, PurchaseStatus, PromotionalMaterial, PromotionalMaterialFormValues, PurchaseCategory } from "@/types";
+import { purchaseStatusList, purchaseCategoryList } from "@/lib/data";
 import { Loader2, Calendar as CalendarIcon, DollarSign, PlusCircle, Trash2, FileCheck2, Link2, Sparkles, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
@@ -66,6 +66,7 @@ const purchaseFormSchema = z.object({
   supplierAddress_country: z.string().optional(),
   orderDate: z.date({ required_error: "La fecha del pedido es obligatoria." }),
   status: z.enum(purchaseStatusList as [PurchaseStatus, ...PurchaseStatus[]]),
+  category: z.enum(purchaseCategoryList as [PurchaseCategory, ...PurchaseCategory[]], { required_error: "La categoría del gasto es obligatoria." }),
   items: z.array(purchaseItemSchema).min(1, "Debe añadir al menos un artículo a la compra."),
   shippingCost: z.coerce.number().min(0, "Los portes no pueden ser negativos.").optional(),
   taxRate: z.coerce.number().min(0, "El IVA no puede ser negativo.").default(21),
@@ -99,6 +100,7 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
       supplier: "",
       orderDate: new Date(),
       status: "Borrador",
+      category: "Material Promocional",
       items: [{ materialId: "", description: "", quantity: 1, unitPrice: undefined }],
       shippingCost: 0,
       taxRate: 21,
@@ -189,11 +191,27 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
 
   React.useEffect(() => {
     if (isOpen) {
+      const defaultValues: Partial<PurchaseFormValues> = {
+          supplier: "",
+          orderDate: new Date(),
+          status: "Borrador",
+          category: "Material Promocional",
+          items: [{ materialId: "", description: "", quantity: 1, unitPrice: undefined }],
+          shippingCost: 0,
+          taxRate: 21,
+          notes: "",
+          invoiceUrl: "",
+          storagePath: "",
+          invoiceDataUri: "",
+      };
+
       if (prefilledData) {
-        form.reset(prefilledData as PurchaseFormValues);
+        form.reset({ ...defaultValues, ...prefilledData });
       } else if (purchase) {
         form.reset({
+          ...defaultValues,
           supplier: purchase.supplier,
+          category: purchase.category,
           orderDate: parseISO(purchase.orderDate),
           status: purchase.status,
           items: purchase.items.map(item => ({ materialId: item.materialId, description: item.description, quantity: item.quantity, unitPrice: item.unitPrice })),
@@ -202,21 +220,9 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
           notes: purchase.notes || "",
           invoiceUrl: purchase.invoiceUrl || "",
           storagePath: purchase.storagePath || "",
-          invoiceDataUri: "", 
         });
       } else {
-        form.reset({
-          supplier: "",
-          orderDate: new Date(),
-          status: "Borrador",
-          items: [{ materialId: "", description: "", quantity: 1, unitPrice: undefined }],
-          shippingCost: 0,
-          taxRate: 21,
-          notes: "",
-          invoiceUrl: "",
-          storagePath: "",
-          invoiceDataUri: "",
-        });
+        form.reset(defaultValues);
       }
     }
   }, [purchase, prefilledData, isOpen, form, toast]);
@@ -255,20 +261,22 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isReadOnly ? "Detalles de Compra" : (purchase ? "Editar Compra/Gasto" : "Registrar Nueva Compra/Gasto")}</DialogTitle>
+          <DialogTitle>{isReadOnly ? "Detalles de Gasto" : (purchase ? "Editar Gasto" : "Registrar Nuevo Gasto")}</DialogTitle>
           <DialogDescription>
-            {isReadOnly ? `Viendo detalles de la compra a ${purchase?.supplier}.` : (purchase ? "Modifica los detalles de la compra." : "Introduce la información de la nueva compra o gasto.")}
+            {isReadOnly ? `Viendo detalles de la compra a ${purchase?.supplier}.` : (purchase ? "Modifica los detalles del gasto." : "Introduce la información del nuevo gasto o compra.")}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="supplier" render={({ field }) => (<FormItem><FormLabel>Proveedor</FormLabel><FormControl><Input placeholder="Ej: Proveedor de Tequila" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="orderDate" render={({ field }) => (<FormItem className="flex flex-col"><FormLabel>Fecha Pedido/Gasto</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("justify-start text-left font-normal", !field.value && "text-muted-foreground")} disabled={isReadOnly}>{field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={isReadOnly} initialFocus locale={es}/></PopoverContent></Popover><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="orderDate" render={({ field }) => (<FormItem className="flex flex-col"><FormLabel>Fecha Gasto/Pedido</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("justify-start text-left font-normal", !field.value && "text-muted-foreground")} disabled={isReadOnly}>{field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={isReadOnly} initialFocus locale={es}/></PopoverContent></Popover><FormMessage /></FormItem>)} />
             </div>
+             <FormField control={form.control} name="category" render={({ field }) => (<FormItem><FormLabel>Categoría del Gasto</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione una categoría" /></SelectTrigger></FormControl><SelectContent>{purchaseCategoryList.map(s => (<SelectItem key={s} value={s}>{s}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+
 
             <Separator />
-            <h3 className="text-md font-semibold">Artículos de la Compra</h3>
+            <h3 className="text-md font-semibold">Artículos del Gasto</h3>
             <div className="space-y-3">
               {fields.map((field, index) => (
                 <div key={field.id} className="flex items-end gap-2 p-3 border rounded-md bg-secondary/20">
@@ -429,7 +437,7 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
 
             <DialogFooter className="pt-6">
               <DialogClose asChild><Button type="button" variant="outline" disabled={isSaving}>{isReadOnly ? "Cerrar" : "Cancelar"}</Button></DialogClose>
-              {!isReadOnly && (<Button type="submit" disabled={isSaving || (!form.formState.isDirty && !!purchase && !prefilledData)}>{isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>) : (purchase ? "Guardar Cambios" : "Añadir Compra")}</Button>)}
+              {!isReadOnly && (<Button type="submit" disabled={isSaving || (!form.formState.isDirty && !!purchase && !prefilledData)}>{isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>) : (purchase ? "Guardar Cambios" : "Añadir Gasto")}</Button>)}
             </DialogFooter>
           </form>
         </Form>

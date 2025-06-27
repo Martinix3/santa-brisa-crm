@@ -78,7 +78,7 @@ const navigationStructure: NavGroup[] = [
     label: 'CRM y Ventas',
     groupRoles: ['Admin', 'SalesRep', 'Clavadista'],
     items: [
-      { href: '/crm-follow-up', label: 'Tareas de Seguimiento', icon: ClipboardList, roles: ['Admin', 'SalesRep', 'Clavadista'] },
+      { href: '/crm-follow-up', label: 'Panel de Actividad Comercial', icon: ClipboardList, roles: ['Admin', 'SalesRep', 'Clavadista'] },
       { href: '/order-form', label: 'Registrar Interacción', icon: FileText, roles: ['Admin', 'SalesRep', 'Clavadista'] },
       { href: '/request-sample', label: 'Solicitar Muestras', icon: SendHorizonal, roles: ['Admin', 'SalesRep', 'Clavadista'] },
       { href: '/team-tracking', label: 'Equipo de Ventas', icon: Users, roles: ['Admin', 'SalesRep'] },
@@ -89,8 +89,8 @@ const navigationStructure: NavGroup[] = [
     label: 'Administrativo',
     groupRoles: ['Admin'],
     items: [
-      { href: '/direct-sales-sb', label: 'Ventas Directas SB', icon: Briefcase, roles: ['Admin'] },
-      { href: '/purchases', label: 'Gestión de Compras', icon: Receipt, roles: ['Admin'] },
+      { href: '/direct-sales-sb', label: 'Facturación y Ventas Propias', icon: Briefcase, roles: ['Admin'] },
+      { href: '/purchases', label: 'Gestión de Gastos', icon: Receipt, roles: ['Admin'] },
       { href: '/suppliers', label: 'Proveedores', icon: Truck, roles: ['Admin'] },
       { href: '/admin/promotional-materials', label: 'Inventario y Materiales', icon: Archive, roles: ['Admin'] },
     ],

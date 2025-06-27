@@ -119,16 +119,16 @@ export default function DirectSalesSbPage() {
       <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center space-x-2">
             <Briefcase className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-headline font-semibold">Ventas Directas (Facturación SB)</h1>
+            <h1 className="text-3xl font-headline font-semibold">Facturación y Ventas Propias</h1>
         </div>
         <Button onClick={handleAddNewSale} disabled={isLoading}>
-          <PlusCircle className="mr-2 h-4 w-4" /> Añadir Nueva Venta Directa
+          <PlusCircle className="mr-2 h-4 w-4" /> Añadir Nueva Venta
         </Button>
       </header>
 
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
-          <CardTitle>Listado de Ventas Directas</CardTitle>
+          <CardTitle>Listado de Facturas y Ventas</CardTitle>
           <CardDescription>Administra las ventas facturadas directamente por Santa Brisa (a importadores, online, etc.).</CardDescription>
         </CardHeader>
         <CardContent>
@@ -232,7 +232,7 @@ export default function DirectSalesSbPage() {
                   )) : (
                     <TableRow>
                       <TableCell colSpan={6} className="h-24 text-center">
-                        No se encontraron ventas directas que coincidan con los filtros.
+                        No se encontraron ventas que coincidan con los filtros.
                       </TableCell>
                     </TableRow>
                   )}

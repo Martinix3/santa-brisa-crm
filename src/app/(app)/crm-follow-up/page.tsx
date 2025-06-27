@@ -213,7 +213,7 @@ export default function CrmFollowUpPage() {
   }
   
   const pageDescription = userRole === 'Admin'
-    ? "Administra todas las visitas y seguimientos planificados. Puedes editar la fecha de próxima acción/visita y ver tareas vencidas."
+    ? "Gestiona toda la actividad comercial en curso: visitas programadas, seguimientos y tareas pendientes. Puedes editar fechas y ver tareas vencidas."
     : "Revisa y gestiona tus visitas y seguimientos planificados. Puedes editar la fecha de próxima acción/visita y ver tareas vencidas.";
 
   const today = startOfDay(new Date());
@@ -224,12 +224,12 @@ export default function CrmFollowUpPage() {
       <div className="space-y-6">
         <header className="flex items-center space-x-2">
           <ClipboardList className="h-8 w-8 text-primary" />
-          <h1 className="text-3xl font-headline font-semibold">Panel de Tareas de Seguimiento</h1>
+          <h1 className="text-3xl font-headline font-semibold">Panel de Actividad Comercial</h1>
         </header>
 
         <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
           <CardHeader>
-            <CardTitle>Panel de Seguimiento y Visitas</CardTitle>
+            <CardTitle>Actividad Comercial en Curso</CardTitle>
             <CardDescription>{pageDescription}</CardDescription>
           </CardHeader>
           <CardContent>
@@ -335,7 +335,7 @@ export default function CrmFollowUpPage() {
             {isLoading ? (
               <div className="flex justify-center items-center h-64">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                <p className="ml-4 text-muted-foreground">Cargando tareas...</p>
+                <p className="ml-4 text-muted-foreground">Cargando actividades...</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -449,7 +449,7 @@ export default function CrmFollowUpPage() {
                     )}) : (
                       <TableRow>
                         <TableCell colSpan={canFilterByUserForAdmin ? 7 : 6} className="h-24 text-center">
-                          No se encontraron tareas de seguimiento o visitas que coincidan con los filtros seleccionados.
+                          No se encontraron actividades comerciales que coincidan con los filtros seleccionados.
                         </TableCell>
                       </TableRow>
                     )}
@@ -460,7 +460,7 @@ export default function CrmFollowUpPage() {
           </CardContent>
           {filteredFollowUps.length > 0 && (
               <CardFooter>
-                  <p className="text-xs text-muted-foreground">Mostrando {filteredFollowUps.length} tareas de seguimiento y/o visitas programadas.</p>
+                  <p className="text-xs text-muted-foreground">Mostrando {filteredFollowUps.length} actividades comerciales.</p>
               </CardFooter>
           )}
         </Card>

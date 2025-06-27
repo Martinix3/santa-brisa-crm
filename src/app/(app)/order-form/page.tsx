@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -23,13 +24,14 @@ import { getAccountsFS, addAccountFS, getAccountByIdFS, updateAccountFS as updat
 import { addOrderFS, updateOrderFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
-import { ArrowLeft, Building, CreditCard, Edit, FileText, Loader2, Package, PlusCircle, Search, Send, Trash2, User, UploadCloud } from "lucide-react";
+import { ArrowLeft, Building, CreditCard, Edit, FileText, Loader2, Package, PlusCircle, Search, Send, Trash2, User, UploadCloud, Sparkles } from "lucide-react";
 import { format, parseISO, isBefore, startOfDay, subDays, isEqual } from "date-fns";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Calendar as CalendarIcon } from "lucide-react";
+
 
 const NO_CLAVADISTA_VALUE = "##NONE##";
 const ADMIN_SELF_REGISTER_VALUE = "##ADMIN_SELF##";
@@ -90,6 +92,14 @@ const formSchema = (step: string) => z.object({
       if (!data.paymentMethod) { ctx.addIssue({ path: ["paymentMethod"], message: "Forma de pago es obligatoria." }); }
       if (data.paymentMethod === 'Giro Bancario' && (!data.iban || !/^[A-Z]{2}[0-9]{2}[0-9A-Z]{1,30}$/.test(data.iban.replace(/\s/g, '')))) {
         ctx.addIssue({ path: ["iban"], message: "IBAN válido es obligatorio para el Giro Bancario." });
+      }
+      if (data.clientType === 'new') {
+        if (!data.nombreFiscal?.trim()) ctx.addIssue({ path: ["nombreFiscal"], message: "Nombre fiscal es obligatorio." });
+        if (!data.cif?.trim()) ctx.addIssue({ path: ["cif"], message: "CIF es obligatorio." });
+        if (!data.direccionFiscal_street?.trim()) ctx.addIssue({ path: ["direccionFiscal_street"], message: "Calle es obligatoria." });
+        if (!data.direccionFiscal_city?.trim()) ctx.addIssue({ path: ["direccionFiscal_city"], message: "Ciudad es obligatoria." });
+        if (!data.direccionFiscal_province?.trim()) ctx.addIssue({ path: ["direccionFiscal_province"], message: "Provincia es obligatoria." });
+        if (!data.direccionFiscal_postalCode?.trim()) ctx.addIssue({ path: ["direccionFiscal_postalCode"], message: "Código postal es obligatorio." });
       }
     }
     
@@ -193,16 +203,7 @@ export default function OrderFormWizardPage() {
   
   const watchSameAsBilling = form.watch('sameAsBilling');
   const paymentMethodWatched = form.watch("paymentMethod");
-
-  const { 
-      direccionFiscal_street,
-      direccionFiscal_number,
-      direccionFiscal_city,
-      direccionFiscal_province,
-      direccionFiscal_postalCode,
-      direccionFiscal_country
-  } = form.watch();
-
+  
   const df_street = form.watch('direccionFiscal_street');
   const df_number = form.watch('direccionFiscal_number');
   const df_city = form.watch('direccionFiscal_city');
@@ -227,8 +228,13 @@ export default function OrderFormWizardPage() {
   const subtotal = (formValuesWatched.numberOfUnits || 0) * (formValuesWatched.unitPrice || 0);
   const ivaAmount = subtotal * 0.21;
 
-  const handleClientSelect = (selectedClient: Account | { id: 'new', name: string }) => {
+  const handleClientSelect = (selectedClient: Account | { id: 'new'; name: string }) => {
     setClient(selectedClient);
+    if(selectedClient.id === 'new') {
+        form.setValue("clientType", "HORECA"); // Default for new clients
+    } else {
+        form.setValue("clientType", (selectedClient as Account).type);
+    }
     setStep("outcome");
   };
 
@@ -445,13 +451,13 @@ export default function OrderFormWizardPage() {
               </div>
               {filteredAccounts.length > 0 && (
                 <div className="space-y-2 max-h-60 overflow-y-auto p-1">
-                  {filteredAccounts.map(acc => ( <Button key={acc.id} variant="outline" className="w-full justify-start" onClick={() => handleClientSelect(acc)}> <Building className="mr-2 h-4 w-4 text-muted-foreground"/> {acc.name} </Button> ))}
+                  {filteredAccounts.map(acc => ( <Button key={acc.id} type="button" variant="outline" className="w-full justify-start" onClick={() => handleClientSelect(acc)}> <Building className="mr-2 h-4 w-4 text-muted-foreground"/> {acc.name} </Button> ))}
                 </div>
               )}
               {debouncedSearchTerm && filteredAccounts.length === 0 && (
                 <div className="text-center p-4 border-dashed border-2 rounded-md">
                   <p className="text-sm text-muted-foreground">No se encontró al cliente "{debouncedSearchTerm}".</p>
-                  <Button className="mt-2" onClick={() => handleClientSelect({ id: 'new', name: debouncedSearchTerm })}> <PlusCircle className="mr-2 h-4 w-4"/> Continuar como nuevo cliente </Button>
+                  <Button className="mt-2" type="button" onClick={() => handleClientSelect({ id: 'new', name: debouncedSearchTerm })}> <PlusCircle className="mr-2 h-4 w-4"/> Continuar como nuevo cliente </Button>
                 </div>
               )}
             </CardContent>
@@ -465,11 +471,11 @@ export default function OrderFormWizardPage() {
               <CardTitle>Paso 2: ¿Cuál fue el resultado para "{client?.name}"?</CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-1 gap-4">
-                <Button variant="outline" className="w-full h-16 text-lg" onClick={() => { form.setValue("outcome", "successful"); setStep("details"); }}>Pedido Exitoso</Button>
-                <Button variant="outline" className="w-full h-16 text-lg" onClick={() => { form.setValue("outcome", "follow-up"); setStep("details"); }}>Requiere Seguimiento</Button>
-                <Button variant="outline" className="w-full h-16 text-lg" onClick={() => { form.setValue("outcome", "failed"); setStep("details"); }}>Visita Fallida / Sin Pedido</Button>
+                <Button type="button" variant="outline" className="w-full h-16 text-lg" onClick={() => { form.setValue("outcome", "successful"); setStep("details"); }}>Pedido Exitoso</Button>
+                <Button type="button" variant="outline" className="w-full h-16 text-lg" onClick={() => { form.setValue("outcome", "follow-up"); setStep("details"); }}>Requiere Seguimiento</Button>
+                <Button type="button" variant="outline" className="w-full h-16 text-lg" onClick={() => { form.setValue("outcome", "failed"); setStep("details"); }}>Visita Fallida / Sin Pedido</Button>
             </CardContent>
-            <CardFooter> <Button variant="ghost" onClick={handleBack}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button> </CardFooter>
+            <CardFooter> <Button variant="ghost" type="button" onClick={handleBack}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button> </CardFooter>
           </motion.div>
         );
       
@@ -484,7 +490,7 @@ export default function OrderFormWizardPage() {
                         <div className="space-y-4">
                             <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades</FormLabel><FormControl><Input type="number" placeholder="Ej: 12" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)}/>
                             <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Ej: 15.50" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage /></FormItem>)}/>
-                            <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel>Forma de Pago</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar forma de pago"/></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(m=>(<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
+                            <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel>Forma de Pago</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar forma de pago"/></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(m=>(<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
                              {paymentMethodWatched === 'Giro Bancario' && (
                                 <FormField control={form.control} name="iban" render={({ field }) => (
                                     <FormItem>
@@ -523,7 +529,7 @@ export default function OrderFormWizardPage() {
                                 )}
                             />
                             {form.watch('nextActionType') === 'Opción personalizada' && <FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Especificar Acción</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>}
-                            <FormField control={form.control} name="nextActionDate" render={({ field }) => ( <FormItem className="flex flex-col"> <FormLabel>Fecha Próxima Acción (Opcional)</FormLabel> <Popover> <PopoverTrigger asChild> <FormControl> <Button variant={"outline"} className={cn( "w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground" )} > {field.value ? ( format(field.value, "PPP", { locale: es }) ) : ( <span>Seleccione fecha</span> )} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" /> </Button> </FormControl> </PopoverTrigger> <PopoverContent className="w-auto p-0" align="start"> <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus locale={es} /> </PopoverContent> </Popover> <FormMessage /> </FormItem> )}/>
+                            <FormField control={form.control} name="nextActionDate" render={({ field }) => ( <FormItem className="flex flex-col"> <FormLabel>Fecha Próxima Acción (Opcional)</FormLabel> <Popover> <PopoverTrigger asChild> <FormControl> <Button type="button" variant={"outline"} className={cn( "w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground" )} > {field.value ? ( format(field.value, "PPP", { locale: es }) ) : ( <span>Seleccione fecha</span> )} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" /> </Button> </FormControl> </PopoverTrigger> <PopoverContent className="w-auto p-0" align="start"> <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus locale={es} /> </PopoverContent> </Popover> <FormMessage /> </FormItem> )}/>
                              {(userRole === 'Admin') && (
                                 <FormField control={form.control} name="selectedSalesRepId" render={({ field }) => ( <FormItem> <FormLabel>Asignar Seguimiento a:</FormLabel> <Select onValueChange={field.onChange} value={field.value ?? ""}> <FormControl> <SelectTrigger> <SelectValue placeholder="Seleccionar comercial..." /> </SelectTrigger> </FormControl> <SelectContent> <SelectItem value={ADMIN_SELF_REGISTER_VALUE}> Yo mismo/a (Admin) </SelectItem> {salesRepsList.map((rep) => ( <SelectItem key={rep.id} value={rep.id}> {rep.name} </SelectItem> ))} </SelectContent> </Select> <FormMessage /> </FormItem> )} />
                             )}
@@ -560,7 +566,7 @@ export default function OrderFormWizardPage() {
                     />
                 </CardContent>
                 <CardFooter className="flex justify-between">
-                    <Button variant="ghost" onClick={handleBack}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
+                    <Button type="button" variant="ghost" onClick={handleBack}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
                     <Button type="button" onClick={handleNextStep}>Continuar <ArrowLeft className="mr-2 h-4 w-4 transform rotate-180" /></Button>
                 </CardFooter>
             </motion.div>
@@ -584,7 +590,7 @@ export default function OrderFormWizardPage() {
                             <FormField control={form.control} name="direccionFiscal_number" render={({ field }) => (<FormItem><FormLabel>Número</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                             <FormField control={form.control} name="direccionFiscal_postalCode" render={({ field }) => (<FormItem><FormLabel>C.P. *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                             <FormField control={form.control} name="direccionFiscal_city" render={({ field }) => (<FormItem><FormLabel>Ciudad *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="direccionFiscal_province" render={({ field }) => (<FormItem><FormLabel>Provincia *</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="direccionFiscal_province" render={({ field }) => (<FormItem><FormLabel>Provincia *</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                         </div>
                         
                         <Separator/><h3 className="font-semibold text-base mt-2">Datos de Entrega</h3>
@@ -599,7 +605,7 @@ export default function OrderFormWizardPage() {
                                     <FormField control={form.control} name="direccionEntrega_number" render={({ field }) => (<FormItem><FormLabel>Número</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                                     <FormField control={form.control} name="direccionEntrega_postalCode" render={({ field }) => (<FormItem><FormLabel>C.P.</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                                     <FormField control={form.control} name="direccionEntrega_city" render={({ field }) => (<FormItem><FormLabel>Ciudad</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                    <FormField control={form.control} name="direccionEntrega_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                                    <FormField control={form.control} name="direccionEntrega_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                                 </div>
                             </div>
                         )}
@@ -612,7 +618,7 @@ export default function OrderFormWizardPage() {
 
                     </CardContent>
                     <CardFooter className="flex justify-between">
-                      <Button variant="ghost" onClick={handleBack}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
+                      <Button type="button" variant="ghost" onClick={handleBack}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
                       <Button type="button" onClick={handleNextStep}>Continuar <ArrowLeft className="mr-2 h-4 w-4 transform rotate-180" /></Button>
                     </CardFooter>
                 </motion.div>
@@ -659,7 +665,7 @@ export default function OrderFormWizardPage() {
                         )}
                     </CardContent>
                       <CardFooter className="flex justify-between">
-                        <Button variant="ghost" onClick={handleBack} disabled={isSubmitting}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
+                        <Button type="button" variant="ghost" onClick={handleBack} disabled={isSubmitting}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
                         <Button type="submit" disabled={isSubmitting}>
                             {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Guardando...</> : <><Send className="mr-2 h-4 w-4"/> Confirmar y Guardar</>}
                         </Button>
@@ -686,5 +692,3 @@ export default function OrderFormWizardPage() {
   );
 }
 
-
-    

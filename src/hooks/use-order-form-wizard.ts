@@ -272,47 +272,38 @@ export function useOrderWizard() {
             
             const orderData: any = {
                 clientName: client!.name,
-                accountId: currentAccountId,
+                accountId: currentAccountId || null,
                 visitDate: new Date(),
                 createdAt: new Date(),
                 lastUpdated: new Date(),
                 salesRep: salesRepNameForOrder,
-                clavadistaId: values.clavadistaId === NO_CLAVADISTA_VALUE ? undefined : values.clavadistaId,
+                clavadistaId: values.clavadistaId === NO_CLAVADISTA_VALUE ? null : values.clavadistaId,
                 clientStatus: (client!.id === 'new' ? 'new' : 'existing'),
-                status: 'Pendiente', // Default status
-                originatingTaskId: originatingTask?.id,
-                
-                products: undefined, value: undefined, clientType: undefined, paymentMethod: undefined, iban: undefined, numberOfUnits: undefined, unitPrice: undefined,
-                nextActionType: undefined, nextActionCustom: undefined, nextActionDate: undefined,
-                failureReasonType: undefined, failureReasonCustom: undefined,
-                
-                canalOrigenColocacion: values.canalOrigenColocacion,
+                status: 'Pendiente', 
+                originatingTaskId: originatingTask?.id || null,
+                canalOrigenColocacion: values.canalOrigenColocacion || null,
                 assignedMaterials: values.assignedMaterials || [],
-                notes: values.notes,
-
-                invoiceUrl: undefined,
-                invoiceFileName: undefined,
+                notes: values.notes || null,
             };
 
-            // Populate based on outcome
             if (values.outcome === "successful") {
                 orderData.status = 'Confirmado';
                 orderData.products = ["Santa Brisa 750ml"];
-                orderData.numberOfUnits = values.numberOfUnits;
-                orderData.unitPrice = values.unitPrice;
+                orderData.numberOfUnits = values.numberOfUnits || null;
+                orderData.unitPrice = values.unitPrice || null;
                 orderData.value = subtotal + ivaAmount;
-                orderData.clientType = values.clientType;
-                orderData.paymentMethod = values.paymentMethod;
-                orderData.iban = values.iban;
+                orderData.clientType = values.clientType || null;
+                orderData.paymentMethod = values.paymentMethod || null;
+                orderData.iban = values.iban || null;
             } else if (values.outcome === 'follow-up') {
                 orderData.status = 'Seguimiento';
-                orderData.nextActionType = values.nextActionType;
-                orderData.nextActionCustom = values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : undefined;
-                orderData.nextActionDate = values.nextActionDate ? format(values.nextActionDate, 'yyyy-MM-dd') : undefined;
+                orderData.nextActionType = values.nextActionType || null;
+                orderData.nextActionCustom = values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : null;
+                orderData.nextActionDate = values.nextActionDate ? format(values.nextActionDate, 'yyyy-MM-dd') : null;
             } else if (values.outcome === 'failed') {
                 orderData.status = 'Fallido';
-                orderData.failureReasonType = values.failureReasonType;
-                orderData.failureReasonCustom = values.failureReasonType === 'Otro (especificar)' ? values.failureReasonCustom : undefined;
+                orderData.failureReasonType = values.failureReasonType || null;
+                orderData.failureReasonCustom = values.failureReasonType === 'Otro (especificar)' ? values.failureReasonCustom : null;
             }
             
             transaction.set(newOrderRef, orderData);

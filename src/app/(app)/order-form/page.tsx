@@ -25,12 +25,12 @@ import { getAccountsFS, addAccountFS, getAccountByIdFS, updateAccountFS as updat
 import { addOrderFS, updateOrderFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
-import { ArrowLeft, Building, CreditCard, Edit, FileText, Loader2, Package, PlusCircle, Search, Send, Trash2, Calendar as CalendarIcon, Sparkles } from "lucide-react";
+import { ArrowLeft, Building, CreditCard, Edit, FileText, Loader2, Package, PlusCircle, Search, Send, Trash2, Calendar as CalendarIcon } from "lucide-react";
 import { format, parseISO, isBefore, startOfDay, subDays, isEqual } from "date-fns";
 import { es } from "date-fns/locale";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
+import { Label } from "@/components/ui/label";
 
 
 const NO_CLAVADISTA_VALUE = "##NONE##";
@@ -529,7 +529,25 @@ export default function OrderFormWizardPage() {
                                 )}
                             />
                             {form.watch('nextActionType') === 'Opción personalizada' && <FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Especificar Acción</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>}
-                            <FormField control={form.control} name="nextActionDate" render={({ field }) => ( <FormItem className="flex flex-col"> <FormLabel>Fecha Próxima Acción (Opcional)</FormLabel> <Popover> <PopoverTrigger asChild> <FormControl> <Button type="button" variant={"outline"} className={cn( "w-full justify-between pl-3 text-left font-normal", !field.value && "text-muted-foreground" )} > <span>{field.value ? ( format(field.value, "PPP", { locale: es }) ) : ( "Seleccione fecha" )}</span> <CalendarIcon className="ml-auto h-4 w-4 opacity-50" /> </Button> </FormControl> </PopoverTrigger> <PopoverContent className="w-auto p-0" align="start"> <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus locale={es} /> </PopoverContent> </Popover> <FormMessage /> </FormItem> )}/>
+                            <FormField control={form.control} name="nextActionDate" render={({ field }) => ( 
+                                <FormItem className="flex flex-col"> 
+                                    <FormLabel>Fecha Próxima Acción (Opcional)</FormLabel> 
+                                    <Popover> 
+                                        <PopoverTrigger asChild>
+                                            <FormControl>
+                                                <Button type="button" variant={"outline"} className={cn("w-full justify-between pl-3 text-left font-normal", !field.value && "text-muted-foreground")} > 
+                                                    <span>{field.value ? format(field.value, "PPP", { locale: es }) : "Seleccione fecha"}</span> 
+                                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" /> 
+                                                </Button>
+                                            </FormControl>
+                                        </PopoverTrigger> 
+                                        <PopoverContent className="w-auto p-0" align="start"> 
+                                            <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus locale={es} /> 
+                                        </PopoverContent> 
+                                    </Popover> 
+                                    <FormMessage /> 
+                                </FormItem> 
+                            )}/>
                              {(userRole === 'Admin') && (
                                 <FormField control={form.control} name="selectedSalesRepId" render={({ field }) => ( <FormItem> <FormLabel>Asignar Seguimiento a:</FormLabel> <Select onValueChange={field.onChange} value={field.value ?? ""}> <FormControl> <SelectTrigger> <SelectValue placeholder="Seleccionar comercial..." /> </SelectTrigger> </FormControl> <SelectContent> <SelectItem value={ADMIN_SELF_REGISTER_VALUE}> Yo mismo/a (Admin) </SelectItem> {salesRepsList.map((rep) => ( <SelectItem key={rep.id} value={rep.id}> {rep.name} </SelectItem> ))} </SelectContent> </Select> <FormMessage /> </FormItem> )} />
                             )}
@@ -691,4 +709,3 @@ export default function OrderFormWizardPage() {
     </Form>
   );
 }
-

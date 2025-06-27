@@ -97,8 +97,8 @@ export function useDirectSaleWizard() {
 
   const { subtotal, tax, totalAmount } = React.useMemo(() => {
     const currentSubtotal = watchedItems.reduce((sum, item) => {
-      const quantity = item.quantity || 0;
-      const unitPrice = item.netUnitPrice || 0;
+      const quantity = Number(item.quantity) || 0;
+      const unitPrice = Number(item.netUnitPrice) || 0;
       return sum + quantity * unitPrice;
     }, 0);
     const currentTax = currentSubtotal * 0.21;

@@ -1,4 +1,3 @@
-
 import * as React from 'react';
 import { useWatch } from 'react-hook-form';
 import { CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
@@ -82,7 +81,7 @@ export const StepSampleDetails: React.FC<StepSampleDetailsProps> = ({
               <FormItem>
                 <FormLabel className="flex items-center"><Package className="mr-2 h-4 w-4"/>Cantidad de Muestras</FormLabel>
                 <FormControl>
-                  <Input type="number" {...field} value={field.value ?? ''} onChange={(e) => field.onChange(parseInt(e.target.value, 10))}/>
+                  <Input type="number" {...field} value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))}/>
                 </FormControl>
                 <FormMessage />
               </FormItem>

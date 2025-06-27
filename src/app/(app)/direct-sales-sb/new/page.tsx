@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -12,7 +11,7 @@ import { useDirectSaleWizard } from "@/hooks/use-direct-sale-wizard";
 import { StepClient } from "@/components/app/direct-sale-form/step-client";
 import { StepCoreDetails } from "@/components/app/direct-sale-form/step-core-details";
 import { StepItems } from "@/components/app/direct-sale-form/step-items";
-import { StepOptionalInfo } from "@/components/app/direct-sale-form/step-optional-info";
+import { StepAddress } from "@/components/app/direct-sale-form/step-address";
 import { StepVerify } from "@/components/app/direct-sale-form/step-verify";
 
 export default function NewDirectSalePage() {
@@ -48,10 +47,10 @@ export default function NewDirectSalePage() {
             <StepItems {...wizard} />
           </motion.div>
         );
-      case "optional":
+      case "address":
         return (
-          <motion.div key="optional" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
-            <StepOptionalInfo {...wizard} />
+          <motion.div key="address" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
+            <StepAddress {...wizard} />
           </motion.div>
         );
        case "verify":

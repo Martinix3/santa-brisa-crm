@@ -490,7 +490,7 @@ export default function OrderFormWizardPage() {
                         <div className="space-y-4">
                             <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades</FormLabel><FormControl><Input type="number" placeholder="Ej: 12" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)}/>
                             <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Ej: 15.50" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage /></FormItem>)}/>
-                            <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel>Forma de Pago</FormLabel><Select onValueChange={field.onChange} value={field.value ?? ""}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar forma de pago"/></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(m=>(<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
+                            <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel>Forma de Pago</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value ?? ""}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar forma de pago"/></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(m=>(<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
                              {paymentMethodWatched === 'Giro Bancario' && (
                                 <FormField control={form.control} name="iban" render={({ field }) => (
                                     <FormItem>
@@ -529,21 +529,33 @@ export default function OrderFormWizardPage() {
                                 )}
                             />
                             {form.watch('nextActionType') === 'Opción personalizada' && <FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Especificar Acción</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>}
-                            <FormField control={form.control} name="nextActionDate" render={({ field }) => ( <FormItem className="flex flex-col"> <FormLabel>Fecha Próxima Acción (Opcional)</FormLabel> 
-                                <FormControl>
-                                    <Popover>
-                                        <PopoverTrigger asChild>
-                                            <Button type="button" variant={"outline"} className={cn( "w-full justify-between pl-3 text-left font-normal", !field.value && "text-muted-foreground" )} > 
-                                                <span>{field.value ? ( format(field.value, "PPP", { locale: es }) ) : ( "Seleccione fecha" )}</span> 
-                                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" /> 
-                                            </Button>
-                                        </PopoverTrigger> 
-                                        <PopoverContent className="w-auto p-0" align="start"> 
-                                            <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus locale={es} /> 
-                                        </PopoverContent> 
-                                    </Popover> 
-                                </FormControl>
-                                <FormMessage /> </FormItem> )}/>
+                            <FormField
+                                control={form.control}
+                                name="nextActionDate"
+                                render={({ field }) => (
+                                    <FormItem className="flex flex-col">
+                                        <FormLabel>Fecha Próxima Acción (Opcional)</FormLabel>
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <FormControl>
+                                                    <Button
+                                                        type="button"
+                                                        variant={"outline"}
+                                                        className={cn("w-full justify-between pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                                                    >
+                                                        <span>{field.value ? format(field.value, "PPP", { locale: es }) : "Seleccione fecha"}</span>
+                                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                                    </Button>
+                                                </FormControl>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-auto p-0" align="start">
+                                                <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus locale={es} />
+                                            </PopoverContent>
+                                        </Popover>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                             />
                              {(userRole === 'Admin') && (
                                 <FormField control={form.control} name="selectedSalesRepId" render={({ field }) => ( <FormItem> <FormLabel>Asignar Seguimiento a:</FormLabel> <Select onValueChange={field.onChange} value={field.value ?? ""}> <FormControl> <SelectTrigger> <SelectValue placeholder="Seleccionar comercial..." /> </SelectTrigger> </FormControl> <SelectContent> <SelectItem value={ADMIN_SELF_REGISTER_VALUE}> Yo mismo/a (Admin) </SelectItem> {salesRepsList.map((rep) => ( <SelectItem key={rep.id} value={rep.id}> {rep.name} </SelectItem> ))} </SelectContent> </Select> <FormMessage /> </FormItem> )} />
                             )}
@@ -604,7 +616,7 @@ export default function OrderFormWizardPage() {
                             <FormField control={form.control} name="direccionFiscal_number" render={({ field }) => (<FormItem><FormLabel>Número</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
                             <FormField control={form.control} name="direccionFiscal_postalCode" render={({ field }) => (<FormItem><FormLabel>C.P. *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
                             <FormField control={form.control} name="direccionFiscal_city" render={({ field }) => (<FormItem><FormLabel>Ciudad *</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="direccionFiscal_province" render={({ field }) => (<FormItem><FormLabel>Provincia *</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="direccionFiscal_province" render={({ field }) => (<FormItem><FormLabel>Provincia *</FormLabel><Select onValueChange={field.onChange} value={field.value ?? ""}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                         </div>
                         
                         <Separator/><h3 className="font-semibold text-base mt-2">Datos de Entrega</h3>
@@ -619,7 +631,7 @@ export default function OrderFormWizardPage() {
                                     <FormField control={form.control} name="direccionEntrega_number" render={({ field }) => (<FormItem><FormLabel>Número</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
                                     <FormField control={form.control} name="direccionEntrega_postalCode" render={({ field }) => (<FormItem><FormLabel>C.P.</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
                                     <FormField control={form.control} name="direccionEntrega_city" render={({ field }) => (<FormItem><FormLabel>Ciudad</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
-                                    <FormField control={form.control} name="direccionEntrega_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                                    <FormField control={form.control} name="direccionEntrega_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel><Select onValueChange={field.onChange} value={field.value ?? ""}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                                 </div>
                             </div>
                         )}

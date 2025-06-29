@@ -7,22 +7,34 @@ import {
   collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
   type DocumentSnapshot,
 } from "firebase/firestore";
-import type { Account, AccountFormValues } from '@/types';
+import type { Account, AccountFormValues, PotencialType } from '@/types';
 import { format, parseISO } from 'date-fns';
 
 const ACCOUNTS_COLLECTION = 'accounts';
 
+// This function now returns the raw account data from Firestore.
+// The business logic (status, leadScore) is handled in cartera-service.
 const fromFirestore = (docSnap: DocumentSnapshot): Account => {
   const data = docSnap.data();
   if (!data) throw new Error("Document data is undefined.");
 
   return {
     id: docSnap.id,
-    name: data.name || '',
+    nombre: data.nombre || '',
+    ciudad: data.ciudad || undefined,
+    potencial: data.potencial || 'bajo',
+    responsableId: data.responsableId || '',
+    brandAmbassadorId: data.brandAmbassadorId || undefined,
+
+    // Calculated fields - defaults, will be overwritten by cartera-service
+    status: 'Inactivo', 
+    leadScore: 0,
+    
+    // Legacy fields for compatibility
     legalName: data.legalName || '',
     cif: data.cif || '',
     type: data.type, 
-    status: data.status,
+    salesRepId: data.salesRepId || data.responsableId, // Fallback for compatibility
     iban: data.iban || undefined,
     addressBilling: data.addressBilling,
     addressShipping: data.addressShipping,
@@ -31,18 +43,20 @@ const fromFirestore = (docSnap: DocumentSnapshot): Account => {
     mainContactPhone: data.mainContactPhone || '',
     notes: data.notes || '',
     internalNotes: data.internalNotes || undefined,
-    salesRepId: data.salesRepId || undefined, 
     createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : (typeof data.createdAt === 'string' ? data.createdAt : format(new Date(), "yyyy-MM-dd")),
     updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : (typeof data.updatedAt === 'string' ? data.updatedAt : format(new Date(), "yyyy-MM-dd")),
   };
 };
 
+// This function is for the dialog, not the new model fully
 const toFirestore = (data: AccountFormValues, isNew: boolean): any => {
   const firestoreData: { [key: string]: any } = {
-    name: data.name,
+    nombre: data.name, // Mapping from dialog `name` to `nombre`
     legalName: data.legalName || null,
     cif: data.cif || null,
     type: data.type,
+    // Note: status is calculated, not directly set from the form anymore
+    // We only set the legacy status field
     status: data.status,
     iban: data.iban || null,
     mainContactName: data.mainContactName || null,
@@ -50,8 +64,14 @@ const toFirestore = (data: AccountFormValues, isNew: boolean): any => {
     mainContactPhone: data.mainContactPhone || null,
     notes: data.notes || null,
     internalNotes: data.internalNotes || null,
+    responsableId: data.salesRepId || null, // Mapping salesRepId to responsableId
     salesRepId: data.salesRepId || null,
   };
+  
+  // Set default potential if new
+  if (isNew) {
+      firestoreData.potencial = 'medio' as PotencialType;
+  }
 
   if (data.addressBilling_street || data.addressBilling_city || data.addressBilling_province || data.addressBilling_postalCode) {
     firestoreData.addressBilling = {
@@ -62,6 +82,9 @@ const toFirestore = (data: AccountFormValues, isNew: boolean): any => {
       postalCode: data.addressBilling_postalCode || null,
       country: data.addressBilling_country || "España",
     };
+    if (data.addressBilling_city && !firestoreData.ciudad) {
+        firestoreData.ciudad = data.addressBilling_city; // Set 'ciudad' from billing city
+    }
     Object.keys(firestoreData.addressBilling).forEach(key => {
         if(firestoreData.addressBilling[key] === undefined) firestoreData.addressBilling[key] = null;
     });
@@ -78,6 +101,9 @@ const toFirestore = (data: AccountFormValues, isNew: boolean): any => {
       postalCode: data.addressShipping_postalCode || null,
       country: data.addressShipping_country || "España",
     };
+    if (data.addressShipping_city && !firestoreData.ciudad) {
+        firestoreData.ciudad = data.addressShipping_city; // Set 'ciudad' from shipping city if not set by billing
+    }
      Object.keys(firestoreData.addressShipping).forEach(key => {
         if(firestoreData.addressShipping[key] === undefined) firestoreData.addressShipping[key] = null;
     });
@@ -87,9 +113,6 @@ const toFirestore = (data: AccountFormValues, isNew: boolean): any => {
 
   if (isNew) {
     firestoreData.createdAt = Timestamp.fromDate(new Date());
-    if (!firestoreData.name) firestoreData.name = "Nombre no especificado";
-    if (!firestoreData.type) firestoreData.type = "Otro";
-    if (!firestoreData.status) firestoreData.status = "Potencial";
   }
   firestoreData.updatedAt = Timestamp.fromDate(new Date());
 
@@ -137,27 +160,22 @@ export const deleteAccountFS = async (id: string): Promise<void> => {
   await deleteDoc(accountDocRef);
 };
 
-export const initializeMockAccountsInFirestore = async (mockAccounts: Account[]) => {
+export const initializeMockAccountsInFirestore = async (mockAccounts: any[]) => {
     const accountsCol = collection(db, ACCOUNTS_COLLECTION);
     const snapshot = await getDocs(query(accountsCol, orderBy('createdAt', 'desc')));
     if (snapshot.empty) {
-        // Batch writes are more complex with client SDK on server, do one by one.
         for (const account of mockAccounts) {
-            const { id, createdAt, updatedAt, addressBilling, addressShipping, ...accountData } = account; 
+            const { id, createdAt, updatedAt, ...accountData } = account; 
             
             const firestoreReadyData: any = {
                 ...accountData,
                 createdAt: account.createdAt ? Timestamp.fromDate(parseISO(account.createdAt)) : Timestamp.fromDate(new Date()),
                 updatedAt: account.updatedAt ? Timestamp.fromDate(parseISO(account.updatedAt)) : Timestamp.fromDate(new Date()),
-                salesRepId: account.salesRepId || null,
-                addressBilling: addressBilling || null,
-                addressShipping: addressShipping || null,
+                responsableId: account.salesRepId || account.responsableId || null,
             };
             
             Object.keys(firestoreReadyData).forEach(key => {
-              if (firestoreReadyData[key] === undefined && key !== 'salesRepId' && key !== 'notes' && key !== 'internalNotes' && key !== 'legalName' && key !== 'mainContactName' && key !== 'mainContactEmail' && key !== 'mainContactPhone' && key !== 'addressBilling' && key !== 'addressShipping' && key !== 'iban') {
-                  delete firestoreReadyData[key];
-              } else if (firestoreReadyData[key] === undefined) {
+              if (firestoreReadyData[key] === undefined) {
                   firestoreReadyData[key] = null; 
               }
             });
@@ -168,3 +186,4 @@ export const initializeMockAccountsInFirestore = async (mockAccounts: Account[])
         console.log('Accounts collection is not empty. Skipping initialization.');
     }
 };
+

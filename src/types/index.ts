@@ -34,6 +34,68 @@ export interface TeamMember {
   updatedAt?: string; 
 }
 
+// --- NEW DATA MODEL FROM SPEC ---
+
+export type PotencialType = 'alto' | 'medio' | 'bajo';
+export type AccountStatus = 'Programado' | 'Seguimiento' | 'Primer Pedido' | 'Repetición' | 'Inactivo';
+export type InteractionType = 'Visita' | 'Llamada' | 'Mail' | 'Otro';
+export type InteractionResult = 'Programada' | 'Requiere seguimiento' | 'Pedido Exitoso' | 'Fallida';
+
+export interface Interaction {
+  id: string;
+  accountId: string;
+  tipo: InteractionType;
+  resultado: InteractionResult;
+  fecha_prevista: string; // timestamp
+  fecha_real?: string; // timestamp
+  importe?: number;
+  promoItems?: { sku: string, qty: number }[];
+  createdBy: string; // User ID
+  createdAt: string; // To get the latest one
+}
+
+export interface Account {
+  id: string;
+  nombre: string;
+  ciudad?: string;
+  potencial: PotencialType;
+  responsableId: string; // FK to TeamMember
+  brandAmbassadorId?: string; // FK to TeamMember (Clavadista)
+  
+  // These are calculated, not stored in Firestore directly for this new model
+  status: AccountStatus;
+  leadScore: number;
+  nextInteraction?: Interaction;
+
+  // Existing fields to keep for compatibility/other modules
+  legalName?: string;
+  cif: string; 
+  type: AccountType;
+  addressBilling?: AddressDetails;
+  addressShipping?: AddressDetails;
+  mainContactName?: string;
+  mainContactEmail?: string;
+  mainContactPhone?: string;
+  iban?: string;
+  notes?: string; 
+  internalNotes?: string;
+  salesRepId?: string; // Kept for compatibility, should transition to responsableId
+  createdAt: string; 
+  updatedAt: string; 
+}
+
+// Represents an Account object after business logic is applied
+export interface EnrichedAccount extends Account {
+  status: AccountStatus;
+  leadScore: number;
+  nextInteraction?: Interaction;
+  totalSuccessfulOrders: number;
+  lastInteractionDate?: Date;
+}
+
+
+// --- OLDER TYPES (to be phased out or used in other modules) ---
+
 export type OrderStatus = 'Pendiente' | 'Confirmado' | 'Procesando' | 'Enviado' | 'Entregado' | 'Cancelado' | 'Fallido' | 'Seguimiento' | 'Programada' | 'Facturado' | 'Completado';
 export type ClientType = 'Distribuidor' | 'HORECA' | 'Retail' | 'Cliente Final';
 
@@ -130,28 +192,6 @@ export interface MarketingResourceCategory {
 }
 
 export type AccountType = 'HORECA' | 'Distribuidor' | 'Retail Minorista' | 'Gran Superficie' | 'Evento Especial' | 'Cliente Final Directo' | 'Importador' | 'Otro';
-export type AccountStatus = 'Activo' | 'Inactivo' | 'Potencial' | 'Bloqueado';
-
-export interface Account {
-  id: string;
-  name: string; 
-  legalName?: string;
-  cif: string; 
-  type: AccountType;
-  status: AccountStatus;
-  addressBilling?: AddressDetails;
-  addressShipping?: AddressDetails;
-  mainContactName?: string;
-  mainContactEmail?: string;
-  mainContactPhone?: string;
-  iban?: string;
-  notes?: string; 
-  internalNotes?: string;
-  salesRepId?: string; 
-  createdAt: string; 
-  updatedAt: string; 
-}
-
 
 export type CrmEventType = 'Activación en Tienda' | 'Feria Comercial' | 'Evento Corporativo' | 'Degustación' | 'Patrocinio' | 'Activación' | 'Otro';
 export type CrmEventStatus = 'Planificado' | 'Confirmado' | 'En Curso' | 'Completado' | 'Cancelado' | 'Pospuesto';
@@ -372,7 +412,7 @@ export interface AccountFormValues {
   legalName?: string;
   cif: string;
   type: AccountType;
-  status: AccountStatus;
+  status: 'Activo' | 'Inactivo' | 'Potencial' | 'Bloqueado'; // Old status type for account dialog
   iban?: string;
   addressBilling_street?: string;
   addressBilling_number?: string;

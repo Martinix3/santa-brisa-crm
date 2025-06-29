@@ -87,7 +87,7 @@ export default function InvoiceUploadDialog({ isOpen, onOpenChange, onDataExtrac
             items: extractedData.items.map(item => ({
                 materialId: "", // Set empty materialId for user to map
                 description: item.description,
-                quantity: item.quantity,
+                quantity: item.quantity || 1,
                 unitPrice: item.unitPrice || 0,
                 batchNumber: "", // Add batch number field
             })),

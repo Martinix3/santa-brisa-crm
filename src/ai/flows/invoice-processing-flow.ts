@@ -33,7 +33,7 @@ const ProcessInvoiceOutputSchema = z.object({
   orderDate: z.string().describe("The issue date of the invoice in YYYY-MM-DD format."),
   items: z.array(z.object({
     description: z.string().describe("The description of the item or service."),
-    quantity: z.number().describe("The quantity of the item."),
+    quantity: z.number().optional().describe("The quantity of the item. If not specified, it will be considered as 1."),
     unitPrice: z.number().describe("The price per unit of the item, without tax."),
   })).describe("A list of all items from the invoice."),
   shippingCost: z.number().optional().describe("The shipping cost, if specified separately."),
@@ -51,7 +51,7 @@ const prompt = ai.definePrompt({
   name: 'invoiceProcessingPrompt',
   input: {schema: ProcessInvoiceInputSchema},
   output: {schema: ProcessInvoiceOutputSchema},
-  model: 'googleai/gemini-1.5-pro-latest',
+  model: 'googleai/gemini-1.5-flash-latest',
   prompt: `You are an expert accounting assistant. Your task is to extract structured information from an invoice file with the highest possible accuracy, especially with numbers.
 
 Analyze the provided invoice image or PDF and extract the following details. Be extremely precise.
@@ -74,7 +74,7 @@ Analyze the provided invoice image or PDF and extract the following details. Be 
 - **Supplier CIF/VAT ID**: Extract the supplier's tax identification number (CIF, NIF, VAT ID, etc.).
 - **Supplier Address**: Extract the supplier's full mailing address and break it down into structured fields: street, city, province, postal code, and country.
 - **Invoice Date**: Find the issue date and format it as YYYY-MM-DD.
-- **Line Items**: For each item in the main table, provide its description, quantity, and unit price (before tax). Remember your duty to calculate the unit price if the invoice shows a total line price.
+- **Line Items**: For each item in the main table, provide its description, quantity, and unit price (before tax). If quantity is not specified for an item, assume it is 1. Remember your duty to calculate the unit price if the invoice shows a total line price.
 - **Shipping Cost**: If there is a separate charge for shipping, delivery, or "portes", extract that value. If not present, this should be 0 or omitted.
 - **Tax Rate**: Identify the VAT or tax rate percentage (e.g., IVA 21%). If there are multiple, provide the most prominent one.
 - **Notes**: Extract any invoice number (Nº Factura), order number, or other relevant text notes from the document.

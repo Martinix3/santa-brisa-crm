@@ -1,10 +1,13 @@
 
 'use server';
 
-import type { Account, Order, TeamMember, EnrichedAccount } from '@/types';
-import { parseISO, isValid } from 'date-fns';
+import type { Account, Order, TeamMember, EnrichedAccount, AccountStatus } from '@/types';
+import { parseISO, isValid, addDays } from 'date-fns';
 import { calculateAccountStatus, calculateLeadScore } from '@/lib/account-logic';
 import { VALID_SALE_STATUSES } from '@/lib/constants';
+
+// Set a default date for interactions without one, to ensure they can be created.
+const defaultInteractionDate = () => addDays(new Date(), 7);
 
 /**
  * Processes raw accounts and interactions data to return enriched account objects for the Cartera view.
@@ -33,15 +36,24 @@ export async function processCarteraData(
         if (!ordersByAccount.has(accountIdToUse)) {
             ordersByAccount.set(accountIdToUse, []);
         }
+        
+        // Ensure every order has a valid date for sorting
+        if (!order.visitDate && !order.createdAt) {
+            (order as any).tempSortDate = defaultInteractionDate();
+        } else {
+             (order as any).tempSortDate = parseISO(order.visitDate || order.createdAt!);
+        }
+
         ordersByAccount.get(accountIdToUse)!.push(order);
     }
     
     // Sort interactions for each account by their effective date.
     for (const accountOrders of ordersByAccount.values()) {
         accountOrders.sort((a, b) => {
-            const dateA = a.visitDate ? parseISO(a.visitDate) : (a.createdAt ? parseISO(a.createdAt) : new Date(0));
-            const dateB = b.visitDate ? parseISO(b.visitDate) : (b.createdAt ? parseISO(b.createdAt) : new Date(0));
-            if (!isValid(dateA) || !isValid(dateB)) return 0;
+            const dateA = (a as any).tempSortDate;
+            const dateB = (b as any).tempSortDate;
+            if (!isValid(dateA)) return 1;
+            if (!isValid(dateB)) return -1;
             return dateB.getTime() - dateA.getTime();
         });
     }
@@ -54,8 +66,8 @@ export async function processCarteraData(
         const openTasks = accountOrders.filter(o => o.status === 'Programada' || o.status === 'Seguimiento');
 
         openTasks.sort((a, b) => {
-            const dateA = parseISO((a.status === 'Programada' ? a.visitDate : a.nextActionDate)!);
-            const dateB = parseISO((b.status === 'Programada' ? b.visitDate : b.nextActionDate)!);
+            const dateA = parseISO((a.status === 'Programada' ? a.visitDate : a.nextActionDate) || (a as any).tempSortDate);
+            const dateB = parseISO((b.status === 'Programada' ? b.visitDate : b.nextActionDate) || (b as any).tempSortDate);
             if (!isValid(dateA)) return 1; if (!isValid(dateB)) return -1;
             if (dateA.getTime() !== dateB.getTime()) return dateA.getTime() - dateB.getTime();
             if (a.status === 'Programada' && b.status !== 'Programada') return -1;
@@ -66,7 +78,7 @@ export async function processCarteraData(
         const nextInteraction = openTasks[0] || undefined;
         const lastInteractionOrder = accountOrders[0];
         const lastInteractionDate = lastInteractionOrder 
-            ? (lastInteractionOrder.visitDate ? parseISO(lastInteractionOrder.visitDate) : (lastInteractionOrder.createdAt ? parseISO(lastInteractionOrder.createdAt) : undefined)) 
+            ? ((lastInteractionOrder as any).tempSortDate) 
             : undefined;
 
         const status = await calculateAccountStatus(accountOrders, account);

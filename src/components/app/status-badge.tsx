@@ -7,7 +7,7 @@ import type { OrderStatus, AccountStatus, CrmEventStatus, PurchaseStatus, Sample
 
 type StatusBadgeProps = 
   | { type: 'order'; status: OrderStatus; className?: string; }
-  | { type: 'account'; status: AccountStatus; className?: string; }
+  | { type: 'account'; status: AccountStatus; isOverdue?: boolean; className?: string; }
   | { type: 'event'; status: CrmEventStatus; className?: string; }
   | { type: 'purchase'; status: PurchaseStatus; className?: string; }
   | { type: 'sampleRequest'; status: SampleRequestStatus; className?: string; }
@@ -30,15 +30,21 @@ const getOrderBadgeColorClass = (status: OrderStatus): string => {
   }
 };
 
-const getAccountBadgeColorClass = (status: AccountStatus): string => {
+const getAccountBadgeColorClass = (status: AccountStatus, isOverdue?: boolean): string => {
+  if (isOverdue) return 'bg-red-600 hover:bg-red-700 text-white';
+  
   switch (status) {
-    case 'Repetición': return 'bg-teal-500 hover:bg-teal-600 text-white';
-    case 'Primer Pedido': return 'bg-green-500 hover:bg-green-600 text-white';
-    case 'Programada': return 'bg-sky-500 hover:bg-sky-600 text-white';
-    case 'Seguimiento': return 'bg-yellow-400 hover:bg-yellow-500 text-black';
-    case 'Fallido': return 'bg-red-500 hover:bg-red-600 text-white';
-    case 'Inactivo': return 'bg-gray-400 hover:bg-gray-500 text-white';
-    default: return 'bg-gray-400 hover:bg-gray-500';
+    case 'Repetición':
+    case 'Pedido': 
+      return 'bg-green-100 text-green-800 border border-green-200';
+    case 'Programada': 
+      return 'bg-blue-100 text-blue-800 border border-blue-200';
+    case 'Seguimiento': 
+      return 'bg-yellow-100 text-yellow-800 border border-yellow-200';
+    case 'Fallido': 
+      return 'bg-red-100 text-red-800 border border-red-200';
+    default: 
+      return 'bg-gray-100 text-gray-800 border border-gray-200';
   }
 };
 
@@ -102,7 +108,7 @@ export default function StatusBadge(props: StatusBadgeProps) {
     badgeColorClass = getOrderBadgeColorClass(props.status);
     statusText = props.status;
   } else if (props.type === 'account') {
-    badgeColorClass = getAccountBadgeColorClass(props.status);
+    badgeColorClass = getAccountBadgeColorClass(props.status, props.isOverdue);
     statusText = props.status;
   } else if (props.type === 'event') {
     badgeColorClass = getEventBadgeColorClass(props.status);

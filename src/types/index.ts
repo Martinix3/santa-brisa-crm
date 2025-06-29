@@ -2,6 +2,7 @@
 
 
 
+
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
 
 export interface Kpi {
@@ -39,8 +40,8 @@ export interface TeamMember {
 // --- NEW DATA MODEL FROM SPEC ---
 
 export type PotencialType = 'alto' | 'medio' | 'bajo';
-export type AccountStatus = 'Programada' | 'Seguimiento' | 'Fallido' | 'Primer Pedido' | 'Repetición' | 'Inactivo';
-export const accountStatusList: AccountStatus[] = ['Programada', 'Seguimiento', 'Fallido', 'Primer Pedido', 'Repetición', 'Inactivo'];
+export type AccountStatus = 'Programada' | 'Seguimiento' | 'Pedido' | 'Repetición' | 'Fallido';
+export const accountStatusList: AccountStatus[] = ['Programada', 'Seguimiento', 'Pedido', 'Repetición', 'Fallido'];
 
 export type InteractionType = 'Visita' | 'Llamada' | 'Mail' | 'Otro';
 export type InteractionResult = 'Programada' | 'Requiere seguimiento' | 'Pedido Exitoso' | 'Fallida';

@@ -9,8 +9,10 @@ function getFirebaseAdminApp(): App {
         return getApps()[0];
     }
     
-    // Use the simplified initialization to allow App Hosting to provide credentials.
-    return initializeApp();
+    // Explicitly use Application Default Credentials. This is more robust for App Hosting.
+    return initializeApp({
+        credential: applicationDefault()
+    });
 }
 
 // Export a memoized instance of the storage bucket

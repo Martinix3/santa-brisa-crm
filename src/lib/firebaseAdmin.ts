@@ -16,20 +16,21 @@ function getFirebaseAdminApp(): App {
     return getApp();
   }
   
-  // Using applicationDefault handles authentication automatically in managed environments.
+  // This is the most explicit initialization. We tell the SDK to use the
+  // environment's default credentials but to specifically use our storage bucket.
   return initializeApp({
     credential: applicationDefault(),
+    storageBucket: BUCKET_NAME,
   });
 }
 
 /**
  * Gets the admin storage bucket instance.
- * This function must be async as required by Next.js for Server Actions.
  * @returns A promise that resolves to the Firebase Admin Storage Bucket instance.
  */
 export const getAdminBucket = async (): Promise<Bucket> => {
     const app = getFirebaseAdminApp();
-    // Explicitly get the bucket by name from the storage instance
-    // for maximum reliability in all environments.
-    return getStorage(app).bucket(BUCKET_NAME);
+    // Because we configured the bucket during initialization, we can now ask for
+    // the default bucket from the storage instance. This is the most reliable method.
+    return getStorage(app).bucket();
 }

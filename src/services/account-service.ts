@@ -23,7 +23,7 @@ const fromFirestore = (docSnap: DocumentSnapshot): Account => {
     nombre: data.nombre ?? data.name ?? data.nombreComercial ?? '',
     ciudad: data.ciudad || undefined,
     potencial: data.potencial || 'bajo',
-    responsableId: data.responsableId || '',
+    responsableId: data.responsableId || data.salesRepId || '',
     brandAmbassadorId: data.brandAmbassadorId || undefined,
 
     // The 'status' field from Firestore is now considered legacy.
@@ -50,29 +50,32 @@ const fromFirestore = (docSnap: DocumentSnapshot): Account => {
 };
 
 // This function is for the dialog, not the new model fully
-const toFirestore = (data: AccountFormValues, isNew: boolean): any => {
-  const firestoreData: { [key: string]: any } = {
-    nombre: data.name, // Mapping from dialog `name` to `nombre`
-    legalName: data.legalName || null,
-    cif: data.cif || null,
-    type: data.type, 
-    // NOTE: 'status' is now a calculated field. We no longer save a static status to Firestore.
-    iban: data.iban || null,
-    mainContactName: data.mainContactName || null,
-    mainContactEmail: data.mainContactEmail || null,
-    mainContactPhone: data.mainContactPhone || null,
-    notes: data.notes || null,
-    internalNotes: data.internalNotes || null,
-    responsableId: data.salesRepId || null, // Mapping salesRepId to responsableId
-    salesRepId: data.salesRepId || null,
-  };
+const toFirestore = (data: Partial<AccountFormValues>, isNew: boolean): any => {
+  const firestoreData: { [key: string]: any } = {};
   
-  // Set default potential if new
+  // Directly map provided fields
+  if (data.name) firestoreData.nombre = data.name;
+  if (data.legalName !== undefined) firestoreData.legalName = data.legalName || null;
+  if (data.cif !== undefined) firestoreData.cif = data.cif || null;
+  if (data.type) firestoreData.type = data.type;
+  if (data.iban !== undefined) firestoreData.iban = data.iban || null;
+  if (data.mainContactName !== undefined) firestoreData.mainContactName = data.mainContactName || null;
+  if (data.mainContactEmail !== undefined) firestoreData.mainContactEmail = data.mainContactEmail || null;
+  if (data.mainContactPhone !== undefined) firestoreData.mainContactPhone = data.mainContactPhone || null;
+  if (data.notes !== undefined) firestoreData.notes = data.notes || null;
+  if (data.internalNotes !== undefined) firestoreData.internalNotes = data.internalNotes || null;
+  
+  if (data.salesRepId !== undefined) {
+    firestoreData.responsableId = data.salesRepId || null; // Mapping salesRepId to responsableId
+    firestoreData.salesRepId = data.salesRepId || null;
+  }
+  
   if (isNew) {
       firestoreData.potencial = 'medio' as PotencialType;
   }
 
-  if (data.addressBilling_street || data.addressBilling_city || data.addressBilling_province || data.addressBilling_postalCode) {
+  const hasBillingAddress = data.addressBilling_street || data.addressBilling_city || data.addressBilling_province || data.addressBilling_postalCode;
+  if (hasBillingAddress) {
     firestoreData.addressBilling = {
       street: data.addressBilling_street || null,
       number: data.addressBilling_number || null,
@@ -81,17 +84,11 @@ const toFirestore = (data: AccountFormValues, isNew: boolean): any => {
       postalCode: data.addressBilling_postalCode || null,
       country: data.addressBilling_country || "España",
     };
-    if (data.addressBilling_city && !firestoreData.ciudad) {
-        firestoreData.ciudad = data.addressBilling_city; // Set 'ciudad' from billing city
-    }
-    Object.keys(firestoreData.addressBilling).forEach(key => {
-        if(firestoreData.addressBilling[key] === undefined) firestoreData.addressBilling[key] = null;
-    });
-  } else {
-    firestoreData.addressBilling = null;
+     if (data.addressBilling_city) firestoreData.ciudad = data.addressBilling_city;
   }
 
-  if (data.addressShipping_street || data.addressShipping_city || data.addressShipping_province || data.addressShipping_postalCode) {
+  const hasShippingAddress = data.addressShipping_street || data.addressShipping_city || data.addressShipping_province || data.addressShipping_postalCode;
+  if (hasShippingAddress) {
     firestoreData.addressShipping = {
       street: data.addressShipping_street || null,
       number: data.addressShipping_number || null,
@@ -100,14 +97,7 @@ const toFirestore = (data: AccountFormValues, isNew: boolean): any => {
       postalCode: data.addressShipping_postalCode || null,
       country: data.addressShipping_country || "España",
     };
-    if (data.addressShipping_city && !firestoreData.ciudad) {
-        firestoreData.ciudad = data.addressShipping_city; // Set 'ciudad' from shipping city if not set by billing
-    }
-     Object.keys(firestoreData.addressShipping).forEach(key => {
-        if(firestoreData.addressShipping[key] === undefined) firestoreData.addressShipping[key] = null;
-    });
-  } else {
-    firestoreData.addressShipping = null;
+    if (data.addressShipping_city && !firestoreData.ciudad) firestoreData.ciudad = data.addressShipping_city;
   }
 
   if (isNew) {
@@ -150,7 +140,7 @@ export const addAccountFS = async (data: AccountFormValues): Promise<string> => 
 
 export const updateAccountFS = async (id: string, data: Partial<AccountFormValues>): Promise<void> => {
   const accountDocRef = doc(db, ACCOUNTS_COLLECTION, id);
-  const firestoreData = toFirestore(data as any, false); 
+  const firestoreData = toFirestore(data, false); 
   await updateDoc(accountDocRef, firestoreData);
 };
 

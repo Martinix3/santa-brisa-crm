@@ -17,6 +17,6 @@ function getFirebaseAdminApp(): App {
     });
 }
 
-// Get a memoized instance of the storage service and use the default bucket
-// that was configured during app initialization. This is safer than specifying the name again.
-export const adminBucket = getStorage(getFirebaseAdminApp()).bucket();
+// Get a memoized instance of the storage service and explicitly provide the bucket name
+// to ensure it works reliably in all server environments.
+export const adminBucket = getStorage(getFirebaseAdminApp()).bucket(BUCKET_NAME);

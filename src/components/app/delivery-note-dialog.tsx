@@ -60,7 +60,7 @@ export default function DeliveryNoteDialog({ sale, account, isOpen, onOpenChange
             {/* Header */}
             <header className="flex justify-between items-start mb-6">
                  <div className="flex items-center space-x-3">
-                    <Image src="https://santabrisa.com/cdn/shop/files/clavista_300x.svg?v=1742854903" alt="Santa Brisa Logo" width={50} height={50} unoptimized={true} />
+                    <Image src="https://firebasestorage.googleapis.com/v0/b/santa-brisa-crm.appspot.com/o/logo%20santa%20brisa_sinfondo.png?alt=media&token=069a6659-7bed-4332-ac4d-5cddf1d31e29" alt="Santa Brisa Logo" width={50} height={50} />
                     <div>
                         <h2 className="font-bold text-base">Santa Brisa</h2>
                         <p>CIF: B00000000</p>

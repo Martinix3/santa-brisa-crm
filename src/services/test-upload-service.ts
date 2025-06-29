@@ -10,7 +10,7 @@ import { getAdminBucket } from '@/lib/firebaseAdmin';
  */
 export async function testUpload(fileData: { dataUri: string; contentType: string; }): Promise<{ url: string } | { error: string }> {
   try {
-    const adminBucket = getAdminBucket();
+    const adminBucket = await getAdminBucket();
     const { dataUri, contentType } = fileData;
     
     // Extract base64 data and MIME type from data URI

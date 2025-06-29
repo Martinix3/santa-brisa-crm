@@ -1,4 +1,6 @@
 
+'use server';
+
 import { initializeApp, getApps, App, applicationDefault, getApp } from 'firebase-admin/app';
 import { getStorage, Bucket } from 'firebase-admin/storage';
 
@@ -7,7 +9,8 @@ const BUCKET_NAME = 'santa-brisa-crm.appspot.com';
 /**
  * A memoized function to get the Firebase Admin App instance.
  * It initializes the app only if it hasn't been initialized yet.
- * This is crucial for serverless environments to avoid re-initialization errors.
+ * This pattern relies on Google Cloud's Application Default Credentials (ADC)
+ * to automatically handle authentication in a managed environment like App Hosting.
  * @returns The initialized Firebase Admin App instance.
  */
 function getFirebaseAdminApp(): App {
@@ -16,8 +19,7 @@ function getFirebaseAdminApp(): App {
     return getApp();
   }
   
-  // If not, initialize it with Application Default Credentials
-  // and the specific storage bucket.
+  // Initialize with default credentials. The environment will provide the details.
   return initializeApp({
     credential: applicationDefault(),
     storageBucket: BUCKET_NAME,
@@ -26,10 +28,12 @@ function getFirebaseAdminApp(): App {
 
 /**
  * Gets the admin storage bucket instance.
- * This function ensures the admin app is initialized before getting the bucket.
- * @returns The Firebase Admin Storage Bucket instance.
+ * This function ensures the admin app is initialized and then explicitly
+ * requests the desired bucket by name. This is the most robust method for
+ * server-side environments.
+ * @returns A promise that resolves to the Firebase Admin Storage Bucket instance.
  */
-export const getAdminBucket = (): Bucket => {
+export const getAdminBucket = async (): Promise<Bucket> => {
     const app = getFirebaseAdminApp();
     // Explicitly get the bucket by name from the storage instance
     // for maximum reliability in all environments.

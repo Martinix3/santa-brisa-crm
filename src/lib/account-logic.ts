@@ -14,40 +14,57 @@ export function calculateAccountStatus(
 ): AccountStatus {
     const now = startOfDay(new Date());
 
-    // Priority 1: Check for a future SCHEDULED VISIT.
-    const hasFutureVisit = ordersForAccount.some(o => {
-        return o.status === 'Programada' && o.visitDate && isValid(parseISO(o.visitDate)) && parseISO(o.visitDate) >= now;
-    });
-    if (hasFutureVisit) {
-        return 'Programada';
+    // Priority 1: Check for open tasks ('Programada' or 'Seguimiento').
+    const openTasks = ordersForAccount.filter(o =>
+        o.status === 'Programada' || o.status === 'Seguimiento'
+    );
+
+    if (openTasks.length > 0) {
+        // Sort open tasks to find the most relevant one (oldest date first, with 'Programada' having priority).
+        openTasks.sort((a, b) => {
+            const dateA = parseISO((a.status === 'Programada' ? a.visitDate : a.nextActionDate)!);
+            const dateB = parseISO((b.status === 'Programada' ? b.visitDate : b.nextActionDate)!);
+            
+            if (!isValid(dateA)) return 1;
+            if (!isValid(dateB)) return -1;
+            
+            // If dates are different, oldest comes first
+            if (dateA.getTime() !== dateB.getTime()) {
+                return dateA.getTime() - dateB.getTime();
+            }
+            
+            // If dates are the same, 'Programada' has priority over 'Seguimiento'
+            if (a.status === 'Programada' && b.status !== 'Programada') return -1;
+            if (b.status === 'Programada' && a.status !== 'Programada') return 1;
+            
+            return 0;
+        });
+        
+        const priorityTask = openTasks[0];
+        // The account status directly reflects the status of the highest priority open task.
+        return priorityTask.status as AccountStatus; // We know it's either 'Programada' or 'Seguimiento'
     }
 
-    // Priority 2: If no future visit, check for a future FOLLOW-UP TASK.
-    const hasFutureFollowUp = ordersForAccount.some(o => {
-        return o.status === 'Seguimiento' && o.nextActionDate && isValid(parseISO(o.nextActionDate)) && parseISO(o.nextActionDate) >= now;
-    });
-    if (hasFutureFollowUp) {
-        return 'Seguimiento';
-    }
-    
-    // --- If no future tasks, analyze past interactions ---
-    const allInteractionsSorted = [...ordersForAccount].sort((a, b) => {
-        const dateA = a.visitDate ? parseISO(a.visitDate) : (a.createdAt ? parseISO(a.createdAt) : new Date(0));
-        const dateB = b.visitDate ? parseISO(b.visitDate) : (b.createdAt ? parseISO(b.createdAt) : new Date(0));
-        if (!isValid(dateA)) return 1;
-        if (!isValid(dateB)) return -1;
-        return dateB.getTime() - dateA.getTime();
-    });
+    // --- If no open tasks, analyze the most recent closed interaction ---
+    const closedInteractions = ordersForAccount
+        .filter(o => o.status !== 'Programada' && o.status !== 'Seguimiento')
+        .sort((a, b) => {
+            const dateA = a.visitDate ? parseISO(a.visitDate) : (a.createdAt ? parseISO(a.createdAt) : new Date(0));
+            const dateB = b.visitDate ? parseISO(b.visitDate) : (b.createdAt ? parseISO(b.createdAt) : new Date(0));
+            if (!isValid(dateA)) return 1;
+            if (!isValid(dateB)) return -1;
+            return dateB.getTime() - dateA.getTime();
+        });
 
-    const lastInteraction = allInteractionsSorted[0];
-    const successfulOrders = ordersForAccount.filter(o => VALID_SALE_STATUSES.includes(o.status));
+    const lastClosedInteraction = closedInteractions[0];
 
-    // Priority 3: Last interaction was a failure.
-    if (lastInteraction && lastInteraction.status === 'Fallido') {
+    // Priority 2: Last closed interaction was a failure.
+    if (lastClosedInteraction && lastClosedInteraction.status === 'Fallido') {
         return 'Fallido';
     }
 
-    // Priority 4: Has successful orders.
+    // Priority 3: Has successful orders.
+    const successfulOrders = ordersForAccount.filter(o => VALID_SALE_STATUSES.includes(o.status));
     if (successfulOrders.length >= 2) {
         return 'Repetición';
     }
@@ -55,11 +72,11 @@ export function calculateAccountStatus(
         return 'Primer Pedido';
     }
 
-    // Priority 5: Default cases based on age and past activity.
-    if (lastInteraction) { // Has past interactions but no sales or failures
+    // Priority 4: Default cases. If there are any past interactions, it needs follow up.
+    if (ordersForAccount.length > 0) {
         return 'Seguimiento';
     }
-
+    
     // No interactions at all. Check age.
     if (account.createdAt && isValid(parseISO(account.createdAt)) && differenceInDays(now, parseISO(account.createdAt)) > 90) {
         return 'Inactivo';

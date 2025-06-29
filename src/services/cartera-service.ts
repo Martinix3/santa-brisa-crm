@@ -51,13 +51,31 @@ export async function processCarteraData(
     const enrichedAccountsPromises = accounts.map(async (account) => {
         const accountOrders = ordersByAccount.get(account.id) || [];
         
-        const openTasks = accountOrders.filter(o => 
-            (o.status === 'Programada' || o.status === 'Seguimiento') &&
-            (o.status === 'Programada' ? o.visitDate : o.nextActionDate) &&
-            isValid(parseISO((o.status === 'Programada' ? o.visitDate : o.nextActionDate)!))
-        ).sort((a,b) => parseISO((a.status === 'Programada' ? a.visitDate : a.nextActionDate)!).getTime() - parseISO((b.status === 'Programada' ? b.visitDate : b.nextActionDate)!).getTime());
+        // Find open tasks and sort them to find the highest priority one.
+        const openTasks = accountOrders.filter(o =>
+            o.status === 'Programada' || o.status === 'Seguimiento'
+        );
 
-        const nextInteraction = openTasks.find(o => parseISO((o.status === 'Programada' ? o.visitDate : o.nextActionDate)!) >= startOfDay(new Date())) || undefined;
+        openTasks.sort((a, b) => {
+            const dateA = parseISO((a.status === 'Programada' ? a.visitDate : a.nextActionDate)!);
+            const dateB = parseISO((b.status === 'Programada' ? b.visitDate : b.nextActionDate)!);
+            
+            if (!isValid(dateA)) return 1;
+            if (!isValid(dateB)) return -1;
+            
+            // If dates are different, oldest comes first
+            if (dateA.getTime() !== dateB.getTime()) {
+                return dateA.getTime() - dateB.getTime();
+            }
+            
+            // If dates are the same, 'Programada' has priority over 'Seguimiento'
+            if (a.status === 'Programada' && b.status !== 'Programada') return -1;
+            if (b.status === 'Programada' && a.status !== 'Programada') return 1;
+            
+            return 0;
+        });
+
+        const nextInteraction = openTasks[0] || undefined;
 
         const lastInteractionOrder = accountOrders[0];
         const lastInteractionDate = lastInteractionOrder 

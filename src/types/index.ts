@@ -39,6 +39,8 @@ export interface TeamMember {
 
 export type PotencialType = 'alto' | 'medio' | 'bajo';
 export type AccountStatus = 'Programada' | 'Seguimiento' | 'Fallido' | 'Primer Pedido' | 'Repetición' | 'Inactivo';
+export const accountStatusList: AccountStatus[] = ['Programada', 'Seguimiento', 'Fallido', 'Primer Pedido', 'Repetición', 'Inactivo'];
+
 export type InteractionType = 'Visita' | 'Llamada' | 'Mail' | 'Otro';
 export type InteractionResult = 'Programada' | 'Requiere seguimiento' | 'Pedido Exitoso' | 'Fallida';
 
@@ -451,4 +453,5 @@ export interface FollowUpResultFormValues {
 }
 
 // New Enums from Spec
-export const newAccountStatusList: AccountStatus[] = ['Programada', 'Seguimiento', 'Fallido', 'Primer Pedido', 'Repetición', 'Inactivo'];
+export const interactionTypeList: InteractionType[] = ['Visita', 'Llamada', 'Mail', 'Otro'];
+export const interactionResultList: InteractionResult[] = ['Programada', 'Requiere seguimiento', 'Pedido Exitoso', 'Fallida'];

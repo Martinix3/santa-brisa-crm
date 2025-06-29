@@ -13,7 +13,6 @@ export const mockPurchases: Purchase[] = [];
 
 // New Enums from Spec
 export const potencialTypeList: PotencialType[] = ['alto', 'medio', 'bajo'];
-export const newAccountStatusList: AccountStatus[] = ['Programado', 'Seguimiento', 'Primer Pedido', 'Repetición', 'Inactivo'];
 export const interactionTypeList: InteractionType[] = ['Visita', 'Llamada', 'Mail', 'Otro'];
 export const interactionResultList: InteractionResult[] = ['Programada', 'Requiere seguimiento', 'Pedido Exitoso', 'Fallida'];
 
@@ -35,7 +34,6 @@ export const mockMarketingResources: MarketingResourceCategory[] = [
 
 export const userRolesList: UserRole[] = ['Admin', 'SalesRep', 'Distributor', 'Clavadista'];
 export const accountTypeList: AccountType[] = ['HORECA', 'Distribuidor', 'Retail Minorista', 'Gran Superficie', 'Evento Especial', 'Cliente Final Directo', 'Importador', 'Otro'];
-export const accountStatusList: ('Activo' | 'Inactivo' | 'Potencial' | 'Bloqueado')[] = ['Activo', 'Inactivo', 'Potencial', 'Bloqueado']; // Legacy status
 export const promotionalMaterialTypeList: PromotionalMaterialType[] = ['Merchandising Físico', 'Material PLV', 'Servicio de Personal', 'Digital/Software'];
 export const crmEventTypeList: CrmEventType[] = ['Activación en Tienda', 'Feria Comercial', 'Evento Corporativo', 'Degustación', 'Patrocinio', 'Activación', 'Otro'];
 export const crmEventStatusList: CrmEventStatus[] = ['Planificado', 'Confirmado', 'En Curso', 'Completado', 'Cancelado', 'Pospuesto'];

@@ -5,7 +5,6 @@ import { initializeApp, getApps, App, applicationDefault, getApp } from 'firebas
 import { getStorage, Bucket } from 'firebase-admin/storage';
 
 const BUCKET_NAME = 'santa-brisa-crm.appspot.com';
-const PROJECT_ID = 'santa-brisa-crm';
 
 /**
  * A memoized function to get the Firebase Admin App instance.
@@ -20,20 +19,15 @@ function getFirebaseAdminApp(): App {
     return getApp();
   }
   
-  // Initialize with default credentials AND explicitly set the projectID and storage bucket.
-  // This provides the Admin SDK with all necessary context, preventing token refresh errors
-  // that can occur in some server environments when auto-detection is not sufficient.
+  // Initialize with default credentials. In a managed environment,
+  // the SDK will automatically discover service account credentials.
   return initializeApp({
     credential: applicationDefault(),
-    projectId: PROJECT_ID,
-    storageBucket: BUCKET_NAME,
   });
 }
 
 /**
  * Gets the admin storage bucket instance.
- * This function ensures the admin app is initialized and then explicitly
- * requests the desired bucket by name.
  * This function must be async as required by Next.js for Server Actions.
  * @returns A promise that resolves to the Firebase Admin Storage Bucket instance.
  */

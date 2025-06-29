@@ -21,6 +21,8 @@ import { db } from "@/lib/firebase";
 import { runTransaction, doc, collection } from "firebase/firestore";
 import { ADMIN_SELF_REGISTER_VALUE, NO_CLAVADISTA_VALUE } from '@/lib/schemas/order-form-schema';
 import FollowUpResultDialog from "@/components/app/follow-up-result-dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
 
 type BucketFilter = "Todos" | "Vencidas" | "Para Hoy" | "Pendientes";
 
@@ -167,7 +169,7 @@ export default function AccountsPage() {
 
             const newInteractionData: any = {
                 clientName: originalTask.clientName,
-                accountId: originalTask.accountId,
+                accountId: originalTask.accountId || null,
                 visitDate: new Date(),
                 createdAt: new Date(),
                 lastUpdated: new Date(),
@@ -273,8 +275,8 @@ export default function AccountsPage() {
                         <th className="w-[13%] text-right pr-4 font-medium text-muted-foreground p-2">Acciones</th>
                         </tr>
                     </thead>
-                    <AccountGroup title="Potenciales" accounts={potentialAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onOpenFollowUpDialog={handleOpenFollowUpDialog} />
                     <AccountGroup title="Activos" accounts={activeAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onOpenFollowUpDialog={handleOpenFollowUpDialog}/>
+                    <AccountGroup title="Potenciales" accounts={potentialAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onOpenFollowUpDialog={handleOpenFollowUpDialog} />
                     <AccountGroup title="Fallidos" accounts={failedAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onOpenFollowUpDialog={handleOpenFollowUpDialog}/>
                 </table>
             )}

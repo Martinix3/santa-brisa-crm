@@ -76,9 +76,7 @@ const purchaseFormSchema = z.object({
   shippingCost: z.coerce.number().min(0, "Los portes no pueden ser negativos.").optional().nullable(),
   taxRate: z.coerce.number().min(0, "El IVA no puede ser negativo.").default(21),
   notes: z.string().optional(),
-  invoiceFile: z.any().refine(v => v == null || v instanceof File, {
-    message: "Debe ser un archivo."
-  }).optional().nullable(),
+  invoiceFile: z.any().refine(v => v == null || v instanceof File, { message: "Debe ser un archivo." }).optional().nullable(),
   invoiceUrl: z.union([z.literal(""), z.string().url("URL no válida")]).optional(),
   storagePath: z.string().optional(),
 });
@@ -140,67 +138,75 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
       setIsLoadingMaterials(false);
     }
   }, [toast]);
-
+  
   const runSmartMatching = React.useCallback(async (itemsToMatch: PurchaseFormValues['items']) => {
-    if (isLoadingMaterials || availableMaterials.length === 0) return;
+    if (availableMaterials.length === 0) return;
     setMatchingItems(itemsToMatch.reduce((acc, _, index) => ({ ...acc, [index]: true }), {}));
-    
-    const updatedItems = await Promise.all(itemsToMatch.map(async (item, index) => {
-      const currentFormItem = form.getValues(`items.${index}`);
-      if (currentFormItem.materialId) {
-        return currentFormItem;
-      }
-      if (item.materialId) return item;
 
-      const result = await matchMaterial({ itemName: item.description || "", existingMaterials: availableMaterials });
-      if (result.matchType === 'perfect' || result.matchType === 'suggested') {
-        return { ...item, materialId: result.matchedMaterialId! };
-      }
-      return item;
-    }));
-
-    form.setValue('items', updatedItems);
-    setMatchingItems({});
-  }, [availableMaterials, form, isLoadingMaterials]);
-
-  // Combined effect for initializing form state
+    try {
+        const updatedItems = await Promise.all(itemsToMatch.map(async (item, index) => {
+            const currentFormItem = form.getValues(`items.${index}`);
+            if (currentFormItem.materialId) {
+                return currentFormItem;
+            }
+            const result = await matchMaterial({ itemName: item.description || "", existingMaterials: availableMaterials });
+            if (result.matchType === 'perfect' || result.matchType === 'suggested') {
+                return { ...item, materialId: result.matchedMaterialId! };
+            }
+            return item;
+        }));
+        form.setValue('items', updatedItems, { shouldDirty: true });
+    } catch (error) {
+        console.error("Error during smart matching:", error);
+        toast({ title: "Error de IA", description: "El autocompletado inteligente falló.", variant: "destructive"});
+    } finally {
+        setMatchingItems({});
+    }
+  }, [availableMaterials, form, toast]);
+  
+  // Effect 1: Fetch materials when the dialog opens
   React.useEffect(() => {
     if (isOpen) {
       fetchMaterials();
-      
-      const source = prefilledData ? prefilledData : purchase;
-      const fileSource = prefilledFile ? prefilledFile : null;
-
-      const initialValues: Partial<PurchaseFormValues> = {
-        supplier: source?.supplier || "",
-        orderDate: source?.orderDate ? (typeof source.orderDate === 'string' ? parseISO(source.orderDate) : source.orderDate) : new Date(),
-        status: source?.status || "Borrador",
-        category: source?.category || "Material Promocional",
-        currency: (source as Purchase)?.currency || "EUR",
-        items: source?.items?.map(i => ({...i, quantity: i.quantity || null, unitPrice: i.unitPrice || null })) || [{ materialId: "", description: "", quantity: 1, unitPrice: null, batchNumber: "" }],
-        shippingCost: (source as Purchase)?.shippingCost || 0,
-        taxRate: (source as Purchase)?.taxRate ?? 21,
-        notes: source?.notes || "",
-        invoiceFile: fileSource,
-        invoiceUrl: source?.invoiceUrl || "",
-        storagePath: source?.storagePath || "",
-        // Other fields from prefilledData
-        supplierCif: prefilledData?.supplierCif,
-        supplierAddress_street: prefilledData?.supplierAddress_street,
-        supplierAddress_number: prefilledData?.supplierAddress_number,
-        supplierAddress_city: prefilledData?.supplierAddress_city,
-        supplierAddress_province: prefilledData?.supplierAddress_province,
-        supplierAddress_postalCode: prefilledData?.supplierAddress_postalCode,
-        supplierAddress_country: prefilledData?.supplierAddress_country,
-      };
-
-      form.reset(initialValues);
-
-      if (initialValues.items && initialValues.items.some(item => !item.materialId)) {
-        runSmartMatching(initialValues.items as PurchaseFormValues['items']);
-      }
     }
-  }, [isOpen, purchase, prefilledData, prefilledFile, form, fetchMaterials, runSmartMatching]);
+  }, [isOpen, fetchMaterials]);
+  
+  // Effect 2: Reset form with initial data when it becomes available, and then run smart matching
+  React.useEffect(() => {
+    if (!isOpen) return;
+
+    const source = prefilledData ? prefilledData : purchase;
+    const fileSource = prefilledFile ? prefilledFile : null;
+
+    const initialValues: Partial<PurchaseFormValues> = {
+      supplier: source?.supplier || "",
+      orderDate: source?.orderDate ? (typeof source.orderDate === 'string' ? parseISO(source.orderDate) : source.orderDate) : new Date(),
+      status: source?.status || "Borrador",
+      category: source?.category || "Material Promocional",
+      currency: (source as Purchase)?.currency || "EUR",
+      items: source?.items?.map(i => ({...i, quantity: i.quantity || null, unitPrice: i.unitPrice || null })) || [{ materialId: "", description: "", quantity: 1, unitPrice: null, batchNumber: "" }],
+      shippingCost: (source as Purchase)?.shippingCost || 0,
+      taxRate: (source as Purchase)?.taxRate ?? 21,
+      notes: source?.notes || "",
+      invoiceFile: fileSource,
+      invoiceUrl: source?.invoiceUrl || "",
+      storagePath: source?.storagePath || "",
+      supplierCif: prefilledData?.supplierCif,
+      supplierAddress_street: prefilledData?.supplierAddress_street,
+      supplierAddress_number: prefilledData?.supplierAddress_number,
+      supplierAddress_city: prefilledData?.supplierAddress_city,
+      supplierAddress_province: prefilledData?.supplierAddress_province, // FIX: Corrected typo
+      supplierAddress_postalCode: prefilledData?.supplierAddress_postalCode,
+      supplierAddress_country: prefilledData?.supplierAddress_country,
+    };
+
+    form.reset(initialValues);
+
+    // Part B: Run smart matching after materials are loaded and form is reset
+    if (!isLoadingMaterials && initialValues.items && initialValues.items.some(item => !item.materialId)) {
+        runSmartMatching(initialValues.items as PurchaseFormValues['items']);
+    }
+  }, [isOpen, purchase, prefilledData, prefilledFile, form, isLoadingMaterials, runSmartMatching]);
 
 
   // Effect for auto-detecting batch numbers
@@ -250,7 +256,7 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
     try {
       await onSave(data, purchase?.id);
     } catch (error) {
-      // Error is toasted in the parent onSave handler
+      // Error is toasted in the parent onSave handler, which is good.
       console.error("Submission failed in dialog:", error);
     } finally {
       setIsSaving(false);

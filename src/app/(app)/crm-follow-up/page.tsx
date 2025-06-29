@@ -4,10 +4,10 @@
 import * as React from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { getAccountsFS } from "@/services/account-service";
-import { getInteractionsFS } from "@/services/interaction-service";
+import { getOrdersFS } from "@/services/order-service"; 
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { processCarteraData, type TaskBucket } from "@/services/cartera-service";
-import type { Account, Interaction, TeamMember, EnrichedAccount } from "@/types";
+import type { Account, Order, TeamMember, EnrichedAccount } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -47,13 +47,13 @@ export default function CarteraPage() {
         async function loadCarteraData() {
             setIsLoading(true);
             try {
-                const [accounts, interactions, teamMembers] = await Promise.all([
+                const [accounts, orders, teamMembers] = await Promise.all([
                     getAccountsFS(),
-                    getInteractionsFS(),
+                    getOrdersFS(),
                     getTeamMembersFS()
                 ]);
                 
-                let processedData = await processCarteraData(accounts as any, interactions, teamMembers);
+                let processedData = await processCarteraData(accounts, orders, teamMembers);
                 
                 if (userRole === 'SalesRep' && teamMember) {
                     processedData = processedData.filter(acc => acc.responsableId === teamMember.id);
@@ -78,7 +78,7 @@ export default function CarteraPage() {
         if(activeBucket !== 'all') {
             accountsToFilter = accountsToFilter.filter(acc => {
                 if (!acc.nextInteraction) return false;
-                const nextDate = parseISO(acc.nextInteraction.fecha_prevista);
+                const nextDate = parseISO((acc.nextInteraction.status === 'Programada' ? acc.nextInteraction.visitDate : acc.nextInteraction.nextActionDate)!);
                 const today = new Date();
                 today.setHours(0,0,0,0);
                 
@@ -112,7 +112,7 @@ export default function CarteraPage() {
 
     const taskCounts = enrichedAccounts.reduce((acc, account) => {
         if (!account.nextInteraction) return acc;
-        const nextDate = parseISO(account.nextInteraction.fecha_prevista);
+        const nextDate = parseISO((account.nextInteraction.status === 'Programada' ? account.nextInteraction.visitDate : account.nextInteraction.nextActionDate)!);
         const today = new Date();
         today.setHours(0,0,0,0);
 
@@ -129,14 +129,14 @@ export default function CarteraPage() {
             <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-center space-x-2">
                     <ClipboardList className="h-8 w-8 text-primary" />
-                    <h1 className="text-3xl font-headline font-semibold">Cartera de Cuentas</h1>
+                    <h1 className="text-3xl font-headline font-semibold">Panel de Actividad Comercial</h1>
                 </div>
             </header>
             
             <Card>
                 <CardHeader>
-                    <CardTitle>Gestión de Cartera</CardTitle>
-                    <CardDescription>Visualiza el estado de tus cuentas, próximas acciones y prioridades. Haz clic en una cuenta para ver más detalles.</CardDescription>
+                    <CardTitle>Gestión de Tareas y Seguimientos</CardTitle>
+                    <CardDescription>Visualiza las tareas pendientes, vencidas y programadas para hoy. Haz clic en una cuenta para ver más detalles.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
@@ -174,8 +174,8 @@ export default function CarteraPage() {
                                             <Link href={`/accounts/${acc.id}`} className="hover:underline text-primary">{acc.nombre}</Link>
                                         </TableCell>
                                         <TableCell><StatusBadge type="account" status={acc.status} /></TableCell>
-                                        <TableCell>{acc.nextInteraction?.tipo || '—'}</TableCell>
-                                        <TableCell>{acc.nextInteraction ? format(parseISO(acc.nextInteraction.fecha_prevista), 'dd/MM/yyyy') : '—'}</TableCell>
+                                        <TableCell>{acc.nextInteraction?.nextActionType || '—'}</TableCell>
+                                        <TableCell>{acc.nextInteraction ? format(parseISO((acc.nextInteraction.status === 'Programada' ? acc.nextInteraction.visitDate : acc.nextInteraction.nextActionDate)!), 'dd/MM/yyyy') : '—'}</TableCell>
                                         <TableCell><LeadScoreBadge score={acc.leadScore} /></TableCell>
                                         <TableCell>{acc.ciudad || 'N/D'}</TableCell>
                                     </TableRow>
@@ -195,4 +195,3 @@ export default function CarteraPage() {
         </div>
     );
 }
-

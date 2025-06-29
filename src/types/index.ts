@@ -38,8 +38,7 @@ export interface TeamMember {
 // --- NEW DATA MODEL FROM SPEC ---
 
 export type PotencialType = 'alto' | 'medio' | 'bajo';
-// Combined old and new statuses for transition period.
-export type AccountStatus = 'Programado' | 'Seguimiento' | 'Primer Pedido' | 'Repetición' | 'Inactivo' | 'Activo' | 'Potencial' | 'Bloqueado';
+export type AccountStatus = 'Programada' | 'Seguimiento' | 'Fallido' | 'Primer Pedido' | 'Repetición' | 'Inactivo';
 export type InteractionType = 'Visita' | 'Llamada' | 'Mail' | 'Otro';
 export type InteractionResult = 'Programada' | 'Requiere seguimiento' | 'Pedido Exitoso' | 'Fallida';
 
@@ -64,8 +63,7 @@ export interface Account {
   responsableId: string; // FK to TeamMember
   brandAmbassadorId?: string; // FK to TeamMember (Clavadista)
   
-  // This can hold a legacy status or a new calculated status.
-  status: AccountStatus;
+  status: AccountStatus; // This is now a calculated field in EnrichedAccount, but the type is reused. The raw field may be deprecated.
   leadScore: number;
   nextInteraction?: Interaction;
 
@@ -416,7 +414,6 @@ export interface AccountFormValues {
   legalName?: string;
   cif: string;
   type: AccountType;
-  status: 'Activo' | 'Inactivo' | 'Potencial' | 'Bloqueado'; // Old status type for account dialog
   iban?: string;
   addressBilling_street?: string;
   addressBilling_number?: string;
@@ -454,4 +451,4 @@ export interface FollowUpResultFormValues {
 }
 
 // New Enums from Spec
-export const newAccountStatusList: AccountStatus[] = ['Programado', 'Seguimiento', 'Primer Pedido', 'Repetición', 'Inactivo'];
+export const newAccountStatusList: AccountStatus[] = ['Programada', 'Seguimiento', 'Fallido', 'Primer Pedido', 'Repetición', 'Inactivo'];

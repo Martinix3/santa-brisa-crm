@@ -7,7 +7,7 @@ import type { OrderStatus, AccountStatus, CrmEventStatus, PurchaseStatus, Sample
 
 type StatusBadgeProps = 
   | { type: 'order'; status: OrderStatus; className?: string; }
-  | { type: 'account'; status: AccountStatus | ('Activo' | 'Inactivo' | 'Potencial' | 'Bloqueado'); className?: string; } // Allow both new and old status for transition
+  | { type: 'account'; status: AccountStatus; className?: string; }
   | { type: 'event'; status: CrmEventStatus; className?: string; }
   | { type: 'purchase'; status: PurchaseStatus; className?: string; }
   | { type: 'sampleRequest'; status: SampleRequestStatus; className?: string; }
@@ -30,19 +30,14 @@ const getOrderBadgeColorClass = (status: OrderStatus): string => {
   }
 };
 
-const getAccountBadgeColorClass = (status: AccountStatus | string): string => {
+const getAccountBadgeColorClass = (status: AccountStatus): string => {
   switch (status) {
-    // New statuses from spec
-    case 'Primer Pedido': return 'bg-green-500 hover:bg-green-600 text-white';
     case 'Repetición': return 'bg-teal-500 hover:bg-teal-600 text-white';
-    case 'Programado': return 'bg-sky-500 hover:bg-sky-600 text-white';
+    case 'Primer Pedido': return 'bg-green-500 hover:bg-green-600 text-white';
+    case 'Programada': return 'bg-sky-500 hover:bg-sky-600 text-white';
     case 'Seguimiento': return 'bg-yellow-400 hover:bg-yellow-500 text-black';
+    case 'Fallido': return 'bg-red-500 hover:bg-red-600 text-white';
     case 'Inactivo': return 'bg-gray-400 hover:bg-gray-500 text-white';
-
-    // Legacy statuses for compatibility
-    case 'Activo': return 'bg-green-500 hover:bg-green-600 text-white';
-    case 'Potencial': return 'bg-yellow-400 hover:bg-yellow-500 text-black';
-    case 'Bloqueado': return 'bg-red-500 hover:bg-red-600 text-white';
     default: return 'bg-gray-400 hover:bg-gray-500';
   }
 };

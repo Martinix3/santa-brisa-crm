@@ -33,8 +33,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Account, AccountType, AccountStatus, TeamMember, AddressDetails } from "@/types";
-import { accountTypeList, newAccountStatusList as accountStatusList } from "@/lib/data"; 
+import type { Account, AccountType, TeamMember, AddressDetails } from "@/types";
+import { accountTypeList, provincesSpainList } from "@/lib/data"; 
 import { Loader2 } from "lucide-react";
 import { Separator } from "../ui/separator";
 import { getTeamMembersFS } from "@/services/team-member-service";
@@ -53,7 +53,6 @@ const accountFormSchemaBase = z.object({
     message: "Formato de CIF/NIF no válido. Use 1 letra, 7 números y 1 carácter de control.",
   }),
   type: z.enum(accountTypeList as [AccountType, ...AccountType[]], { required_error: "El tipo de cuenta es obligatorio." }),
-  status: z.enum(accountStatusList as [AccountStatus, ...AccountStatus[]], { required_error: "El estado de la cuenta es obligatorio." }),
   iban: z.string().optional(),
   
   // Campos de dirección de facturación desglosados
@@ -136,7 +135,7 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
   const form = useForm<AccountFormValues>({
     resolver: zodResolver(accountFormSchema),
     defaultValues: {
-      name: "", legalName: "", cif: "", type: undefined, status: "Seguimiento", iban: "",
+      name: "", legalName: "", cif: "", type: undefined, iban: "",
       addressBilling_street: "", addressBilling_number: "", addressBilling_city: "", addressBilling_province: "", addressBilling_postalCode: "", addressBilling_country: "España",
       addressShipping_street: "", addressShipping_number: "", addressShipping_city: "", addressShipping_province: "", addressShipping_postalCode: "", addressShipping_country: "España",
       mainContactName: "", mainContactEmail: "", mainContactPhone: "", notes: "", internalNotes: "", salesRepId: NO_SALES_REP_VALUE,
@@ -160,7 +159,6 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
           legalName: account.legalName || "", 
           cif: account.cif || "", 
           type: account.type, 
-          status: account.status,
           iban: account.iban || "",
           addressBilling_street: account.addressBilling?.street || "",
           addressBilling_number: account.addressBilling?.number || "",
@@ -183,7 +181,7 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
         });
       } else {
         form.reset({ 
-          name: "", legalName: "", cif: "", type: undefined, status: "Seguimiento", iban: "",
+          name: "", legalName: "", cif: "", type: undefined, iban: "",
           addressBilling_street: "", addressBilling_number: "", addressBilling_city: "", addressBilling_province: "", addressBilling_postalCode: "", addressBilling_country: "España",
           addressShipping_street: "", addressShipping_number: "", addressShipping_city: "", addressShipping_province: "", addressShipping_postalCode: "", addressShipping_country: "España",
           mainContactName: "", mainContactEmail: "", mainContactPhone: "", 
@@ -222,10 +220,9 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
                 <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Nombre Comercial</FormLabel><FormControl><Input placeholder="Ej: Bar Manolo" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="legalName" render={({ field }) => (<FormItem><FormLabel>Nombre Fiscal (Opcional)</FormLabel><FormControl><Input placeholder="Ej: Restauración Manolo S.L." {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
             </div>
-            <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF/NIF (Opcional)</FormLabel><FormControl><Input placeholder="Identificador fiscal" {...field} value={field.value ?? ""} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF/NIF (Opcional)</FormLabel><FormControl><Input placeholder="Identificador fiscal" {...field} value={field.value ?? ""} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="type" render={({ field }) => (<FormItem><FormLabel>Tipo de Cuenta</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un tipo" /></SelectTrigger></FormControl><SelectContent>{accountTypeList.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado de la Cuenta</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un estado" /></SelectTrigger></FormControl><SelectContent>{accountStatusList.map(status => (<SelectItem key={status} value={status}>{status}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
             </div>
             
             <Separator className="my-4"/><h3 className="text-md font-medium text-muted-foreground">Datos Financieros</h3>

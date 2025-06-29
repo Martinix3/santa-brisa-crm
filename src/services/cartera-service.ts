@@ -3,41 +3,49 @@
 
 import type { Account, Order, TeamMember, AccountStatus, EnrichedAccount, PotencialType } from '@/types';
 import { parseISO, differenceInDays, isValid, startOfDay } from 'date-fns';
+import { VALID_SALE_STATUSES } from '@/lib/constants';
+
 
 /**
  * Calculates the current status of an account based on its interactions.
  * The rules are applied in a specific priority order.
  */
-function calculateAccountStatus(
+export async function calculateAccountStatus(
     ordersForAccount: Order[],
-    lastInteractionDate?: Date
-): AccountStatus {
-    const now = new Date();
+    account: Pick<Account, 'createdAt'>
+): Promise<AccountStatus> {
+    const now = startOfDay(new Date());
 
-    // Priority 1: Check for future tasks.
-    const futureTasks = ordersForAccount.filter(o =>
-        (o.status === 'Programada' || o.status === 'Seguimiento') &&
-        (o.status === 'Programada' ? o.visitDate : o.nextActionDate) &&
-        isValid(parseISO(o.status === 'Programada' ? o.visitDate! : o.nextActionDate!)) &&
-        parseISO(o.status === 'Programada' ? o.visitDate! : o.nextActionDate!) >= startOfDay(now)
-    );
-    
-    if (futureTasks.length > 0) {
-        // A scheduled visit takes precedence over a follow-up task.
-        const hasProgramadaVisit = futureTasks.some(o => o.status === 'Programada');
-        if (hasProgramadaVisit) {
-            return 'Programado';
-        }
+    // Priority 1: Check for ANY future tasks (Programada or Seguimiento).
+    const hasFutureTask = ordersForAccount.some(o => {
+        if (o.status !== 'Programada' && o.status !== 'Seguimiento') return false;
+        const dateField = o.status === 'Programada' ? o.visitDate : o.nextActionDate;
+        return dateField && isValid(parseISO(dateField)) && parseISO(dateField) >= now;
+    });
 
-        const hasSeguimiento = futureTasks.some(o => o.status === 'Seguimiento');
-        if (hasSeguimiento) {
-            return 'Seguimiento';
-        }
+    if (hasFutureTask) {
+        return 'Programada';
     }
 
-    // If no future tasks, continue with existing logic.
-    // Priority 2: Has a sales history.
-    const successfulOrders = ordersForAccount.filter(o => ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Completado'].includes(o.status));
+    // --- If no future tasks, analyze past interactions ---
+    // Sort all interactions by the most relevant date to find the last one.
+    const allInteractionsSorted = [...ordersForAccount].sort((a, b) => {
+        const dateA = a.visitDate ? parseISO(a.visitDate) : (a.createdAt ? parseISO(a.createdAt) : new Date(0));
+        const dateB = b.visitDate ? parseISO(b.visitDate) : (b.createdAt ? parseISO(b.createdAt) : new Date(0));
+        if (!isValid(dateA)) return 1;
+        if (!isValid(dateB)) return -1;
+        return dateB.getTime() - dateA.getTime();
+    });
+
+    const lastInteraction = allInteractionsSorted[0];
+    const successfulOrders = ordersForAccount.filter(o => VALID_SALE_STATUSES.includes(o.status));
+
+    // Priority 2: Last interaction was a failure.
+    if (lastInteraction && lastInteraction.status === 'Fallido') {
+        return 'Fallido';
+    }
+
+    // Priority 3: Has successful orders.
     if (successfulOrders.length >= 2) {
         return 'Repetición';
     }
@@ -45,12 +53,17 @@ function calculateAccountStatus(
         return 'Primer Pedido';
     }
 
-    // Priority 3: Has gone cold.
-    if (lastInteractionDate && differenceInDays(now, lastInteractionDate) > 90) {
+    // Priority 4: Default cases based on age and past activity.
+    if (lastInteraction) { // Has past interactions but no sales or failures
+        return 'Seguimiento';
+    }
+
+    // No interactions at all. Check age.
+    if (account.createdAt && isValid(parseISO(account.createdAt)) && differenceInDays(now, parseISO(account.createdAt)) > 90) {
         return 'Inactivo';
     }
 
-    // Priority 4: Default for active accounts needing attention (e.g., has past-due tasks).
+    // Default for new-ish accounts with no history
     return 'Seguimiento';
 }
 
@@ -64,36 +77,20 @@ function calculateLeadScore(accountStatus: AccountStatus, potencial: PotencialTy
 
     // Base score from status
     switch (accountStatus) {
-        case 'Repetición':
-            score = 80;
-            break;
-        case 'Primer Pedido':
-            score = 70;
-            break;
-        case 'Programado':
-            score = 50;
-            break;
-        case 'Seguimiento':
-            score = 30;
-            break;
-        case 'Inactivo':
-            score = 10;
-            break;
-        default:
-            score = 0;
+        case 'Repetición': score = 80; break;
+        case 'Primer Pedido': score = 70; break;
+        case 'Programada': score = 50; break;
+        case 'Seguimiento': score = 30; break;
+        case 'Fallido': score = 20; break;
+        case 'Inactivo': score = 10; break;
+        default: score = 0;
     }
 
     // Bonus from 'potencial'
     switch (potencial) {
-        case 'alto':
-            score += 15;
-            break;
-        case 'medio':
-            score += 10;
-            break;
-        case 'bajo':
-            score += 5;
-            break;
+        case 'alto': score += 15; break;
+        case 'medio': score += 10; break;
+        case 'bajo': score += 5; break;
     }
     
     // Bonus for recent activity
@@ -151,7 +148,7 @@ export async function processCarteraData(
 
     const teamMembersMap = new Map(teamMembers.map(tm => [tm.id, tm.name]));
 
-    const enrichedAccounts: EnrichedAccount[] = accounts.map(account => {
+    const enrichedAccountsPromises = accounts.map(async (account) => {
         const accountOrders = ordersByAccount.get(account.id) || [];
         
         const openTasks = accountOrders.filter(o => 
@@ -167,9 +164,9 @@ export async function processCarteraData(
             ? (lastInteractionOrder.visitDate ? parseISO(lastInteractionOrder.visitDate) : (lastInteractionOrder.createdAt ? parseISO(lastInteractionOrder.createdAt) : undefined)) 
             : undefined;
 
-        const status = calculateAccountStatus(accountOrders, lastInteractionDate);
+        const status = await calculateAccountStatus(accountOrders, account);
         const leadScore = calculateLeadScore(status, account.potencial, lastInteractionDate);
-        const totalSuccessfulOrders = accountOrders.filter(o => ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Completado'].includes(o.status)).length;
+        const totalSuccessfulOrders = accountOrders.filter(o => VALID_SALE_STATUSES.includes(o.status)).length;
         const responsableName = account.salesRepId ? teamMembersMap.get(account.salesRepId) : undefined;
 
         return {
@@ -183,6 +180,8 @@ export async function processCarteraData(
             responsableName: responsableName,
         };
     });
+
+    const enrichedAccounts = await Promise.all(enrichedAccountsPromises);
 
     return enrichedAccounts.sort((a, b) => b.leadScore - a.leadScore);
 }

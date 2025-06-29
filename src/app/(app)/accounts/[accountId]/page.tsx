@@ -6,7 +6,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { Account, Order, UserRole, AddressDetails, OrderStatus, TeamMember } from "@/types";
+import type { Account, Order, UserRole, AddressDetails, OrderStatus, TeamMember, AccountStatus } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { Building2, Edit, ArrowLeft, AlertTriangle, UserCircle, Mail, Phone, FileText, ShoppingCart, CalendarDays, Send, Info, Euro, Printer, Loader2, MapPin, Link as LinkIcon, CheckCircle } from "lucide-react";
 import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
@@ -20,6 +20,7 @@ import Link from "next/link";
 import { getAccountByIdFS, updateAccountFS, getAccountsFS } from "@/services/account-service";
 import { getOrdersFS } from "@/services/order-service"; 
 import { getTeamMembersFS } from "@/services/team-member-service";
+import { calculateAccountStatus } from "@/services/cartera-service";
 
 
 const formatAddress = (address?: AddressDetails): string => {
@@ -65,6 +66,7 @@ export default function AccountDetailPage() {
   const { toast } = useToast();
 
   const [account, setAccount] = React.useState<Account | null>(null);
+  const [calculatedStatus, setCalculatedStatus] = React.useState<AccountStatus | null>(null);
   const [allAccountsForValidation, setAllAccountsForValidation] = React.useState<Account[]>([]);
   const [allTeamMembers, setAllTeamMembers] = React.useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -104,6 +106,7 @@ export default function AccountDetailPage() {
           }).sort((a,b) => parseISO(b.createdAt || b.visitDate).getTime() - parseISO(a.createdAt || a.visitDate).getTime());
           
           setRelatedInteractions(interactions);
+          setCalculatedStatus(await calculateAccountStatus(interactions, foundAccount));
         }
 
         if (canEditAccount) {
@@ -218,7 +221,7 @@ export default function AccountDetailPage() {
               <Separator />
               <div className="flex justify-between"><span>Tipo:</span> <strong className="font-medium">{account.type}</strong></div>
               <Separator />
-              <div className="flex justify-between items-center"><span>Estado:</span> <StatusBadge type="account" status={account.status} /></div>
+              <div className="flex justify-between items-center"><span>Estado:</span> {calculatedStatus ? <StatusBadge type="account" status={calculatedStatus} /> : <span className="text-muted-foreground">Calculando...</span>}</div>
               <Separator />
               <div className="flex justify-between"><span>Comercial:</span> <strong className="font-medium">{salesRepAssigned ? salesRepAssigned.name : 'No asignado'}</strong></div>
               <Separator />

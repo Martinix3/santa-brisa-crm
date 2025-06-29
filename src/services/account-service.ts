@@ -26,13 +26,12 @@ const fromFirestore = (docSnap: DocumentSnapshot): Account => {
     responsableId: data.responsableId || '',
     brandAmbassadorId: data.brandAmbassadorId || undefined,
 
-    // This now correctly reads the stored status, which can be either a legacy
-    // value ('Activo', 'Potencial') or a new calculated one.
-    // The cartera-service will overwrite this with the dynamically calculated status.
-    status: data.status || 'Activo', // Reverted to Activo as a safe default
+    // The 'status' field from Firestore is now considered legacy.
+    // The true status is calculated dynamically by cartera-service.
+    // We provide a default fallback here.
+    status: 'Seguimiento',
     leadScore: 0,
     
-    // Legacy fields for compatibility
     legalName: data.legalName || '',
     cif: data.cif || '',
     type: data.type, 
@@ -57,9 +56,7 @@ const toFirestore = (data: AccountFormValues, isNew: boolean): any => {
     legalName: data.legalName || null,
     cif: data.cif || null,
     type: data.type, 
-    // Note: status is calculated, not directly set from the form anymore
-    // We only set the legacy status field
-    status: data.status,
+    // NOTE: 'status' is now a calculated field. We no longer save a static status to Firestore.
     iban: data.iban || null,
     mainContactName: data.mainContactName || null,
     mainContactEmail: data.mainContactEmail || null,
@@ -188,4 +185,3 @@ export const initializeMockAccountsInFirestore = async (mockAccounts: any[]) => 
         console.log('Accounts collection is not empty. Skipping initialization.');
     }
 };
-

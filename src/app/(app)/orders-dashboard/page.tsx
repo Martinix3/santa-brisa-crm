@@ -88,8 +88,8 @@ export default function OrdersDashboardPage() {
     const map = new Map<string, Account>();
     allAccounts.forEach(acc => {
       // Don't overwrite if a key already exists. First one wins.
-      if (!map.has(acc.name.toLowerCase().trim())) {
-        map.set(acc.name.toLowerCase().trim(), acc);
+      if (acc.nombre && !map.has(acc.nombre.toLowerCase().trim())) {
+        map.set(acc.nombre.toLowerCase().trim(), acc);
       }
     });
     return map;

@@ -14,6 +14,5 @@ if (getApps().length === 0) {
     app = getApps()[0];
 }
 
-// Get a memoized instance of the storage service and use the default bucket
-// that was configured during app initialization. This is safer.
-export const adminBucket = getStorage(app).bucket();
+// Explicitly provide the bucket name to the bucket() method to avoid initialization errors in some server environments.
+export const adminBucket = getStorage(app).bucket(BUCKET_NAME);

@@ -44,45 +44,52 @@ function calculateAccountStatus(
 }
 
 /**
- * Calculates the lead score for an account based on its interactions and potential.
+ * Calculates the lead score for an account based on its calculated status and potential.
  */
-function calculateLeadScore(account: Account, ordersForAccount: Order[], nextInteraction?: Order): number {
+function calculateLeadScore(accountStatus: AccountStatus, potencial: PotencialType, lastInteractionDate?: Date): number {
     let score = 0;
     const now = new Date();
 
-    const lastOrder = ordersForAccount[0]; // Assumes orders are sorted descending by date
-
-    if (lastOrder && ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Completado'].includes(lastOrder.status)) {
-        score += 30;
+    // Base score from status
+    switch (accountStatus) {
+        case 'Repetición':
+            score = 80;
+            break;
+        case 'Primer Pedido':
+            score = 70;
+            break;
+        case 'Programado':
+            score = 50;
+            break;
+        case 'Seguimiento':
+            score = 30;
+            break;
+        case 'Inactivo':
+            score = 10;
+            break;
+        default:
+            score = 0;
     }
 
-    switch (account.potencial) {
-        case 'alto': score += 20; break;
-        case 'medio': score += 10; break;
-        case 'bajo': score += 5; break;
+    // Bonus from 'potencial'
+    switch (potencial) {
+        case 'alto':
+            score += 15;
+            break;
+        case 'medio':
+            score += 10;
+            break;
+        case 'bajo':
+            score += 5;
+            break;
     }
-
-    if (lastOrder && (lastOrder.visitDate || lastOrder.createdAt)) {
-        const lastDate = parseISO(lastOrder.visitDate || lastOrder.createdAt);
-        if (isValid(lastDate)) {
-            const daysSinceLastInteraction = differenceInDays(now, lastDate);
-            if (daysSinceLastInteraction < 7) score += 20;
-            else if (daysSinceLastInteraction < 14) score += 10;
+    
+    // Bonus for recent activity
+    if (lastInteractionDate && isValid(lastInteractionDate)) {
+        const daysSinceLastInteraction = differenceInDays(now, lastInteractionDate);
+        if (daysSinceLastInteraction <= 15) {
+            score += 5;
         }
-    }
-
-    if (nextInteraction) {
-        const nextDate = parseISO((nextInteraction.status === 'Programada' ? nextInteraction.visitDate : nextInteraction.nextActionDate)!);
-        if (isValid(nextDate)) {
-            const daysToNextInteraction = differenceInDays(nextDate, now);
-            if (daysToNextInteraction <= 3 && daysToNextInteraction >= 0) {
-                score += 20;
-            }
-        }
-    }
-
-    if (account.brandAmbassadorId && lastOrder) {
-        score += 10;
     }
 
     return Math.min(score, 100);
@@ -99,12 +106,25 @@ export async function processCarteraData(
     teamMembers: TeamMember[]
 ): Promise<EnrichedAccount[]> {
     const ordersByAccount = new Map<string, Order[]>();
-    for (const order of orders) {
-        if (!order.accountId) continue;
-        if (!ordersByAccount.has(order.accountId)) {
-            ordersByAccount.set(order.accountId, []);
+    const accountNameMap = new Map<string, string>(); // Map lowercase name to accountId
+    for (const acc of accounts) {
+        if (acc.nombre) {
+            accountNameMap.set(acc.nombre.toLowerCase().trim(), acc.id);
         }
-        ordersByAccount.get(order.accountId)!.push(order);
+    }
+
+    for (const order of orders) {
+        let accountIdToUse = order.accountId;
+        if (!accountIdToUse && order.clientName) {
+            accountIdToUse = accountNameMap.get(order.clientName.toLowerCase().trim());
+        }
+        
+        if (!accountIdToUse) continue;
+
+        if (!ordersByAccount.has(accountIdToUse)) {
+            ordersByAccount.set(accountIdToUse, []);
+        }
+        ordersByAccount.get(accountIdToUse)!.push(order);
     }
     
     // Sort interactions for each account by their effective date.
@@ -136,7 +156,7 @@ export async function processCarteraData(
             : undefined;
 
         const status = calculateAccountStatus(accountOrders, lastInteractionDate);
-        const leadScore = calculateLeadScore(account, accountOrders, nextInteraction);
+        const leadScore = calculateLeadScore(status, account.potencial, lastInteractionDate);
         const totalSuccessfulOrders = accountOrders.filter(o => ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Completado'].includes(o.status)).length;
         const responsableName = account.salesRepId ? teamMembersMap.get(account.salesRepId) : undefined;
 

@@ -54,7 +54,7 @@ export async function processCarteraData(
             const dateB = (b as any).tempSortDate;
             if (!isValid(dateA)) return 1;
             if (!isValid(dateB)) return -1;
-            return dateB.getTime() - a.getTime();
+            return dateB.getTime() - dateA.getTime();
         });
     }
 

@@ -92,12 +92,15 @@ export default function TeamTrackingPage() {
     async function loadTeamData() {
       setIsLoadingStats(true);
       try {
-        const [fetchedOrders, fetchedAccounts] = await Promise.all([
-          getOrdersFS(),
-          getAccountsFS(),
-        ]);
+        const fetchedOrders = await getOrdersFS();
         const currentDate = new Date();
         
+        const allSuccessfulOrders = fetchedOrders
+            .filter(o => VALID_SALE_STATUSES.includes(o.status) && (o.createdAt || o.visitDate))
+            .map(o => ({ ...o, relevantDate: parseISO(o.createdAt || o.visitDate!) }))
+            .filter(o => isValid(o.relevantDate))
+            .sort((a,b) => a.relevantDate.getTime() - b.relevantDate.getTime());
+
         const stats = salesTeamMembersBase.map(member => {
           let bottlesSold = 0;
           let ordersCount = 0;
@@ -124,15 +127,18 @@ export default function TeamTrackingPage() {
             ALL_VISIT_STATUSES.includes(order.status)
           ).length;
 
-          // NEW: Calculate Monthly New Accounts based on account creation date and status
-          const monthlyAccountsAchieved = fetchedAccounts.filter(acc => 
-            acc.salesRepId === member.id &&
-            acc.status === 'Activo' &&
-            acc.createdAt &&
-            isValid(parseISO(acc.createdAt)) &&
-            isSameMonth(parseISO(acc.createdAt), currentDate) &&
-            isSameYear(parseISO(acc.createdAt), currentDate)
+          // Corrected: Calculate Monthly New Accounts based on the first successful order date.
+          const firstOrdersForMemberAccounts = new Map<string, typeof allSuccessfulOrders[0]>();
+          for (const order of allSuccessfulOrders) {
+            if (order.salesRep === member.name && order.accountId && !firstOrdersForMemberAccounts.has(order.accountId)) {
+              firstOrdersForMemberAccounts.set(order.accountId, order);
+            }
+          }
+          
+          const monthlyAccountsAchieved = Array.from(firstOrdersForMemberAccounts.values()).filter(o => 
+            isSameMonth(o.relevantDate, currentDate)
           ).length;
+
 
           return {
             ...member,

@@ -63,7 +63,6 @@ export default function DashboardPage() {
     if (isLoading) return null;
 
     const salesRepNamesSet = new Set(salesReps.map(m => m.name));
-    const salesRepIdsSet = new Set(salesReps.map(m => m.id));
     const currentDate = new Date();
 
     const successfulOrders = orders
@@ -78,18 +77,28 @@ export default function DashboardPage() {
     const totalBottlesSoldOverall = successfulOrders.reduce((sum, o) => sum + (o.numberOfUnits || 0), 0);
     const teamBottlesSoldOverall = successfulOrders.filter(o => salesRepNamesSet.has(o.salesRep)).reduce((sum, o) => sum + (o.numberOfUnits || 0), 0);
     
-    // --- CORRECTED/NEW LOGIC ---
-
-    // New Accounts calculation based on Account creation date, status, AND salesRepId
-    const teamActiveAccounts = accounts.filter(acc => 
-        acc.status === 'Activo' &&
-        acc.salesRepId &&
-        salesRepIdsSet.has(acc.salesRepId) &&
-        acc.createdAt && isValid(parseISO(acc.createdAt))
-    );
-    const newAccountsThisYear = teamActiveAccounts.filter(acc => isSameYear(parseISO(acc.createdAt!), currentDate)).length;
-    const newAccountsThisMonth = teamActiveAccounts.filter(acc => isSameMonth(parseISO(acc.createdAt!), currentDate)).length;
+    // --- CORRECTED/NEW LOGIC for "New Accounts" based on first successful order date ---
+    const firstSuccessfulOrderByAccount = new Map<string, Order & { relevantDate: Date }>();
+    for (const order of successfulOrders) {
+        // Orders are sorted by date asc, so the first one we see is the first successful order.
+        if (order.accountId && !firstSuccessfulOrderByAccount.has(order.accountId)) {
+            firstSuccessfulOrderByAccount.set(order.accountId, order);
+        }
+    }
     
+    // Get the list of all first successful orders and filter by team members
+    const teamFirstSuccessfulOrders = Array.from(firstSuccessfulOrderByAccount.values())
+        .filter(o => salesRepNamesSet.has(o.salesRep));
+    
+    const newAccountsThisYear = teamFirstSuccessfulOrders.filter(o => 
+        isSameYear(o.relevantDate, currentDate)
+    ).length;
+
+    const newAccountsThisMonth = teamFirstSuccessfulOrders.filter(o => 
+        isSameMonth(o.relevantDate, currentDate)
+    ).length;
+    // --- END OF CORRECTED LOGIC ---
+
     // Repurchase Rate Calculation
     const accountNameMap = new Map<string, string>();
     accounts.forEach(account => {
@@ -119,16 +128,14 @@ export default function DashboardPage() {
         ? Math.round((accountsWithRepurchase / totalAccountsWithOrders) * 100)
         : 0;
 
-    // --- END OF CORRECTED LOGIC ---
-
     const calculatedKpis = initialKpiDataLaunch.map(kpi => {
       let currentValue = 0;
       switch(kpi.id) {
         case 'kpi1': currentValue = totalBottlesSoldOverall; break;
         case 'kpi2': currentValue = teamBottlesSoldOverall; break;
-        case 'kpi3': currentValue = newAccountsThisYear; break; // Corrected logic
-        case 'kpi4': currentValue = newAccountsThisMonth; break; // Corrected logic
-        case 'kpi5': currentValue = repurchaseRate; break; // Corrected logic
+        case 'kpi3': currentValue = newAccountsThisYear; break; 
+        case 'kpi4': currentValue = newAccountsThisMonth; break;
+        case 'kpi5': currentValue = repurchaseRate; break;
       }
       return { ...kpi, currentValue };
     });
@@ -136,16 +143,13 @@ export default function DashboardPage() {
     // Monthly progress calculations
     let monthlyProgressMetrics: any[] = [];
     if(userRole === 'SalesRep' && teamMember) {
-      // Logic for individual SalesRep
-      const memberAccounts = accounts.filter(acc => 
-        acc.salesRepId === teamMember.id &&
-        acc.status === 'Activo' &&
-        acc.createdAt &&
-        isValid(parseISO(acc.createdAt)) &&
-        isSameMonth(parseISO(acc.createdAt), currentDate) &&
-        isSameYear(parseISO(acc.createdAt), currentDate)
-      );
-      const monthlyAccounts = memberAccounts.length;
+      // This part now needs to use the new logic for monthly accounts.
+      const memberFirstSuccessfulOrders = Array.from(firstSuccessfulOrderByAccount.values())
+        .filter(o => o.salesRep === teamMember.name);
+      
+      const monthlyAccounts = memberFirstSuccessfulOrders.filter(o => 
+        isSameMonth(o.relevantDate, currentDate)
+      ).length;
       
       const monthlyVisits = orders.filter(o => 
         o.salesRep === teamMember.name && 

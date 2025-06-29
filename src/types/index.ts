@@ -443,8 +443,6 @@ export type Step = "client" | "outcome" | "details" | "new_client_data" | "verif
 export interface NewInteractionPayload {
   accountId?: string;
   newClientName?: string;
-  tipo: 'Visita' | 'Pedido';
-  resultado: 'Programada' | 'Requiere seguimiento' | 'Pedido Exitoso' | 'Fallida';
   fecha_prevista: Date;
   importe?: number;
   promoItems?: AssignedPromotionalMaterial[];

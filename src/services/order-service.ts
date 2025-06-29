@@ -167,7 +167,7 @@ export const addSimpleInteractionFS = async (inter: NewInteractionPayload): Prom
                 type: 'HORECA',
             };
             // If it's a successful order for a new client, add all details
-            if (inter.resultado === 'Pedido Exitoso') {
+            if (inter.importe && inter.importe > 0) {
                 newAccountData.legalName = inter.nombreFiscal;
                 newAccountData.cif = inter.cif;
                 newAccountData.addressBilling_street = inter.direccionFiscal_street;
@@ -206,26 +206,19 @@ export const addSimpleInteractionFS = async (inter: NewInteractionPayload): Prom
         clientStatus: inter.newClientName ? 'new' : 'existing',
         createdAt: new Date()
     };
+    
+    const isPedido = inter.importe && inter.importe > 0;
 
-    if (inter.tipo === 'Pedido' || inter.resultado === 'Pedido Exitoso') {
+    if (isPedido) {
         orderData.status = 'Confirmado';
         orderData.value = inter.importe;
         orderData.products = ['Pedido Rápido'];
         orderData.visitDate = inter.fecha_prevista;
     } else { // It's a visit
-        orderData.visitDate = new Date(); // The visit happened today unless specified otherwise
-        if (inter.resultado === 'Programada') {
-            orderData.status = 'Programada';
-            orderData.visitDate = inter.fecha_prevista;
-        } else if (inter.resultado === 'Requiere seguimiento') {
-            orderData.status = 'Seguimiento';
-            orderData.nextActionDate = format(inter.fecha_prevista, 'yyyy-MM-dd');
-            orderData.nextActionType = 'Revisar';
-        } else if (inter.resultado === 'Fallida') {
-            orderData.status = 'Fallido';
-            orderData.failureReasonType = 'Otro (especificar)';
-            orderData.failureReasonCustom = 'Registrado desde acción rápida.';
-        }
+        orderData.status = 'Programada';
+        orderData.visitDate = inter.fecha_prevista;
+        orderData.nextActionDate = format(inter.fecha_prevista, 'yyyy-MM-dd');
+        orderData.nextActionType = 'Visita programada desde acción rápida';
     }
     
     const firestoreData = toFirestoreOrder(orderData, true);

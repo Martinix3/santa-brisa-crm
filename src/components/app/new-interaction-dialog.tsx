@@ -16,7 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandInput, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { Check, ChevronsUpDown, HelpCircle } from "lucide-react";
 import type { Account, TeamMember, NewInteractionPayload, PromotionalMaterial, AssignedPromotionalMaterial } from "@/types";
-import { interactionTypeList, interactionResultList, provincesSpainList } from "@/lib/data";
+import { provincesSpainList } from "@/lib/data";
 import { Loader2, Calendar as CalendarIcon, PlusCircle, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, addDays } from "date-fns";
@@ -29,8 +29,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 const newInteractionSchema = z.object({
   accountId: z.string().optional(),
   newClientName: z.string().optional(),
-  tipo: z.enum(['Visita', 'Pedido']),
-  resultado: z.enum(['Programada', 'Requiere seguimiento', 'Pedido Exitoso', 'Fallida']),
   fecha_prevista: z.date({ required_error: "La fecha es obligatoria." }),
   importe: z.coerce.number().optional(),
   clavadistaId: z.string().optional(),
@@ -58,12 +56,9 @@ const newInteractionSchema = z.object({
     if (!data.accountId && !data.newClientName) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Debe seleccionar un cliente existente o escribir un nombre para uno nuevo.", path: ["accountId"] });
     }
-    if (data.tipo === 'Pedido' || data.resultado === 'Pedido Exitoso') {
-        if (!data.importe || data.importe <= 0) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El importe es obligatorio y debe ser mayor que cero para un pedido.", path: ["importe"] });
-        }
-    }
-    if (data.newClientName && data.resultado === 'Pedido Exitoso') {
+    
+    // Si se está creando un nuevo cliente Y se ha introducido un importe (es un pedido), los campos fiscales son obligatorios.
+    if (data.newClientName && data.importe && data.importe > 0) {
         if (!data.nombreFiscal?.trim()) ctx.addIssue({ path: ["nombreFiscal"], message: "Nombre fiscal es obligatorio." });
         if (!data.cif?.trim()) {
             ctx.addIssue({ path: ["cif"], message: "CIF es obligatorio." });
@@ -111,8 +106,6 @@ export default function NewInteractionDialog({
     defaultValues: {
       accountId: undefined,
       newClientName: undefined,
-      tipo: 'Visita',
-      resultado: 'Programada',
       fecha_prevista: addDays(new Date(), 7),
       importe: undefined,
       clavadistaId: undefined,
@@ -138,17 +131,10 @@ export default function NewInteractionDialog({
     name: "promoItems"
   });
 
-  const watchedTipo = form.watch('tipo');
-  const watchedResultado = form.watch('resultado');
   const watchedNewClientName = form.watch('newClientName');
+  const watchedImporte = form.watch('importe');
 
-  React.useEffect(() => {
-      if (watchedTipo === 'Pedido') {
-        form.setValue('resultado', 'Pedido Exitoso');
-      }
-  }, [watchedTipo, form]);
-
-  const showNewClientFields = !!watchedNewClientName && watchedResultado === 'Pedido Exitoso';
+  const showNewClientFields = !!watchedNewClientName && !!watchedImporte && watchedImporte > 0;
 
   React.useEffect(() => {
     async function loadMaterials() {
@@ -215,7 +201,7 @@ export default function NewInteractionDialog({
                                 form.setValue('accountId', undefined);
                             }}
                           />
-                          <CommandEmpty>No se encontró el cliente.</CommandEmpty>
+                          <CommandEmpty>No se encontró el cliente. Continúe para crearlo.</CommandEmpty>
                           <CommandGroup>
                             {allAccounts.map((acc) => (
                               <CommandItem
@@ -239,17 +225,10 @@ export default function NewInteractionDialog({
                   </FormItem>
                 )}
               />
-              <FormField control={form.control} name="tipo" render={({ field }) => (<FormItem><FormLabel>Tipo de Acción</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="Visita">Visita</SelectItem><SelectItem value="Pedido">Pedido</SelectItem></SelectContent></Select><FormMessage/></FormItem>)} />
               
-              {watchedTipo === 'Visita' && (
-                <FormField control={form.control} name="resultado" render={({ field }) => (<FormItem><FormLabel>Resultado</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{interactionResultList.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select><FormMessage/></FormItem>)} />
-              )}
-              
-              <FormField control={form.control} name="fecha_prevista" render={({ field }) => (<FormItem className="flex flex-col"><FormLabel>Fecha Prevista</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("justify-start text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus locale={es}/></PopoverContent></Popover><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="fecha_prevista" render={({ field }) => (<FormItem className="flex flex-col"><FormLabel>Fecha</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("justify-start text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus locale={es}/></PopoverContent></Popover><FormDescription className="text-xs">Fecha del pedido o de la visita programada.</FormDescription><FormMessage /></FormItem>)} />
 
-              {(watchedTipo === 'Pedido' || watchedResultado === 'Pedido Exitoso') && (
-                <FormField control={form.control} name="importe" render={({ field }) => (<FormItem><FormLabel>Importe Pedido (€ IVA incl.)</FormLabel><FormControl><Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage/></FormItem>)}/>
-              )}
+              <FormField control={form.control} name="importe" render={({ field }) => (<FormItem><FormLabel>Importe Pedido (€ IVA incl.)</FormLabel><FormControl><Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormDescription className="text-xs">Dejar en blanco si no es un pedido.</FormDescription><FormMessage/></FormItem>)}/>
               
               {showNewClientFields && (
                   <>

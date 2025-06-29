@@ -23,7 +23,6 @@ async function uploadInvoice(file: File, purchaseId: string): Promise<{ download
     await adminBucket.file(path).save(buffer, {
       contentType: file.type,
       resumable: false,
-      public: true,
     });
     const url = `https://storage.googleapis.com/${adminBucket.name}/${path}`;
     console.log(`File uploaded to ${path}, public URL: ${url}`);

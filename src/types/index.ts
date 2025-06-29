@@ -1,6 +1,7 @@
 
 
 
+
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
 
 export interface Kpi {
@@ -92,9 +93,11 @@ export interface EnrichedAccount extends Account {
   leadScore: number;
   nextInteraction?: Order;
   totalSuccessfulOrders: number;
+  totalValue: number;
   lastInteractionDate?: Date;
   interactions: Order[];
   responsableName?: string;
+  responsableAvatar?: string;
 }
 
 

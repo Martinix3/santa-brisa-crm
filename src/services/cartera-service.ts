@@ -2,7 +2,7 @@
 'use server';
 
 import type { Account, Order, TeamMember, EnrichedAccount } from '@/types';
-import { parseISO, isValid, startOfDay } from 'date-fns';
+import { parseISO, isValid } from 'date-fns';
 import { calculateAccountStatus, calculateLeadScore } from '@/lib/account-logic';
 import { VALID_SALE_STATUSES } from '@/lib/constants';
 
@@ -46,46 +46,37 @@ export async function processCarteraData(
         });
     }
 
-    const teamMembersMap = new Map(teamMembers.map(tm => [tm.id, tm.name]));
+    const teamMembersMap = new Map(teamMembers.map(tm => [tm.id, tm]));
 
     const enrichedAccountsPromises = accounts.map(async (account) => {
         const accountOrders = ordersByAccount.get(account.id) || [];
         
-        // Find open tasks and sort them to find the highest priority one.
-        const openTasks = accountOrders.filter(o =>
-            o.status === 'Programada' || o.status === 'Seguimiento'
-        );
+        const openTasks = accountOrders.filter(o => o.status === 'Programada' || o.status === 'Seguimiento');
 
         openTasks.sort((a, b) => {
             const dateA = parseISO((a.status === 'Programada' ? a.visitDate : a.nextActionDate)!);
             const dateB = parseISO((b.status === 'Programada' ? b.visitDate : b.nextActionDate)!);
-            
-            if (!isValid(dateA)) return 1;
-            if (!isValid(dateB)) return -1;
-            
-            // If dates are different, oldest comes first
-            if (dateA.getTime() !== dateB.getTime()) {
-                return dateA.getTime() - dateB.getTime();
-            }
-            
-            // If dates are the same, 'Programada' has priority over 'Seguimiento'
+            if (!isValid(dateA)) return 1; if (!isValid(dateB)) return -1;
+            if (dateA.getTime() !== dateB.getTime()) return dateA.getTime() - dateB.getTime();
             if (a.status === 'Programada' && b.status !== 'Programada') return -1;
             if (b.status === 'Programada' && a.status !== 'Programada') return 1;
-            
             return 0;
         });
 
         const nextInteraction = openTasks[0] || undefined;
-
         const lastInteractionOrder = accountOrders[0];
         const lastInteractionDate = lastInteractionOrder 
             ? (lastInteractionOrder.visitDate ? parseISO(lastInteractionOrder.visitDate) : (lastInteractionOrder.createdAt ? parseISO(lastInteractionOrder.createdAt) : undefined)) 
             : undefined;
 
-        const status = calculateAccountStatus(accountOrders, account);
+        const status = await calculateAccountStatus(accountOrders, account);
         const leadScore = calculateLeadScore(status, account.potencial, lastInteractionDate);
-        const totalSuccessfulOrders = accountOrders.filter(o => VALID_SALE_STATUSES.includes(o.status)).length;
-        const responsableName = account.salesRepId ? teamMembersMap.get(account.salesRepId) : undefined;
+        
+        const successfulOrders = accountOrders.filter(o => VALID_SALE_STATUSES.includes(o.status));
+        const totalSuccessfulOrders = successfulOrders.length;
+        const totalValue = successfulOrders.reduce((sum, o) => sum + (o.value || 0), 0);
+        
+        const responsable = account.salesRepId ? teamMembersMap.get(account.salesRepId) : undefined;
 
         return {
             ...account,
@@ -93,13 +84,14 @@ export async function processCarteraData(
             leadScore,
             nextInteraction,
             totalSuccessfulOrders,
+            totalValue,
             lastInteractionDate,
             interactions: accountOrders,
-            responsableName: responsableName,
+            responsableName: responsable?.name,
+            responsableAvatar: responsable?.avatarUrl,
         };
     });
 
     const enrichedAccounts = await Promise.all(enrichedAccountsPromises);
-
     return enrichedAccounts.sort((a, b) => b.leadScore - a.leadScore);
 }

@@ -18,8 +18,9 @@ body {
     --popover: 0 0% 100%;
     --popover-foreground: 215 25% 20%;
 
-    --primary: 45 100% 58%;
-    --primary-foreground: 45 100% 15%;
+    /* --- UPDATED Corporate Yellow Theme --- */
+    --primary: 45 95% 58%; /* Vibrant Yellow */
+    --primary-foreground: 45 100% 15%; /* Dark Brown/Black for contrast */
 
     --secondary: 177 70% 90%;
     --secondary-foreground: 177 100% 20%;
@@ -27,21 +28,22 @@ body {
     --muted: 30 25% 90%;
     --muted-foreground: 215 25% 45%;
 
-    --accent: 45 95% 58%;
-    --accent-foreground: 215 25% 15%;
+    --accent: 45 95% 58%; /* Same Yellow for accent */
+    --accent-foreground: 45 100% 15%; /* Dark Brown/Black for contrast */
+    /* --- END OF UPDATE --- */
 
     --destructive: 0 75% 55%; 
     --destructive-foreground: 0 0% 98%; 
 
     --border: 30 20% 88%;
     --input: 0 0% 100%;
-    --ring: 45 100% 60%;
+    --ring: 45 95% 60%; /* Ring color based on new primary */
 
     --radius: 0.5rem;
 
     --brand-turquoise-hsl: 177 100% 35%;
     --brand-terracotta-hsl: 45 100% 58%;
-    --brand-yellow-hsl: 45 95% 58%;
+    --brand-yellow-hsl: 45 95% 58%; /* Updated */
 
     --sidebar-background: 220 15% 15%;
     --sidebar-foreground: 30 20% 85%;
@@ -63,6 +65,7 @@ body {
     --popover: 215 28% 17%;
     --popover-foreground: 210 40% 96%;
 
+    /* --- UPDATED Corporate Yellow Theme (Dark) --- */
     --primary: 45 90% 60%;
     --primary-foreground: 45 100% 10%;
     
@@ -74,13 +77,14 @@ body {
 
     --accent: 45 90% 60%;
     --accent-foreground: 35 90% 10%;
+    /* --- END OF UPDATE --- */
 
     --destructive: 0 60% 50%;
     --destructive-foreground: 0 0% 98%;
 
     --border: 215 28% 28%;
     --input: 215 28% 25%;
-    --ring: 45 90% 62%;
+    --ring: 45 90% 62%; /* Ring color based on new primary */
 
     --sidebar-background: 215 30% 12%;
     --sidebar-foreground: 210 30% 80%; 

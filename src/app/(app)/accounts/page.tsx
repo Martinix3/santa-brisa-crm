@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -12,7 +11,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, Loader2, Search, AlertTriangle, ChevronDown } from "lucide-react";
 import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
 import { getAccountsFS, addAccountFS, updateAccountFS } from "@/services/account-service";
-import { updateOrderFS, addSimpleInteractionFS } from "@/services/order-service";
+import { getOrdersFS, updateOrderFS, addSimpleInteractionFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { processCarteraData } from "@/services/cartera-service";
 import AccountTableRow from "@/components/app/account-table-row";
@@ -196,6 +195,7 @@ export default function AccountsPage() {
                 newInteractionData.nextActionType = data.nextActionType;
                 newInteractionData.nextActionCustom = data.nextActionType === 'Opción personalizada' ? data.nextActionCustom : null;
                 newInteractionData.nextActionDate = data.nextActionDate ? format(data.nextActionDate, 'yyyy-MM-dd') : null;
+                newInteractionData.visitDate = null;
             } else if (data.outcome === "failed") {
                 newInteractionData.status = 'Fallido';
                 newInteractionData.visitDate = new Date();

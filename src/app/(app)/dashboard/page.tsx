@@ -89,8 +89,8 @@ export default function DashboardPage() {
     // Repurchase Rate Calculation
     const accountNameMap = new Map<string, string>();
     accounts.forEach(account => {
-        if (!accountNameMap.has(account.name.toLowerCase().trim())) {
-            accountNameMap.set(account.name.toLowerCase().trim(), account.id);
+        if (account.nombre && !accountNameMap.has(account.nombre.toLowerCase().trim())) {
+            accountNameMap.set(account.nombre.toLowerCase().trim(), account.id);
         }
     });
 

@@ -150,9 +150,9 @@ export default function FollowUpResultDialog({
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Registrar Resultado para: {order?.clientName}</DialogTitle>
+          <DialogTitle>¡Tarea Completada! Registra el resultado para: {order?.clientName}</DialogTitle>
           <DialogDescription>
-            Indique el resultado de la interacción y los próximos pasos. Se creará un nuevo registro y la tarea actual se marcará como completada.
+            Indica el resultado de la interacción y los próximos pasos. Se creará un nuevo registro y la tarea actual se marcará como completada.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -196,7 +196,7 @@ export default function FollowUpResultDialog({
                 <Separator />
                 <h4 className="text-md font-medium">Próxima Tarea de Seguimiento</h4>
                 <FormField control={form.control} name="nextActionType" render={({ field }) => (<FormItem><FormLabel>Próxima Acción</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger></FormControl><SelectContent>{nextActionTypeList.map(action => (<SelectItem key={action} value={action}>{action}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                {nextActionTypeWatched === 'Opción personalizada' && <FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Especificar Próxima Acción</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />}
+                {nextActionTypeWatched === 'Opción personalizada' && <FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Especificar Próxima Acción</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)} />}
                 <FormField control={form.control} name="nextActionDate" render={({ field }) => (<FormItem className="flex flex-col"><FormLabel>Fecha Próxima Acción (Opcional)</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus locale={es}/></PopoverContent></Popover><FormMessage /></FormItem>)} />
                 {currentUserRole === 'Admin' ? (
                   <FormField control={form.control} name="assignedSalesRepId" render={({ field }) => (<FormItem><FormLabel>Asignar Seguimiento a:</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar responsable" /></SelectTrigger></FormControl><SelectContent>{assignableSalesReps.map(rep => (<SelectItem key={rep.id} value={rep.id}>{rep.name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />

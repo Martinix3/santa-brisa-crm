@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import StatusBadge from "@/components/app/status-badge";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-import { ChevronRight, Eye, Trash2, AlertTriangle, Send, PlusCircle } from "lucide-react";
+import { ChevronRight, Eye, Trash2, AlertTriangle, Send, PlusCircle, Check } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import Link from 'next/link';
@@ -15,7 +15,7 @@ import { parseISO, isBefore, startOfDay, format, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { EnrichedAccount, TeamMember, Order } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import AccountHistoryTable from './account-history-table';
 
 interface AccountTableRowProps {
@@ -44,6 +44,13 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
     const leadScoreColor = account.leadScore > 75 ? 'bg-green-500' : account.leadScore > 40 ? 'bg-yellow-500' : 'bg-red-500';
 
     const accountIsActive = account.status === 'Pedido' || account.status === 'Repetición';
+
+    const nextActionText = account.nextInteraction
+        ? account.nextInteraction.status === 'Programada'
+            ? 'Visita Programada'
+            : account.nextInteraction.nextActionType || 'Seguimiento'
+        : '—';
+
 
     return (
         <TooltipProvider>
@@ -99,9 +106,14 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                 </TableCell>
                 <TableCell className="align-middle">
                      {account.nextInteraction ? (
-                        <Button variant="outline" size="sm" onClick={() => onOpenFollowUpDialog(account.nextInteraction!)}>
-                           <Send className="mr-2 h-4 w-4" /> Registrar Resultado
-                        </Button>
+                        <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm text-muted-foreground truncate" title={nextActionText}>
+                                {nextActionText}
+                            </span>
+                             <Button variant="outline" size="sm" onClick={() => onOpenFollowUpDialog(account.nextInteraction!)}>
+                                <Check className="mr-1 h-4 w-4" /> Completar
+                             </Button>
+                        </div>
                     ) : '—'}
                 </TableCell>
                 <TableCell className="text-center align-middle">
@@ -118,12 +130,13 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                            <DropdownMenuItem asChild><Link href={`/accounts/${account.id}`}><Eye className="mr-2 h-4 w-4"/>Ver Ficha Completa</Link></DropdownMenuItem>
+                           <DropdownMenuSeparator />
                            {accountIsActive ? (
                                 <DropdownMenuItem asChild><Link href={`/order-form?accountId=${account.id}`}><PlusCircle className="mr-2 h-4 w-4"/>Registrar Nuevo Pedido</Link></DropdownMenuItem>
                            ) : (
                                 <DropdownMenuItem asChild><Link href={`/order-form?accountId=${account.id}`}><PlusCircle className="mr-2 h-4 w-4"/>Registrar Interacción</Link></DropdownMenuItem>
                            )}
-                           {isAdmin && (<DropdownMenuItem className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4" />Eliminar Cuenta</DropdownMenuItem>)}
+                           {isAdmin && (<><DropdownMenuSeparator /><DropdownMenuItem className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4" />Eliminar Cuenta</DropdownMenuItem></>)}
                         </DropdownMenuContent>
                      </DropdownMenu>
                 </TableCell>

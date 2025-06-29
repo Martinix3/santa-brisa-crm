@@ -439,29 +439,3 @@ export interface AccountFormValues {
 }
 
 export type Step = "client" | "outcome" | "details" | "new_client_data" | "verify";
-
-export interface NewInteractionPayload {
-  accountId?: string;
-  newClientName?: string;
-  fecha_prevista: Date;
-  importe?: number;
-  promoItems?: AssignedPromotionalMaterial[];
-  userId: string;
-  userName: string;
-  clavadistaId?: string;
-  responsableId: string;
-  notes?: string;
-
-  // For new client creation on successful order
-  nombreFiscal?: string;
-  cif?: string;
-  direccionFiscal_street?: string;
-  direccionFiscal_number?: string;
-  direccionFiscal_city?: string;
-  direccionFiscal_province?: string;
-  direccionFiscal_postalCode?: string;
-  direccionFiscal_country?: string;
-  contactoNombre?: string;
-  contactoCorreo?: string;
-  contactoTelefono?: string;
-}

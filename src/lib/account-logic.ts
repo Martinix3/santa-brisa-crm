@@ -97,8 +97,7 @@ export function calculateLeadScore(
     accountStatus: AccountStatus, 
     potencial: PotencialType, 
     lastInteractionDate?: Date,
-    recentOrderValue: number = 0,
-    hasUpcomingVisit: boolean = false
+    recentOrderValue: number = 0
 ): number {
     let score = 0;
     const now = new Date();
@@ -131,11 +130,6 @@ export function calculateLeadScore(
 
     // Bonus for recent sales value (1 point per 100€, capped at 10 points)
     score += Math.min(Math.round(recentOrderValue / 100), 10);
-
-    // Bonus for upcoming visit
-    if (hasUpcomingVisit) {
-        score += 10;
-    }
 
     return Math.max(0, Math.min(score, 100)); // Clamp score between 0 and 100
 }

@@ -7,7 +7,7 @@ import {
   collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
   type DocumentSnapshot,
 } from "firebase/firestore";
-import type { Order, AssignedPromotionalMaterial, NewInteractionPayload, AccountFormValues } from '@/types';
+import type { Order, AssignedPromotionalMaterial, AccountFormValues } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 import { updateMaterialStockFS } from './promotional-material-service';
 import { getAccountByIdFS, addAccountFS } from './account-service';
@@ -147,85 +147,6 @@ export const addOrderFS = async (data: Partial<Order> & {visitDate: Date | strin
 
   return docRef.id;
 };
-
-export const addSimpleInteractionFS = async (inter: NewInteractionPayload): Promise<string> => {
-    // 1. Get or create account ID
-    let finalAccountId = inter.accountId;
-    let finalClientName = "";
-
-    if (inter.newClientName) {
-        const accountsCol = collection(db, "accounts");
-        const q = query(accountsCol, where("nombre", "==", inter.newClientName));
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
-            finalAccountId = snapshot.docs[0].id;
-            finalClientName = snapshot.docs[0].data().nombre;
-        } else {
-            const newAccountData: Partial<AccountFormValues> = { 
-                name: inter.newClientName, 
-                salesRepId: inter.responsableId, 
-                type: 'HORECA',
-            };
-            // If it's a successful order for a new client, add all details
-            if (inter.importe && inter.importe > 0) {
-                newAccountData.legalName = inter.nombreFiscal;
-                newAccountData.cif = inter.cif;
-                newAccountData.addressBilling_street = inter.direccionFiscal_street;
-                newAccountData.addressBilling_number = inter.direccionFiscal_number;
-                newAccountData.addressBilling_city = inter.direccionFiscal_city;
-                newAccountData.addressBilling_province = inter.direccionFiscal_province;
-                newAccountData.addressBilling_postalCode = inter.direccionFiscal_postalCode;
-                newAccountData.addressBilling_country = inter.direccionFiscal_country || 'España';
-                newAccountData.mainContactName = inter.contactoNombre;
-                newAccountData.mainContactEmail = inter.contactoCorreo;
-                newAccountData.mainContactPhone = inter.contactoTelefono;
-            }
-            finalAccountId = await addAccountFS(newAccountData as AccountFormValues);
-            finalClientName = inter.newClientName;
-        }
-    } else if (finalAccountId) {
-        const acc = await getAccountByIdFS(finalAccountId);
-        if (acc) finalClientName = acc.nombre;
-    }
-
-    if (!finalClientName) throw new Error("Client name could not be resolved.");
-    
-    // 2. Determine responsible user
-    const responsable = await getTeamMemberByIdFS(inter.responsableId);
-    if (!responsable) throw new Error("Responsable not found");
-    
-    // 3. Build the Order object
-    const orderData: any = {
-        clientName: finalClientName,
-        accountId: finalAccountId,
-        salesRep: responsable.name,
-        clavadistaId: inter.clavadistaId,
-        notes: inter.notes,
-        assignedMaterials: inter.promoItems,
-        originatingTaskId: null,
-        clientStatus: inter.newClientName ? 'new' : 'existing',
-        createdAt: new Date()
-    };
-    
-    const isPedido = inter.importe && inter.importe > 0;
-
-    if (isPedido) {
-        orderData.status = 'Confirmado';
-        orderData.value = inter.importe;
-        orderData.products = ['Pedido Rápido'];
-        orderData.visitDate = inter.fecha_prevista;
-    } else { // It's a visit
-        orderData.status = 'Programada';
-        orderData.visitDate = inter.fecha_prevista;
-        orderData.nextActionDate = format(inter.fecha_prevista, 'yyyy-MM-dd');
-        orderData.nextActionType = 'Visita programada desde acción rápida';
-    }
-    
-    const firestoreData = toFirestoreOrder(orderData, true);
-    const docRef = await addDoc(collection(db, ORDERS_COLLECTION), firestoreData);
-    return docRef.id;
-}
-
 
 export const updateOrderFS = async (id: string, data: Partial<Order> & {visitDate?: Date | string}): Promise<void> => { 
   const orderDocRef = doc(db, ORDERS_COLLECTION, id);

@@ -84,18 +84,13 @@ export async function processCarteraData(
         // --- New calculations for lead score ---
         const today = new Date();
         const thirtyDaysAgo = subDays(today, 30);
-        const threeDaysFromNow = addDays(today, 3);
         
         const recentOrderValue = accountOrders
             .filter(o => VALID_SALE_STATUSES.includes(o.status) && o.createdAt && isValid(parseISO(o.createdAt)) && isAfter(parseISO(o.createdAt), thirtyDaysAgo))
             .reduce((sum, o) => sum + (o.value || 0), 0);
             
-        const hasUpcomingVisit = accountOrders
-            .some(o => o.status === 'Programada' && o.visitDate && isValid(parseISO(o.visitDate)) && isWithinInterval(parseISO(o.visitDate), { start: today, end: threeDaysFromNow }));
-        // --- End of new calculations ---
-
         const status = await calculateAccountStatus(accountOrders, account);
-        const leadScore = calculateLeadScore(status, account.potencial, lastInteractionDate, recentOrderValue, hasUpcomingVisit);
+        const leadScore = calculateLeadScore(status, account.potencial, lastInteractionDate, recentOrderValue);
         
         const successfulOrders = accountOrders.filter(o => VALID_SALE_STATUSES.includes(o.status));
         const totalSuccessfulOrders = successfulOrders.length;

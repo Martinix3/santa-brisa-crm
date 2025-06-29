@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import type { Account, Order, UserRole, EnrichedAccount, OrderStatus } from "@/types";
+import type { Account, Order, UserRole, EnrichedAccount, OrderStatus, AccountStatus } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, Loader2, MapPin, Eye, MoreHorizontal, ChevronRight, Send, CheckCircle, ArrowDown, ArrowUp } from "lucide-react";
 import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
@@ -113,16 +113,31 @@ export default function AccountsPage() {
     setFilteredAccounts(accountsToFilter);
   }, [searchTerm, cityFilter, enrichedAccounts]);
 
-  const sortedAccounts = React.useMemo(() => {
-    let sortableItems = [...filteredAccounts];
-    if (sortConfig.key) {
-        sortableItems.sort((a, b) => {
+  const groupedAndSortedAccounts = React.useMemo(() => {
+    const newLeads: EnrichedAccount[] = [];
+    const qualifiedLeads: EnrichedAccount[] = [];
+    const otherAccounts: EnrichedAccount[] = [];
+
+    const newLeadsStatuses: AccountStatus[] = ['Programado', 'Seguimiento'];
+    const qualifiedLeadsStatuses: AccountStatus[] = ['Primer Pedido', 'Repetición'];
+
+    for (const account of filteredAccounts) {
+      if (newLeadsStatuses.includes(account.status)) {
+        newLeads.push(account);
+      } else if (qualifiedLeadsStatuses.includes(account.status)) {
+        qualifiedLeads.push(account);
+      } else {
+        otherAccounts.push(account);
+      }
+    }
+
+    const sortGroup = (group: EnrichedAccount[]) => {
+      if (sortConfig.key) {
+        group.sort((a, b) => {
             const aValue = a[sortConfig.key];
             const bValue = b[sortConfig.key];
-
             if (aValue === undefined || aValue === null) return 1;
             if (bValue === undefined || bValue === null) return -1;
-            
             if (aValue < bValue) {
                 return sortConfig.direction === 'ascending' ? -1 : 1;
             }
@@ -131,9 +146,17 @@ export default function AccountsPage() {
             }
             return 0;
         });
-    }
-    return sortableItems;
+      }
+      return group;
+    };
+
+    return {
+      newLeads: sortGroup(newLeads),
+      qualifiedLeads: sortGroup(qualifiedLeads),
+      otherAccounts: sortGroup(otherAccounts),
+    };
   }, [filteredAccounts, sortConfig]);
+
 
   const requestSort = (key: keyof EnrichedAccount) => {
     let direction: 'ascending' | 'descending' = 'ascending';
@@ -199,6 +222,78 @@ export default function AccountsPage() {
     </TableHead>
   );
 
+  const renderAccountRow = (account: EnrichedAccount) => (
+    <React.Fragment key={account.id}>
+        <TableRow>
+          <TableCell className="font-medium">
+            <div className="flex items-center gap-2">
+                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setExpandedAccountId(expandedAccountId === account.id ? null : account.id)}>
+                    <ChevronRight className={cn("h-4 w-4 transition-transform", expandedAccountId === account.id && "rotate-90")}/>
+                </Button>
+                <Link href={`/accounts/${account.id}`} className="hover:underline text-primary">
+                  {account.nombre}
+                </Link>
+            </div>
+          </TableCell>
+          <TableCell><StatusBadge type="account" status={account.status} /></TableCell>
+          <TableCell>{account.ciudad || 'N/D'}</TableCell>
+          <TableCell>{account.lastInteractionDate ? format(account.lastInteractionDate, 'dd/MM/yy') : '—'}</TableCell>
+          <TableCell>{account.nextInteraction?.nextActionType || '—'}</TableCell>
+          <TableCell>{account.responsableName || 'N/D'}</TableCell>
+          <TableCell><LeadScoreBadge score={account.leadScore} /></TableCell>
+          <TableCell className="text-right">
+             <Button variant="ghost" size="icon" asChild>
+                <Link href={`/accounts/${account.id}`}><Eye className="h-4 w-4" /></Link>
+             </Button>
+          </TableCell>
+        </TableRow>
+        {expandedAccountId === account.id && (
+            <TableRow className="bg-muted/50 hover:bg-muted/50">
+                <TableCell colSpan={8} className="p-0">
+                    <div className="p-4">
+                        <h4 className="text-sm font-semibold mb-2">Historial de Interacciones para {account.nombre}</h4>
+                        {account.interactions.length > 0 ? (
+                            <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead>Fecha</TableHead>
+                                    <TableHead>Tipo / Próx. Acción</TableHead>
+                                    <TableHead className="text-right">Valor</TableHead>
+                                    <TableHead className="text-center">Estado</TableHead>
+                                    <TableHead>Comercial</TableHead>
+                                    <TableHead>Acciones</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {account.interactions.slice(0, 5).map(interaction => (
+                                        <TableRow key={interaction.id}>
+                                            <TableCell>{interaction.createdAt && isValid(parseISO(interaction.createdAt)) ? format(parseISO(interaction.createdAt), "dd/MM/yy HH:mm") : 'N/D'}</TableCell>
+                                            <TableCell>{getInteractionType(interaction)}</TableCell>
+                                            <TableCell className="text-right"><FormattedNumericValue value={interaction.value} options={{ style: 'currency', currency: 'EUR' }} placeholder="—" /></TableCell>
+                                            <TableCell className="text-center"><StatusBadge type="order" status={interaction.status} /></TableCell>
+                                            <TableCell>{interaction.salesRep}</TableCell>
+                                            <TableCell>
+                                               {isOpenTask(interaction.status) ? (
+                                                    <Button asChild variant="outline" size="sm">
+                                                    <Link href={`/order-form?originatingTaskId=${interaction.id}`}><Send className="mr-1 h-3 w-3" /> Registrar</Link>
+                                                    </Button>
+                                               ) : (
+                                                    <Button variant="ghost" size="sm" disabled><CheckCircle className="mr-1 h-3 w-3 text-green-500" /> Gestionado</Button>
+                                               )}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        ) : <p className="text-sm text-muted-foreground text-center p-4">No hay interacciones registradas.</p>}
+                         {account.interactions.length > 5 && <p className="text-xs text-center text-muted-foreground mt-2">Mostrando 5 de {account.interactions.length} interacciones. Ver todas en la ficha de la cuenta.</p>}
+                    </div>
+                </TableCell>
+            </TableRow>
+        )}
+    </React.Fragment>
+  );
+
   return (
     <div className="space-y-8">
       <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -254,77 +349,35 @@ export default function AccountsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sortedAccounts.length > 0 ? sortedAccounts.map((account) => (
-                    <React.Fragment key={account.id}>
-                        <TableRow>
-                          <TableCell className="font-medium">
-                            <div className="flex items-center gap-2">
-                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setExpandedAccountId(expandedAccountId === account.id ? null : account.id)}>
-                                    <ChevronRight className={cn("h-4 w-4 transition-transform", expandedAccountId === account.id && "rotate-90")}/>
-                                </Button>
-                                <Link href={`/accounts/${account.id}`} className="hover:underline text-primary">
-                                  {account.nombre}
-                                </Link>
-                            </div>
-                          </TableCell>
-                          <TableCell><StatusBadge type="account" status={account.status} /></TableCell>
-                          <TableCell>{account.ciudad || 'N/D'}</TableCell>
-                          <TableCell>{account.lastInteractionDate ? format(account.lastInteractionDate, 'dd/MM/yy') : '—'}</TableCell>
-                          <TableCell>{account.nextInteraction?.nextActionType || '—'}</TableCell>
-                          <TableCell>{account.responsableName || 'N/D'}</TableCell>
-                          <TableCell><LeadScoreBadge score={account.leadScore} /></TableCell>
-                          <TableCell className="text-right">
-                             <Button variant="ghost" size="icon" asChild>
-                                <Link href={`/accounts/${account.id}`}><Eye className="h-4 w-4" /></Link>
-                             </Button>
-                          </TableCell>
-                        </TableRow>
-                        {expandedAccountId === account.id && (
-                            <TableRow className="bg-muted/50 hover:bg-muted/50">
-                                <TableCell colSpan={8} className="p-0">
-                                    <div className="p-4">
-                                        <h4 className="text-sm font-semibold mb-2">Historial de Interacciones para {account.nombre}</h4>
-                                        {account.interactions.length > 0 ? (
-                                            <Table>
-                                                <TableHeader>
-                                                  <TableRow>
-                                                    <TableHead>Fecha</TableHead>
-                                                    <TableHead>Tipo / Próx. Acción</TableHead>
-                                                    <TableHead className="text-right">Valor</TableHead>
-                                                    <TableHead className="text-center">Estado</TableHead>
-                                                    <TableHead>Comercial</TableHead>
-                                                    <TableHead>Acciones</TableHead>
-                                                  </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    {account.interactions.slice(0, 5).map(interaction => (
-                                                        <TableRow key={interaction.id}>
-                                                            <TableCell>{interaction.createdAt && isValid(parseISO(interaction.createdAt)) ? format(parseISO(interaction.createdAt), "dd/MM/yy HH:mm") : 'N/D'}</TableCell>
-                                                            <TableCell>{getInteractionType(interaction)}</TableCell>
-                                                            <TableCell className="text-right"><FormattedNumericValue value={interaction.value} options={{ style: 'currency', currency: 'EUR' }} placeholder="—" /></TableCell>
-                                                            <TableCell className="text-center"><StatusBadge type="order" status={interaction.status} /></TableCell>
-                                                            <TableCell>{interaction.salesRep}</TableCell>
-                                                            <TableCell>
-                                                               {isOpenTask(interaction.status) ? (
-                                                                    <Button asChild variant="outline" size="sm">
-                                                                    <Link href={`/order-form?originatingTaskId=${interaction.id}`}><Send className="mr-1 h-3 w-3" /> Registrar</Link>
-                                                                    </Button>
-                                                               ) : (
-                                                                    <Button variant="ghost" size="sm" disabled><CheckCircle className="mr-1 h-3 w-3 text-green-500" /> Gestionado</Button>
-                                                               )}
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    ))}
-                                                </TableBody>
-                                            </Table>
-                                        ) : <p className="text-sm text-muted-foreground text-center p-4">No hay interacciones registradas.</p>}
-                                         {account.interactions.length > 5 && <p className="text-xs text-center text-muted-foreground mt-2">Mostrando 5 de {account.interactions.length} interacciones. Ver todas en la ficha de la cuenta.</p>}
-                                    </div>
-                                </TableCell>
-                            </TableRow>
-                        )}
-                    </React.Fragment>
-                  )) : (
+                  {filteredAccounts.length > 0 ? (
+                    <>
+                      {groupedAndSortedAccounts.newLeads.length > 0 && (
+                        <>
+                          <TableRow className="bg-muted/80 hover:bg-muted/80">
+                            <TableCell colSpan={8} className="font-semibold text-sm text-foreground py-2">
+                              Leads nuevos
+                            </TableCell>
+                          </TableRow>
+                          {groupedAndSortedAccounts.newLeads.map(renderAccountRow)}
+                        </>
+                      )}
+                      {groupedAndSortedAccounts.qualifiedLeads.length > 0 && (
+                        <>
+                          <TableRow className="bg-muted/80 hover:bg-muted/80">
+                            <TableCell colSpan={8} className="font-semibold text-sm text-foreground py-2">
+                              Leads calificados
+                            </TableCell>
+                          </TableRow>
+                          {groupedAndSortedAccounts.qualifiedLeads.map(renderAccountRow)}
+                        </>
+                      )}
+                      {groupedAndSortedAccounts.otherAccounts.length > 0 && (
+                        <>
+                          {groupedAndSortedAccounts.otherAccounts.map(renderAccountRow)}
+                        </>
+                      )}
+                    </>
+                  ) : (
                     <TableRow>
                       <TableCell colSpan={8} className="h-24 text-center">
                          No se encontraron cuentas que coincidan con tu búsqueda o filtros. {isAdmin ? "Puedes añadir una nueva cuenta." : ""}
@@ -338,7 +391,7 @@ export default function AccountsPage() {
         </CardContent>
         {!isLoading && filteredAccounts.length > 0 && (
             <CardFooter>
-                <p className="text-xs text-muted-foreground">Total de cuentas mostradas: {sortedAccounts.length} de {enrichedAccounts.length}</p>
+                <p className="text-xs text-muted-foreground">Total de cuentas mostradas: {filteredAccounts.length} de {enrichedAccounts.length}</p>
             </CardFooter>
         )}
       </Card>

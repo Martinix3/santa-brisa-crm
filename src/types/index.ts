@@ -210,6 +210,7 @@ export interface Purchase {
   orderDate: string; // YYYY-MM-DD
   status: PurchaseStatus;
   invoiceUrl?: string; 
+  invoiceContentType?: string;
   storagePath?: string;
   notes?: string;
   createdAt: string;
@@ -242,6 +243,7 @@ export interface PurchaseFormValues {
   notes?: string;
   invoiceFile?: File | null;
   invoiceUrl?: string;
+  invoiceContentType?: string;
   storagePath?: string;
 }
 

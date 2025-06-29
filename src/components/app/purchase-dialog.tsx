@@ -78,6 +78,7 @@ const purchaseFormSchema = z.object({
   notes: z.string().optional(),
   invoiceFile: z.any().refine(v => v == null || v instanceof File, { message: "Debe ser un archivo." }).optional().nullable(),
   invoiceUrl: z.union([z.literal(""), z.string().url("URL no válida")]).optional(),
+  invoiceContentType: z.string().optional(),
   storagePath: z.string().optional(),
 });
 
@@ -99,6 +100,7 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
   const [isLoadingMaterials, setIsLoadingMaterials] = React.useState(true);
   const [matchingItems, setMatchingItems] = React.useState<Record<number, boolean>>({});
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
+  const [previewType, setPreviewType] = React.useState<'image' | 'pdf' | null>(null);
   const { toast } = useToast();
 
   const form = useForm<PurchaseFormValues>({
@@ -118,6 +120,7 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
   const watchedCurrency = form.watch("currency");
   const watchedInvoiceFile = form.watch("invoiceFile");
   const watchedInvoiceUrl = form.watch("invoiceUrl");
+  const watchedInvoiceContentType = form.watch("invoiceContentType");
 
   const { subtotal, taxAmount, totalAmount } = React.useMemo(() => {
     const currentSubtotal = watchedItems.reduce((sum, item) => sum + (item.quantity || 0) * (item.unitPrice || 0), 0);
@@ -141,7 +144,10 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
   
   const runSmartMatching = React.useCallback(async (itemsToMatch: PurchaseFormValues['items']) => {
     if (availableMaterials.length === 0) return;
-    setMatchingItems(itemsToMatch.reduce((acc, _, index) => ({ ...acc, [index]: true }), {}));
+    const itemsToProcess = itemsToMatch.filter(item => !item.materialId);
+    if(itemsToProcess.length === 0) return;
+
+    setMatchingItems(itemsToMatch.reduce((acc, item, index) => ({ ...acc, [index]: !item.materialId }), {}));
 
     try {
         const updatedItems = await Promise.all(itemsToMatch.map(async (item, index) => {
@@ -164,14 +170,12 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
     }
   }, [availableMaterials, form, toast]);
   
-  // Effect 1: Fetch materials when the dialog opens
   React.useEffect(() => {
     if (isOpen) {
       fetchMaterials();
     }
   }, [isOpen, fetchMaterials]);
   
-  // Effect 2: Reset form with initial data when it becomes available, and then run smart matching
   React.useEffect(() => {
     if (!isOpen) return;
 
@@ -190,19 +194,19 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
       notes: source?.notes || "",
       invoiceFile: fileSource,
       invoiceUrl: source?.invoiceUrl || "",
+      invoiceContentType: (source as Purchase)?.invoiceContentType || "",
       storagePath: source?.storagePath || "",
       supplierCif: prefilledData?.supplierCif,
       supplierAddress_street: prefilledData?.supplierAddress_street,
       supplierAddress_number: prefilledData?.supplierAddress_number,
       supplierAddress_city: prefilledData?.supplierAddress_city,
-      supplierAddress_province: prefilledData?.supplierAddress_province, // FIX: Corrected typo
+      supplierAddress_province: prefilledData?.supplierAddress_province,
       supplierAddress_postalCode: prefilledData?.supplierAddress_postalCode,
       supplierAddress_country: prefilledData?.supplierAddress_country,
     };
 
-    form.reset(initialValues);
-
-    // Part B: Run smart matching after materials are loaded and form is reset
+    form.reset(initialValues as any);
+    
     if (!isLoadingMaterials && initialValues.items && initialValues.items.some(item => !item.materialId)) {
         runSmartMatching(initialValues.items as PurchaseFormValues['items']);
     }
@@ -223,16 +227,27 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
   }, [watchedItems, form]);
 
 
-  // Effect for handling file preview URL
   React.useEffect(() => {
+    let objectUrl: string | null = null;
     if (watchedInvoiceFile) {
-      const url = URL.createObjectURL(watchedInvoiceFile);
-      setPreviewUrl(url);
-      return () => URL.revokeObjectURL(url);
+      objectUrl = URL.createObjectURL(watchedInvoiceFile);
+      setPreviewUrl(objectUrl);
+      setPreviewType(watchedInvoiceFile.type.startsWith('application/pdf') ? 'pdf' : 'image');
+    } else if (watchedInvoiceUrl) {
+      setPreviewUrl(watchedInvoiceUrl);
+      setPreviewType(watchedInvoiceContentType?.startsWith('application/pdf') ? 'pdf' : 'image');
     } else {
       setPreviewUrl(null);
+      setPreviewType(null);
     }
-  }, [watchedInvoiceFile]);
+    
+    return () => {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [watchedInvoiceFile, watchedInvoiceUrl, watchedInvoiceContentType]);
+
 
   const handleCreateNewMaterial = async (index: number, itemName: string) => {
     setIsSaving(true);
@@ -256,7 +271,6 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
     try {
       await onSave(data, purchase?.id);
     } catch (error) {
-      // Error is toasted in the parent onSave handler, which is good.
       console.error("Submission failed in dialog:", error);
     } finally {
       setIsSaving(false);
@@ -348,7 +362,20 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
               </ScrollArea>
               
               {hasInvoicePreview && (
-                 <div className="flex-col h-full hidden lg:flex"><Label>Previsualización de Factura</Label><div className="mt-2 border rounded-md h-[calc(100%-24px)] overflow-hidden bg-muted">{previewUrl?.startsWith('data:application/pdf') || previewUrl?.endsWith('.pdf') ? (<embed src={previewUrl} type="application/pdf" width="100%" height="100%" />) : (<img src={previewUrl} alt="Previsualización de la factura" className="object-contain w-full h-full"/>)}</div></div>
+                 <div className="flex-col h-full hidden lg:flex">
+                  <Label>Previsualización de Factura</Label>
+                  <div className="mt-2 border rounded-md h-[calc(100%-24px)] overflow-hidden bg-muted">
+                    {previewType === 'pdf' ? (
+                      <embed src={previewUrl!} type="application/pdf" width="100%" height="100%" />
+                    ) : previewType === 'image' ? (
+                      <img src={previewUrl!} alt="Previsualización de la factura" className="object-contain w-full h-full"/>
+                    ) : (
+                      <div className="flex items-center justify-center h-full text-muted-foreground">
+                        <p>No hay previsualización disponible o el tipo de archivo no es soportado.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
 

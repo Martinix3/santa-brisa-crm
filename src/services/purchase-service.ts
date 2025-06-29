@@ -14,9 +14,10 @@ import { updateMaterialStockFS, processMaterialUpdateFromPurchase } from './prom
 const PURCHASES_COLLECTION = 'purchases';
 const SUPPLIERS_COLLECTION = 'suppliers';
 
-async function uploadInvoice(file: File, purchaseId: string): Promise<{ downloadUrl: string; storagePath: string }> {
+async function uploadInvoice(file: File, purchaseId: string): Promise<{ downloadUrl: string; storagePath: string; contentType: string }> {
   const adminBucket = await getAdminBucket();
-  const path = `invoices/purchases/${purchaseId}/invoice_${Date.now()}`;
+  const fileExtension = file.name.split('.').pop() || 'bin';
+  const path = `invoices/purchases/${purchaseId}/invoice_${Date.now()}.${fileExtension}`;
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
     await adminBucket.file(path).save(buffer, {
@@ -26,7 +27,7 @@ async function uploadInvoice(file: File, purchaseId: string): Promise<{ download
     });
     const url = `https://storage.googleapis.com/${adminBucket.name}/${path}`;
     console.log(`File uploaded to ${path}, public URL: ${url}`);
-    return { downloadUrl: url, storagePath: path };
+    return { downloadUrl: url, storagePath: path, contentType: file.type };
   } catch (err: any) {
     console.error(`Error uploading to Firebase Storage at path ${path}:`, err);
     throw new Error(`Failed to upload to storage: ${err.message}`);
@@ -52,6 +53,7 @@ const fromFirestorePurchase = (docSnap: DocumentSnapshot): Purchase => {
     orderDate: data.orderDate instanceof Timestamp ? format(data.orderDate.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
     status: data.status || 'Borrador',
     invoiceUrl: data.invoiceUrl || undefined,
+    invoiceContentType: data.invoiceContentType || undefined,
     storagePath: data.storagePath || undefined,
     notes: data.notes || undefined,
     createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
@@ -87,7 +89,8 @@ const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean, 
     shippingCost,
     totalAmount,
     notes: data.notes || null,
-    invoiceUrl: data.invoiceUrl || null, 
+    invoiceUrl: data.invoiceUrl || null,
+    invoiceContentType: data.invoiceContentType || null,
     storagePath: data.storagePath || null,
   };
 
@@ -183,9 +186,10 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
 
         if (data.invoiceFile) {
             console.log(`Uploading invoice for new purchase ID: ${purchaseId}`);
-            const { downloadUrl, storagePath } = await uploadInvoice(data.invoiceFile, purchaseId);
+            const { downloadUrl, storagePath, contentType } = await uploadInvoice(data.invoiceFile, purchaseId);
             data.invoiceUrl = downloadUrl;
             data.storagePath = storagePath;
+            data.invoiceContentType = contentType;
         }
 
         const firestoreData = toFirestorePurchase(data, true, supplierId);
@@ -195,6 +199,7 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
         const completeStatuses = ['Completado', 'Factura Recibida', 'Pagado'];
         if (data.category === 'Material Promocional' && completeStatuses.includes(data.status)) {
             for (const item of data.items) {
+                if (!item.materialId || !item.quantity || !item.unitPrice) continue;
                 const purchaseInfo: LatestPurchaseInfo = {
                     quantityPurchased: item.quantity,
                     totalPurchaseCost: item.quantity * item.unitPrice,
@@ -240,9 +245,10 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
               console.warn(`Could not delete old invoice file ${oldData.storagePath}, it may not exist or permissions are insufficient.`);
             }
         }
-        const { downloadUrl, storagePath } = await uploadInvoice(data.invoiceFile, id);
+        const { downloadUrl, storagePath, contentType } = await uploadInvoice(data.invoiceFile, id);
         data.invoiceUrl = downloadUrl;
         data.storagePath = storagePath;
+        data.invoiceContentType = contentType;
     }
 
     const firestoreData = toFirestorePurchase(data as PurchaseFormValues, false, supplierId);
@@ -251,7 +257,7 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
     if (data.category === 'Material Promocional') {
       const completeStatuses = ['Completado', 'Factura Recibida', 'Pagado'];
       const wasComplete = completeStatuses.includes(oldData.status);
-      const isNowComplete = completeStatuses.includes(data.status!);
+      const isNowComplete = data.status ? completeStatuses.includes(data.status) : wasComplete;
 
       const newItemsMap = new Map((data.items || []).map(i => [i.materialId, i]));
       const oldItemsMap = new Map(oldData.items.map(i => [i.materialId, i]));
@@ -271,14 +277,16 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
         }
 
         if (diff !== 0) {
-            const purchaseInfo: LatestPurchaseInfo | undefined = newItem ? {
+            const purchaseInfo: LatestPurchaseInfo | undefined = (newItem && newItem.quantity && newItem.unitPrice) ? {
                 quantityPurchased: newItem.quantity,
                 totalPurchaseCost: newItem.quantity * newItem.unitPrice,
                 purchaseDate: format(data.orderDate!, 'yyyy-MM-dd'),
                 calculatedUnitCost: newItem.unitPrice,
                 notes: `De compra ID: ${id}`
             } : undefined;
-            await processMaterialUpdateFromPurchase(materialId, diff, purchaseInfo);
+            if (materialId) {
+              await processMaterialUpdateFromPurchase(materialId, diff, purchaseInfo);
+            }
         }
       }
     }
@@ -300,7 +308,9 @@ export const deletePurchaseFS = async (id: string): Promise<void> => {
       const completeStatuses = ['Completado', 'Factura Recibida', 'Pagado'];
       if (data.category === 'Material Promocional' && completeStatuses.includes(data.status)) {
         for (const item of data.items) {
+          if (item.materialId && item.quantity) {
             await updateMaterialStockFS(item.materialId, -item.quantity);
+          }
         }
       }
       

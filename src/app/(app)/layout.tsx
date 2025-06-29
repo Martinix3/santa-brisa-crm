@@ -41,6 +41,7 @@ import { es } from 'date-fns/locale';
 import { getOrdersFS } from '@/services/order-service';
 import { getEventsFS } from '@/services/event-service';
 import { useToast } from '@/hooks/use-toast';
+import DailyTasksWidget from '@/components/app/daily-tasks-widget';
 
 interface NavItem {
   href: string;
@@ -131,7 +132,6 @@ function DailyTasksMenu() {
     const localNextSevenDaysEnd = endOfDay(addDays(localToday, 6));
 
     async function fetchTasksInternal() {
-      // setIsLoadingTasks(true); // Ya se gestiona antes de llamar
       let relevantOrders: Order[] = [];
       let relevantEvents: CrmEvent[] = [];
 
@@ -264,15 +264,7 @@ function DailyTasksMenu() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-auto p-0 mr-2" align="end" forceMount>
-        {showIconLoader ? ( 
-          <div className="p-4 flex justify-center items-center h-[100px]">
-             <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          </div>
-        ) : (
-          <div className="p-2"> 
-            <p className="text-sm font-medium text-center">No implementado</p>
-          </div>
-        )}
+          <DailyTasksWidget />
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -350,6 +342,7 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <DailyTasksMenu />
             <UserMenu userRole={userRole} userEmail={user?.email} />
           </div>
         </header>

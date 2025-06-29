@@ -227,7 +227,7 @@ export default function AccountsPage() {
                   placeholder="Buscar cuenta, CIF, ciudad..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9"
+                  className="pl-9 w-full sm:max-w-xs"
                 />
               </div>
               <Select value={bucketFilter} onValueChange={(v) => setBucketFilter(v as BucketFilter)}>
@@ -329,7 +329,7 @@ const AccountGroup: React.FC<AccountGroupProps> = ({ title, accounts, teamMember
 
     return (
         <tbody className="group/tbody">
-            <tr className="hover:bg-transparent">
+            <tr className="bg-muted/30 hover:bg-muted/30">
                 <td colSpan={8} className="p-0">
                    <div className="py-3 px-2">
                         <h3 className="text-lg font-semibold text-gray-700">{title} ({accounts.length})</h3>

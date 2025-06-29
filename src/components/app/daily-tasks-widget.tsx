@@ -46,7 +46,6 @@ export default function DailyTasksWidget() {
     const localNextSevenDaysEnd = endOfDay(addDays(localToday, 6));
 
     async function loadTasksInternal() {
-      // setIsLoading(true); // Ya se gestiona antes de llamar
       let relevantOrdersFromFS: Order[] = [];
       let relevantEventsFromFS: CrmEvent[] = [];
 
@@ -62,8 +61,7 @@ export default function DailyTasksWidget() {
         console.error("Error fetching data for daily tasks:", error);
         toast({title: "Error al Cargar Tareas", description: "No se pudieron cargar todas las tareas.", variant: "destructive"})
         setDailyItems([]);
-        // setIsLoading(false); // Se maneja en finally
-        return; // Salir si hay error en la obtención inicial
+        return; 
       }
 
       let filteredOrders: Order[] = [];
@@ -189,9 +187,9 @@ export default function DailyTasksWidget() {
     if (item.sourceType === 'order') {
       const order = item.rawItem as Order;
       if (order.status === 'Programada' || order.status === 'Seguimiento' || order.status === 'Fallido') {
-        return `/order-form?updateVisitId=${order.id}`;
+        return `/order-form?originatingTaskId=${order.id}`;
       }
-      return `/crm-follow-up`;
+      return `/accounts`;
     }
     if (item.sourceType === 'event') {
        return `/events?viewEventId=${item.id}`;

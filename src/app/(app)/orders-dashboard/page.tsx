@@ -387,13 +387,13 @@ export default function OrdersDashboardPage() {
               placeholder="Buscar pedidos (Cliente, Rep)..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-xs"
+              className="w-full sm:max-w-xs"
             />
             <Input
               placeholder="Filtrar por ciudad/provincia..."
               value={cityFilter}
               onChange={(e) => setCityFilter(e.target.value)}
-              className="max-w-xs"
+              className="w-full sm:max-w-xs"
             />
             <div className="flex gap-2 flex-wrap sm:flex-nowrap">
             <DropdownMenu>

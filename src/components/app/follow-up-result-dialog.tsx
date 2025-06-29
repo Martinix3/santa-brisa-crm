@@ -185,8 +185,8 @@ export default function FollowUpResultDialog({
                 <h4 className="text-md font-medium">Detalles del Pedido Exitoso</h4>
                 <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel>Forma de Pago</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(method => (<SelectItem key={method} value={method}>{method}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                 <div className="grid grid-cols-2 gap-4">
-                  <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Nº Unidades</FormLabel><FormControl><Input type="number" placeholder="Ej: 12" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Ej: 15.5" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Nº Unidades</FormLabel><FormControl><Input type="number" placeholder="Ej: 12" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Ej: 15.5" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
                 </div>
                </>
             )}

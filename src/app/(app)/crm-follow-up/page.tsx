@@ -4,125 +4,132 @@
 import * as React from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { getAccountsFS } from "@/services/account-service";
-import { getOrdersFS } from "@/services/order-service"; 
+import { getOrdersFS, updateOrderFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
-import { processCarteraData, type TaskBucket } from "@/services/cartera-service";
-import type { Account, Order, TeamMember, EnrichedAccount } from "@/types";
+import type { Account, Order, TeamMember, OrderStatus } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import StatusBadge from "@/components/app/status-badge";
-import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-import { ClipboardList, Loader2, Target, AlertTriangle, Eye, Clock, CalendarCheck, AlertOctagon } from "lucide-react";
-import { format, isValid, parseISO } from "date-fns";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ClipboardList, Loader2, Target, AlertTriangle, Eye, Edit, Search, MoreHorizontal, Send } from "lucide-react";
+import { format, isValid, parseISO, isBefore, startOfDay } from "date-fns";
 import { es } from "date-fns/locale";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-const LeadScoreBadge: React.FC<{ score: number }> = ({ score }) => {
-    const scoreColor = score > 70 ? 'bg-green-500' : score > 40 ? 'bg-yellow-400 text-black' : 'bg-red-500';
-    return (
-        <div className="flex items-center gap-2">
-            <span className={cn("inline-block w-3 h-3 rounded-full", scoreColor)}></span>
-            <span className="font-semibold">{score.toFixed(0)}</span>
-        </div>
-    );
-};
+type TaskTypeFilter = "Todos" | "Programada" | "Seguimiento";
 
-export default function CarteraPage() {
+export default function CrmFollowUpPage() {
     const { userRole, teamMember, loading: authContextLoading, refreshDataSignature } = useAuth();
     const { toast } = useToast();
     
     const [isLoading, setIsLoading] = React.useState(true);
-    const [enrichedAccounts, setEnrichedAccounts] = React.useState<EnrichedAccount[]>([]);
-    const [filteredAccounts, setFilteredAccounts] = React.useState<EnrichedAccount[]>([]);
-    const [searchTerm, setSearchTerm] = React.useState("");
-    const [activeBucket, setActiveBucket] = React.useState<TaskBucket | 'all'>('all');
+    const [tasks, setTasks] = React.useState<Order[]>([]);
+    const [filteredTasks, setFilteredTasks] = React.useState<Order[]>([]);
+    const [accountsMap, setAccountsMap] = React.useState<Map<string, Account>>(new Map());
+    const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([]);
 
+    const [searchTerm, setSearchTerm] = React.useState("");
+    const [cityFilter, setCityFilter] = React.useState("");
+    const [userFilter, setUserFilter] = React.useState<string>("Todos");
+    const [typeFilter, setTypeFilter] = React.useState<TaskTypeFilter>("Todos");
+    
     React.useEffect(() => {
         if (authContextLoading) return;
 
-        async function loadCarteraData() {
+        async function loadData() {
             setIsLoading(true);
             try {
-                const [accounts, orders, teamMembers] = await Promise.all([
-                    getAccountsFS(),
+                const [allOrders, allAccounts, allTeamMembers] = await Promise.all([
                     getOrdersFS(),
-                    getTeamMembersFS()
+                    getAccountsFS(),
+                    userRole === 'Admin' ? getTeamMembersFS(['SalesRep', 'Clavadista', 'Admin']) : Promise.resolve([])
                 ]);
                 
-                let processedData = await processCarteraData(accounts, orders, teamMembers);
+                let userTasks = allOrders.filter(o => ['Programada', 'Seguimiento'].includes(o.status));
                 
                 if (userRole === 'SalesRep' && teamMember) {
-                    processedData = processedData.filter(acc => acc.responsableId === teamMember.id);
+                    userTasks = userTasks.filter(task => task.salesRep === teamMember.name);
+                } else if (userRole === 'Clavadista' && teamMember) {
+                    userTasks = userTasks.filter(task => task.clavadistaId === teamMember.id);
                 }
-                
-                setEnrichedAccounts(processedData);
-                setFilteredAccounts(processedData);
+
+                setTasks(userTasks);
+                setAccountsMap(new Map(allAccounts.map(acc => [acc.id, acc])));
+                setTeamMembers(allTeamMembers);
 
             } catch (error) {
-                console.error("Error loading cartera data:", error);
-                toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar los datos de la cartera.", variant: "destructive" });
+                console.error("Error loading follow-up data:", error);
+                toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar las tareas.", variant: "destructive" });
             } finally {
                 setIsLoading(false);
             }
         }
-        loadCarteraData();
+        loadData();
     }, [authContextLoading, userRole, teamMember, refreshDataSignature, toast]);
     
     React.useEffect(() => {
-        let accountsToFilter = enrichedAccounts;
+        let tasksToFilter = tasks;
         
-        if(activeBucket !== 'all') {
-            accountsToFilter = accountsToFilter.filter(acc => {
-                if (!acc.nextInteraction) return false;
-                const nextDate = parseISO((acc.nextInteraction.status === 'Programada' ? acc.nextInteraction.visitDate : acc.nextInteraction.nextActionDate)!);
-                const today = new Date();
-                today.setHours(0,0,0,0);
-                
-                if(!isValid(nextDate)) return false;
-
-                if(activeBucket === 'vencida') return nextDate < today;
-                if(activeBucket === 'hoy') return nextDate.toDateString() === today.toDateString();
-                if(activeBucket === 'pendiente') return nextDate > today;
-                return false;
-            });
+        if (userFilter !== 'Todos' && userRole === 'Admin') {
+            const selectedMember = teamMembers.find(m => m.id === userFilter);
+            if(selectedMember?.role === 'Clavadista') {
+                tasksToFilter = tasksToFilter.filter(task => task.clavadistaId === selectedMember.id);
+            } else if (selectedMember) {
+                tasksToFilter = tasksToFilter.filter(task => task.salesRep === selectedMember.name);
+            }
         }
-        
+
+        if(typeFilter !== 'Todos') {
+            tasksToFilter = tasksToFilter.filter(task => task.status === typeFilter);
+        }
+
         if (searchTerm) {
-            accountsToFilter = accountsToFilter.filter(acc => 
-                acc.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (acc.ciudad && acc.ciudad.toLowerCase().includes(searchTerm.toLowerCase()))
+            tasksToFilter = tasksToFilter.filter(task => 
+                task.clientName.toLowerCase().includes(searchTerm.toLowerCase())
             );
         }
 
-        setFilteredAccounts(accountsToFilter);
+        if (cityFilter) {
+            tasksToFilter = tasksToFilter.filter(task => {
+                if (!task.accountId) return false;
+                const account = accountsMap.get(task.accountId);
+                return account?.ciudad?.toLowerCase().includes(cityFilter.toLowerCase()) || 
+                       account?.addressBilling?.city?.toLowerCase().includes(cityFilter.toLowerCase()) ||
+                       account?.addressShipping?.city?.toLowerCase().includes(cityFilter.toLowerCase());
+            });
+        }
 
-    }, [searchTerm, activeBucket, enrichedAccounts]);
+        setFilteredTasks(tasksToFilter);
+    }, [searchTerm, cityFilter, userFilter, typeFilter, tasks, accountsMap, teamMembers, userRole]);
+    
+    const handleDateUpdate = async (taskId: string, newDate: Date) => {
+        const task = tasks.find(t => t.id === taskId);
+        if (!task) return;
+
+        const dateFieldToUpdate = task.status === 'Programada' ? 'visitDate' : 'nextActionDate';
+        const updatePayload = { [dateFieldToUpdate]: format(newDate, "yyyy-MM-dd") };
+
+        try {
+            await updateOrderFS(taskId, updatePayload);
+            toast({ title: "Fecha actualizada", description: `La fecha de la tarea para ${task.clientName} se ha actualizado.` });
+            refreshDataSignature();
+        } catch (error) {
+            toast({ title: "Error al actualizar", description: "No se pudo cambiar la fecha de la tarea.", variant: "destructive" });
+        }
+    };
+
 
     if (authContextLoading) {
         return <div className="flex justify-center items-center h-64"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
     }
-
-    if (userRole !== 'Admin' && userRole !== 'SalesRep') {
-        return <Card><CardHeader><CardTitle>Acceso no permitido</CardTitle></CardHeader><CardContent><p>Esta sección es solo para Administradores y Comerciales.</p></CardContent></Card>;
-    }
-
-    const taskCounts = enrichedAccounts.reduce((acc, account) => {
-        if (!account.nextInteraction) return acc;
-        const nextDate = parseISO((account.nextInteraction.status === 'Programada' ? account.nextInteraction.visitDate : account.nextInteraction.nextActionDate)!);
-        const today = new Date();
-        today.setHours(0,0,0,0);
-
-        if(!isValid(nextDate)) return acc;
-
-        if (nextDate < today) acc.vencida++;
-        else if (nextDate.toDateString() === today.toDateString()) acc.hoy++;
-        else if (nextDate > today) acc.pendiente++;
-        return acc;
-    }, { vencida: 0, hoy: 0, pendiente: 0 });
+    
+    const isAdmin = userRole === 'Admin';
 
     return (
         <div className="space-y-6">
@@ -133,25 +140,32 @@ export default function CarteraPage() {
                 </div>
             </header>
             
-            <Card>
+            <Card className="shadow-subtle">
                 <CardHeader>
                     <CardTitle>Gestión de Tareas y Seguimientos</CardTitle>
-                    <CardDescription>Visualiza las tareas pendientes, vencidas y programadas para hoy. Haz clic en una cuenta para ver más detalles.</CardDescription>
+                    <CardDescription>Visualiza las tareas pendientes y vencidas. Haz clic en una tarea para gestionarla.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
-                        <Input
-                          placeholder="Buscar por cuenta o ciudad..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          className="max-w-sm"
-                        />
-                         <div className="flex items-center gap-2 border rounded-md p-1 bg-muted">
-                            <Button size="sm" variant={activeBucket === 'all' ? 'secondary' : 'ghost'} onClick={() => setActiveBucket('all')}>Todos ({enrichedAccounts.length})</Button>
-                            <Button size="sm" variant={activeBucket === 'vencida' ? 'destructive' : 'ghost'} onClick={() => setActiveBucket('vencida')}><AlertOctagon className="mr-2 h-4 w-4"/>Vencidas ({taskCounts.vencida})</Button>
-                            <Button size="sm" variant={activeBucket === 'hoy' ? 'default' : 'ghost'} onClick={() => setActiveBucket('hoy')}><Target className="mr-2 h-4 w-4"/>Para Hoy ({taskCounts.hoy})</Button>
-                            <Button size="sm" variant={activeBucket === 'pendiente' ? 'ghost' : 'ghost'} onClick={() => setActiveBucket('pendiente')}><CalendarCheck className="mr-2 h-4 w-4"/>Pendientes ({taskCounts.pendiente})</Button>
-                         </div>
+                    <div className="flex flex-col sm:flex-row items-center gap-4 mb-6 flex-wrap">
+                        <Input placeholder="Buscar por cuenta..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="max-w-xs"/>
+                        <Input placeholder="Filtrar por ciudad..." value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} className="max-w-xs"/>
+                        {isAdmin && (
+                             <Select value={userFilter} onValueChange={setUserFilter}>
+                                <SelectTrigger className="w-full sm:w-[200px]"><SelectValue placeholder="Filtrar por usuario" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Todos">Todos los Usuarios</SelectItem>
+                                    {teamMembers.map(member => <SelectItem key={member.id} value={member.id}>{member.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        )}
+                        <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as TaskTypeFilter)}>
+                            <SelectTrigger className="w-full sm:w-[200px]"><SelectValue placeholder="Filtrar por tipo" /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="Todos">Todos los Tipos</SelectItem>
+                                <SelectItem value="Programada">Visitas Programadas</SelectItem>
+                                <SelectItem value="Seguimiento">Seguimientos</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
                     {isLoading ? (
                         <div className="flex justify-center items-center h-64"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>
@@ -160,28 +174,73 @@ export default function CarteraPage() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead className="w-[25%]">Cuenta</TableHead>
-                                    <TableHead className="w-[15%]">Estado</TableHead>
                                     <TableHead className="w-[20%]">Próxima Acción</TableHead>
                                     <TableHead className="w-[15%]">Fecha Límite</TableHead>
-                                    <TableHead className="w-[15%]">Lead Score</TableHead>
-                                    <TableHead className="w-[10%]">Ciudad</TableHead>
+                                    {isAdmin && <TableHead className="w-[15%]">Responsable</TableHead>}
+                                    <TableHead className="w-[15%]" />
+                                    <TableHead className="w-[10%] text-right">Acciones</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {filteredAccounts.length > 0 ? filteredAccounts.map((acc) => (
-                                    <TableRow key={acc.id}>
-                                        <TableCell className="font-medium">
-                                            <Link href={`/accounts/${acc.id}`} className="hover:underline text-primary">{acc.nombre}</Link>
-                                        </TableCell>
-                                        <TableCell><StatusBadge type="account" status={acc.status} /></TableCell>
-                                        <TableCell>{acc.nextInteraction?.nextActionType || '—'}</TableCell>
-                                        <TableCell>{acc.nextInteraction ? format(parseISO((acc.nextInteraction.status === 'Programada' ? acc.nextInteraction.visitDate : acc.nextInteraction.nextActionDate)!), 'dd/MM/yyyy') : '—'}</TableCell>
-                                        <TableCell><LeadScoreBadge score={acc.leadScore} /></TableCell>
-                                        <TableCell>{acc.ciudad || 'N/D'}</TableCell>
-                                    </TableRow>
-                                )) : (
+                                {filteredTasks.length > 0 ? filteredTasks.map((task) => {
+                                    const dateField = task.status === 'Programada' ? task.visitDate : task.nextActionDate;
+                                    const taskDate = dateField ? parseISO(dateField) : null;
+                                    const isOverdue = taskDate && isBefore(taskDate, startOfDay(new Date()));
+
+                                    return (
+                                        <TableRow key={task.id} className={cn(isOverdue && 'bg-red-50 dark:bg-red-900/20')}>
+                                            <TableCell className="font-medium">
+                                                {task.accountId ? (
+                                                    <Link href={`/accounts/${task.accountId}`} className="hover:underline text-primary">{task.clientName}</Link>
+                                                ) : (
+                                                    task.clientName
+                                                )}
+                                            </TableCell>
+                                            <TableCell>{task.status === 'Programada' ? 'Visita Programada' : task.nextActionType}</TableCell>
+                                            <TableCell>
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <Button variant="ghost" className="p-1 h-auto font-normal text-left w-full justify-start">
+                                                            {isOverdue && <AlertTriangle className="mr-2 h-4 w-4 text-red-600"/>}
+                                                            {taskDate ? format(taskDate, 'dd/MM/yyyy') : 'Sin fecha'}
+                                                            <Edit className="ml-2 h-3 w-3 text-muted-foreground opacity-50 hover:opacity-100" />
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-auto p-0">
+                                                        <Calendar mode="single" selected={taskDate || undefined} onSelect={(date) => date && handleDateUpdate(task.id, date)} initialFocus />
+                                                    </PopoverContent>
+                                                </Popover>
+                                            </TableCell>
+                                            {isAdmin && <TableCell>{task.salesRep}</TableCell>}
+                                            <TableCell>
+                                                 {task.status === 'Programada' ? 'Visita' : 'Seguimiento'}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent>
+                                                         <DropdownMenuItem asChild>
+                                                            <Link href={`/order-form?originatingTaskId=${task.id}`}>
+                                                                <Send className="mr-2 h-4 w-4" /> Registrar Resultado
+                                                            </Link>
+                                                        </DropdownMenuItem>
+                                                        {task.accountId && (
+                                                            <DropdownMenuItem asChild>
+                                                                <Link href={`/accounts/${task.accountId}`}>
+                                                                    <Eye className="mr-2 h-4 w-4" /> Ver Ficha de la Cuenta
+                                                                </Link>
+                                                            </DropdownMenuItem>
+                                                        )}
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                }) : (
                                     <TableRow>
-                                        <TableCell colSpan={6} className="h-24 text-center">No se encontraron cuentas con los filtros actuales.</TableCell>
+                                        <TableCell colSpan={isAdmin ? 6 : 5} className="h-24 text-center">No se encontraron tareas con los filtros actuales.</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
@@ -189,7 +248,7 @@ export default function CarteraPage() {
                     )}
                 </CardContent>
                  <CardFooter>
-                    <p className="text-xs text-muted-foreground">Mostrando {filteredAccounts.length} de {enrichedAccounts.length} cuentas.</p>
+                    <p className="text-xs text-muted-foreground">Mostrando {filteredTasks.length} de {tasks.length} tareas abiertas.</p>
                 </CardFooter>
             </Card>
         </div>

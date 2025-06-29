@@ -4,12 +4,15 @@
 
 import { db } from '@/lib/firebase';
 import {
-  collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
+  collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
   type DocumentSnapshot,
 } from "firebase/firestore";
-import type { Order, AssignedPromotionalMaterial } from '@/types';
+import type { Order, AssignedPromotionalMaterial, NewInteractionPayload, AccountFormValues } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 import { updateMaterialStockFS } from './promotional-material-service';
+import { getAccountByIdFS, addAccountFS } from './account-service';
+import { getTeamMemberByIdFS } from './team-member-service';
+
 
 const ORDERS_COLLECTION = 'orders';
 
@@ -144,6 +147,74 @@ export const addOrderFS = async (data: Partial<Order> & {visitDate: Date | strin
 
   return docRef.id;
 };
+
+export const addSimpleInteractionFS = async (inter: NewInteractionPayload): Promise<string> => {
+    // 1. Get or create account ID
+    let finalAccountId = inter.accountId;
+    let finalClientName = "";
+
+    if (inter.newClientName) {
+        const accountsCol = collection(db, "accounts");
+        const q = query(accountsCol, where("nombre", "==", inter.newClientName));
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+            finalAccountId = snapshot.docs[0].id;
+            finalClientName = snapshot.docs[0].data().nombre;
+        } else {
+            const newAccountData: AccountFormValues = { name: inter.newClientName, salesRepId: inter.responsableId, type: 'HORECA', cif: "" };
+            finalAccountId = await addAccountFS(newAccountData);
+            finalClientName = inter.newClientName;
+        }
+    } else if (finalAccountId) {
+        const acc = await getAccountByIdFS(finalAccountId);
+        if (acc) finalClientName = acc.nombre;
+    }
+
+    if (!finalClientName) throw new Error("Client name could not be resolved.");
+    
+    // 2. Determine responsible user
+    const responsable = await getTeamMemberByIdFS(inter.responsableId);
+    if (!responsable) throw new Error("Responsable not found");
+    
+    // 3. Build the Order object
+    const orderData: any = {
+        clientName: finalClientName,
+        accountId: finalAccountId,
+        salesRep: responsable.name,
+        clavadistaId: inter.clavadistaId,
+        notes: inter.notes,
+        assignedMaterials: inter.promoItems,
+        originatingTaskId: null,
+        clientStatus: inter.newClientName ? 'new' : 'existing',
+        createdAt: new Date()
+    };
+
+    if (inter.tipo === 'Pedido' || inter.resultado === 'Pedido Exitoso') {
+        orderData.status = 'Confirmado';
+        orderData.value = inter.importe;
+        orderData.products = ['Pedido Rápido'];
+        orderData.visitDate = inter.fecha_prevista;
+    } else { // It's a visit
+        orderData.visitDate = new Date(); // The visit happened today unless specified otherwise
+        if (inter.resultado === 'Programada') {
+            orderData.status = 'Programada';
+            orderData.visitDate = inter.fecha_prevista;
+        } else if (inter.resultado === 'Requiere seguimiento') {
+            orderData.status = 'Seguimiento';
+            orderData.nextActionDate = format(inter.fecha_prevista, 'yyyy-MM-dd');
+            orderData.nextActionType = 'Revisar';
+        } else if (inter.resultado === 'Fallido') {
+            orderData.status = 'Fallido';
+            orderData.failureReasonType = 'Otro (especificar)';
+            orderData.failureReasonCustom = 'Registrado desde acción rápida.';
+        }
+    }
+    
+    const firestoreData = toFirestoreOrder(orderData, true);
+    const docRef = await addDoc(collection(db, ORDERS_COLLECTION), firestoreData);
+    return docRef.id;
+}
+
 
 export const updateOrderFS = async (id: string, data: Partial<Order> & {visitDate?: Date | string}): Promise<void> => { 
   const orderDocRef = doc(db, ORDERS_COLLECTION, id);

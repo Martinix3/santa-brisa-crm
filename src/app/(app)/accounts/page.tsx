@@ -7,20 +7,20 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import type { EnrichedAccount, TeamMember, Order, NextActionType, UserRole, OrderStatus, FollowUpResultFormValues } from "@/types";
+import type { EnrichedAccount, TeamMember, Order, NextActionType, UserRole, OrderStatus, FollowUpResultFormValues, NewInteractionPayload } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, Loader2, Search, AlertTriangle, ChevronDown } from "lucide-react";
 import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
 import { getAccountsFS, addAccountFS, updateAccountFS } from "@/services/account-service";
-import { getOrdersFS, updateOrderFS, addOrderFS } from "@/services/order-service";
+import { updateOrderFS, addSimpleInteractionFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { processCarteraData } from "@/services/cartera-service";
 import AccountTableRow from "@/components/app/account-table-row";
 import { startOfDay, endOfDay, isBefore, isEqual, parseISO, isValid, format } from 'date-fns';
 import { db } from "@/lib/firebase";
 import { runTransaction, doc, collection } from "firebase/firestore";
-import { ADMIN_SELF_REGISTER_VALUE, NO_CLAVADISTA_VALUE } from '@/lib/schemas/order-form-schema';
 import FollowUpResultDialog from "@/components/app/follow-up-result-dialog";
+import NewInteractionDialog from "@/components/app/new-interaction-dialog";
 
 
 type BucketFilter = "Todos" | "Vencidas" | "Para Hoy" | "Pendientes";
@@ -35,6 +35,7 @@ export default function AccountsPage() {
   
   const [isAccountDialogOpen, setIsAccountDialogOpen] = React.useState(false);
   const [isFollowUpDialogOpen, setIsFollowUpDialogOpen] = React.useState(false);
+  const [isNewInteractionDialogOpen, setIsNewInteractionDialogOpen] = React.useState(false);
   const [currentTask, setCurrentTask] = React.useState<Order | null>(null);
 
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -115,6 +116,10 @@ export default function AccountsPage() {
   const handleAddNewAccount = () => {
     if (!isAdmin) return;
     setIsAccountDialogOpen(true);
+  };
+  
+  const handleAddNewInteraction = () => {
+    setIsNewInteractionDialogOpen(true);
   };
 
   const handleSaveNewAccount = async (data: AccountFormValues) => {
@@ -209,6 +214,26 @@ export default function AccountsPage() {
         setCurrentTask(null);
     }
   };
+
+  const handleSaveNewInteraction = async (data: NewInteractionPayload) => {
+    if (!teamMember) return;
+    setIsLoading(true);
+    try {
+        await addSimpleInteractionFS({
+            ...data,
+            userId: teamMember.authUid || teamMember.id,
+            userName: teamMember.name,
+        });
+        toast({ title: "¡Interacción Creada!", description: "La nueva interacción ha sido registrada con éxito." });
+        refreshDataSignature();
+        setIsNewInteractionDialogOpen(false);
+    } catch (error) {
+        console.error("Error saving new interaction:", error);
+        toast({ title: "Error al Guardar", description: "No se pudo añadir la nueva interacción.", variant: "destructive" });
+    } finally {
+        setIsLoading(false);
+    }
+  };
   
   return (
     <div className="space-y-6">
@@ -248,11 +273,16 @@ export default function AccountsPage() {
                       </SelectContent>
                   </Select>
                )}
-               {isAdmin && (
-                <Button onClick={handleAddNewAccount} disabled={isLoading} className="w-full sm:w-auto ml-auto">
-                  <PlusCircle className="mr-2 h-4 w-4" /> Añadir Cuenta
-                </Button>
-              )}
+                <div className="flex-grow flex justify-end gap-2 w-full sm:w-auto">
+                  <Button onClick={handleAddNewInteraction} disabled={isLoading} variant="outline">
+                    <PlusCircle className="mr-2 h-4 w-4" /> Registrar Interacción
+                  </Button>
+                  {isAdmin && (
+                    <Button onClick={handleAddNewAccount} disabled={isLoading}>
+                      <PlusCircle className="mr-2 h-4 w-4" /> Añadir Cuenta Manual
+                    </Button>
+                  )}
+               </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -303,6 +333,17 @@ export default function AccountsPage() {
             allTeamMembers={teamMembers}
             currentUser={teamMember}
             currentUserRole={userRole}
+          />
+      )}
+
+      {isNewInteractionDialogOpen && teamMember && (
+          <NewInteractionDialog
+            isOpen={isNewInteractionDialogOpen}
+            onOpenChange={setIsNewInteractionDialogOpen}
+            onSave={handleSaveNewInteraction}
+            allAccounts={enrichedAccounts}
+            allTeamMembers={teamMembers}
+            currentUser={teamMember}
           />
       )}
 

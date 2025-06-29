@@ -1,9 +1,5 @@
 
 
-
-
-
-
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
 
 export interface Kpi {
@@ -444,6 +440,17 @@ export interface AccountFormValues {
 
 export type Step = "client" | "outcome" | "details" | "new_client_data" | "verify";
 
-// New Enums from Spec
-export const interactionTypeList: InteractionType[] = ['Visita', 'Llamada', 'Mail', 'Otro'];
-export const interactionResultList: InteractionResult[] = ['Programada', 'Requiere seguimiento', 'Pedido Exitoso', 'Fallida'];
+export interface NewInteractionPayload {
+  accountId?: string;
+  newClientName?: string;
+  tipo: 'Visita' | 'Pedido';
+  resultado: 'Programada' | 'Requiere seguimiento' | 'Pedido Exitoso' | 'Fallida';
+  fecha_prevista: Date;
+  importe?: number;
+  promoItems?: AssignedPromotionalMaterial[];
+  userId: string;
+  userName: string;
+  clavadistaId?: string;
+  responsableId: string;
+  notes?: string;
+}

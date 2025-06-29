@@ -2,7 +2,7 @@
 'use server';
 
 import type { Account, Order, TeamMember, EnrichedAccount, AccountStatus } from '@/types';
-import { parseISO, isValid, addDays } from 'date-fns';
+import { parseISO, isValid, addDays, subDays, isAfter, isWithinInterval } from 'date-fns';
 import { calculateAccountStatus, calculateLeadScore } from '@/lib/account-logic';
 import { VALID_SALE_STATUSES } from '@/lib/constants';
 
@@ -54,7 +54,7 @@ export async function processCarteraData(
             const dateB = (b as any).tempSortDate;
             if (!isValid(dateA)) return 1;
             if (!isValid(dateB)) return -1;
-            return dateB.getTime() - dateA.getTime();
+            return dateB.getTime() - a.getTime();
         });
     }
 
@@ -81,8 +81,21 @@ export async function processCarteraData(
             ? ((lastInteractionOrder as any).tempSortDate) 
             : undefined;
 
+        // --- New calculations for lead score ---
+        const today = new Date();
+        const thirtyDaysAgo = subDays(today, 30);
+        const threeDaysFromNow = addDays(today, 3);
+        
+        const recentOrderValue = accountOrders
+            .filter(o => VALID_SALE_STATUSES.includes(o.status) && o.createdAt && isValid(parseISO(o.createdAt)) && isAfter(parseISO(o.createdAt), thirtyDaysAgo))
+            .reduce((sum, o) => sum + (o.value || 0), 0);
+            
+        const hasUpcomingVisit = accountOrders
+            .some(o => o.status === 'Programada' && o.visitDate && isValid(parseISO(o.visitDate)) && isWithinInterval(parseISO(o.visitDate), { start: today, end: threeDaysFromNow }));
+        // --- End of new calculations ---
+
         const status = await calculateAccountStatus(accountOrders, account);
-        const leadScore = calculateLeadScore(status, account.potencial, lastInteractionDate);
+        const leadScore = calculateLeadScore(status, account.potencial, lastInteractionDate, recentOrderValue, hasUpcomingVisit);
         
         const successfulOrders = accountOrders.filter(o => VALID_SALE_STATUSES.includes(o.status));
         const totalSuccessfulOrders = successfulOrders.length;

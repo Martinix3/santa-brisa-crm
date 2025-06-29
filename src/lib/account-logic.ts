@@ -1,6 +1,6 @@
 
 import type { Account, Order, AccountStatus, PotencialType } from '@/types';
-import { parseISO, differenceInDays, isValid, startOfDay, isBefore } from 'date-fns';
+import { parseISO, differenceInDays, isValid, startOfDay, isBefore, isAfter, subDays } from 'date-fns';
 import { VALID_SALE_STATUSES } from '@/lib/constants';
 
 /**
@@ -93,7 +93,13 @@ export async function calculateAccountStatus(
 /**
  * Calculates the lead score for an account based on its calculated status and potential.
  */
-export function calculateLeadScore(accountStatus: AccountStatus, potencial: PotencialType, lastInteractionDate?: Date): number {
+export function calculateLeadScore(
+    accountStatus: AccountStatus, 
+    potencial: PotencialType, 
+    lastInteractionDate?: Date,
+    recentOrderValue: number = 0,
+    hasUpcomingVisit: boolean = false
+): number {
     let score = 0;
     const now = new Date();
 
@@ -121,6 +127,14 @@ export function calculateLeadScore(accountStatus: AccountStatus, potencial: Pote
         else if (daysSinceLastInteraction > 60) score -= 10;
     } else {
         score -= 5; // Penalty if no interactions
+    }
+
+    // Bonus for recent sales value (1 point per 100€, capped at 10 points)
+    score += Math.min(Math.round(recentOrderValue / 100), 10);
+
+    // Bonus for upcoming visit
+    if (hasUpcomingVisit) {
+        score += 10;
     }
 
     return Math.max(0, Math.min(score, 100)); // Clamp score between 0 and 100

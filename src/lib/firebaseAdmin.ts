@@ -2,7 +2,7 @@ import { initializeApp, getApps, App, applicationDefault } from 'firebase-admin/
 import { getStorage } from 'firebase-admin/storage';
 
 // CORRECT BUCKET NAME
-const BUCKET_NAME = 'santa-brisa-crm.firebasestorage.app';
+const BUCKET_NAME = 'santa-brisa-crm.appspot.com';
 
 function getFirebaseAdminApp(): App {
     if (getApps().length > 0) {
@@ -11,7 +11,8 @@ function getFirebaseAdminApp(): App {
     
     // Explicitly use Application Default Credentials. This is more robust for App Hosting.
     return initializeApp({
-        credential: applicationDefault()
+        credential: applicationDefault(),
+        storageBucket: BUCKET_NAME,
     });
 }
 

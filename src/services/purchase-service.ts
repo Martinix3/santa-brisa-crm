@@ -16,17 +16,25 @@ const SUPPLIERS_COLLECTION = 'suppliers';
 
 async function uploadInvoice(dataUri: string, purchaseId: string): Promise<{ downloadUrl: string; storagePath: string }> {
   const [meta, base64] = dataUri.split(',');
-  const mime = /data:(.*?);base64/.exec(meta)?.[1] ?? 'application/pdf';
+  if (!meta || !base64) {
+    throw new Error('Invalid Data URI format.');
+  }
+  const mime = /data:(.*?);base64/.exec(meta)?.[1] ?? 'application/octet-stream';
   const ext = mime.split('/')[1] ?? 'bin';
   const path = `invoices/purchases/${purchaseId}/invoice_${Date.now()}.${ext}`;
-  await adminBucket.file(path).save(Buffer.from(base64, 'base64'), {
-    contentType: mime,
-    resumable: false,
-    public: true,
-  });
-  const url = `https://storage.googleapis.com/${adminBucket.name}/${path}`;
-  console.log(`File uploaded to ${path}, public URL: ${url}`);
-  return { downloadUrl: url, storagePath: path };
+  try {
+    await adminBucket.file(path).save(Buffer.from(base64, 'base64'), {
+      contentType: mime,
+      resumable: false,
+      public: true,
+    });
+    const url = `https://storage.googleapis.com/${adminBucket.name}/${path}`;
+    console.log(`File uploaded to ${path}, public URL: ${url}`);
+    return { downloadUrl: url, storagePath: path };
+  } catch (err: any) {
+    console.error(`Error uploading to Firebase Storage at path ${path}:`, err);
+    throw new Error(`Failed to upload to storage: ${err.message}`);
+  }
 }
 
 const fromFirestorePurchase = (docSnap: DocumentSnapshot): Purchase => {
@@ -180,7 +188,7 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
         await setDoc(newDocRef, firestoreData);
 
         const completeStatuses = ['Completado', 'Factura Recibida', 'Pagado'];
-        if (completeStatuses.includes(data.status)) {
+        if (data.category === 'Material Promocional' && completeStatuses.includes(data.status)) {
             for (const item of data.items) {
                 const purchaseInfo: LatestPurchaseInfo = {
                     quantityPurchased: item.quantity,
@@ -216,8 +224,17 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
         }
     }
 
-    if (data.invoiceDataUri) {
+    if (data.invoiceDataUri && data.invoiceDataUri !== oldData.invoiceUrl) { // Check if new file is uploaded
         console.log(`Uploading new invoice for existing purchase ID: ${id}`);
+        // Optionally delete old file
+        if (oldData.storagePath) {
+            try {
+              await adminBucket.file(oldData.storagePath).delete();
+              console.log(`Old invoice file deleted: ${oldData.storagePath}`);
+            } catch (e) {
+              console.warn(`Could not delete old invoice file ${oldData.storagePath}, it may not exist or permissions are insufficient.`);
+            }
+        }
         const { downloadUrl, storagePath } = await uploadInvoice(data.invoiceDataUri, id);
         data.invoiceUrl = downloadUrl;
         data.storagePath = storagePath;
@@ -226,21 +243,27 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
     const firestoreData = toFirestorePurchase(data as PurchaseFormValues, false, supplierId);
     await updateDoc(purchaseDocRef, firestoreData);
     
-    const completeStatuses = ['Completado', 'Factura Recibida', 'Pagado'];
-    const wasComplete = completeStatuses.includes(oldData.status);
-    const isNowComplete = completeStatuses.includes(data.status!);
+    if (data.category === 'Material Promocional') {
+      const completeStatuses = ['Completado', 'Factura Recibida', 'Pagado'];
+      const wasComplete = completeStatuses.includes(oldData.status);
+      const isNowComplete = completeStatuses.includes(data.status!);
 
-    const newItemsMap = new Map((data.items || []).map(i => [i.materialId, i]));
-    const oldItemsMap = new Map(oldData.items.map(i => [i.materialId, i]));
-
-    if (isNowComplete) {
+      const newItemsMap = new Map((data.items || []).map(i => [i.materialId, i]));
+      const oldItemsMap = new Map(oldData.items.map(i => [i.materialId, i]));
       const allMaterialIds = new Set([...newItemsMap.keys(), ...oldItemsMap.keys()]);
+
       for (const materialId of allMaterialIds) {
         const newItem = newItemsMap.get(materialId);
         const oldItem = oldItemsMap.get(materialId);
-        const newQty = newItem?.quantity || 0;
-        const oldQty = wasComplete ? (oldItem?.quantity || 0) : 0;
-        const diff = newQty - oldQty;
+        let diff = 0;
+        
+        if (wasComplete && !isNowComplete) {
+            diff = -(oldItem?.quantity || 0); // Revert stock
+        } else if (!wasComplete && isNowComplete) {
+            diff = newItem?.quantity || 0; // Add new stock
+        } else if (wasComplete && isNowComplete) {
+            diff = (newItem?.quantity || 0) - (oldItem?.quantity || 0); // Add difference
+        }
 
         if (diff !== 0) {
             const purchaseInfo: LatestPurchaseInfo | undefined = newItem ? {
@@ -252,10 +275,6 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
             } : undefined;
             await processMaterialUpdateFromPurchase(materialId, diff, purchaseInfo);
         }
-      }
-    } else if (wasComplete && !isNowComplete) {
-      for (const oldItem of oldData.items) {
-        await updateMaterialStockFS(oldItem.materialId, -oldItem.quantity);
       }
     }
 
@@ -274,7 +293,7 @@ export const deletePurchaseFS = async (id: string): Promise<void> => {
   if (docSnap.exists()) {
       const data = fromFirestorePurchase(docSnap);
       const completeStatuses = ['Completado', 'Factura Recibida', 'Pagado'];
-      if (completeStatuses.includes(data.status)) {
+      if (data.category === 'Material Promocional' && completeStatuses.includes(data.status)) {
         for (const item of data.items) {
             await updateMaterialStockFS(item.materialId, -item.quantity);
         }

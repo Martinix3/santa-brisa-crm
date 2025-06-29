@@ -62,6 +62,10 @@ Analyze the provided invoice image or PDF and extract the following details. Be 
   - If it appears to be a **Spanish/European** invoice, the period (\`.\`) is the thousands separator and the comma (\`,\`) is the decimal separator. Example: \`1.234,56\` must be interpreted as \`1234.56\`.
   - If it appears to be an **Anglo-Saxon (US/UK)** invoice, the comma (\`,\`) is the thousands separator and the period (\`.\`) is the decimal separator. Example: \`1,234.56\` must be interpreted as \`1234.56\`.
   - This step is CRUCIAL. Misinterpreting the decimal separator will lead to incorrect financial data.
+- **Unit Price vs. Total Price Calculation**: Pay close attention to the line item table structure. Some invoices list the **total price** for the line (quantity x unit price) in the main price column, not the unit price.
+  - **Check the column header**: Headers like "Importe" or "Total" suggest a total line price. Headers like "P/U" or "Unit Price" suggest a unit price. The header "Precio" is ambiguous and requires checking the subtotal.
+  - **Verify with Subtotal**: After extracting items, mentally calculate \`sum(quantity * price_from_column)\`. If this sum is wildly different from the document's \`Subtotal\`, it's likely the column shows the unit price. If the \`sum(price_from_column)\` is very close to the \`Subtotal\`, then the column shows the total line price.
+  - **Your Duty**: If you determine the column is a **total line price**, you **must calculate the correct \`unitPrice\` for the output** by dividing that total line price by the \`quantity\`. For example, if quantity is 2 and the line price is 318.00, the \`unitPrice\` you must output is 159.00.
 - **Double-Check Numbers**: After determining the format, double-check your transcription of all numbers (quantity, price, total). Be aware of common OCR errors (e.g., '1' vs 'l', '0' vs 'O', '8' vs 'B'). Accuracy is paramount.
 - **Line Items Source:** Extract line items ONLY from the main table with columns like CANT, PRECIO, IMPORTE. Ignore any summary text below the table (like pallet details or production notes) when creating the list of items.
 
@@ -70,7 +74,7 @@ Analyze the provided invoice image or PDF and extract the following details. Be 
 - **Supplier CIF/VAT ID**: Extract the supplier's tax identification number (CIF, NIF, VAT ID, etc.).
 - **Supplier Address**: Extract the supplier's full mailing address and break it down into structured fields: street, city, province, postal code, and country.
 - **Invoice Date**: Find the issue date and format it as YYYY-MM-DD.
-- **Line Items**: For each item in the main table, provide its description, quantity, and unit price (before tax).
+- **Line Items**: For each item in the main table, provide its description, quantity, and unit price (before tax). Remember your duty to calculate the unit price if the invoice shows a total line price.
 - **Shipping Cost**: If there is a separate charge for shipping, delivery, or "portes", extract that value. If not present, this should be 0 or omitted.
 - **Tax Rate**: Identify the VAT or tax rate percentage (e.g., IVA 21%). If there are multiple, provide the most prominent one.
 - **Notes**: Extract any invoice number (Nº Factura), order number, or other relevant text notes from the document.

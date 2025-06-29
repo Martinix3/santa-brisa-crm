@@ -14,17 +14,33 @@ function calculateAccountStatus(
 ): AccountStatus {
     const now = new Date();
 
-    // Priority 1: Has a future task scheduled.
+    // Priority 1: Check for future tasks.
     const futureTasks = ordersForAccount.filter(o =>
         (o.status === 'Programada' || o.status === 'Seguimiento') &&
         (o.status === 'Programada' ? o.visitDate : o.nextActionDate) &&
         isValid(parseISO(o.status === 'Programada' ? o.visitDate! : o.nextActionDate!)) &&
         parseISO(o.status === 'Programada' ? o.visitDate! : o.nextActionDate!) >= startOfDay(now)
     );
+    
     if (futureTasks.length > 0) {
-        return 'Programado';
+        // Sort to find the very next task
+        futureTasks.sort((a, b) => {
+            const dateA = parseISO((a.status === 'Programada' ? a.visitDate : a.nextActionDate)!);
+            const dateB = parseISO((b.status === 'Programada' ? b.visitDate : b.nextActionDate)!);
+            return dateA.getTime() - dateB.getTime();
+        });
+        
+        const nextTask = futureTasks[0];
+        // The account status reflects the nature of the very next task.
+        if (nextTask.status === 'Programada') {
+            return 'Programado';
+        }
+        if (nextTask.status === 'Seguimiento') {
+            return 'Seguimiento';
+        }
     }
 
+    // If no future tasks, continue with existing logic.
     // Priority 2: Has a sales history.
     const successfulOrders = ordersForAccount.filter(o => ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Completado'].includes(o.status));
     if (successfulOrders.length >= 2) {
@@ -39,9 +55,10 @@ function calculateAccountStatus(
         return 'Inactivo';
     }
 
-    // Priority 4: Default for active accounts needing attention.
+    // Priority 4: Default for active accounts needing attention (e.g., has past-due tasks).
     return 'Seguimiento';
 }
+
 
 /**
  * Calculates the lead score for an account based on its calculated status and potential.

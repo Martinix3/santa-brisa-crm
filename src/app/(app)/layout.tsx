@@ -66,7 +66,7 @@ const navigationStructure: NavGroup[] = [
       { href: '/dashboard', label: 'Panel Principal', icon: LayoutDashboard, roles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'], exact: true },
       { href: '/my-agenda', label: 'Mi Agenda', icon: CalendarCheck, roles: ['Admin', 'SalesRep', 'Clavadista'] },
       { href: '/orders-dashboard', label: 'Panel de Pedidos', icon: ShoppingCart, roles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista'] },
-      { href: '/accounts', label: 'Cuentas', icon: Building2, roles: ['Admin', 'SalesRep'] }, 
+      { href: '/accounts', label: 'Cuentas y Seguimiento', icon: Building2, roles: ['Admin', 'SalesRep'] }, 
     ],
   },
   {
@@ -74,7 +74,6 @@ const navigationStructure: NavGroup[] = [
     label: 'CRM y Ventas',
     groupRoles: ['Admin', 'SalesRep', 'Clavadista'],
     items: [
-      { href: '/crm-follow-up', label: 'Panel de Actividad Comercial', icon: ClipboardList, roles: ['Admin', 'SalesRep', 'Clavadista'] },
       { href: '/order-form', label: 'Registrar Interacción', icon: FileText, roles: ['Admin', 'SalesRep', 'Clavadista'] },
       { href: '/request-sample', label: 'Solicitar Muestras', icon: SendHorizonal, roles: ['Admin', 'SalesRep', 'Clavadista'] },
       { href: '/team-tracking', label: 'Equipo de Ventas', icon: Users, roles: ['Admin', 'SalesRep'] },
@@ -173,6 +172,7 @@ function DailyTasksMenu() {
 
         const orderAgendaItems = relevantOrders
             .map(order => ({
+              id: order.id,
               itemDate: parseISO(order.status === 'Programada' ? order.visitDate! : order.nextActionDate!),
               sourceType: 'order' as 'order',
               rawItem: order,
@@ -180,6 +180,7 @@ function DailyTasksMenu() {
 
           const eventAgendaItems = relevantEvents
             .map(event => ({
+              id: event.id,
               itemDate: parseISO(event.startDate),
               sourceType: 'event' as 'event',
               rawItem: event,

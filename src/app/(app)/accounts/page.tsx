@@ -214,8 +214,8 @@ export default function AccountsPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-3xl font-headline font-semibold">Cartera de Cuentas</h1>
-        <CardDescription>Gestiona, prioriza y actúa sobre tu cartera de clientes y leads.</CardDescription>
+        <h1 className="text-3xl font-headline font-semibold">Cuentas y Seguimiento</h1>
+        <CardDescription>Gestiona tus cuentas, programa visitas y haz seguimiento de tus tareas comerciales.</CardDescription>
       </header>
 
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">

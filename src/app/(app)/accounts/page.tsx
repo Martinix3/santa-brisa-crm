@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import type { EnrichedAccount, TeamMember, Order, NextActionType } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
@@ -16,7 +17,7 @@ import { getOrdersFS, updateOrderFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { processCarteraData } from "@/services/cartera-service";
 import AccountTableRow from "@/components/app/account-table-row";
-import { startOfDay, endOfDay, isBefore, isEqual, parseISO } from 'date-fns';
+import { startOfDay, endOfDay, isBefore, isEqual, parseISO, isValid, format } from 'date-fns';
 
 type BucketFilter = "Todos" | "Vencidas" | "Para Hoy" | "Pendientes";
 

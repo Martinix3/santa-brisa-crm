@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import type { Account, Order, UserRole, EnrichedAccount, OrderStatus } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { PlusCircle, Loader2, MapPin, Eye, MoreHorizontal, ChevronRight, Send, CheckCircle } from "lucide-react";
+import { PlusCircle, Loader2, MapPin, Eye, MoreHorizontal, ChevronRight, Send, CheckCircle, ArrowDown, ArrowUp } from "lucide-react";
 import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import StatusBadge from "@/components/app/status-badge";
@@ -64,6 +64,7 @@ export default function AccountsPage() {
   const [searchTerm, setSearchTerm] = React.useState("");
   const [cityFilter, setCityFilter] = React.useState("");
   const [expandedAccountId, setExpandedAccountId] = React.useState<string | null>(null);
+  const [sortConfig, setSortConfig] = React.useState<{ key: keyof EnrichedAccount; direction: 'ascending' | 'descending' }>({ key: 'leadScore', direction: 'descending' });
 
   const isAdmin = userRole === 'Admin';
   const canEditAccounts = userRole === 'Admin' || userRole === 'SalesRep';
@@ -112,6 +113,36 @@ export default function AccountsPage() {
     setFilteredAccounts(accountsToFilter);
   }, [searchTerm, cityFilter, enrichedAccounts]);
 
+  const sortedAccounts = React.useMemo(() => {
+    let sortableItems = [...filteredAccounts];
+    if (sortConfig.key) {
+        sortableItems.sort((a, b) => {
+            const aValue = a[sortConfig.key];
+            const bValue = b[sortConfig.key];
+
+            if (aValue === undefined || aValue === null) return 1;
+            if (bValue === undefined || bValue === null) return -1;
+            
+            if (aValue < bValue) {
+                return sortConfig.direction === 'ascending' ? -1 : 1;
+            }
+            if (aValue > bValue) {
+                return sortConfig.direction === 'ascending' ? 1 : -1;
+            }
+            return 0;
+        });
+    }
+    return sortableItems;
+  }, [filteredAccounts, sortConfig]);
+
+  const requestSort = (key: keyof EnrichedAccount) => {
+    let direction: 'ascending' | 'descending' = 'ascending';
+    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+        direction = 'descending';
+    }
+    setSortConfig({ key, direction });
+  };
+
 
   const handleAddNewAccount = () => {
     if (!isAdmin) return;
@@ -156,6 +187,17 @@ export default function AccountsPage() {
   };
   
   const isOpenTask = (status: OrderStatus) => ['Programada', 'Seguimiento', 'Fallido'].includes(status);
+  
+  const SortableHeader: React.FC<{ sortKey: keyof EnrichedAccount; label: string; className?: string }> = ({ sortKey, label, className }) => (
+    <TableHead className={cn("p-0", className)}>
+        <Button variant="ghost" onClick={() => requestSort(sortKey)} className="w-full justify-start px-4">
+            {label}
+            {sortConfig.key === sortKey ? (
+                sortConfig.direction === 'ascending' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
+            ) : null}
+        </Button>
+    </TableHead>
+  );
 
   return (
     <div className="space-y-8">
@@ -201,18 +243,18 @@ export default function AccountsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[25%]">Cuenta</TableHead>
+                    <SortableHeader sortKey="nombre" label="Cuenta" className="w-[25%]" />
                     <TableHead className="w-[10%]">Estatus</TableHead>
                     <TableHead className="w-[10%]">Ubicación</TableHead>
-                    <TableHead className="w-[10%]">Últ. Inter.</TableHead>
+                    <SortableHeader sortKey="lastInteractionDate" label="Últ. Inter." className="w-[10%]" />
                     <TableHead className="w-[15%]">Próx. Acción</TableHead>
                     <TableHead className="w-[15%]">Responsable</TableHead>
-                    <TableHead className="w-[10%]">Lead Score</TableHead>
+                    <SortableHeader sortKey="leadScore" label="Lead Score" className="w-[10%]" />
                     <TableHead className="text-right w-[5%]">Acc.</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredAccounts.length > 0 ? filteredAccounts.map((account) => (
+                  {sortedAccounts.length > 0 ? sortedAccounts.map((account) => (
                     <React.Fragment key={account.id}>
                         <TableRow>
                           <TableCell className="font-medium">
@@ -296,7 +338,7 @@ export default function AccountsPage() {
         </CardContent>
         {!isLoading && filteredAccounts.length > 0 && (
             <CardFooter>
-                <p className="text-xs text-muted-foreground">Total de cuentas mostradas: {filteredAccounts.length} de {enrichedAccounts.length}</p>
+                <p className="text-xs text-muted-foreground">Total de cuentas mostradas: {sortedAccounts.length} de {enrichedAccounts.length}</p>
             </CardFooter>
         )}
       </Card>

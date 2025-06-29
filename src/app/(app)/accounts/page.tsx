@@ -319,7 +319,7 @@ interface AccountGroupProps {
 }
 
 const AccountGroup: React.FC<AccountGroupProps> = ({ title, accounts, teamMembers, onResponsibleUpdate, onOpenFollowUpDialog }) => {
-    const [isExpanded, setIsExpanded] = React.useState(true);
+    const [isExpanded, setIsExpanded] = React.useState(false);
     const visibleAccounts = isExpanded ? accounts : accounts.slice(0, 5);
 
     if (accounts.length === 0) return null;
@@ -354,5 +354,3 @@ const AccountGroup: React.FC<AccountGroupProps> = ({ title, accounts, teamMember
         </tbody>
     )
 }
-
-    

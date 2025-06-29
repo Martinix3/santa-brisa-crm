@@ -105,16 +105,24 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                     </Tooltip>
                 </TableCell>
                 <TableCell className="align-middle">
-                     {account.nextInteraction ? (
+                    {account.nextInteraction ? (
                         <div className="flex items-center justify-between gap-2">
                             <span className="text-sm text-muted-foreground truncate" title={nextActionText}>
                                 {nextActionText}
                             </span>
-                             <Button variant="outline" size="sm" onClick={() => onOpenFollowUpDialog(account.nextInteraction!)}>
+                            <Button variant="outline" size="sm" onClick={() => onOpenFollowUpDialog(account.nextInteraction!)}>
                                 <Check className="mr-1 h-4 w-4" /> Completar
-                             </Button>
+                            </Button>
                         </div>
-                    ) : '—'}
+                    ) : accountIsActive ? (
+                         <Button asChild variant="outline" size="sm">
+                            <Link href={`/order-form?accountId=${account.id}`}>
+                                <PlusCircle className="mr-2 h-4 w-4" /> Generar Nuevo Pedido
+                            </Link>
+                        </Button>
+                    ) : (
+                        '—'
+                    )}
                 </TableCell>
                 <TableCell className="text-center align-middle">
                      <Tooltip>

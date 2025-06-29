@@ -34,7 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Account, AccountType, AccountStatus, TeamMember, AddressDetails } from "@/types";
-import { accountTypeList, accountStatusList, provincesSpainList } from "@/lib/data"; 
+import { accountTypeList, newAccountStatusList as accountStatusList } from "@/lib/data"; 
 import { Loader2 } from "lucide-react";
 import { Separator } from "../ui/separator";
 import { getTeamMembersFS } from "@/services/team-member-service";
@@ -136,7 +136,7 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
   const form = useForm<AccountFormValues>({
     resolver: zodResolver(accountFormSchema),
     defaultValues: {
-      name: "", legalName: "", cif: "", type: undefined, status: "Potencial", iban: "",
+      name: "", legalName: "", cif: "", type: undefined, status: "Seguimiento", iban: "",
       addressBilling_street: "", addressBilling_number: "", addressBilling_city: "", addressBilling_province: "", addressBilling_postalCode: "", addressBilling_country: "España",
       addressShipping_street: "", addressShipping_number: "", addressShipping_city: "", addressShipping_province: "", addressShipping_postalCode: "", addressShipping_country: "España",
       mainContactName: "", mainContactEmail: "", mainContactPhone: "", notes: "", internalNotes: "", salesRepId: NO_SALES_REP_VALUE,
@@ -156,7 +156,7 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
       loadSalesReps();
       if (account) {
         form.reset({
-          name: account.name,
+          name: account.nombre,
           legalName: account.legalName || "", 
           cif: account.cif || "", 
           type: account.type, 
@@ -183,7 +183,7 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
         });
       } else {
         form.reset({ 
-          name: "", legalName: "", cif: "", type: undefined, status: "Potencial", iban: "",
+          name: "", legalName: "", cif: "", type: undefined, status: "Seguimiento", iban: "",
           addressBilling_street: "", addressBilling_number: "", addressBilling_city: "", addressBilling_province: "", addressBilling_postalCode: "", addressBilling_country: "España",
           addressShipping_street: "", addressShipping_number: "", addressShipping_city: "", addressShipping_province: "", addressShipping_postalCode: "", addressShipping_country: "España",
           mainContactName: "", mainContactEmail: "", mainContactPhone: "", 
@@ -213,7 +213,7 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
         <DialogHeader>
           <DialogTitle>{isReadOnly ? "Detalles de la Cuenta" : (account ? "Editar Cuenta" : "Añadir Nueva Cuenta")}</DialogTitle>
           <DialogDescription>
-            {isReadOnly ? `Viendo detalles de ${account?.name}.` : (account ? "Modifica los detalles de la cuenta." : "Introduce la información de la nueva cuenta.")}
+            {isReadOnly ? `Viendo detalles de ${account?.nombre}.` : (account ? "Modifica los detalles de la cuenta." : "Introduce la información de la nueva cuenta.")}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>

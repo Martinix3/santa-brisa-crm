@@ -99,7 +99,7 @@ export default function AccountDetailPage() {
           const interactions = allOrders.filter(order => {
             if (order.accountId && order.accountId === foundAccount.id) return true;
             if (!order.accountId && order.cif && foundAccount.cif && order.cif.trim().toLowerCase() === foundAccount.cif.trim().toLowerCase()) return true;
-            if (!order.accountId && !order.cif && order.clientName && foundAccount.name && order.clientName.trim().toLowerCase() === foundAccount.name.trim().toLowerCase()) return true;
+            if (!order.accountId && !order.cif && order.clientName && foundAccount.nombre && order.clientName.trim().toLowerCase() === foundAccount.nombre.trim().toLowerCase()) return true;
             return false;
           }).sort((a,b) => parseISO(b.createdAt || b.visitDate).getTime() - parseISO(a.createdAt || a.visitDate).getTime());
           
@@ -191,7 +191,7 @@ export default function AccountDetailPage() {
           </Button>
           <Building2 className="h-8 w-8 text-primary" />
           <div>
-            <h1 className="text-3xl font-headline font-semibold">{account.name}</h1>
+            <h1 className="text-3xl font-headline font-semibold">{account.nombre}</h1>
             <p className="text-sm text-muted-foreground">{account.legalName || 'Nombre fiscal no especificado'}</p>
           </div>
         </div>

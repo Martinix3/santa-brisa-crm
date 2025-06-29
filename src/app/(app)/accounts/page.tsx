@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { accountStatusList } from "@/lib/data"; 
+import { newAccountStatusList } from "@/lib/data"; 
 import type { Account, AccountStatus, UserRole, Order } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, Edit, Trash2, MoreHorizontal, Building2, Filter, ChevronDown, Eye, Loader2, MapPin, ShoppingCart } from "lucide-react";
@@ -62,8 +62,8 @@ export default function AccountsPage() {
     const accountNameMap = new Map<string, string>();
     accounts.forEach(account => {
         // Handle cases where multiple accounts might have the same name, first one wins.
-        if (!accountNameMap.has(account.name.toLowerCase().trim())) {
-            accountNameMap.set(account.name.toLowerCase().trim(), account.id);
+        if (account.nombre && !accountNameMap.has(account.nombre.toLowerCase().trim())) {
+            accountNameMap.set(account.nombre.toLowerCase().trim(), account.id);
         }
     });
 
@@ -123,7 +123,7 @@ export default function AccountsPage() {
     try {
       await deleteAccountFS(accountToDelete.id);
       setAccounts(prev => prev.filter(acc => acc.id !== accountToDelete.id));
-      toast({ title: "¡Cuenta Eliminada!", description: `La cuenta "${accountToDelete.name}" ha sido eliminada.`, variant: "destructive" });
+      toast({ title: "¡Cuenta Eliminada!", description: `La cuenta "${accountToDelete.nombre}" ha sido eliminada.`, variant: "destructive" });
       setAccountToDelete(null);
     } catch (error) {
       console.error("Error deleting account:", error);
@@ -135,7 +135,7 @@ export default function AccountsPage() {
 
   const filteredAccounts = accounts
     .filter(account =>
-      (account.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (account.nombre && account.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
        (account.cif && account.cif.toLowerCase().includes(searchTerm.toLowerCase())) ||
        (account.legalName && account.legalName.toLowerCase().includes(searchTerm.toLowerCase())) ||
        (account.mainContactName && account.mainContactName.toLowerCase().includes(searchTerm.toLowerCase())))
@@ -155,7 +155,7 @@ export default function AccountsPage() {
              billingProvince.includes(cityLower);
     });
   
-  const uniqueAccountStatuses = ["Todos", ...accountStatusList] as (AccountStatus | "Todos")[];
+  const uniqueAccountStatuses = ["Todos", ...newAccountStatusList] as (AccountStatus | "Todos")[];
 
 
   return (
@@ -230,7 +230,7 @@ export default function AccountsPage() {
                     <TableRow key={account.id}>
                       <TableCell className="font-medium">
                         <Link href={`/accounts/${account.id}`} className="hover:underline text-primary">
-                          {account.name}
+                          {account.nombre}
                         </Link>
                       </TableCell>
                       <TableCell className="text-center">
@@ -291,7 +291,7 @@ export default function AccountsPage() {
                                           <AlertDialogDescription>
                                               Esta acción no se puede deshacer. Esto eliminará permanentemente la cuenta:
                                               <br />
-                                              <strong className="mt-2 block">"{accountToDelete.name}"</strong>
+                                              <strong className="mt-2 block">"{accountToDelete.nombre}"</strong>
                                           </AlertDialogDescription>
                                           </AlertDialogHeader>
                                           <AlertDialogFooter>

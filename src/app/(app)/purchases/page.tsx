@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { Purchase, PurchaseStatus, UserRole, PromotionalMaterial, PurchaseCategory, Currency } from "@/types";
 import { purchaseStatusList, purchaseCategoryList } from "@/lib/data";
 import { useAuth } from "@/contexts/auth-context";
-import { PlusCircle, MoreHorizontal, Filter, ChevronDown, Edit, Trash2, Receipt, Loader2, UploadCloud, Download } from "lucide-react";
+import { PlusCircle, MoreHorizontal, Filter, ChevronDown, Edit, Trash2, Receipt, Loader2, UploadCloud, Download, TestTube2 } from "lucide-react";
 import PurchaseDialog from "@/components/app/purchase-dialog";
 import type { PurchaseFormValues } from "@/components/app/purchase-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -23,6 +23,7 @@ import { addPurchaseFS, updatePurchaseFS, deletePurchaseFS, getPurchasesFS } fro
 import Link from "next/link";
 import InvoiceUploadDialog from "@/components/app/invoice-upload-dialog";
 import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
+import { testUpload } from "@/services/test-upload-service";
 
 export default function PurchasesPage() {
   const { toast } = useToast();
@@ -40,6 +41,9 @@ export default function PurchasesPage() {
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<PurchaseStatus | "Todos">("Todos");
   const [categoryFilter, setCategoryFilter] = React.useState<PurchaseCategory | "Todas">("Todas");
+
+  const [testResult, setTestResult] = React.useState<string | null>(null);
+  const [isTestingUpload, setIsTestingUpload] = React.useState(false);
 
   const isAdmin = userRole === 'Admin';
 
@@ -141,6 +145,51 @@ export default function PurchasesPage() {
     }
   };
 
+  const handleTestUpload = async () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'text/plain,image/png,image/jpeg';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      if (file.size > 1 * 1024 * 1024) { // 1MB limit for test
+        toast({ title: 'Archivo de prueba demasiado grande', description: 'Por favor, selecciona un archivo menor de 1MB.', variant: 'destructive' });
+        return;
+      }
+      
+      setIsTestingUpload(true);
+      setTestResult(null);
+
+      try {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = async () => {
+          const dataUri = reader.result as string;
+          const result = await testUpload({ dataUri, contentType: file.type });
+
+          if ('url' in result) {
+            setTestResult(`¡Éxito! Archivo subido a: ${result.url}`);
+            toast({ title: 'Prueba de subida exitosa', description: 'El archivo de prueba se ha subido correctamente.' });
+          } else {
+            setTestResult(`Error: ${result.error}`);
+            toast({ title: 'Error en la prueba de subida', description: result.error, variant: 'destructive' });
+          }
+          setIsTestingUpload(false);
+        };
+        reader.onerror = () => {
+           toast({ title: 'Error', description: 'No se pudo leer el archivo.', variant: 'destructive' });
+           setIsTestingUpload(false);
+        }
+      } catch (error: any) {
+        setTestResult(`Error en el cliente: ${error.message}`);
+        toast({ title: 'Error en la prueba', description: error.message, variant: 'destructive' });
+        setIsTestingUpload(false);
+      }
+    };
+    input.click();
+  };
+
   const materialsMap = React.useMemo(() => new Map(materials.map(m => [m.id, m])), [materials]);
 
   const filteredPurchases = purchases
@@ -167,15 +216,35 @@ export default function PurchasesPage() {
             <Receipt className="h-8 w-8 text-primary" />
             <h1 className="text-3xl font-headline font-semibold">Gestión de Gastos</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
           <Button onClick={handleAddNewPurchase} disabled={isLoading}>
             <PlusCircle className="mr-2 h-4 w-4" /> Añadir Gasto Manual
           </Button>
            <Button onClick={() => setIsInvoiceUploadOpen(true)} disabled={isLoading} variant="outline">
             <UploadCloud className="mr-2 h-4 w-4" /> Crear desde Factura (IA)
           </Button>
+           <Button onClick={handleTestUpload} disabled={isLoading || isTestingUpload} variant="secondary">
+            <TestTube2 className="mr-2 h-4 w-4" />
+            {isTestingUpload ? 'Probando...' : 'Probar Subida'}
+          </Button>
         </div>
       </header>
+
+       {testResult && (
+        <Card className="mt-4 bg-muted/50">
+          <CardHeader><CardTitle className="text-base">Resultado de la Prueba de Subida</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-sm break-all">{testResult}</p>
+            {testResult.startsWith('¡Éxito!') && (
+              <Button asChild variant="link" className="p-0 mt-1 h-auto">
+                <Link href={testResult.replace('¡Éxito! Archivo subido a: ', '')} target="_blank" rel="noopener noreferrer">
+                  Abrir archivo
+                </Link>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>

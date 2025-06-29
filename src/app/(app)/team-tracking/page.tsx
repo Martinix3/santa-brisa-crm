@@ -55,7 +55,7 @@ const renderProgress = (current: number, target: number, unit: string, targetAch
 
 export default function TeamTrackingPage() {
   const { toast } = useToast();
-  const { dataSignature } = useAuth(); // Get dataSignature from AuthContext
+  const { dataSignature } = useAuth(); 
   const [teamStats, setTeamStats] = useState<TeamMember[]>([]);
   const [salesTeamMembersBase, setSalesTeamMembersBase] = useState<TeamMember[]>([]);
   const [isLoadingBaseMembers, setIsLoadingBaseMembers] = useState(true);
@@ -75,7 +75,7 @@ export default function TeamTrackingPage() {
       }
     }
     loadBaseTeamMembers();
-  }, [toast, dataSignature]); // Add dataSignature to dependencies
+  }, [toast, dataSignature]); 
 
 
   useEffect(() => {
@@ -97,7 +97,11 @@ export default function TeamTrackingPage() {
         
         const allSuccessfulOrders = fetchedOrders
             .filter(o => VALID_SALE_STATUSES.includes(o.status) && (o.createdAt || o.visitDate))
-            .map(o => ({ ...o, relevantDate: parseISO(o.createdAt || o.visitDate!) }))
+            .map(o => {
+                const dateString = o.visitDate || o.createdAt!;
+                const isoDateString = dateString.includes(' ') ? dateString.replace(' ', 'T') : dateString;
+                return { ...o, relevantDate: parseISO(isoDateString) };
+            })
             .filter(o => isValid(o.relevantDate))
             .sort((a,b) => a.relevantDate.getTime() - b.relevantDate.getTime());
 
@@ -108,7 +112,6 @@ export default function TeamTrackingPage() {
 
           const memberInteractions = fetchedOrders.filter(o => o.salesRep === member.name);
 
-          // Calculate total stats
           memberInteractions.forEach(order => {
             if (ALL_VISIT_STATUSES.includes(order.status)) {
                 totalVisitsCount++;
@@ -119,7 +122,6 @@ export default function TeamTrackingPage() {
             }
           });
           
-          // Calculate Monthly Visits: all interactions created this month
           const monthlyVisitsAchieved = memberInteractions.filter(order =>
             isValid(parseISO(order.createdAt || order.visitDate)) &&
             isSameMonth(parseISO(order.createdAt || order.visitDate), currentDate) &&
@@ -127,7 +129,6 @@ export default function TeamTrackingPage() {
             ALL_VISIT_STATUSES.includes(order.status)
           ).length;
 
-          // Corrected: Calculate Monthly New Accounts based on the first successful order date.
           const firstOrdersForMemberAccounts = new Map<string, typeof allSuccessfulOrders[0]>();
           for (const order of allSuccessfulOrders) {
             if (order.salesRep === member.name && order.accountId && !firstOrdersForMemberAccounts.has(order.accountId)) {

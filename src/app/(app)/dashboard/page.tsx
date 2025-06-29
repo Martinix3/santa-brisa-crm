@@ -67,26 +67,27 @@ export default function DashboardPage() {
 
     const successfulOrders = orders
       .filter(o => VALID_SALE_STATUSES.includes(o.status) && (o.createdAt || o.visitDate))
-      .map(o => ({
-        ...o,
-        relevantDate: parseISO(o.createdAt || o.visitDate!),
-      }))
+      .map(o => {
+        const dateString = o.visitDate || o.createdAt!;
+        const isoDateString = dateString.includes(' ') ? dateString.replace(' ', 'T') : dateString;
+        return {
+          ...o,
+          relevantDate: parseISO(isoDateString),
+        };
+      })
       .filter(o => isValid(o.relevantDate))
       .sort((a,b) => a.relevantDate.getTime() - b.relevantDate.getTime());
 
     const totalBottlesSoldOverall = successfulOrders.reduce((sum, o) => sum + (o.numberOfUnits || 0), 0);
     const teamBottlesSoldOverall = successfulOrders.filter(o => salesRepNamesSet.has(o.salesRep)).reduce((sum, o) => sum + (o.numberOfUnits || 0), 0);
     
-    // --- CORRECTED/NEW LOGIC for "New Accounts" based on first successful order date ---
     const firstSuccessfulOrderByAccount = new Map<string, Order & { relevantDate: Date }>();
     for (const order of successfulOrders) {
-        // Orders are sorted by date asc, so the first one we see is the first successful order.
         if (order.accountId && !firstSuccessfulOrderByAccount.has(order.accountId)) {
             firstSuccessfulOrderByAccount.set(order.accountId, order);
         }
     }
     
-    // Get the list of all first successful orders and filter by team members
     const teamFirstSuccessfulOrders = Array.from(firstSuccessfulOrderByAccount.values())
         .filter(o => salesRepNamesSet.has(o.salesRep));
     
@@ -97,9 +98,7 @@ export default function DashboardPage() {
     const newAccountsThisMonth = teamFirstSuccessfulOrders.filter(o => 
         isSameMonth(o.relevantDate, currentDate)
     ).length;
-    // --- END OF CORRECTED LOGIC ---
 
-    // Repurchase Rate Calculation
     const accountNameMap = new Map<string, string>();
     accounts.forEach(account => {
         if (account.nombre && !accountNameMap.has(account.nombre.toLowerCase().trim())) {
@@ -109,7 +108,6 @@ export default function DashboardPage() {
 
     const ordersByAccount = successfulOrders.reduce((acc, order) => {
         let accountId = order.accountId;
-        // Fallback to name matching if accountId is missing
         if (!accountId && order.clientName) {
             accountId = accountNameMap.get(order.clientName.toLowerCase().trim());
         }
@@ -140,10 +138,8 @@ export default function DashboardPage() {
       return { ...kpi, currentValue };
     });
 
-    // Monthly progress calculations
     let monthlyProgressMetrics: any[] = [];
     if(userRole === 'SalesRep' && teamMember) {
-      // This part now needs to use the new logic for monthly accounts.
       const memberFirstSuccessfulOrders = Array.from(firstSuccessfulOrderByAccount.values())
         .filter(o => o.salesRep === teamMember.name);
       
@@ -163,11 +159,10 @@ export default function DashboardPage() {
         { title: "Visitas Realizadas", target: teamMember.monthlyTargetVisits || 0, current: monthlyVisits, unit: 'visitas', colorClass: "[&>div]:bg-primary" },
       ];
     } else if (userRole === 'Admin') {
-       // Logic for Admin (Team view)
        const teamMonthlyTargetAccounts = salesReps.reduce((sum, rep) => sum + (rep.monthlyTargetAccounts || 0), 0);
        const teamMonthlyTargetVisits = salesReps.reduce((sum, rep) => sum + (rep.monthlyTargetVisits || 0), 0);
        
-       const teamMonthlyAccounts = newAccountsThisMonth; // Reuse the already calculated correct value
+       const teamMonthlyAccounts = newAccountsThisMonth; 
 
        const teamMonthlyVisits = orders.filter(o => 
           salesRepNamesSet.has(o.salesRep) && 
@@ -182,7 +177,6 @@ export default function DashboardPage() {
       ];
     }
     
-    // Chart data
     const kpiVentasEquipo = calculatedKpis.find(k => k.id === 'kpi2');
     const objetivoTotalVentasEquipo = kpiVentasEquipo?.targetValue ?? 0;
     const ventasEquipoActuales = kpiVentasEquipo?.currentValue ?? 0;

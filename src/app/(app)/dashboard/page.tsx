@@ -65,17 +65,31 @@ export default function DashboardPage() {
     const salesRepNamesSet = new Set(salesReps.map(m => m.name));
     const currentDate = new Date();
 
+    const accountNameMap = new Map<string, string>();
+    accounts.forEach(account => {
+        if (account.nombre) {
+            accountNameMap.set(account.nombre.toLowerCase().trim(), account.id);
+        }
+    });
+
     const successfulOrders = orders
       .filter(o => VALID_SALE_STATUSES.includes(o.status) && (o.createdAt || o.visitDate))
       .map(o => {
         const dateString = o.visitDate || o.createdAt!;
         const isoDateString = dateString.includes(' ') ? dateString.replace(' ', 'T') : dateString;
+        
+        let finalAccountId = o.accountId;
+        if (!finalAccountId && o.clientName) {
+            finalAccountId = accountNameMap.get(o.clientName.toLowerCase().trim());
+        }
+
         return {
           ...o,
+          accountId: finalAccountId,
           relevantDate: parseISO(isoDateString),
         };
       })
-      .filter(o => isValid(o.relevantDate))
+      .filter(o => isValid(o.relevantDate) && o.accountId)
       .sort((a,b) => a.relevantDate.getTime() - b.relevantDate.getTime());
 
     const totalBottlesSoldOverall = successfulOrders.reduce((sum, o) => sum + (o.numberOfUnits || 0), 0);
@@ -99,29 +113,17 @@ export default function DashboardPage() {
         isSameMonth(o.relevantDate, currentDate)
     ).length;
 
-    const accountNameMap = new Map<string, string>();
-    accounts.forEach(account => {
-        if (account.nombre && !accountNameMap.has(account.nombre.toLowerCase().trim())) {
-            accountNameMap.set(account.nombre.toLowerCase().trim(), account.id);
-        }
-    });
-
-    const ordersByAccount = successfulOrders.reduce((acc, order) => {
-        let accountId = order.accountId;
-        if (!accountId && order.clientName) {
-            accountId = accountNameMap.get(order.clientName.toLowerCase().trim());
-        }
-
-        if (accountId) {
-            if (!acc[accountId]) acc[accountId] = [];
-            acc[accountId].push(order);
-        }
-        return acc;
-    }, {} as Record<string, Order[]>);
-
-    const accountIdsWithOrders = Object.keys(ordersByAccount);
+    const accountIdsWithOrders = Array.from(firstSuccessfulOrderByAccount.keys());
     const totalAccountsWithOrders = accountIdsWithOrders.length;
-    const accountsWithRepurchase = accountIdsWithOrders.filter(id => ordersByAccount[id].length > 1).length;
+    
+    let accountsWithRepurchase = 0;
+    for (const accountId of accountIdsWithOrders) {
+        const ordersForAccount = successfulOrders.filter(o => o.accountId === accountId);
+        if (ordersForAccount.length > 1) {
+            accountsWithRepurchase++;
+        }
+    }
+    
     const repurchaseRate = totalAccountsWithOrders > 0
         ? Math.round((accountsWithRepurchase / totalAccountsWithOrders) * 100)
         : 0;

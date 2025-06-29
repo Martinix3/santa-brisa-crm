@@ -92,17 +92,33 @@ export default function TeamTrackingPage() {
     async function loadTeamData() {
       setIsLoadingStats(true);
       try {
-        const fetchedOrders = await getOrdersFS();
+        const [fetchedOrders, fetchedAccounts] = await Promise.all([
+            getOrdersFS(),
+            getAccountsFS()
+        ]);
         const currentDate = new Date();
         
+        const accountNameMap = new Map<string, string>();
+        fetchedAccounts.forEach(account => {
+            if (account.nombre) {
+                accountNameMap.set(account.nombre.toLowerCase().trim(), account.id);
+            }
+        });
+
         const allSuccessfulOrders = fetchedOrders
             .filter(o => VALID_SALE_STATUSES.includes(o.status) && (o.createdAt || o.visitDate))
             .map(o => {
                 const dateString = o.visitDate || o.createdAt!;
                 const isoDateString = dateString.includes(' ') ? dateString.replace(' ', 'T') : dateString;
-                return { ...o, relevantDate: parseISO(isoDateString) };
+                
+                let finalAccountId = o.accountId;
+                if (!finalAccountId && o.clientName) {
+                    finalAccountId = accountNameMap.get(o.clientName.toLowerCase().trim());
+                }
+
+                return { ...o, accountId: finalAccountId, relevantDate: parseISO(isoDateString) };
             })
-            .filter(o => isValid(o.relevantDate))
+            .filter(o => isValid(o.relevantDate) && o.accountId)
             .sort((a,b) => a.relevantDate.getTime() - b.relevantDate.getTime());
 
         const stats = salesTeamMembersBase.map(member => {
@@ -123,9 +139,9 @@ export default function TeamTrackingPage() {
           });
           
           const monthlyVisitsAchieved = memberInteractions.filter(order =>
-            isValid(parseISO(order.createdAt || order.visitDate)) &&
-            isSameMonth(parseISO(order.createdAt || order.visitDate), currentDate) &&
-            isSameYear(parseISO(order.createdAt || order.visitDate), currentDate) &&
+            isValid(parseISO(order.createdAt || order.visitDate!)) &&
+            isSameMonth(parseISO(order.createdAt || order.visitDate!), currentDate) &&
+            isSameYear(parseISO(order.createdAt || order.visitDate!), currentDate) &&
             ALL_VISIT_STATUSES.includes(order.status)
           ).length;
 
@@ -137,7 +153,7 @@ export default function TeamTrackingPage() {
           }
           
           const monthlyAccountsAchieved = Array.from(firstOrdersForMemberAccounts.values()).filter(o => 
-            isSameMonth(o.relevantDate, currentDate)
+            isSameMonth(o.relevantDate, currentDate) && isSameYear(o.relevantDate, currentDate)
           ).length;
 
 

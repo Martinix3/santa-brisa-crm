@@ -63,6 +63,7 @@ export default function DashboardPage() {
     if (isLoading) return null;
 
     const salesRepNamesSet = new Set(salesReps.map(m => m.name));
+    const salesRepIdsSet = new Set(salesReps.map(m => m.id));
     const currentDate = new Date();
 
     const successfulOrders = orders
@@ -79,12 +80,15 @@ export default function DashboardPage() {
     
     // --- CORRECTED/NEW LOGIC ---
 
-    // New Accounts calculation based on Account creation date and status
-    const activeAccounts = accounts.filter(acc => 
-        acc.status === 'Activo' && acc.createdAt && isValid(parseISO(acc.createdAt))
+    // New Accounts calculation based on Account creation date, status, AND salesRepId
+    const teamActiveAccounts = accounts.filter(acc => 
+        acc.status === 'Activo' &&
+        acc.salesRepId &&
+        salesRepIdsSet.has(acc.salesRepId) &&
+        acc.createdAt && isValid(parseISO(acc.createdAt))
     );
-    const newAccountsThisYear = activeAccounts.filter(acc => isSameYear(parseISO(acc.createdAt!), currentDate)).length;
-    const newAccountsThisMonth = activeAccounts.filter(acc => isSameMonth(parseISO(acc.createdAt!), currentDate)).length;
+    const newAccountsThisYear = teamActiveAccounts.filter(acc => isSameYear(parseISO(acc.createdAt!), currentDate)).length;
+    const newAccountsThisMonth = teamActiveAccounts.filter(acc => isSameMonth(parseISO(acc.createdAt!), currentDate)).length;
     
     // Repurchase Rate Calculation
     const accountNameMap = new Map<string, string>();

@@ -70,7 +70,7 @@ export const crmEventTypeList: CrmEventType[] = ['Activación en Tienda', 'Feria
 export const crmEventStatusList: CrmEventStatus[] = ['Planificado', 'Confirmado', 'En Curso', 'Completado', 'Cancelado', 'Pospuesto'];
 
 export const purchaseStatusList: PurchaseStatus[] = ['Borrador', 'Proforma Recibida', 'Pagado', 'Pago a 30 días', 'Factura Recibida', 'Completado', 'Cancelado'];
-export const purchaseCategoryList: PurchaseCategory[] = ['Material Promocional', 'Gasto de Marketing', 'Gasto Operativo', 'COGS', 'Otro'];
+export const purchaseCategoryList: PurchaseCategory[] = ['Materia Prima (COGS)', 'Material de Embalaje (COGS)', 'Gastos de Logística', 'Gasto de Marketing', 'Gasto Operativo', 'Otro'];
 
 export const canalOrigenColocacionList: CanalOrigenColocacion[] = ['Equipo Santa Brisa', 'Iniciativa Importador', 'Marketing Digital', 'Referido', 'Otro'];
 

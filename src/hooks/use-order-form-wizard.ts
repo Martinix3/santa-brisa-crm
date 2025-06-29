@@ -45,7 +45,7 @@ export function useOrderWizard() {
   const filteredAccounts = React.useMemo(() => {
     if (!debouncedSearchTerm) return [];
     return allAccounts.filter(acc =>
-      acc.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      acc.nombre.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
       (acc.cif && acc.cif.toLowerCase().includes(debouncedSearchTerm.toLowerCase()))
     );
   }, [debouncedSearchTerm, allAccounts]);
@@ -147,7 +147,7 @@ export function useOrderWizard() {
         
         if (task) {
             setOriginatingTask(task);
-            const taskAccount = accounts.find(acc => acc.id === task.accountId || acc.name === task.clientName);
+            const taskAccount = accounts.find(acc => acc.id === task.accountId || acc.nombre === task.clientName);
             if (taskAccount) {
                 handleClientSelect(taskAccount);
             }
@@ -252,11 +252,22 @@ export function useOrderWizard() {
                 const newAccountRef = doc(collection(db, "accounts"));
                 currentAccountId = newAccountRef.id;
                 const newAccountData = {
-                  id: currentAccountId, name: client.name, legalName: values.nombreFiscal, cif: values.cif || "", type: values.clientType || 'Otro', status: 'Activo' as AccountStatus,
+                  id: currentAccountId,
+                  nombre: client.name,
+                  legalName: values.nombreFiscal,
+                  cif: values.cif || "",
+                  type: values.clientType || 'Otro',
+                  status: 'Activo' as OrderStatus,
                   addressBilling: { street: values.direccionFiscal_street, number: values.direccionFiscal_number, city: values.direccionFiscal_city, province: values.direccionFiscal_province, postalCode: values.direccionFiscal_postalCode, country: values.direccionFiscal_country },
                   addressShipping: { street: values.direccionEntrega_street, number: values.direccionEntrega_number, city: values.direccionEntrega_city, province: values.direccionEntrega_province, postalCode: values.direccionEntrega_postalCode, country: values.direccionEntrega_country },
-                  mainContactName: values.contactoNombre, mainContactEmail: values.contactoCorreo, mainContactPhone: values.contactoTelefono, notes: values.observacionesAlta, salesRepId: salesRepIdForAccount, iban: values.iban,
-                  createdAt: new Date(), updatedAt: new Date(),
+                  mainContactName: values.contactoNombre,
+                  mainContactEmail: values.contactoCorreo,
+                  mainContactPhone: values.contactoTelefono,
+                  notes: values.observacionesAlta,
+                  salesRepId: salesRepIdForAccount,
+                  iban: values.iban,
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
                 };
                 transaction.set(newAccountRef, newAccountData as any);
             } else if (client?.id !== 'new' && values.iban && client?.id) {

@@ -19,7 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
+import Logo from "@/components/icons/Logo";
 
 const loginFormSchema = z.object({
   email: z.string().email("El formato del correo electrónico no es válido."),
@@ -74,19 +74,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="items-center text-center">
-          <div
-            className="inline-flex items-center justify-center p-2 rounded-md mb-4"
-            style={{ backgroundColor: 'hsl(var(--primary))' }}
-            aria-label="Logotipo de Santa Brisa CRM"
-          >
-            <Image
-              src="https://firebasestorage.googleapis.com/v0/b/santa-brisa-crm.appspot.com/o/logo%20santa%20brisa_sinfondo.png?alt=media&token=069a6659-7bed-4332-ac4d-5cddf1d31e29"
-              alt="Santa Brisa Logo"
-              width={80} 
-              height={80}
-              priority 
-            />
-          </div>
+          <Logo size={90} className="mb-4" />
           <CardTitle className="text-2xl font-headline">Bienvenido a Santa Brisa CRM</CardTitle>
           <CardDescription>Inicia sesión para acceder a tu panel.</CardDescription>
         </CardHeader>

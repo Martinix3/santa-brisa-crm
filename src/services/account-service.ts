@@ -20,7 +20,7 @@ const fromFirestore = (docSnap: DocumentSnapshot): Account => {
 
   return {
     id: docSnap.id,
-    nombre: data.nombre || '',
+    nombre: data.nombre ?? data.name ?? data.nombreComercial ?? '',
     ciudad: data.ciudad || undefined,
     potencial: data.potencial || 'bajo',
     responsableId: data.responsableId || '',
@@ -29,7 +29,7 @@ const fromFirestore = (docSnap: DocumentSnapshot): Account => {
     // This now correctly reads the stored status, which can be either a legacy
     // value ('Activo', 'Potencial') or a new calculated one.
     // The cartera-service will overwrite this with the dynamically calculated status.
-    status: data.status || 'Inactivo', 
+    status: data.status || 'Activo', // Reverted to Activo as a safe default
     leadScore: 0,
     
     // Legacy fields for compatibility

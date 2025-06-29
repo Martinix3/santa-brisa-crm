@@ -20,7 +20,7 @@ import Link from "next/link";
 import { getAccountByIdFS, updateAccountFS, getAccountsFS } from "@/services/account-service";
 import { getOrdersFS } from "@/services/order-service"; 
 import { getTeamMembersFS } from "@/services/team-member-service";
-import { calculateAccountStatus } from "@/services/cartera-service";
+import { calculateAccountStatus } from "@/lib/account-logic";
 
 
 const formatAddress = (address?: AddressDetails): string => {
@@ -106,7 +106,7 @@ export default function AccountDetailPage() {
           }).sort((a,b) => parseISO(b.createdAt || b.visitDate).getTime() - parseISO(a.createdAt || a.visitDate).getTime());
           
           setRelatedInteractions(interactions);
-          setCalculatedStatus(await calculateAccountStatus(interactions, foundAccount));
+          setCalculatedStatus(calculateAccountStatus(interactions, foundAccount));
         }
 
         if (canEditAccount) {

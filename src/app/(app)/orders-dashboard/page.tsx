@@ -87,7 +87,6 @@ export default function OrdersDashboardPage() {
   const accountsMapByName = React.useMemo(() => {
     const map = new Map<string, Account>();
     allAccounts.forEach(acc => {
-      // Don't overwrite if a key already exists. First one wins.
       if (acc.nombre && !map.has(acc.nombre.toLowerCase().trim())) {
         map.set(acc.nombre.toLowerCase().trim(), acc);
       }

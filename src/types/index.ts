@@ -184,12 +184,14 @@ export interface TeamMemberFormValues {
 
 export type PurchaseStatus = 'Borrador' | 'Proforma Recibida' | 'Pagado' | 'Pago a 30 días' | 'Factura Recibida' | 'Completado' | 'Cancelado';
 export type PurchaseCategory = 'Materia Prima (COGS)' | 'Material de Embalaje (COGS)' | 'Gastos de Logística' | 'Gasto de Marketing' | 'Gasto Operativo' | 'Otro';
+export type Currency = "EUR" | "USD" | "MXN";
 
 export interface PurchaseItem {
   materialId: string;
   description: string;
   quantity: number;
   unitPrice: number;
+  batchNumber?: string;
   total: number;
 }
 
@@ -199,6 +201,7 @@ export interface Purchase {
   supplierId?: string;
   category: PurchaseCategory;
   items: PurchaseItem[];
+  currency: Currency;
   subtotal: number;
   tax: number;
   taxRate: number;
@@ -226,16 +229,18 @@ export interface PurchaseFormValues {
   orderDate: Date;
   status: PurchaseStatus;
   category: PurchaseCategory;
+  currency: Currency;
   items: {
     materialId: string;
     description: string;
     quantity: number;
     unitPrice: number;
+    batchNumber?: string;
   }[];
   shippingCost?: number;
   taxRate: number;
   notes?: string;
-  invoiceDataUri?: string; 
+  invoiceFile?: File | null;
   invoiceUrl?: string;
   storagePath?: string;
 }

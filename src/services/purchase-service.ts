@@ -7,24 +7,19 @@ import {
   collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, setDoc,
   type DocumentSnapshot, runTransaction,
 } from "firebase/firestore";
-import type { Purchase, PurchaseFormValues, PromotionalMaterial, LatestPurchaseInfo, PurchaseCategory } from '@/types';
+import type { Purchase, PurchaseFormValues, PromotionalMaterial, LatestPurchaseInfo, PurchaseCategory, Currency } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 import { updateMaterialStockFS, processMaterialUpdateFromPurchase } from './promotional-material-service';
 
 const PURCHASES_COLLECTION = 'purchases';
 const SUPPLIERS_COLLECTION = 'suppliers';
 
-async function uploadInvoice(dataUri: string, purchaseId: string): Promise<{ downloadUrl: string; storagePath: string }> {
-  const [meta, base64] = dataUri.split(',');
-  if (!meta || !base64) {
-    throw new Error('Invalid Data URI format.');
-  }
-  const mime = /data:(.*?);base64/.exec(meta)?.[1] ?? 'application/octet-stream';
-  const ext = mime.split('/')[1] ?? 'bin';
-  const path = `invoices/purchases/${purchaseId}/invoice_${Date.now()}.${ext}`;
+async function uploadInvoice(file: File, purchaseId: string): Promise<{ downloadUrl: string; storagePath: string }> {
+  const path = `invoices/purchases/${purchaseId}/invoice_${Date.now()}`;
   try {
-    await adminBucket.file(path).save(Buffer.from(base64, 'base64'), {
-      contentType: mime,
+    const buffer = Buffer.from(await file.arrayBuffer());
+    await adminBucket.file(path).save(buffer, {
+      contentType: file.type,
       resumable: false,
       public: true,
     });
@@ -46,7 +41,8 @@ const fromFirestorePurchase = (docSnap: DocumentSnapshot): Purchase => {
     supplier: data.supplier || '',
     supplierId: data.supplierId || undefined,
     category: data.category || 'Otro',
-    items: data.items || [],
+    currency: data.currency || 'EUR',
+    items: data.items?.map((item: any) => ({ ...item, batchNumber: item.batchNumber || undefined })) || [],
     subtotal: data.subtotal || 0,
     tax: data.tax || 0,
     taxRate: data.taxRate ?? 21,
@@ -73,9 +69,17 @@ const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean, 
   const firestoreData: { [key: string]: any } = {
     supplier: data.supplier,
     category: data.category,
+    currency: data.currency || 'EUR',
     orderDate: data.orderDate instanceof Date && isValid(data.orderDate) ? Timestamp.fromDate(data.orderDate) : Timestamp.fromDate(new Date()),
     status: data.status,
-    items: data.items?.map(item => ({ materialId: item.materialId, description: item.description, quantity: item.quantity, unitPrice: item.unitPrice, total: (item.quantity || 0) * (item.unitPrice || 0) })) || [],
+    items: data.items?.map(item => ({ 
+        materialId: item.materialId, 
+        description: item.description, 
+        quantity: item.quantity, 
+        unitPrice: item.unitPrice, 
+        batchNumber: item.batchNumber || null,
+        total: (item.quantity || 0) * (item.unitPrice || 0) 
+    })) || [],
     subtotal,
     tax,
     taxRate,
@@ -176,9 +180,9 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
         const newDocRef = doc(purchasesCol);
         const purchaseId = newDocRef.id;
 
-        if (data.invoiceDataUri) {
+        if (data.invoiceFile) {
             console.log(`Uploading invoice for new purchase ID: ${purchaseId}`);
-            const { downloadUrl, storagePath } = await uploadInvoice(data.invoiceDataUri, purchaseId);
+            const { downloadUrl, storagePath } = await uploadInvoice(data.invoiceFile, purchaseId);
             data.invoiceUrl = downloadUrl;
             data.storagePath = storagePath;
         }
@@ -224,9 +228,8 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
         }
     }
 
-    if (data.invoiceDataUri && data.invoiceDataUri !== oldData.invoiceUrl) { // Check if new file is uploaded
+    if (data.invoiceFile) { 
         console.log(`Uploading new invoice for existing purchase ID: ${id}`);
-        // Optionally delete old file
         if (oldData.storagePath) {
             try {
               await adminBucket.file(oldData.storagePath).delete();
@@ -235,7 +238,7 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
               console.warn(`Could not delete old invoice file ${oldData.storagePath}, it may not exist or permissions are insufficient.`);
             }
         }
-        const { downloadUrl, storagePath } = await uploadInvoice(data.invoiceDataUri, id);
+        const { downloadUrl, storagePath } = await uploadInvoice(data.invoiceFile, id);
         data.invoiceUrl = downloadUrl;
         data.storagePath = storagePath;
     }

@@ -24,7 +24,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 interface InvoiceUploadDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onDataExtracted: (data: Partial<PurchaseFormValues>) => void;
+  onDataExtracted: (data: Partial<PurchaseFormValues>, file: File) => void;
 }
 
 const MimeTypeMap: Record<string, string> = {
@@ -33,6 +33,15 @@ const MimeTypeMap: Record<string, string> = {
     'image/png': 'png',
     'image/webp': 'webp',
 };
+
+async function fileToDataUri(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(file);
+    });
+}
 
 export default function InvoiceUploadDialog({ isOpen, onOpenChange, onDataExtracted }: InvoiceUploadDialogProps) {
   const [isProcessing, setIsProcessing] = React.useState(false);
@@ -58,61 +67,53 @@ export default function InvoiceUploadDialog({ isOpen, onOpenChange, onDataExtrac
     setIsProcessing(true);
     setError(null);
 
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = async () => {
-        const dataUri = reader.result as string;
-        try {
-            toast({ title: "Analizando contenido con IA...", description: "Por favor, espera." });
+    try {
+        const dataUri = await fileToDataUri(file);
+        toast({ title: "Analizando contenido con IA...", description: "Por favor, espera." });
 
-            const extractedData: ProcessInvoiceOutput = await processInvoice({ invoiceDataUri: dataUri });
-          
-            const parsedDate = parse(extractedData.orderDate, 'yyyy-MM-dd', new Date());
+        const extractedData: ProcessInvoiceOutput = await processInvoice({ invoiceDataUri: dataUri });
+      
+        const parsedDate = parse(extractedData.orderDate, 'yyyy-MM-dd', new Date());
 
-            const purchaseFormData: Partial<PurchaseFormValues> = {
-                supplier: extractedData.supplier,
-                supplierCif: extractedData.supplierCif,
-                supplierAddress_street: extractedData.supplierAddress?.street,
-                supplierAddress_city: extractedData.supplierAddress?.city,
-                supplierAddress_province: extractedData.supplierAddress?.province,
-                supplierAddress_postalCode: extractedData.supplierAddress?.postalCode,
-                supplierAddress_country: extractedData.supplierAddress?.country,
-                orderDate: isValid(parsedDate) ? parsedDate : new Date(),
-                items: extractedData.items.map(item => ({
-                    materialId: "", // Set empty materialId for user to map
-                    description: item.description,
-                    quantity: item.quantity,
-                    unitPrice: item.unitPrice || 0,
-                })),
-                shippingCost: extractedData.shippingCost,
-                taxRate: extractedData.taxRate,
-                notes: extractedData.notes,
-                status: "Borrador",
-                invoiceDataUri: saveInvoiceFile ? dataUri : undefined,
-            };
-          
-            toast({
-                title: "Datos Extraídos",
-                description: "La información de la factura se ha cargado en el formulario. Por favor, revísala.",
-            });
+        const purchaseFormData: Partial<PurchaseFormValues> = {
+            supplier: extractedData.supplier,
+            supplierCif: extractedData.supplierCif,
+            supplierAddress_street: extractedData.supplierAddress?.street,
+            supplierAddress_city: extractedData.supplierAddress?.city,
+            supplierAddress_province: extractedData.supplierAddress?.province,
+            supplierAddress_postalCode: extractedData.supplierAddress?.postalCode,
+            supplierAddress_country: extractedData.supplierAddress?.country,
+            orderDate: isValid(parsedDate) ? parsedDate : new Date(),
+            items: extractedData.items.map(item => ({
+                materialId: "", // Set empty materialId for user to map
+                description: item.description,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice || 0,
+                batchNumber: "", // Add batch number field
+            })),
+            shippingCost: extractedData.shippingCost,
+            taxRate: extractedData.taxRate,
+            notes: extractedData.notes,
+            status: "Borrador",
+            invoiceFile: saveInvoiceFile ? file : undefined,
+        };
+      
+        toast({
+            title: "Datos Extraídos",
+            description: "La información de la factura se ha cargado en el formulario. Por favor, revísala.",
+        });
 
-            onDataExtracted(purchaseFormData);
+        onDataExtracted(purchaseFormData, file);
 
-        } catch (processError: any) {
-            console.error("Error processing invoice with AI:", processError);
-            setError(`Error al procesar: ${processError.message}`);
-        } finally {
-            setIsProcessing(false);
-            if (fileInputRef.current) {
-                fileInputRef.current.value = "";
-            }
-        }
-    };
-    reader.onerror = (error) => {
-        console.error("File reading error:", error);
-        setError("No se pudo leer el archivo seleccionado.");
+    } catch (processError: any) {
+        console.error("Error processing invoice with AI:", processError);
+        setError(`Error al procesar: ${processError.message}`);
+    } finally {
         setIsProcessing(false);
-    };
+        if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
+    }
   };
 
   return (
@@ -145,7 +146,7 @@ export default function InvoiceUploadDialog({ isOpen, onOpenChange, onDataExtrac
               disabled={isProcessing}
             />
             <Label htmlFor="save-invoice" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-              Guardar el archivo PDF/imagen de la factura en el sistema
+              Guardar el archivo de la factura en el sistema
             </Label>
           </div>
           {isProcessing && (

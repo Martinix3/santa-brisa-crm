@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import type { Purchase, PurchaseStatus, UserRole, PromotionalMaterialType, PromotionalMaterial, PurchaseCategory } from "@/types";
+import type { Purchase, PurchaseStatus, UserRole, PromotionalMaterial, PurchaseCategory, Currency } from "@/types";
 import { purchaseStatusList, purchaseCategoryList } from "@/lib/data";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, MoreHorizontal, Filter, ChevronDown, Edit, Trash2, Receipt, Loader2, UploadCloud, Download } from "lucide-react";
@@ -34,6 +34,7 @@ export default function PurchasesPage() {
   const [isPurchaseDialogOpen, setIsPurchaseDialogOpen] = React.useState(false);
   const [purchaseToDelete, setPurchaseToDelete] = React.useState<Purchase | null>(null);
   const [prefilledData, setPrefilledData] = React.useState<Partial<PurchaseFormValues> | null>(null);
+  const [prefilledFile, setPrefilledFile] = React.useState<File | null>(null);
   const [isInvoiceUploadOpen, setIsInvoiceUploadOpen] = React.useState(false);
   
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -70,6 +71,7 @@ export default function PurchasesPage() {
     if (!isAdmin) return;
     setEditingPurchase(null);
     setPrefilledData(null);
+    setPrefilledFile(null);
     setIsPurchaseDialogOpen(true);
   };
   
@@ -77,12 +79,14 @@ export default function PurchasesPage() {
     if (!isAdmin) return;
     setEditingPurchase(purchase);
     setPrefilledData(null);
+    setPrefilledFile(null);
     setIsPurchaseDialogOpen(true);
   };
 
-  const handleDataFromInvoice = (extractedData: Partial<PurchaseFormValues>) => {
+  const handleDataFromInvoice = (extractedData: Partial<PurchaseFormValues>, file: File) => {
     setEditingPurchase(null);
     setPrefilledData(extractedData);
+    setPrefilledFile(file);
     setIsInvoiceUploadOpen(false);
     setIsPurchaseDialogOpen(true);
   };
@@ -112,6 +116,7 @@ export default function PurchasesPage() {
       setIsPurchaseDialogOpen(false);
       setEditingPurchase(null);
       setPrefilledData(null);
+      setPrefilledFile(null);
     }
   };
 
@@ -249,7 +254,7 @@ export default function PurchasesPage() {
                       <TableCell>{purchase.category}</TableCell>
                       <TableCell>{format(parseISO(purchase.orderDate), "dd/MM/yy", { locale: es })}</TableCell>
                       <TableCell className="text-right">
-                        <FormattedNumericValue value={purchase.totalAmount} options={{ style: 'currency', currency: 'EUR' }} />
+                        <FormattedNumericValue value={purchase.totalAmount} options={{ style: 'currency', currency: purchase.currency }} />
                       </TableCell>
                       <TableCell className="text-center">
                         <StatusBadge type="purchase" status={purchase.status} />
@@ -326,12 +331,14 @@ export default function PurchasesPage() {
       <PurchaseDialog
           purchase={editingPurchase}
           prefilledData={prefilledData}
+          prefilledFile={prefilledFile}
           isOpen={isPurchaseDialogOpen}
           onOpenChange={(open) => {
               setIsPurchaseDialogOpen(open);
               if (!open) {
                 setEditingPurchase(null);
                 setPrefilledData(null);
+                setPrefilledFile(null);
               }
           }}
           onSave={handleSavePurchase}

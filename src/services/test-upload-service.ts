@@ -1,7 +1,7 @@
 
 'use server';
 
-import { adminBucket } from '@/lib/firebaseAdmin';
+import { getAdminBucket } from '@/lib/firebaseAdmin';
 
 /**
  * Uploads a test file to a dedicated /test directory in Firebase Storage.
@@ -10,6 +10,7 @@ import { adminBucket } from '@/lib/firebaseAdmin';
  */
 export async function testUpload(fileData: { dataUri: string; contentType: string; }): Promise<{ url: string } | { error: string }> {
   try {
+    const adminBucket = getAdminBucket();
     const { dataUri, contentType } = fileData;
     
     // Extract base64 data and MIME type from data URI

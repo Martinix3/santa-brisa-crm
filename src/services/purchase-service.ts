@@ -2,7 +2,7 @@
 'use server';
 
 import { db } from '@/lib/firebase';
-import { adminBucket } from '@/lib/firebaseAdmin';
+import { getAdminBucket } from '@/lib/firebaseAdmin';
 import {
   collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, setDoc,
   type DocumentSnapshot, runTransaction,
@@ -15,6 +15,7 @@ const PURCHASES_COLLECTION = 'purchases';
 const SUPPLIERS_COLLECTION = 'suppliers';
 
 async function uploadInvoice(file: File, purchaseId: string): Promise<{ downloadUrl: string; storagePath: string }> {
+  const adminBucket = getAdminBucket();
   const path = `invoices/purchases/${purchaseId}/invoice_${Date.now()}`;
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
@@ -232,6 +233,7 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
         console.log(`Uploading new invoice for existing purchase ID: ${id}`);
         if (oldData.storagePath) {
             try {
+              const adminBucket = getAdminBucket();
               await adminBucket.file(oldData.storagePath).delete();
               console.log(`Old invoice file deleted: ${oldData.storagePath}`);
             } catch (e) {
@@ -304,6 +306,7 @@ export const deletePurchaseFS = async (id: string): Promise<void> => {
       
       if (data.storagePath) {
           try {
+            const adminBucket = getAdminBucket();
             console.log(`Deleting associated file from Storage: ${data.storagePath}`);
             await adminBucket.file(data.storagePath).delete();
             console.log(`File ${data.storagePath} deleted successfully.`);

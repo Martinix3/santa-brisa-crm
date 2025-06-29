@@ -161,8 +161,26 @@ export const addSimpleInteractionFS = async (inter: NewInteractionPayload): Prom
             finalAccountId = snapshot.docs[0].id;
             finalClientName = snapshot.docs[0].data().nombre;
         } else {
-            const newAccountData: AccountFormValues = { name: inter.newClientName, salesRepId: inter.responsableId, type: 'HORECA', cif: "" };
-            finalAccountId = await addAccountFS(newAccountData);
+            const newAccountData: Partial<AccountFormValues> = { 
+                name: inter.newClientName, 
+                salesRepId: inter.responsableId, 
+                type: 'HORECA',
+            };
+            // If it's a successful order for a new client, add all details
+            if (inter.resultado === 'Pedido Exitoso') {
+                newAccountData.legalName = inter.nombreFiscal;
+                newAccountData.cif = inter.cif;
+                newAccountData.addressBilling_street = inter.direccionFiscal_street;
+                newAccountData.addressBilling_number = inter.direccionFiscal_number;
+                newAccountData.addressBilling_city = inter.direccionFiscal_city;
+                newAccountData.addressBilling_province = inter.direccionFiscal_province;
+                newAccountData.addressBilling_postalCode = inter.direccionFiscal_postalCode;
+                newAccountData.addressBilling_country = inter.direccionFiscal_country || 'España';
+                newAccountData.mainContactName = inter.contactoNombre;
+                newAccountData.mainContactEmail = inter.contactoCorreo;
+                newAccountData.mainContactPhone = inter.contactoTelefono;
+            }
+            finalAccountId = await addAccountFS(newAccountData as AccountFormValues);
             finalClientName = inter.newClientName;
         }
     } else if (finalAccountId) {
@@ -203,7 +221,7 @@ export const addSimpleInteractionFS = async (inter: NewInteractionPayload): Prom
             orderData.status = 'Seguimiento';
             orderData.nextActionDate = format(inter.fecha_prevista, 'yyyy-MM-dd');
             orderData.nextActionType = 'Revisar';
-        } else if (inter.resultado === 'Fallido') {
+        } else if (inter.resultado === 'Fallida') {
             orderData.status = 'Fallido';
             orderData.failureReasonType = 'Otro (especificar)';
             orderData.failureReasonCustom = 'Registrado desde acción rápida.';

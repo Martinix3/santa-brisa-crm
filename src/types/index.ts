@@ -453,4 +453,17 @@ export interface NewInteractionPayload {
   clavadistaId?: string;
   responsableId: string;
   notes?: string;
+
+  // For new client creation on successful order
+  nombreFiscal?: string;
+  cif?: string;
+  direccionFiscal_street?: string;
+  direccionFiscal_number?: string;
+  direccionFiscal_city?: string;
+  direccionFiscal_province?: string;
+  direccionFiscal_postalCode?: string;
+  direccionFiscal_country?: string;
+  contactoNombre?: string;
+  contactoCorreo?: string;
+  contactoTelefono?: string;
 }

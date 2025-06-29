@@ -448,7 +448,7 @@ export default function PurchaseDialog({ purchase, prefilledData, isOpen, onOpen
               </ScrollArea>
               
               {hasInvoicePreview && (
-                 <div className="h-full hidden lg:flex flex-col">
+                 <div className="flex flex-col h-full">
                     <Label>Previsualización de Factura</Label>
                     <div className="mt-2 border rounded-md h-[calc(100%-24px)] overflow-hidden bg-muted">
                         {watchedInvoiceDataUri.startsWith('data:application/pdf') ? (

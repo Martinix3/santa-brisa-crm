@@ -14,35 +14,32 @@ function calculateAccountStatus(
 ): AccountStatus {
     const now = new Date();
 
-    // 1. Inactivo: Overrides all other statuses if the last interaction is too old.
-    if (lastInteractionDate && differenceInDays(now, lastInteractionDate) > 90) {
-        return 'Inactivo';
+    // Priority 1: Has a future task scheduled.
+    const hasFutureInteractions = interactionsForAccount.some(i => 
+        ['Programada', 'Requiere seguimiento'].includes(i.resultado) &&
+        i.fecha_prevista &&
+        isValid(parseISO(i.fecha_prevista)) &&
+        parseISO(i.fecha_prevista) >= startOfDay(now)
+    );
+    if (hasFutureInteractions) {
+        return 'Programado';
     }
 
-    // 2. Repetición: A customer with 2 or more successful orders.
+    // Priority 2: Has a sales history.
     const successfulOrders = interactionsForAccount.filter(i => i.resultado === 'Pedido Exitoso');
     if (successfulOrders.length >= 2) {
         return 'Repetición';
     }
-
-    // 3. Primer Pedido: A customer with exactly 1 successful order.
     if (successfulOrders.length === 1) {
         return 'Primer Pedido';
     }
 
-    // 4. Programado: An active account that has a future task scheduled.
-    const futureInteractions = interactionsForAccount.filter(i => 
-        ['Programada', 'Requiere seguimiento'].includes(i.resultado) &&
-        i.fecha_prevista &&
-        isValid(parseISO(i.fecha_prevista)) &&
-        parseISO(i.fecha_prevista) >= startOfDay(now) // Use startOfDay to include today
-    );
-    if (futureInteractions.length > 0) {
-        return 'Programado';
+    // Priority 3: Has gone cold.
+    if (lastInteractionDate && differenceInDays(now, lastInteractionDate) > 90) {
+        return 'Inactivo';
     }
-    
-    // 5. Seguimiento: Default active status if none of the above match.
-    // This typically means the last interaction was a 'Fallida' or a 'Requiere seguimiento' with a past date.
+
+    // Priority 4: Default for active accounts needing attention.
     return 'Seguimiento';
 }
 
@@ -99,7 +96,6 @@ export async function processCarteraData(
     interactions: Interaction[],
     teamMembers: TeamMember[]
 ): Promise<EnrichedAccount[]> {
-    console.log('>>> DEBUG processCarteraData START');
     const interactionsByAccount = new Map<string, Interaction[]>();
     for (const interaction of interactions) {
         if (!interactionsByAccount.has(interaction.accountId)) {
@@ -118,18 +114,13 @@ export async function processCarteraData(
     }
 
     const enrichedAccounts: EnrichedAccount[] = accounts.map(account => {
-        console.log(`\n--- DEBUG Account ${account.id} (${account.nombre}) ---`);
-        console.log('RAW ACCOUNT:', account);
         const accountInteractions = interactionsByAccount.get(account.id) || [];
-        console.log('ALL INTERACTIONS:', accountInteractions);
         
         const openInteractions = accountInteractions.filter(i => 
             ['Programada', 'Requiere seguimiento'].includes(i.resultado) &&
             i.fecha_prevista &&
             isValid(parseISO(i.fecha_prevista))
         ).sort((a,b) => parseISO(a.fecha_prevista).getTime() - parseISO(b.fecha_prevista).getTime());
-
-        console.log('FUTURE INTERACTIONS (openInteractions):', openInteractions);
 
         const nextInteraction = openInteractions.find(i => parseISO(i.fecha_prevista) >= startOfDay(new Date())) || undefined;
 
@@ -142,10 +133,6 @@ export async function processCarteraData(
         const leadScore = calculateLeadScore(account, accountInteractions, nextInteraction);
         const totalSuccessfulOrders = accountInteractions.filter(i => i.resultado === 'Pedido Exitoso').length;
 
-        console.log('CALCULATED STATUS:', status);
-        console.log('CALCULATED LEAD SCORE:', leadScore);
-        console.log('--- END DEBUG Account', account.id, '---\n');
-
         return {
             ...account,
             status,
@@ -156,7 +143,5 @@ export async function processCarteraData(
         };
     });
 
-    console.log('>>> DEBUG processCarteraData END');
     return enrichedAccounts.sort((a, b) => b.leadScore - a.leadScore);
 }
-

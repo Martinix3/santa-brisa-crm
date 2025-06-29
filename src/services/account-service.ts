@@ -26,8 +26,10 @@ const fromFirestore = (docSnap: DocumentSnapshot): Account => {
     responsableId: data.responsableId || '',
     brandAmbassadorId: data.brandAmbassadorId || undefined,
 
-    // Calculated fields - defaults, will be overwritten by cartera-service
-    status: 'Inactivo', 
+    // This now correctly reads the stored status, which can be either a legacy
+    // value ('Activo', 'Potencial') or a new calculated one.
+    // The cartera-service will overwrite this with the dynamically calculated status.
+    status: data.status || 'Inactivo', 
     leadScore: 0,
     
     // Legacy fields for compatibility
@@ -54,7 +56,7 @@ const toFirestore = (data: AccountFormValues, isNew: boolean): any => {
     nombre: data.name, // Mapping from dialog `name` to `nombre`
     legalName: data.legalName || null,
     cif: data.cif || null,
-    type: data.type,
+    type: data.type, 
     // Note: status is calculated, not directly set from the form anymore
     // We only set the legacy status field
     status: data.status,

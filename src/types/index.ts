@@ -37,7 +37,8 @@ export interface TeamMember {
 // --- NEW DATA MODEL FROM SPEC ---
 
 export type PotencialType = 'alto' | 'medio' | 'bajo';
-export type AccountStatus = 'Programado' | 'Seguimiento' | 'Primer Pedido' | 'Repetición' | 'Inactivo';
+// Combined old and new statuses for transition period.
+export type AccountStatus = 'Programado' | 'Seguimiento' | 'Primer Pedido' | 'Repetición' | 'Inactivo' | 'Activo' | 'Potencial' | 'Bloqueado';
 export type InteractionType = 'Visita' | 'Llamada' | 'Mail' | 'Otro';
 export type InteractionResult = 'Programada' | 'Requiere seguimiento' | 'Pedido Exitoso' | 'Fallida';
 
@@ -62,7 +63,7 @@ export interface Account {
   responsableId: string; // FK to TeamMember
   brandAmbassadorId?: string; // FK to TeamMember (Clavadista)
   
-  // These are calculated, not stored in Firestore directly for this new model
+  // This can hold a legacy status or a new calculated status.
   status: AccountStatus;
   leadScore: number;
   nextInteraction?: Interaction;
@@ -448,3 +449,6 @@ export interface FollowUpResultFormValues {
   notes?: string;
   assignedSalesRepId?: string;
 }
+
+// New Enums from Spec
+export const newAccountStatusList: AccountStatus[] = ['Programado', 'Seguimiento', 'Primer Pedido', 'Repetición', 'Inactivo'];

@@ -19,10 +19,11 @@ function getFirebaseAdminApp(): App {
     return getApp();
   }
   
-  // Initialize with default credentials. In a managed environment,
-  // the SDK will automatically discover service account credentials.
+  // Initialize with default credentials and explicitly set the storage bucket
+  // for maximum reliability in all environments.
   return initializeApp({
     credential: applicationDefault(),
+    storageBucket: BUCKET_NAME,
   });
 }
 
@@ -33,7 +34,6 @@ function getFirebaseAdminApp(): App {
  */
 export const getAdminBucket = async (): Promise<Bucket> => {
     const app = getFirebaseAdminApp();
-    // Explicitly get the bucket by name from the storage instance
-    // for maximum reliability in all environments.
-    return getStorage(app).bucket(BUCKET_NAME);
+    // Get the default bucket associated with the app instance.
+    return getStorage(app).bucket();
 }

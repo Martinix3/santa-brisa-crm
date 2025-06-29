@@ -8,7 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMe
 import { Input } from "@/components/ui/input"; 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import type { Order, CrmEvent, TeamMember, UserRole, Account, SampleRequest } from "@/types";
-import { Filter, CalendarDays, ClipboardList, ChevronDown, Send, Loader2, User, Info, AlertTriangle, ShoppingCart, MessageSquareQuestion, TestTube2, Building2 } from "lucide-react";
+import { Filter, CalendarDays, ClipboardList, ChevronDown, Send, Loader2, User, Info, AlertTriangle, ShoppingCart, MessageSquareQuote, TestTube2, Building2 } from "lucide-react";
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -25,6 +25,7 @@ import { getTeamMembersFS } from "@/services/team-member-service";
 import { getAccountsFS } from "@/services/account-service";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 
 
 interface ActivityItem {
@@ -220,7 +221,7 @@ export default function CrmFollowUpPage() {
         case 'Programada': return <CalendarDays className="h-5 w-5 text-sky-600" />;
         case 'Fallido':
         case 'Cancelado':
-        case 'Completado': return <MessageSquareQuestion className="h-5 w-5 text-gray-500" />;
+        case 'Completado': return <MessageSquareQuote className="h-5 w-5 text-gray-500" />;
         default: return <Info className="h-5 w-5 text-muted-foreground" />;
     }
   };
@@ -363,4 +364,3 @@ export default function CrmFollowUpPage() {
     </>
   );
 }
-

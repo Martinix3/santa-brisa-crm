@@ -23,19 +23,14 @@ function calculateAccountStatus(
     );
     
     if (futureTasks.length > 0) {
-        // Sort to find the very next task
-        futureTasks.sort((a, b) => {
-            const dateA = parseISO((a.status === 'Programada' ? a.visitDate : a.nextActionDate)!);
-            const dateB = parseISO((b.status === 'Programada' ? b.visitDate : b.nextActionDate)!);
-            return dateA.getTime() - dateB.getTime();
-        });
-        
-        const nextTask = futureTasks[0];
-        // The account status reflects the nature of the very next task.
-        if (nextTask.status === 'Programada') {
+        // A scheduled visit takes precedence over a follow-up task.
+        const hasProgramadaVisit = futureTasks.some(o => o.status === 'Programada');
+        if (hasProgramadaVisit) {
             return 'Programado';
         }
-        if (nextTask.status === 'Seguimiento') {
+
+        const hasSeguimiento = futureTasks.some(o => o.status === 'Seguimiento');
+        if (hasSeguimiento) {
             return 'Seguimiento';
         }
     }

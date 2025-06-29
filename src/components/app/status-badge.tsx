@@ -25,7 +25,7 @@ const getOrderBadgeColorClass = (status: OrderStatus): string => {
     case 'Programada': return 'bg-sky-500 hover:bg-sky-600 text-white';
     case 'Cancelado':
     case 'Fallido': return 'bg-red-500 hover:bg-red-600 text-white';
-    case 'Seguimiento': return 'bg-blue-500 hover:bg-blue-600 text-white';
+    case 'Seguimiento': return 'bg-yellow-400 hover:bg-yellow-500 text-black';
     default: return 'bg-gray-400 hover:bg-gray-500 text-white';
   }
 };

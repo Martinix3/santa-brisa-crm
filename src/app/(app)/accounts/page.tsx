@@ -21,7 +21,6 @@ import { db } from "@/lib/firebase";
 import { runTransaction, doc, collection } from "firebase/firestore";
 import { ADMIN_SELF_REGISTER_VALUE, NO_CLAVADISTA_VALUE } from '@/lib/schemas/order-form-schema';
 import FollowUpResultDialog from "@/components/app/follow-up-result-dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 
 type BucketFilter = "Todos" | "Vencidas" | "Para Hoy" | "Pendientes";
@@ -170,7 +169,6 @@ export default function AccountsPage() {
             const newInteractionData: any = {
                 clientName: originalTask.clientName,
                 accountId: originalTask.accountId || null,
-                visitDate: new Date(),
                 createdAt: new Date(),
                 lastUpdated: new Date(),
                 salesRep: salesRepName,
@@ -182,6 +180,7 @@ export default function AccountsPage() {
 
             if (data.outcome === "successful") {
                 newInteractionData.status = 'Confirmado';
+                newInteractionData.visitDate = new Date();
                 newInteractionData.products = ["Santa Brisa 750ml"];
                 newInteractionData.numberOfUnits = data.numberOfUnits;
                 newInteractionData.unitPrice = data.unitPrice;
@@ -194,6 +193,7 @@ export default function AccountsPage() {
                 newInteractionData.nextActionDate = data.nextActionDate ? format(data.nextActionDate, 'yyyy-MM-dd') : null;
             } else if (data.outcome === "failed") {
                 newInteractionData.status = 'Fallido';
+                newInteractionData.visitDate = new Date();
                 newInteractionData.failureReasonType = data.failureReasonType;
                 newInteractionData.failureReasonCustom = data.failureReasonType === 'Otro (especificar)' ? data.failureReasonCustom : null;
             }
@@ -354,3 +354,5 @@ const AccountGroup: React.FC<AccountGroupProps> = ({ title, accounts, teamMember
         </tbody>
     )
 }
+
+    

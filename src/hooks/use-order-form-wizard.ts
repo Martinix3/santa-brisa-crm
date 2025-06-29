@@ -128,10 +128,26 @@ export function useOrderWizard() {
   }, [watchSameAsBilling, df_street, df_number, df_city, df_province, df_postalCode, df_country, form]);
 
 
+  const handleClientSelect = React.useCallback((selectedClient: Account | { id: 'new'; nombre: string }) => {
+    setClient(selectedClient);
+    form.setValue('isNewClient', selectedClient.id === 'new');
+    if(selectedClient.id === 'new') {
+        form.setValue("clientType", "HORECA");
+    } else {
+        const acc = selectedClient as Account;
+        form.setValue("clientType", acc.type);
+        form.setValue("iban", acc.iban);
+    }
+    setStep("outcome");
+  }, [form]);
+
+
   React.useEffect(() => {
     async function loadData() {
       setIsLoading(true);
       const originatingTaskId = searchParams.get('originatingTaskId');
+      const accountIdFromUrl = searchParams.get('accountId');
+
       try {
         const [accounts, clavadistas, salesReps, materials, task] = await Promise.all([
           getAccountsFS(),
@@ -151,7 +167,13 @@ export function useOrderWizard() {
             if (taskAccount) {
                 handleClientSelect(taskAccount);
             }
+        } else if (accountIdFromUrl) {
+           const urlAccount = accounts.find(acc => acc.id === accountIdFromUrl);
+           if (urlAccount) {
+              handleClientSelect(urlAccount);
+           }
         }
+
       } catch (error) {
         toast({ title: "Error", description: "No se pudieron cargar los datos necesarios.", variant: "destructive" });
       } finally {
@@ -159,20 +181,7 @@ export function useOrderWizard() {
       }
     }
     loadData();
-  }, [searchParams]);
-
-  const handleClientSelect = (selectedClient: Account | { id: 'new'; nombre: string }) => {
-    setClient(selectedClient);
-    form.setValue('isNewClient', selectedClient.id === 'new');
-    if(selectedClient.id === 'new') {
-        form.setValue("clientType", "HORECA");
-    } else {
-        const acc = selectedClient as Account;
-        form.setValue("clientType", acc.type);
-        form.setValue("iban", acc.iban);
-    }
-    setStep("outcome");
-  };
+  }, [searchParams, toast, handleClientSelect]);
 
   const handleBack = () => {
     if (step === "outcome") setStep("client");

@@ -6,18 +6,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import type { EnrichedAccount, TeamMember, Order, NextActionType } from "@/types";
+import type { EnrichedAccount, TeamMember, Order, NextActionType, UserRole, OrderStatus, FollowUpResultFormValues } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, Loader2, Search, AlertTriangle, ChevronDown } from "lucide-react";
 import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
 import { getAccountsFS, addAccountFS, updateAccountFS } from "@/services/account-service";
-import { getOrdersFS, updateOrderFS } from "@/services/order-service";
+import { getOrdersFS, updateOrderFS, addOrderFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { processCarteraData } from "@/services/cartera-service";
 import AccountTableRow from "@/components/app/account-table-row";
 import { startOfDay, endOfDay, isBefore, isEqual, parseISO, isValid, format } from 'date-fns';
+import { db } from "@/lib/firebase";
+import { runTransaction, doc, collection } from "firebase/firestore";
+import { ADMIN_SELF_REGISTER_VALUE, NO_CLAVADISTA_VALUE } from '@/lib/schemas/order-form-schema';
+import FollowUpResultDialog from "@/components/app/follow-up-result-dialog";
 
 type BucketFilter = "Todos" | "Vencidas" | "Para Hoy" | "Pendientes";
 
@@ -30,6 +33,9 @@ export default function AccountsPage() {
   const [isLoading, setIsLoading] = React.useState(true);
   
   const [isAccountDialogOpen, setIsAccountDialogOpen] = React.useState(false);
+  const [isFollowUpDialogOpen, setIsFollowUpDialogOpen] = React.useState(false);
+  const [currentTask, setCurrentTask] = React.useState<Order | null>(null);
+
   const [searchTerm, setSearchTerm] = React.useState("");
   const [responsibleFilter, setResponsibleFilter] = React.useState("Todos");
   const [bucketFilter, setBucketFilter] = React.useState<BucketFilter>("Todos");
@@ -44,7 +50,7 @@ export default function AccountsPage() {
         const [accounts, orders, members] = await Promise.all([
           getAccountsFS(),
           getOrdersFS(),
-          getTeamMembersFS(['SalesRep', 'Admin'])
+          getTeamMembersFS(['SalesRep', 'Admin', 'Clavadista'])
         ]);
         const processedData = await processCarteraData(accounts, orders, members);
         setEnrichedAccounts(processedData);
@@ -93,11 +99,13 @@ export default function AccountsPage() {
     };
     
     const baseFiltered = enrichedAccounts.filter(applyFilters).filter(applyResponsibleFilter).filter(applyBucketFilter);
+    const hasOrder = (acc: EnrichedAccount) => ['Pedido', 'Repetición'].includes(acc.status);
+    const isPotential = (acc: EnrichedAccount) => ['Programada', 'Seguimiento'].includes(acc.status);
 
     return {
-      activeAccounts: baseFiltered.filter(acc => ['Pedido', 'Repetición'].includes(acc.status)),
-      potentialAccounts: baseFiltered.filter(acc => ['Programada', 'Seguimiento'].includes(acc.status)),
-      failedAccounts: baseFiltered.filter(acc => acc.status === 'Fallido'),
+      activeAccounts: baseFiltered.filter(acc => hasOrder(acc)),
+      potentialAccounts: baseFiltered.filter(acc => isPotential(acc)),
+      failedAccounts: baseFiltered.filter(acc => !hasOrder(acc) && !isPotential(acc)),
     };
 
   }, [searchTerm, enrichedAccounts, responsibleFilter, bucketFilter, isAdmin]);
@@ -135,20 +143,70 @@ export default function AccountsPage() {
       }
   };
 
-  const handleTaskUpdate = async (interactionId: string, newAction: NextActionType, newDate?: Date) => {
-      try {
-          await updateOrderFS(interactionId, { 
-              nextActionType: newAction,
-              nextActionDate: newDate ? format(newDate, 'yyyy-MM-dd') : undefined
-          });
-          refreshDataSignature();
-          toast({ title: "Tarea Actualizada", description: "La próxima acción ha sido actualizada." });
-      } catch (error) {
-          console.error("Error updating task:", error);
-          toast({ title: "Error al Actualizar Tarea", description: "No se pudo modificar la tarea.", variant: "destructive" });
-      }
+  const handleOpenFollowUpDialog = (task: Order) => {
+    setCurrentTask(task);
+    setIsFollowUpDialogOpen(true);
   };
+  
+  const handleSaveFollowUp = async (data: FollowUpResultFormValues, originalTask: Order) => {
+    try {
+        await runTransaction(db, async (transaction) => {
+            const originalTaskRef = doc(db, 'orders', originalTask.id);
+            transaction.update(originalTaskRef, { status: "Completado" as OrderStatus, lastUpdated: new Date() });
+            
+            const newOrderRef = doc(collection(db, 'orders'));
+            
+            const subtotal = (data.numberOfUnits || 0) * (data.unitPrice || 0);
+            const totalValue = subtotal * 1.21;
+            
+            let salesRepName = originalTask.salesRep;
+            if (data.assignedSalesRepId && salesRepName !== teamMember?.name) {
+                const assignedRep = teamMembers.find(m => m.id === data.assignedSalesRepId);
+                if(assignedRep) salesRepName = assignedRep.name;
+            }
 
+            const newInteractionData: any = {
+                clientName: originalTask.clientName,
+                accountId: originalTask.accountId,
+                visitDate: new Date(),
+                createdAt: new Date(),
+                lastUpdated: new Date(),
+                salesRep: salesRepName,
+                clavadistaId: originalTask.clavadistaId || null,
+                clientStatus: "existing",
+                originatingTaskId: originalTask.id,
+                notes: data.notes || null,
+            };
+
+            if (data.outcome === "successful") {
+                newInteractionData.status = 'Confirmado';
+                newInteractionData.products = ["Santa Brisa 750ml"];
+                newInteractionData.numberOfUnits = data.numberOfUnits;
+                newInteractionData.unitPrice = data.unitPrice;
+                newInteractionData.value = totalValue;
+                newInteractionData.paymentMethod = data.paymentMethod;
+            } else if (data.outcome === "follow-up") {
+                newInteractionData.status = 'Seguimiento';
+                newInteractionData.nextActionType = data.nextActionType;
+                newInteractionData.nextActionCustom = data.nextActionType === 'Opción personalizada' ? data.nextActionCustom : null;
+                newInteractionData.nextActionDate = data.nextActionDate ? format(data.nextActionDate, 'yyyy-MM-dd') : null;
+            } else if (data.outcome === "failed") {
+                newInteractionData.status = 'Fallido';
+                newInteractionData.failureReasonType = data.failureReasonType;
+                newInteractionData.failureReasonCustom = data.failureReasonType === 'Otro (especificar)' ? data.failureReasonCustom : null;
+            }
+            transaction.set(newOrderRef, newInteractionData);
+        });
+        toast({ title: "Interacción Registrada", description: "Se ha guardado el resultado y actualizado la cartera."});
+        refreshDataSignature();
+    } catch(err) {
+        console.error("Transaction failed: ", err);
+        toast({title: "Error en la transacción", description: "No se pudo guardar el resultado.", variant: "destructive"});
+    } finally {
+        setIsFollowUpDialogOpen(false);
+        setCurrentTask(null);
+    }
+  };
   
   return (
     <div className="space-y-6">
@@ -202,23 +260,23 @@ export default function AccountsPage() {
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
               </div>
             ) : (
-                <Table className="min-w-full">
-                    <TableHeader>
-                        <TableRow className="border-b-0">
-                        <TableHead className="w-6 p-1"></TableHead> 
-                        <TableHead className="w-[20%]">Cuenta</TableHead>
-                        <TableHead className="w-[15%]">Responsable</TableHead>
-                        <TableHead className="w-[12%] text-center">Estado</TableHead>
-                        <TableHead className="w-[20%]">Próxima Acción</TableHead>
-                        <TableHead className="w-[10%] text-center">Lead Score</TableHead>
-                        <TableHead className="w-[10%]">Ciudad</TableHead>
-                        <TableHead className="w-[13%] text-right pr-4">Acciones</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <AccountGroup title="Potenciales" accounts={potentialAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onTaskUpdate={handleTaskUpdate} />
-                    <AccountGroup title="Activos" accounts={activeAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onTaskUpdate={handleTaskUpdate} />
-                    <AccountGroup title="Fallidos" accounts={failedAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onTaskUpdate={handleTaskUpdate} />
-                </Table>
+                <table className="min-w-full">
+                    <thead>
+                        <tr className="border-b-0">
+                        <th className="w-6 p-1 text-left"></th> 
+                        <th className="w-[20%] text-left font-medium text-muted-foreground p-2">Cuenta</th>
+                        <th className="w-[15%] text-left font-medium text-muted-foreground p-2">Responsable</th>
+                        <th className="w-[12%] text-center font-medium text-muted-foreground p-2">Estado</th>
+                        <th className="w-[20%] text-left font-medium text-muted-foreground p-2">Próxima Acción</th>
+                        <th className="w-[10%] text-center font-medium text-muted-foreground p-2">Lead Score</th>
+                        <th className="w-[10%] text-left font-medium text-muted-foreground p-2">Ciudad</th>
+                        <th className="w-[13%] text-right pr-4 font-medium text-muted-foreground p-2">Acciones</th>
+                        </tr>
+                    </thead>
+                    <AccountGroup title="Potenciales" accounts={potentialAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onOpenFollowUpDialog={handleOpenFollowUpDialog} />
+                    <AccountGroup title="Activos" accounts={activeAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onOpenFollowUpDialog={handleOpenFollowUpDialog}/>
+                    <AccountGroup title="Fallidos" accounts={failedAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onOpenFollowUpDialog={handleOpenFollowUpDialog}/>
+                </table>
             )}
           </div>
         </CardContent>
@@ -233,6 +291,19 @@ export default function AccountsPage() {
           allAccounts={enrichedAccounts} 
         />
       )}
+      
+      {currentTask && (
+          <FollowUpResultDialog
+            order={currentTask}
+            isOpen={isFollowUpDialogOpen}
+            onOpenChange={setIsFollowUpDialogOpen}
+            onSave={handleSaveFollowUp}
+            allTeamMembers={teamMembers}
+            currentUser={teamMember}
+            currentUserRole={userRole}
+          />
+      )}
+
     </div>
   );
 }
@@ -242,41 +313,41 @@ interface AccountGroupProps {
   accounts: EnrichedAccount[];
   teamMembers: TeamMember[];
   onResponsibleUpdate: (accountId: string, newResponsibleId: string | null) => Promise<void>;
-  onTaskUpdate: (interactionId: string, newAction: NextActionType, newDate?: Date) => Promise<void>;
+  onOpenFollowUpDialog: (task: Order) => void;
 }
 
-const AccountGroup: React.FC<AccountGroupProps> = ({ title, accounts, teamMembers, onResponsibleUpdate, onTaskUpdate }) => {
-    const [isExpanded, setIsExpanded] = React.useState(false);
+const AccountGroup: React.FC<AccountGroupProps> = ({ title, accounts, teamMembers, onResponsibleUpdate, onOpenFollowUpDialog }) => {
+    const [isExpanded, setIsExpanded] = React.useState(true);
     const visibleAccounts = isExpanded ? accounts : accounts.slice(0, 5);
 
     if (accounts.length === 0) return null;
 
     return (
         <tbody className="group/tbody">
-            <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={8} className="p-0">
+            <tr className="hover:bg-transparent">
+                <td colSpan={8} className="p-0">
                    <div className="py-3 px-2">
                         <h3 className="text-lg font-semibold text-gray-700">{title} ({accounts.length})</h3>
                    </div>
-                </TableCell>
-            </TableRow>
+                </td>
+            </tr>
             {visibleAccounts.map(account => (
                 <AccountTableRow 
                     key={account.id} 
                     account={account}
                     allTeamMembers={teamMembers}
                     onResponsibleUpdate={onResponsibleUpdate}
-                    onTaskUpdate={onTaskUpdate}
+                    onOpenFollowUpDialog={onOpenFollowUpDialog}
                 />
             ))}
             {accounts.length > 5 && (
-                 <TableRow className="bg-transparent hover:bg-transparent">
-                    <TableCell colSpan={8} className="text-center py-2">
+                 <tr className="bg-transparent hover:bg-transparent">
+                    <td colSpan={8} className="text-center py-2">
                         <Button variant="link" onClick={() => setIsExpanded(!isExpanded)}>
                             {isExpanded ? 'Ver menos' : `Ver ${accounts.length - 5} más...`}
                         </Button>
-                    </TableCell>
-                </TableRow>
+                    </td>
+                </tr>
             )}
         </tbody>
     )

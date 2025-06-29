@@ -23,7 +23,7 @@ export function useOrderWizard() {
   const { teamMember, userRole, refreshDataSignature } = useAuth();
   
   const [step, setStep] = React.useState<Step>("client");
-  const [client, setClient] = React.useState<Account | { id: 'new'; name: string } | null>(null);
+  const [client, setClient] = React.useState<Account | { id: 'new'; nombre: string } | null>(null);
   
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -161,7 +161,7 @@ export function useOrderWizard() {
     loadData();
   }, [searchParams]);
 
-  const handleClientSelect = (selectedClient: Account | { id: 'new'; name: string }) => {
+  const handleClientSelect = (selectedClient: Account | { id: 'new'; nombre: string }) => {
     setClient(selectedClient);
     form.setValue('isNewClient', selectedClient.id === 'new');
     if(selectedClient.id === 'new') {
@@ -253,7 +253,7 @@ export function useOrderWizard() {
                 currentAccountId = newAccountRef.id;
                 const newAccountData = {
                   id: currentAccountId,
-                  nombre: client.name,
+                  nombre: client.nombre,
                   legalName: values.nombreFiscal,
                   cif: values.cif || "",
                   type: values.clientType || 'Otro',
@@ -282,7 +282,7 @@ export function useOrderWizard() {
             const newOrderRef = doc(collection(db, "orders"));
             
             const orderData: any = {
-                clientName: client!.name,
+                clientName: client!.nombre,
                 accountId: currentAccountId || null,
                 visitDate: new Date(),
                 createdAt: new Date(),
@@ -329,7 +329,7 @@ export function useOrderWizard() {
                         const materialRef = doc(db, 'promotionalMaterials', item.materialId);
                         const materialDoc = await transaction.get(materialRef);
                         if(materialDoc.exists()) {
-                            const currentStock = materialDoc.data().stock || 0;
+                            const currentStock = (materialDoc.data().stock ?? 0) as number;
                             transaction.update(materialRef, { stock: currentStock - item.quantity });
                         }
                     }
@@ -337,7 +337,7 @@ export function useOrderWizard() {
             }
         });
 
-        toast({ title: "¡Interacción Registrada!", description: `Se ha guardado el resultado para ${client!.name}.` });
+        toast({ title: "¡Interacción Registrada!", description: `Se ha guardado el resultado para ${client!.nombre}.` });
         refreshDataSignature();
         
         if (values.outcome === 'successful') router.push('/orders-dashboard');

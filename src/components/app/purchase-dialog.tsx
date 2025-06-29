@@ -76,7 +76,9 @@ const purchaseFormSchema = z.object({
   shippingCost: z.coerce.number().min(0, "Los portes no pueden ser negativos.").optional().nullable(),
   taxRate: z.coerce.number().min(0, "El IVA no puede ser negativo.").default(21),
   notes: z.string().optional(),
-  invoiceFile: z.instanceof(File).optional().nullable(),
+  invoiceFile: z.any().refine(v => v == null || v instanceof File, {
+    message: "Debe ser un archivo."
+  }).optional().nullable(),
   invoiceUrl: z.union([z.literal(""), z.string().url("URL no válida")]).optional(),
   storagePath: z.string().optional(),
 });
@@ -185,8 +187,11 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
         // Other fields from prefilledData
         supplierCif: prefilledData?.supplierCif,
         supplierAddress_street: prefilledData?.supplierAddress_street,
+        supplierAddress_number: prefilledData?.supplierAddress_number,
         supplierAddress_city: prefilledData?.supplierAddress_city,
-        supplierAddress_province: prefilledData?.supplierAddress_postalCode,
+        supplierAddress_province: prefilledData?.supplierAddress_province,
+        supplierAddress_postalCode: prefilledData?.supplierAddress_postalCode,
+        supplierAddress_country: prefilledData?.supplierAddress_country,
       };
 
       form.reset(initialValues);
@@ -343,7 +348,7 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
 
             <DialogFooter className="pt-6">
               <DialogClose asChild><Button type="button" variant="outline" disabled={isSaving}>{isReadOnly ? "Cerrar" : "Cancelar"}</Button></DialogClose>
-              {!isReadOnly && (<Button type="submit" disabled={isSaving || !form.formState.isDirty}>{isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>) : (purchase ? "Guardar Cambios" : "Añadir Gasto")}</Button>)}
+              {!isReadOnly && (<Button type="submit" disabled={isSaving || (!form.formState.isDirty && !!purchase )}>{isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>) : (purchase ? "Guardar Cambios" : "Añadir Gasto")}</Button>)}
             </DialogFooter>
           </form>
         </Form>
@@ -351,5 +356,3 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
     </Dialog>
   );
 }
-
-    

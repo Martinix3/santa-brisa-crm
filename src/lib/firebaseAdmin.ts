@@ -4,7 +4,8 @@
 import { initializeApp, getApps, App, applicationDefault, getApp } from 'firebase-admin/app';
 import { getStorage, Bucket } from 'firebase-admin/storage';
 
-const BUCKET_NAME = 'santa-brisa-crm.appspot.com';
+// CORRECT BUCKET NAME based on user's screenshot
+const BUCKET_NAME = 'santa-brisa-crm.firebasestorage.app';
 
 /**
  * A memoized function to get the Firebase Admin App instance.
@@ -16,8 +17,7 @@ function getFirebaseAdminApp(): App {
     return getApp();
   }
   
-  // This is the most explicit initialization. We tell the SDK to use the
-  // environment's default credentials but to specifically use our storage bucket.
+  // Explicitly initialize with the bucket name to avoid discovery issues.
   return initializeApp({
     credential: applicationDefault(),
     storageBucket: BUCKET_NAME,

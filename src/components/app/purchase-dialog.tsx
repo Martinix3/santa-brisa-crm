@@ -144,7 +144,12 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
     setMatchingItems(itemsToMatch.reduce((acc, _, index) => ({ ...acc, [index]: true }), {}));
     
     const updatedItems = await Promise.all(itemsToMatch.map(async (item, index) => {
+      const currentFormItem = form.getValues(`items.${index}`);
+      if (currentFormItem.materialId) {
+        return currentFormItem;
+      }
       if (item.materialId) return item;
+
       const result = await matchMaterial({ itemName: item.description || "", existingMaterials: availableMaterials });
       if (result.matchType === 'perfect' || result.matchType === 'suggested') {
         return { ...item, materialId: result.matchedMaterialId! };
@@ -181,8 +186,7 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
         supplierCif: prefilledData?.supplierCif,
         supplierAddress_street: prefilledData?.supplierAddress_street,
         supplierAddress_city: prefilledData?.supplierAddress_city,
-        supplierAddress_province: prefilledData?.supplierAddress_province,
-        supplierAddress_postalCode: prefilledData?.supplierAddress_postalCode,
+        supplierAddress_province: prefilledData?.supplierAddress_postalCode,
       };
 
       form.reset(initialValues);
@@ -278,13 +282,21 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
                         <div className="flex items-end gap-2">
                             <FormField control={form.control} name={`items.${index}.materialId`} render={({ field: selectField }) => (
                               <FormItem className="flex-grow">
-                                  <FormLabel className="text-xs flex items-center gap-1">{matchingItems[index] && <Loader2 className="h-3 w-3 animate-spin"/>}Concepto del Sistema</FormLabel>
-                                  <Select onValueChange={selectField.onChange} value={selectField.value || ""} disabled={isReadOnly || isLoadingMaterials}>
+                                  <FormLabel className="text-xs flex items-center gap-1">
+                                    {matchingItems[index] && <Loader2 className="h-3 w-3 animate-spin"/>}
+                                    Concepto del Sistema
+                                  </FormLabel>
+                                  {isLoadingMaterials ? (
+                                    <Skeleton className="h-10 w-full" />
+                                  ) : (
+                                    <Select onValueChange={selectField.onChange} value={selectField.value || ""} disabled={isReadOnly}>
                                       <FormControl><SelectTrigger><SelectValue placeholder="Asociar a material..." /></SelectTrigger></FormControl>
                                       <SelectContent>
-                                        {isLoadingMaterials ? <div className="p-2"><Skeleton className="h-8 w-full" /></div> : availableMaterials.map(material => (<SelectItem key={material.id} value={material.id}>{material.name}</SelectItem>))}
+                                        {availableMaterials.map(material => (<SelectItem key={material.id} value={material.id}>{material.name}</SelectItem>))}
                                       </SelectContent>
-                                  </Select><FormMessage />
+                                    </Select>
+                                  )}
+                                  <FormMessage />
                               </FormItem>
                             )} />
                             {!isReadOnly && <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>}
@@ -325,7 +337,7 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
               </ScrollArea>
               
               {hasInvoicePreview && (
-                 <div className="flex flex-col h-full"><Label>Previsualización de Factura</Label><div className="mt-2 border rounded-md h-[calc(100%-24px)] overflow-hidden bg-muted">{previewUrl?.startsWith('data:application/pdf') || previewUrl?.endsWith('.pdf') ? (<embed src={previewUrl} type="application/pdf" width="100%" height="100%" />) : (<img src={previewUrl} alt="Previsualización de la factura" className="object-contain w-full h-full"/>)}</div></div>
+                 <div className="flex-col h-full hidden lg:flex"><Label>Previsualización de Factura</Label><div className="mt-2 border rounded-md h-[calc(100%-24px)] overflow-hidden bg-muted">{previewUrl?.startsWith('data:application/pdf') || previewUrl?.endsWith('.pdf') ? (<embed src={previewUrl} type="application/pdf" width="100%" height="100%" />) : (<img src={previewUrl} alt="Previsualización de la factura" className="object-contain w-full h-full"/>)}</div></div>
               )}
             </div>
 
@@ -339,3 +351,5 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
     </Dialog>
   );
 }
+
+    

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox"; 
 import type { Order, OrderStatus, UserRole, TeamMember, AddressDetails, Account } from "@/types";
 import { orderStatusesList } from "@/lib/data"; 
-import { MoreHorizontal, Eye, Edit, Trash2, Filter, CalendarDays, ChevronDown, Download, ShoppingCart, Loader2, MapPin, User as UserIcon } from "lucide-react";
+import { MoreHorizontal, Eye, Edit, Trash2, Filter, CalendarDays, ChevronDown, Download, ShoppingCart, Loader2, MapPin, User as UserIcon, XCircle } from "lucide-react";
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -49,7 +49,7 @@ export default function OrdersDashboardPage() {
 
   const [editingOrder, setEditingOrder] = React.useState<Order | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
-  const [orderToDelete, setOrderToDelete] = React.useState<Order | null>(null);
+  const [orderToModify, setOrderToModify] = React.useState<Order | null>(null);
 
   React.useEffect(() => {
     async function loadInitialData() {
@@ -60,9 +60,8 @@ export default function OrdersDashboardPage() {
           getAccountsFS()
         ]);
         
-        setAllOrders(firestoreOrders.filter(order => 
-            order.status !== 'Programada' && order.status !== 'Seguimiento' && order.status !== 'Fallido'
-        ));
+        setAllOrders(firestoreOrders.filter(order => relevantOrderStatusesForDashboard.includes(order.status)));
+        
         setAllAccounts(firestoreAccounts);
 
         if (currentUserRole === 'Admin') {
@@ -217,26 +216,24 @@ export default function OrdersDashboardPage() {
     }
   };
   
-  const handleDeleteOrderClick = (order: Order) => {
-    if (!canDeleteOrder) return;
-    setOrderToDelete(order);
+  const handleCancelOrderClick = (order: Order) => {
+    if (!canCancelOrder) return;
+    setOrderToModify(order);
   };
 
-  const confirmDeleteOrder = async () => {
-    if (!canDeleteOrder || !orderToDelete) return;
+  const confirmCancelOrder = async () => {
+    if (!canCancelOrder || !orderToModify) return;
     setIsLoading(true);
     try {
-      await deleteOrderFS(orderToDelete.id);
-      setAllOrders(prev => prev.filter(o => o.id !== orderToDelete.id));
-      setSelectedOrderIds(prev => prev.filter(id => id !== orderToDelete.id));
-      toast({ title: "¡Pedido Eliminado!", description: `El pedido "${orderToDelete.id}" ha sido eliminado.`, variant: "destructive" });
+      await updateOrderFS(orderToModify.id, { status: 'Cancelado' });
+      toast({ title: "¡Pedido Cancelado!", description: `El pedido "${orderToModify.id}" ha sido cancelado.`, variant: "default" });
       refreshDataSignature();
     } catch (error) {
-      console.error("Error deleting order:", error);
-      toast({ title: "Error al Eliminar", description: "No se pudo eliminar el pedido de Firestore.", variant: "destructive" });
+      console.error("Error canceling order:", error);
+      toast({ title: "Error al Cancelar", description: "No se pudo cancelar el pedido.", variant: "destructive" });
     } finally {
       setIsLoading(false);
-      setOrderToDelete(null);
+      setOrderToModify(null);
     }
   };
 
@@ -369,7 +366,7 @@ export default function OrdersDashboardPage() {
 
   const canEditOrderDetails = currentUserRole === 'Admin';
   const canEditOrderStatus = currentUserRole === 'Admin' || currentUserRole === 'Distributor';
-  const canDeleteOrder = currentUserRole === 'Admin';
+  const canCancelOrder = currentUserRole === 'Admin';
   const canDownloadCsv = currentUserRole === 'Admin' || currentUserRole === 'Distributor';
 
   return (
@@ -589,32 +586,32 @@ export default function OrdersDashboardPage() {
                                 <Edit className="mr-2 h-4 w-4" /> Editar
                               </DropdownMenuItem>
                             )}
-                            {canDeleteOrder && (
+                            {canCancelOrder && (
                               <>
                                 <DropdownMenuSeparator />
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
                                     <DropdownMenuItem 
                                       className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                                      onSelect={(e) => { e.preventDefault(); handleDeleteOrderClick(order); }}
-                                      disabled={!canDeleteOrder}
+                                      onSelect={(e) => { e.preventDefault(); handleCancelOrderClick(order); }}
+                                      disabled={!canCancelOrder || order.status === 'Cancelado'}
                                       >
-                                      <Trash2 className="mr-2 h-4 w-4" /> Eliminar Pedido
+                                      <XCircle className="mr-2 h-4 w-4" /> Cancelar Pedido
                                     </DropdownMenuItem>
                                   </AlertDialogTrigger>
-                                  {orderToDelete && orderToDelete.id === order.id && (
+                                  {orderToModify && orderToModify.id === order.id && (
                                       <AlertDialogContent>
                                           <AlertDialogHeader>
-                                          <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                                          <AlertDialogTitle>¿Cancelar este pedido?</AlertDialogTitle>
                                           <AlertDialogDescription>
-                                              Esta acción no se puede deshacer. Esto eliminará permanentemente el pedido para:
-                                              <br />
-                                              <strong className="mt-2 block">{orderToDelete.clientName} (ID: {orderToDelete.id})</strong>
+                                              Esta acción no se puede deshacer. El estado del pedido para 
+                                              <strong className="mx-1">"{orderToModify.clientName}"</strong> 
+                                              se cambiará a "Cancelado". El registro no se eliminará del historial.
                                           </AlertDialogDescription>
                                           </AlertDialogHeader>
                                           <AlertDialogFooter>
-                                          <AlertDialogCancel onClick={() => setOrderToDelete(null)}>Cancelar</AlertDialogCancel>
-                                          <AlertDialogAction onClick={confirmDeleteOrder} variant="destructive">Sí, eliminar</AlertDialogAction>
+                                          <AlertDialogCancel onClick={() => setOrderToModify(null)}>Cerrar</AlertDialogCancel>
+                                          <AlertDialogAction onClick={confirmCancelOrder} variant="destructive">Sí, cancelar pedido</AlertDialogAction>
                                           </AlertDialogFooter>
                                       </AlertDialogContent>
                                   )}

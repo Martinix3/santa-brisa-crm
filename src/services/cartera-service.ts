@@ -2,38 +2,50 @@
 'use server';
 
 import type { Account, Interaction, TeamMember, AccountStatus, EnrichedAccount, PotencialType } from '@/types';
-import { parseISO, differenceInDays, isValid } from 'date-fns';
+import { parseISO, differenceInDays, isValid, startOfDay } from 'date-fns';
 
 /**
  * Calculates the current status of an account based on its interactions.
+ * The rules are applied in a specific priority order.
  */
-function calculateAccountStatus(interactionsForAccount: Interaction[], lastInteractionDate?: Date): AccountStatus {
+function calculateAccountStatus(
+    interactionsForAccount: Interaction[],
+    lastInteractionDate?: Date
+): AccountStatus {
     const now = new Date();
 
+    // 1. Inactivo: Overrides all other statuses if the last interaction is too old.
     if (lastInteractionDate && differenceInDays(now, lastInteractionDate) > 90) {
         return 'Inactivo';
     }
 
+    // 2. Repetición: A customer with 2 or more successful orders.
     const successfulOrders = interactionsForAccount.filter(i => i.resultado === 'Pedido Exitoso');
     if (successfulOrders.length >= 2) {
         return 'Repetición';
     }
+
+    // 3. Primer Pedido: A customer with exactly 1 successful order.
     if (successfulOrders.length === 1) {
         return 'Primer Pedido';
     }
 
-    const openInteractions = interactionsForAccount.filter(i => 
-        ['Programada', 'Requiere seguimiento'].includes(i.resultado) && 
-        i.fecha_prevista && 
+    // 4. Programado: An active account that has a future task scheduled.
+    const futureInteractions = interactionsForAccount.filter(i => 
+        ['Programada', 'Requiere seguimiento'].includes(i.resultado) &&
+        i.fecha_prevista &&
         isValid(parseISO(i.fecha_prevista)) &&
-        parseISO(i.fecha_prevista) >= now
+        parseISO(i.fecha_prevista) >= startOfDay(now) // Use startOfDay to include today
     );
-    if (openInteractions.length > 0) {
+    if (futureInteractions.length > 0) {
         return 'Programado';
     }
-
+    
+    // 5. Seguimiento: Default active status if none of the above match.
+    // This typically means the last interaction was a 'Fallida' or a 'Requiere seguimiento' with a past date.
     return 'Seguimiento';
 }
+
 
 /**
  * Calculates the lead score for an account based on its interactions and potential.
@@ -54,10 +66,13 @@ function calculateLeadScore(account: Account, interactionsForAccount: Interactio
         case 'bajo': score += 5; break;
     }
 
-    if (lastInteraction && lastInteraction.createdAt) {
-        const daysSinceLastInteraction = differenceInDays(now, parseISO(lastInteraction.createdAt));
-        if (daysSinceLastInteraction < 7) score += 20;
-        else if (daysSinceLastInteraction < 14) score += 10;
+    if (lastInteraction && (lastInteraction.fecha_real || lastInteraction.createdAt)) {
+        const lastDate = parseISO(lastInteraction.fecha_real || lastInteraction.createdAt);
+        if (isValid(lastDate)) {
+            const daysSinceLastInteraction = differenceInDays(now, lastDate);
+            if (daysSinceLastInteraction < 7) score += 20;
+            else if (daysSinceLastInteraction < 14) score += 10;
+        }
     }
 
     if (nextInteraction?.fecha_prevista) {
@@ -68,8 +83,6 @@ function calculateLeadScore(account: Account, interactionsForAccount: Interactio
     }
 
     if (account.brandAmbassadorId && lastInteraction) {
-        // This is a simplification. A real implementation might need to check if the BA was on the specific interaction.
-        // For now, we assume if an account HAS a BA, it's a positive signal on the last action.
         score += 10;
     }
 
@@ -94,9 +107,13 @@ export async function processCarteraData(
         interactionsByAccount.get(interaction.accountId)!.push(interaction);
     }
     
-    // Sort interactions for each account
+    // Sort interactions for each account by their effective date (real date first, then creation date).
     for (const accountInteractions of interactionsByAccount.values()) {
-        accountInteractions.sort((a, b) => parseISO(b.createdAt).getTime() - parseISO(a.createdAt).getTime());
+        accountInteractions.sort((a, b) => {
+            const dateA = a.fecha_real ? parseISO(a.fecha_real) : parseISO(a.createdAt);
+            const dateB = b.fecha_real ? parseISO(b.fecha_real) : parseISO(b.createdAt);
+            return dateB.getTime() - dateA.getTime();
+        });
     }
 
     const enrichedAccounts: EnrichedAccount[] = accounts.map(account => {
@@ -104,12 +121,16 @@ export async function processCarteraData(
         
         const openInteractions = accountInteractions.filter(i => 
             ['Programada', 'Requiere seguimiento'].includes(i.resultado) &&
+            i.fecha_prevista &&
             isValid(parseISO(i.fecha_prevista))
         ).sort((a,b) => parseISO(a.fecha_prevista).getTime() - parseISO(b.fecha_prevista).getTime());
 
-        const nextInteraction = openInteractions.find(i => parseISO(i.fecha_prevista) >= new Date()) || undefined;
+        const nextInteraction = openInteractions.find(i => parseISO(i.fecha_prevista) >= startOfDay(new Date())) || undefined;
 
-        const lastInteractionDate = accountInteractions[0] ? parseISO(accountInteractions[0].createdAt) : undefined;
+        const lastInteraction = accountInteractions[0];
+        const lastInteractionDate = lastInteraction 
+            ? parseISO(lastInteraction.fecha_real || lastInteraction.createdAt) 
+            : undefined;
 
         const status = calculateAccountStatus(accountInteractions, lastInteractionDate);
         const leadScore = calculateLeadScore(account, accountInteractions, nextInteraction);

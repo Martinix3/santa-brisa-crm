@@ -99,6 +99,7 @@ export async function processCarteraData(
     interactions: Interaction[],
     teamMembers: TeamMember[]
 ): Promise<EnrichedAccount[]> {
+    console.log('>>> DEBUG processCarteraData START');
     const interactionsByAccount = new Map<string, Interaction[]>();
     for (const interaction of interactions) {
         if (!interactionsByAccount.has(interaction.accountId)) {
@@ -117,13 +118,18 @@ export async function processCarteraData(
     }
 
     const enrichedAccounts: EnrichedAccount[] = accounts.map(account => {
+        console.log(`\n--- DEBUG Account ${account.id} (${account.nombre}) ---`);
+        console.log('RAW ACCOUNT:', account);
         const accountInteractions = interactionsByAccount.get(account.id) || [];
+        console.log('ALL INTERACTIONS:', accountInteractions);
         
         const openInteractions = accountInteractions.filter(i => 
             ['Programada', 'Requiere seguimiento'].includes(i.resultado) &&
             i.fecha_prevista &&
             isValid(parseISO(i.fecha_prevista))
         ).sort((a,b) => parseISO(a.fecha_prevista).getTime() - parseISO(b.fecha_prevista).getTime());
+
+        console.log('FUTURE INTERACTIONS (openInteractions):', openInteractions);
 
         const nextInteraction = openInteractions.find(i => parseISO(i.fecha_prevista) >= startOfDay(new Date())) || undefined;
 
@@ -136,6 +142,10 @@ export async function processCarteraData(
         const leadScore = calculateLeadScore(account, accountInteractions, nextInteraction);
         const totalSuccessfulOrders = accountInteractions.filter(i => i.resultado === 'Pedido Exitoso').length;
 
+        console.log('CALCULATED STATUS:', status);
+        console.log('CALCULATED LEAD SCORE:', leadScore);
+        console.log('--- END DEBUG Account', account.id, '---\n');
+
         return {
             ...account,
             status,
@@ -146,5 +156,7 @@ export async function processCarteraData(
         };
     });
 
+    console.log('>>> DEBUG processCarteraData END');
     return enrichedAccounts.sort((a, b) => b.leadScore - a.leadScore);
 }
+

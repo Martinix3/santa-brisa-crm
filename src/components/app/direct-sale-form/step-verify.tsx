@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from 'react';
@@ -40,7 +41,7 @@ export const StepVerify: React.FC<StepVerifyProps> = ({ form, client, handleBack
           <Card>
               <CardHeader><CardTitle className="text-lg">Resumen de la Venta</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
-                  <p><strong>Cliente:</strong> {client?.name} {isNewClient && <span className="text-primary font-bold">(Nuevo)</span>}</p>
+                  <p><strong>Cliente:</strong> {client?.nombre} {isNewClient && <span className="text-primary font-bold">(Nuevo)</span>}</p>
                   <p><strong>Canal de Venta:</strong> <span className="font-semibold">{formValues.channel || 'N/D'}</span></p>
                   <p><strong>Estado:</strong> <span className="font-semibold">{formValues.status}</span></p>
 

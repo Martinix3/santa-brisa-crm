@@ -23,7 +23,7 @@ export const StepCoreDetails: React.FC<StepCoreDetailsProps> = ({ form, handleBa
   <>
     <CardHeader>
         <CardTitle>Paso 2: Detalles Principales de la Venta</CardTitle>
-        <CardDescription>Indica el canal de venta y la fecha de emisión para la venta a "{client?.name}".</CardDescription>
+        <CardDescription>Indica el canal de venta y la fecha de emisión para la venta a "{client?.nombre}".</CardDescription>
     </CardHeader>
     <CardContent className="space-y-6">
       <FormField control={form.control} name="channel" render={({ field }) => (

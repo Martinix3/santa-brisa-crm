@@ -20,7 +20,7 @@ export function useDirectSaleWizard() {
   const { teamMember, refreshDataSignature } = useAuth();
   
   const [step, setStep] = React.useState<Step>("client");
-  const [client, setClient] = React.useState<Account | { id: 'new'; name: string } | null>(null);
+  const [client, setClient] = React.useState<Account | { id: 'new'; nombre: string } | null>(null);
   
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -38,7 +38,7 @@ export function useDirectSaleWizard() {
   const filteredAccounts = React.useMemo(() => {
     if (!debouncedSearchTerm) return [];
     return allAccounts.filter(acc =>
-      acc.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      (acc.nombre && acc.nombre.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) ||
       (acc.cif && acc.cif.toLowerCase().includes(debouncedSearchTerm.toLowerCase()))
     );
   }, [debouncedSearchTerm, allAccounts]);
@@ -121,10 +121,10 @@ export function useDirectSaleWizard() {
     loadData();
   }, [toast]);
 
-  const handleClientSelect = (selectedClient: Account | { id: 'new'; name: string }) => {
+  const handleClientSelect = (selectedClient: Account | { id: 'new'; nombre: string }) => {
     setClient(selectedClient);
     form.setValue('isNewClient', selectedClient.id === 'new');
-    form.setValue('customerName', selectedClient.name);
+    form.setValue('customerName', selectedClient.nombre);
     if (selectedClient.id !== 'new') {
       form.setValue('customerId', selectedClient.id);
     } else {

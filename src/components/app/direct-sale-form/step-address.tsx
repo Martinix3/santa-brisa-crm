@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from 'react';
@@ -22,7 +23,7 @@ export const StepAddress: React.FC<StepAddressProps> = ({ form, client, handleBa
   return (
     <>
       <CardHeader>
-          <CardTitle>Paso 4: Datos de Facturación y Entrega para "{client?.name}"</CardTitle>
+          <CardTitle>Paso 4: Datos de Facturación y Entrega para "{client?.nombre}"</CardTitle>
           <CardDescription>Completa la información para la nueva cuenta. Los campos con * son obligatorios.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

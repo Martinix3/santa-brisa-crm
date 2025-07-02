@@ -251,12 +251,31 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         }
     }
   }, [order, isOpen, form, allAccounts]);
+  
+  React.useEffect(() => {
+    if (['Seguimiento', 'Fallido', 'Programada'].includes(currentStatus)) {
+        form.setValue('clientType', undefined);
+        form.setValue('products', undefined);
+        form.setValue('numberOfUnits', null);
+        form.setValue('unitPrice', null);
+        form.setValue('value', null);
+        form.setValue('paymentMethod', undefined);
+    }
+    if (currentStatus !== 'Facturado') {
+        form.setValue('invoiceUrl', '');
+    }
+  }, [currentStatus, form]);
 
   const onSubmit = async (data: EditOrderFormValues) => {
     if (!order) return;
     setIsSaving(true);
+    const dataToSave = { ...data };
+    if (dataToSave.clavadistaId === NO_CLAVADISTA_VALUE) {
+      delete dataToSave.clavadistaId;
+    }
+    
     try {
-      await onSave(data, order.id);
+      await onSave(dataToSave, order.id);
     } catch(e: any) {
         console.error("Fallo al guardar desde el diálogo:", e);
         toast({ title: "Error al Guardar", description: `No se pudo guardar: ${e.message}`, variant: "destructive" });
@@ -321,15 +340,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
             </div>
         ) : (
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit, (errors) => {
-              console.error("Form Validation Errors:", errors);
-              toast({
-                title: "Error de Validación",
-                description: "Por favor, revisa los campos marcados en rojo. Hay errores en el formulario.",
-                variant: "destructive",
-              });
-          })} className="space-y-4 py-2">
-
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="Nombre del cliente" {...field} disabled={!canEditOrderDetailsOverall || formFieldsGenericDisabled} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="salesRep" render={({ field }) => (<FormItem><FormLabel>Representante de Ventas</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={salesRepFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un representante" /></SelectTrigger></FormControl><SelectContent>{salesReps.map((member: TeamMember) => (<SelectItem key={member.id} value={member.name}>{member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>

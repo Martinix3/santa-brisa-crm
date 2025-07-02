@@ -325,7 +325,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const invoiceSectionDisabled = !canManageInvoice || isLoadingDropdownData || isLoadingAccountDetails;
   
   const isButtonDisabled = isSaving || isLoadingDropdownData || isLoadingAccountDetails || !form.formState.isValid;
-
+  
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md md:max-w-lg lg:max-w-3xl xl:max-w-4xl max-h-[90vh] overflow-y-auto print-dialog-content">
@@ -611,4 +611,3 @@ function isValidUrl(urlString: string | undefined | null): boolean {
     return false;
   }
 }
-

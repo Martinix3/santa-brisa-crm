@@ -46,7 +46,7 @@ import { es } from 'date-fns/locale';
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
-import { getAccountByIdFS } from "@/services/account-service"; 
+import { getAccountByIdFS, getAccountsFS } from "@/services/account-service"; 
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { Label } from "@/components/ui/label";
@@ -54,23 +54,21 @@ import { Label } from "@/components/ui/label";
 
 const NO_CLAVADISTA_VALUE = "##NONE##";
 
-const assignedMaterialSchemaForDialog = z.object({
-  materialId: z.string().min(1, "Debe seleccionar un material."),
-  quantity: z.coerce.number().min(1, "La cantidad debe ser al menos 1."),
-});
-
 const editOrderFormSchema = z.object({
-  clientName: z.string().min(1, "El nombre del cliente es obligatorio.").optional(),
+  clientName: z.string().optional(),
   products: z.string().optional(),
   value: z.number({ invalid_type_error: "Debe ser un número." }).positive("El valor debe ser positivo.").optional().nullable(),
   status: z.enum(orderStatusesList as [OrderStatus, ...OrderStatus[]]),
-  salesRep: z.string().min(1, "Debe seleccionar un representante.").optional(),
+  salesRep: z.string().optional(),
   clavadistaId: z.string().optional(),
   canalOrigenColocacion: z.enum(canalOrigenColocacionList as [CanalOrigenColocacion, ...CanalOrigenColocacion[]]).optional(),
   paymentMethod: z.enum(paymentMethodList as [PaymentMethod, ...PaymentMethod[]]).optional(),
-  invoiceUrl: z.string().trim().url("Debe ser una URL válida.").optional().nullable(),
+  invoiceUrl: z.string().trim().url("Debe ser una URL válida.").or(z.literal("")).optional().nullable(),
   invoiceFileName: z.string().optional(),
-  assignedMaterials: z.array(assignedMaterialSchemaForDialog).optional().default([]),
+  assignedMaterials: z.array(z.object({
+    materialId: z.string().min(1, "Debe seleccionar un material."),
+    quantity: z.coerce.number().min(1, "La cantidad debe ser al menos 1."),
+  })).optional().default([]),
 
   clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
   numberOfUnits: z.number({ invalid_type_error: "Debe ser un número." }).positive("Debe ser un número positivo.").optional().nullable(),
@@ -198,19 +196,17 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   }, [isOpen, toast]);
 
   React.useEffect(() => {
-    // Effect for resetting form and fetching/finding account data
     if (isOpen && order) {
-        // Reset form with the order data
         form.reset({
-            clientName: order.clientName,
+            clientName: order.clientName || undefined,
             products: order.products?.join(",\n") || "",
             value: order.value ?? undefined,
             status: order.status,
-            salesRep: order.salesRep || "",
+            salesRep: order.salesRep || undefined,
             clavadistaId: order.clavadistaId || NO_CLAVADISTA_VALUE,
             canalOrigenColocacion: order.canalOrigenColocacion || undefined,
             paymentMethod: order.paymentMethod || undefined,
-            invoiceUrl: order.invoiceUrl || null,
+            invoiceUrl: order.invoiceUrl || "",
             invoiceFileName: order.invoiceFileName || "",
             assignedMaterials: order.assignedMaterials || [],
             clientType: order.clientType,
@@ -224,21 +220,20 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
             failureReasonCustom: order.failureReasonCustom || "",
         });
 
-        // Force validation after resetting form to update isValid state
         form.trigger();
-
-        // Find or fetch associated account data
+        
         setAssociatedAccount(null);
         setIsLoadingAccountDetails(true);
         const findAccount = async () => {
           try {
+            let foundAccount: Account | null = null;
             if (order.accountId) {
-              const found = await getAccountByIdFS(order.accountId);
-              setAssociatedAccount(found);
-            } else if (order.clientName && allAccounts.length > 0) {
-              const found = allAccounts.find(acc => acc.nombre.toLowerCase().trim() === order.clientName.toLowerCase().trim());
-              setAssociatedAccount(found || null);
+              foundAccount = await getAccountByIdFS(order.accountId);
+            } else if (order.clientName) {
+              const accounts = await getAccountsFS();
+              foundAccount = accounts.find(acc => acc.nombre.toLowerCase().trim() === order.clientName.toLowerCase().trim()) || null;
             }
+            setAssociatedAccount(foundAccount);
           } catch(err) {
             console.error("Error setting associated account:", err);
             setAssociatedAccount(null);
@@ -248,37 +243,41 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         };
         findAccount();
     }
-  }, [order, isOpen, form, allAccounts]);
+  }, [order, isOpen, form]);
   
   React.useEffect(() => {
     const shouldClearProductFields = ['Seguimiento', 'Fallido', 'Programada'].includes(currentStatus);
     const shouldClearInvoice = currentStatus !== 'Facturado';
+    let needsUpdate = false;
     
     if (shouldClearProductFields) {
-      if (form.getValues('clientType') !== undefined) form.setValue('clientType', undefined, { shouldDirty: true });
-      if (form.getValues('products') !== undefined) form.setValue('products', undefined, { shouldDirty: true });
-      if (form.getValues('numberOfUnits') !== undefined) form.setValue('numberOfUnits', undefined, { shouldDirty: true });
-      if (form.getValues('unitPrice') !== undefined) form.setValue('unitPrice', undefined, { shouldDirty: true });
-      if (form.getValues('value') !== undefined) form.setValue('value', undefined, { shouldDirty: true });
-      if (form.getValues('paymentMethod') !== undefined) form.setValue('paymentMethod', undefined, { shouldDirty: true });
+      if (form.getValues('clientType') !== undefined) { form.setValue('clientType', undefined); needsUpdate=true; }
+      if (form.getValues('products') !== undefined && form.getValues('products') !== "") { form.setValue('products', ""); needsUpdate=true; }
+      if (form.getValues('numberOfUnits') !== undefined) { form.setValue('numberOfUnits', undefined); needsUpdate=true; }
+      if (form.getValues('unitPrice') !== undefined) { form.setValue('unitPrice', undefined); needsUpdate=true; }
+      if (form.getValues('paymentMethod') !== undefined) { form.setValue('paymentMethod', undefined); needsUpdate=true; }
     }
 
     if (shouldClearInvoice) {
-      if (form.getValues('invoiceUrl') !== null) form.setValue('invoiceUrl', null, { shouldDirty: true });
+      if (form.getValues('invoiceUrl') !== "" && form.getValues('invoiceUrl') !== null) { form.setValue('invoiceUrl', ""); needsUpdate=true; }
     }
 
-    form.trigger();
+    if (needsUpdate) {
+        form.trigger();
+    }
+    
   }, [currentStatus, form]);
 
   const onSubmit = async (data: EditOrderFormValues) => {
     if (!order) return;
-    setIsSaving(true);
-    const dataToSave: any = { ...data };
+    
+    let dataToSave = { ...data };
     
     if (dataToSave.clavadistaId === NO_CLAVADISTA_VALUE) {
-      delete dataToSave.clavadistaId;
+      delete (dataToSave as Partial<EditOrderFormValues>).clavadistaId;
     }
     
+    setIsSaving(true);
     try {
       await onSave(dataToSave, order.id);
     } catch(e: any) {
@@ -345,16 +344,9 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
             </div>
         ) : (
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit, (errors) => {
-              console.error("Form Validation Errors:", errors);
-              toast({
-                title: "Error de Validación",
-                description: "Por favor, revisa los campos marcados en rojo. Hay errores en el formulario.",
-                variant: "destructive"
-              })
-          })}>
+          <form onSubmit={form.handleSubmit(onSubmit)}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="Nombre del cliente" {...field} disabled={!canEditOrderDetailsOverall || formFieldsGenericDisabled} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="Nombre del cliente" {...field} value={field.value ?? ""} disabled={!canEditOrderDetailsOverall || formFieldsGenericDisabled} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="salesRep" render={({ field }) => (<FormItem><FormLabel>Representante de Ventas</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={salesRepFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un representante" /></SelectTrigger></FormControl><SelectContent>{salesReps.map((member: TeamMember) => (<SelectItem key={member.id} value={member.name}>{member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -481,7 +473,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 <>
                   <Separator className="my-6" />
                   <h3 className="text-md font-semibold text-muted-foreground">Información de Seguimiento/Programación Original</h3>
-                  <FormField control={form.control} name="nextActionType" render={({ field }) => (<FormItem><FormLabel>Próxima Acción (Original)</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={true}><FormControl><SelectTrigger><SelectValue placeholder="N/A" /></SelectTrigger></FormControl><SelectContent>{nextActionTypeList.map(action => (<SelectItem key={action} value={action}>{action}</SelectItem>))}</SelectContent></Select></FormItem>)}/>
+                  <FormField control={form.control} name="nextActionType" render={({ field }) => (<FormItem><FormLabel>Próxima Acción (Original)</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={true}><FormControl><SelectTrigger><SelectValue placeholder="N/A" /></SelectTrigger></FormControl><SelectContent>{nextActionTypeList.map(action => (<SelectItem key={action} value={action}>{action}</SelectItem>))}</SelectContent></FormItem>)}/>
                   {order?.nextActionType === "Opción personalizada" && (<FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Detalle Próx. Acción Personalizada (Original)</FormLabel><FormControl><Input {...field} disabled={true} /></FormControl></FormItem>)} />)}
                   <FormField
                     control={form.control}
@@ -501,7 +493,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                   />
                    {order?.status === 'Fallido' && (
                      <>
-                      <FormField control={form.control} name="failureReasonType" render={({ field }) => (<FormItem><FormLabel>Motivo Fallo (Original)</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={true}><FormControl><SelectTrigger><SelectValue placeholder="N/A" /></SelectTrigger></FormControl><SelectContent>{failureReasonList.map(reason => (<SelectItem key={reason} value={reason}>{reason}</SelectItem>))}</SelectContent></Select></FormItem>)}/>
+                      <FormField control={form.control} name="failureReasonType" render={({ field }) => (<FormItem><FormLabel>Motivo Fallo (Original)</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={true}><FormControl><SelectTrigger><SelectValue placeholder="N/A" /></SelectTrigger></FormControl><SelectContent>{failureReasonList.map(reason => (<SelectItem key={reason} value={reason}>{reason}</SelectItem>))}</Select></FormItem>)}/>
                       {order?.failureReasonType === "Otro (especificar)" && (<FormField control={form.control} name="failureReasonCustom" render={({ field }) => (<FormItem><FormLabel>Detalle Motivo Fallo Personalizado (Original)</FormLabel><FormControl><Textarea {...field} disabled={true} /></FormControl></FormItem>)} />)}
                      </>
                    )}
@@ -543,8 +535,8 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                             render={({ field }) => (
                               <FormItem className="w-24">
                                 <FormLabel className="text-xs">Cantidad</FormLabel>
-                                <FormControl><Input type="number" {...field} disabled={materialsSectionDisabled}
-                                  onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))}
+                                <FormControl><Input type="number" {...field} disabled={materialsSectionDisabled} 
+                                  onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value.replace(",",".")))}
                                   value={field.value ?? ""}
                                 /></FormControl>
                                 <FormMessage />

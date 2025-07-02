@@ -647,6 +647,7 @@ export default function OrdersDashboardPage() {
           onOpenChange={setIsEditDialogOpen}
           onSave={handleUpdateOrder}
           currentUserRole={currentUserRole}
+          allAccounts={allAccounts}
         />
       )}
     </div>

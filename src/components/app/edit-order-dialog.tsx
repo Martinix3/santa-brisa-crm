@@ -63,7 +63,7 @@ const assignedMaterialSchemaForDialog = z.object({
 const editOrderFormSchema = z.object({
   clientName: z.string().min(2, "El nombre del cliente debe tener al menos 2 caracteres."),
   products: z.string().optional(),
-  value: z.coerce.number().positive("El valor del pedido debe ser positivo.").optional().nullable(),
+  value: z.coerce.number({ invalid_type_error: "Debe ser un número" }).positive("El valor del pedido debe ser positivo.").optional().nullable(),
   status: z.enum(orderStatusesList as [OrderStatus, ...OrderStatus[]]),
   salesRep: z.string().min(1, "El representante de ventas es obligatorio."),
   clavadistaId: z.string().optional(),
@@ -74,8 +74,8 @@ const editOrderFormSchema = z.object({
   assignedMaterials: z.array(assignedMaterialSchemaForDialog).optional().default([]),
 
   clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
-  numberOfUnits: z.coerce.number().positive("El número de unidades debe ser positivo.").optional().nullable(),
-  unitPrice: z.coerce.number().positive("El precio unitario debe ser positivo.").optional().nullable(),
+  numberOfUnits: z.coerce.number({ invalid_type_error: "Debe ser un número" }).positive("El número de unidades debe ser positivo.").optional().nullable(),
+  unitPrice: z.coerce.number({ invalid_type_error: "Debe ser un número" }).positive("El precio unitario debe ser positivo.").optional().nullable(),
 
   notes: z.string().optional(),
 
@@ -85,10 +85,6 @@ const editOrderFormSchema = z.object({
   failureReasonType: z.enum(failureReasonList as [FailureReasonType, ...FailureReasonType[]]).optional(),
   failureReasonCustom: z.string().optional(),
 }).superRefine((data, ctx) => {
-    // Validation is relaxed here because user roles have different permissions.
-    // An Admin can edit all fields, but a Distributor can only change status and notes.
-    // The more robust validation is implicitly handled by the save logic which merges
-    // the form data with the original order data based on permissions.
     if (data.status === "Facturado" && data.invoiceUrl && !z.string().url().safeParse(data.invoiceUrl).success) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La URL de la factura no es válida.", path: ["invoiceUrl"]});
     }
@@ -103,6 +99,7 @@ interface EditOrderDialogProps {
   onOpenChange: (open: boolean) => void;
   onSave: (data: EditOrderFormValues, orderId: string) => void;
   currentUserRole: UserRole;
+  allAccounts?: Account[];
 }
 
 const formatAddressForDisplay = (address?: AddressDetails): string => {
@@ -118,7 +115,7 @@ const formatAddressForDisplay = (address?: AddressDetails): string => {
   return parts.join(', ');
 };
 
-export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, currentUserRole }: EditOrderDialogProps) {
+export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, currentUserRole, allAccounts = [] }: EditOrderDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   const [clavadistas, setClavadistas] = React.useState<TeamMember[]>([]);
   const [salesReps, setSalesReps] = React.useState<TeamMember[]>([]);
@@ -202,7 +199,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   }, [isOpen, toast]);
 
   React.useEffect(() => {
-    // Effect for resetting form and fetching account data
+    // Effect for resetting form and fetching/finding account data
     if (isOpen && order) {
         // Reset form with the order data
         form.reset({
@@ -228,21 +225,30 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
             failureReasonCustom: order.failureReasonCustom || "",
         });
 
-        // Fetch associated account data in parallel
+        // Find or fetch associated account data
+        setAssociatedAccount(null);
+        setIsLoadingAccountDetails(true);
         if (order.accountId) {
-            setIsLoadingAccountDetails(true);
             getAccountByIdFS(order.accountId)
                 .then(setAssociatedAccount)
                 .catch(err => {
-                    console.error("Error fetching account:", err);
+                    console.error("Error fetching account by ID:", err);
                     setAssociatedAccount(null);
                 })
                 .finally(() => setIsLoadingAccountDetails(false));
+        } else if (order.clientName && allAccounts.length > 0) {
+            // Fallback: try to find by name if ID is missing
+            const foundAccount = allAccounts.find(
+                acc => acc.nombre.toLowerCase().trim() === order.clientName.toLowerCase().trim()
+            );
+            setAssociatedAccount(foundAccount || null);
+            setIsLoadingAccountDetails(false);
         } else {
             setAssociatedAccount(null);
+            setIsLoadingAccountDetails(false);
         }
     }
-  }, [order, isOpen, form]);
+  }, [order, isOpen, form, allAccounts]);
 
   const onSubmit = async (data: EditOrderFormValues) => {
     if (!order) return;

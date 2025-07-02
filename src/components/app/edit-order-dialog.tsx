@@ -139,6 +139,13 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     },
   });
 
+  // --- DEBUG LOG 1: Log form state on every render ---
+  console.log("DEBUG: EditDialog Form State:", { 
+    isDirty: form.formState.isDirty, 
+    isValid: form.formState.isValid, 
+    errors: form.formState.errors 
+  });
+
   const watchedNumberOfUnits = form.watch("numberOfUnits");
   const watchedUnitPrice = form.watch("unitPrice");
 
@@ -251,6 +258,8 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   }, [order, isOpen, form, allAccounts]);
 
   const onSubmit = async (data: EditOrderFormValues) => {
+    // --- DEBUG LOG 2: Check if onSubmit is triggered ---
+    console.log("DEBUG: onSubmit triggered in EditOrderDialog. Data to save:", data);
     if (!order) return;
     setIsSaving(true);
     await onSave(data, order.id);
@@ -290,6 +299,19 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const paymentMethodFieldDisabled = !canEditOrderDetailsOverall || productRelatedFieldsDisabled;
   const materialsSectionDisabled = !canEditOrderDetailsOverall || currentStatus === 'Programada' || isLoadingDropdownData || isLoadingAccountDetails;
   const invoiceSectionDisabled = !canManageInvoice || isLoadingDropdownData || isLoadingAccountDetails;
+  
+  const isButtonDisabled = isSaving || isLoadingDropdownData || isLoadingAccountDetails || (!form.formState.isDirty && !!order);
+  
+  // --- DEBUG LOG 3: Log the disabled state condition ---
+  console.log("DEBUG: Save Button Disabled State:", {
+    isButtonDisabled,
+    isSaving,
+    isLoadingDropdownData,
+    isLoadingAccountDetails,
+    isDirty: form.formState.isDirty,
+    hasOrder: !!order,
+    condition: `(!form.formState.isDirty && !!order) -> ${!form.formState.isDirty && !!order}`
+  });
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -555,7 +577,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
               </Button>
               <DialogClose asChild><Button type="button" variant="outline" disabled={isSaving}>Cancelar</Button></DialogClose>
               {!(isReadOnlyForMostFields && !canEditStatusAndNotesOnly) && (
-                <Button type="submit" disabled={isSaving || isLoadingDropdownData || isLoadingAccountDetails || (!form.formState.isDirty && !!order) }>
+                <Button type="submit" disabled={isButtonDisabled}>
                   {isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>) : ("Guardar Cambios")}
                 </Button>
               )}

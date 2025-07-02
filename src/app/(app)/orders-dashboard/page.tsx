@@ -135,6 +135,8 @@ export default function OrdersDashboardPage() {
   };
 
   const handleUpdateOrder = async (updatedData: EditOrderFormValues, orderId: string) => {
+    // --- DEBUG LOG 4: Check if parent handler is reached ---
+    console.log("DEBUG: handleUpdateOrder triggered in orders-dashboard.tsx", { updatedData, orderId });
     setIsLoading(true);
     try {
       const orderToUpdate = allOrders.find(o => o.id === orderId);

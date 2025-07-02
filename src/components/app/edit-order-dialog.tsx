@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -192,7 +193,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     if (isOpen && order) {
         form.reset({
             clientName: order.clientName || "",
-            products: order.products?.join(",\\n") || "",
+            products: order.products?.join(', ') || "",
             value: order.value ?? undefined,
             status: order.status,
             salesRep: order.salesRep || "",

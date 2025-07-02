@@ -69,7 +69,7 @@ const editOrderFormSchema = z.object({
   clavadistaId: z.string().optional(),
   canalOrigenColocacion: z.enum(canalOrigenColocacionList as [CanalOrigenColocacion, ...CanalOrigenColocacion[]]).optional(),
   paymentMethod: z.enum(paymentMethodList as [PaymentMethod, ...PaymentMethod[]]).optional(),
-  invoiceUrl: z.string().url("Debe ser una URL válida.").optional().or(z.literal("")),
+  invoiceUrl: z.string().trim().url("Debe ser una URL válida.").or(z.literal('')).optional(),
   invoiceFileName: z.string().optional(),
   assignedMaterials: z.array(assignedMaterialSchemaForDialog).optional().default([]),
 
@@ -84,10 +84,6 @@ const editOrderFormSchema = z.object({
   nextActionDate: z.date().optional(),
   failureReasonType: z.enum(failureReasonList as [FailureReasonType, ...FailureReasonType[]]).optional(),
   failureReasonCustom: z.string().optional(),
-}).superRefine((data, ctx) => {
-    if (data.status === "Facturado" && data.invoiceUrl && !z.string().url().safeParse(data.invoiceUrl).success) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La URL de la factura no es válida.", path: ["invoiceUrl"]});
-    }
 });
 
 
@@ -127,6 +123,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
 
   const form = useForm<EditOrderFormValues>({
     resolver: zodResolver(editOrderFormSchema),
+    mode: "onChange",
     defaultValues: {
       clientName: "", products: "", value: undefined, status: "Pendiente", salesRep: "",
       clavadistaId: NO_CLAVADISTA_VALUE, canalOrigenColocacion: undefined, paymentMethod: undefined,
@@ -230,39 +227,37 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         // Find or fetch associated account data
         setAssociatedAccount(null);
         setIsLoadingAccountDetails(true);
-        if (order.accountId) {
-            getAccountByIdFS(order.accountId)
-                .then(setAssociatedAccount)
-                .catch(err => {
-                    console.error("Error fetching account by ID:", err);
-                    setAssociatedAccount(null);
-                })
-                .finally(() => setIsLoadingAccountDetails(false));
-        } else if (order.clientName && allAccounts.length > 0) {
-            // Fallback: try to find by name if ID is missing
-            const foundAccount = allAccounts.find(
-                acc => acc.nombre.toLowerCase().trim() === order.clientName.toLowerCase().trim()
-            );
-            setAssociatedAccount(foundAccount || null);
-            setIsLoadingAccountDetails(false);
-        } else {
+        const findAccount = async () => {
+          try {
+            if (order.accountId) {
+              const found = await getAccountByIdFS(order.accountId);
+              setAssociatedAccount(found);
+            } else if (order.clientName && allAccounts.length > 0) {
+              const found = allAccounts.find(acc => acc.nombre.toLowerCase().trim() === order.clientName.toLowerCase().trim());
+              setAssociatedAccount(found || null);
+            }
+          } catch(err) {
+            console.error("Error setting associated account:", err);
             setAssociatedAccount(null);
+          } finally {
             setIsLoadingAccountDetails(false);
-        }
+          }
+        };
+        findAccount();
     }
   }, [order, isOpen, form, allAccounts]);
   
   React.useEffect(() => {
     if (['Seguimiento', 'Fallido', 'Programada'].includes(currentStatus)) {
-        form.setValue('clientType', undefined);
-        form.setValue('products', undefined);
-        form.setValue('numberOfUnits', null);
-        form.setValue('unitPrice', null);
-        form.setValue('value', null);
-        form.setValue('paymentMethod', undefined);
+        form.setValue('clientType', undefined, { shouldDirty: true });
+        form.setValue('products', undefined, { shouldDirty: true });
+        form.setValue('numberOfUnits', null, { shouldDirty: true });
+        form.setValue('unitPrice', null, { shouldDirty: true });
+        form.setValue('value', null, { shouldDirty: true });
+        form.setValue('paymentMethod', undefined, { shouldDirty: true });
     }
     if (currentStatus !== 'Facturado') {
-        form.setValue('invoiceUrl', '');
+        form.setValue('invoiceUrl', '', { shouldDirty: true });
     }
   }, [currentStatus, form]);
 
@@ -318,7 +313,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const materialsSectionDisabled = !canEditOrderDetailsOverall || currentStatus === 'Programada' || isLoadingDropdownData || isLoadingAccountDetails;
   const invoiceSectionDisabled = !canManageInvoice || isLoadingDropdownData || isLoadingAccountDetails;
   
-  const isButtonDisabled = isSaving || isLoadingDropdownData || isLoadingAccountDetails || (!form.formState.isDirty && !!order);
+  const isButtonDisabled = isSaving || isLoadingDropdownData || isLoadingAccountDetails || !form.formState.isValid;
   
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -605,3 +600,5 @@ function isValidUrl(urlString: string | undefined): boolean {
     return false;
   }
 }
+
+    

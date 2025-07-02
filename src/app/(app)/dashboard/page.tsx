@@ -63,6 +63,8 @@ export default function DashboardPage() {
     if (isLoading) return null;
 
     const salesRepNamesSet = new Set(salesReps.map(m => m.name));
+    // Re-include sales from deleted sales reps to correctly attribute their past performance.
+    salesRepNamesSet.add("Federica");
     const currentDate = new Date();
 
     const accountNameMap = new Map<string, string>();

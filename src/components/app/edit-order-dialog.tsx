@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -15,7 +14,6 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Form,
   FormControl,
@@ -36,9 +34,9 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { Order, OrderStatus, UserRole, TeamMember, NextActionType, FailureReasonType, ClientType, PromotionalMaterial, Account, CanalOrigenColocacion, AddressDetails, PaymentMethod } from "@/types"; 
-import { orderStatusesList, nextActionTypeList, failureReasonList, clientTypeList, canalOrigenColocacionList, provincesSpainList, paymentMethodList } from "@/lib/data"; 
-import { Loader2, CalendarIcon, Printer, Award, Package, PlusCircle, Trash2, Zap, CreditCard, UploadCloud, Link2, Building2, ExternalLink } from "lucide-react"; 
+import type { Order, OrderStatus, UserRole, TeamMember, NextActionType, FailureReasonType, ClientType, PromotionalMaterial, Account, CanalOrigenColocacion, PaymentMethod } from "@/types"; 
+import { orderStatusesList, nextActionTypeList, failureReasonList, clientTypeList, canalOrigenColocacionList, paymentMethodList } from "@/lib/data"; 
+import { Loader2, CalendarIcon, Printer, Award, Package, PlusCircle, Trash2, Zap, CreditCard, UploadCloud, Link2 } from "lucide-react"; 
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
@@ -46,11 +44,8 @@ import { es } from 'date-fns/locale';
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
-import { getAccountByIdFS, getAccountsFS } from "@/services/account-service"; 
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
-import { Label } from "@/components/ui/label";
-
 
 const NO_CLAVADISTA_VALUE = "##NONE##";
 
@@ -92,18 +87,15 @@ interface EditOrderDialogProps {
   allAccounts?: Account[];
 }
 
-const formatAddressForDisplay = (address?: AddressDetails): string => {
-  if (!address) return "No especificada";
-  const parts = [
-    (address.street ? `${address.street}${address.number ? `, ${address.number}` : ''}` : null),
-    address.city,
-    address.province,
-    address.postalCode,
-    address.country,
-  ].filter(Boolean); 
-  if (parts.length === 0) return 'No especificada';
-  return parts.join(', ');
-};
+function isValidUrl(urlString: string | undefined | null): boolean {
+  if (!urlString) return false;
+  try {
+    new URL(urlString);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
 
 export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, currentUserRole, allAccounts = [] }: EditOrderDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
@@ -111,8 +103,6 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const [salesReps, setSalesReps] = React.useState<TeamMember[]>([]);
   const [availableMaterials, setAvailableMaterials] = React.useState<PromotionalMaterial[]>([]);
   const [isLoadingDropdownData, setIsLoadingDropdownData] = React.useState(true);
-  const [associatedAccount, setAssociatedAccount] = React.useState<Account | null>(null);
-  const [isLoadingAccountDetails, setIsLoadingAccountDetails] = React.useState(false); 
   const { toast } = useToast();
 
   const form = useForm<EditOrderFormValues>({
@@ -134,33 +124,14 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     control: form.control, name: "assignedMaterials",
   });
 
-  const watchedNumberOfUnits = form.watch("numberOfUnits");
-  const watchedUnitPrice = form.watch("unitPrice");
   const watchedInvoiceUrl = form.watch("invoiceUrl");
-
-  React.useEffect(() => {
-    const units = watchedNumberOfUnits;
-    const price = watchedUnitPrice;
-    
-    if (units && price && units > 0 && price > 0) {
-      const subtotal = units * price;
-      const totalValue = parseFloat((subtotal * 1.21).toFixed(2));
-      if (form.getValues("value") !== totalValue) {
-        form.setValue("value", totalValue, { shouldDirty: true });
-      }
-    } else {
-        form.setValue("value", undefined, { shouldDirty: true });
-    }
-  }, [watchedNumberOfUnits, watchedUnitPrice, form]);
-
-
   const watchedMaterials = form.watch("assignedMaterials");
 
   const totalEstimatedMaterialCostForDialog = React.useMemo(() => {
     return watchedMaterials.reduce((total, current) => {
       const materialDetails = availableMaterials.find(m => m.id === current.materialId);
       const unitCost = materialDetails?.latestPurchase?.calculatedUnitCost || 0;
-      return total + (unitCost * current.quantity);
+      return total + (current.quantity * unitCost);
     }, 0);
   }, [watchedMaterials, availableMaterials]);
 
@@ -193,7 +164,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     if (isOpen && order) {
         form.reset({
             clientName: order.clientName || "",
-            products: order.products?.join(', ') || "",
+            products: Array.isArray(order.products) ? order.products.join(', ') : "",
             value: order.value ?? undefined,
             status: order.status,
             salesRep: order.salesRep || "",
@@ -213,29 +184,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
             failureReasonType: order.failureReasonType ?? undefined,
             failureReasonCustom: order.failureReasonCustom || "",
         });
-        
         form.trigger();
-        
-        setAssociatedAccount(null);
-        setIsLoadingAccountDetails(true);
-        const findAccount = async () => {
-          try {
-            let foundAccount: Account | null = null;
-            if (order.accountId) {
-              foundAccount = await getAccountByIdFS(order.accountId);
-            } else if (order.clientName) {
-              const accounts = await getAccountsFS();
-              foundAccount = accounts.find(acc => acc.nombre.toLowerCase().trim() === order.clientName.toLowerCase().trim()) || null;
-            }
-            setAssociatedAccount(foundAccount);
-          } catch(err) {
-            console.error("Error setting associated account:", err);
-            setAssociatedAccount(null);
-          } finally {
-            setIsLoadingAccountDetails(false);
-          }
-        };
-        findAccount();
     }
   }, [order, isOpen, form]);
   
@@ -295,6 +244,24 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     }
   };
 
+  const isSalesRep = currentUserRole === 'SalesRep';
+  
+  const canEditOrderDetailsOverall = isAdmin;
+  const canEditStatusAndNotesOnly = isDistributor && !isAdmin; 
+  const isReadOnlyForMostFields = isSalesRep || (!isAdmin && !isDistributor);
+  const canManageInvoice = isAdmin || isDistributor;
+
+  const formFieldsGenericDisabled = isReadOnlyForMostFields || isLoadingDropdownData;
+  const productRelatedFieldsDisabled = !canEditOrderDetailsOverall || ['Seguimiento', 'Fallido', 'Programada'].includes(currentStatus) || isLoadingDropdownData;
+  const statusFieldDisabled = !(canEditOrderDetailsOverall || canEditStatusAndNotesOnly) || isLoadingDropdownData;
+  const notesFieldDisabled = !(canEditOrderDetailsOverall || canEditStatusAndNotesOnly) || isLoadingDropdownData;
+  const salesRepFieldDisabled = !isAdmin || isLoadingDropdownData;
+  const clavadistaFieldDisabled = !canEditOrderDetailsOverall || isLoadingDropdownData;
+  const canalOrigenFieldDisabled = !canEditOrderDetailsOverall || isLoadingDropdownData;
+  const paymentMethodFieldDisabled = !canEditOrderDetailsOverall || productRelatedFieldsDisabled;
+  const materialsSectionDisabled = !canEditOrderDetailsOverall || currentStatus === 'Programada' || isLoadingDropdownData;
+  const invoiceSectionDisabled = !canManageInvoice || isLoadingDropdownData;
+  
   if (!order && isOpen) { 
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -306,26 +273,6 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         </Dialog>
     );
   }
-
-  const isSalesRep = currentUserRole === 'SalesRep';
-  
-  const canEditOrderDetailsOverall = isAdmin;
-  const canEditStatusAndNotesOnly = isDistributor && !isAdmin; 
-  const isReadOnlyForMostFields = isSalesRep || (!isAdmin && !isDistributor);
-  const canManageInvoice = isAdmin || isDistributor;
-
-  const formFieldsGenericDisabled = isReadOnlyForMostFields || isLoadingDropdownData || isLoadingAccountDetails;
-  const productRelatedFieldsDisabled = !canEditOrderDetailsOverall || ['Seguimiento', 'Fallido', 'Programada'].includes(currentStatus) || isLoadingDropdownData || isLoadingAccountDetails;
-  const statusFieldDisabled = !(canEditOrderDetailsOverall || canEditStatusAndNotesOnly) || isLoadingDropdownData || isLoadingAccountDetails;
-  const notesFieldDisabled = !(canEditOrderDetailsOverall || canEditStatusAndNotesOnly) || isLoadingDropdownData || isLoadingAccountDetails;
-  const salesRepFieldDisabled = !isAdmin || isLoadingDropdownData || isLoadingAccountDetails;
-  const clavadistaFieldDisabled = !canEditOrderDetailsOverall || isLoadingDropdownData || isLoadingAccountDetails;
-  const canalOrigenFieldDisabled = !canEditOrderDetailsOverall || isLoadingDropdownData || isLoadingAccountDetails;
-  const paymentMethodFieldDisabled = !canEditOrderDetailsOverall || productRelatedFieldsDisabled;
-  const materialsSectionDisabled = !canEditOrderDetailsOverall || currentStatus === 'Programada' || isLoadingDropdownData || isLoadingAccountDetails;
-  const invoiceSectionDisabled = !canManageInvoice || isLoadingDropdownData || isLoadingAccountDetails;
-  
-  const isButtonDisabled = isSaving || isLoadingDropdownData || isLoadingAccountDetails || !form.formState.isValid;
   
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -340,7 +287,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
               : "Modifique los detalles del pedido y/o el estado. Haga clic en guardar cuando haya terminado."}
           </DialogDescription>
         </DialogHeader>
-        {isLoadingDropdownData || isLoadingAccountDetails ? (
+        {isLoadingDropdownData ? (
             <div className="flex justify-center items-center h-[300px]">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <p className="ml-2 text-muted-foreground">Cargando detalles...</p>
@@ -412,7 +359,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Nº Unidades Totales</FormLabel><FormControl><Input type="text" inputMode="decimal" {...field} onChange={(e) => handleNumericChange(e, field)} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
                     <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario Medio (€ sin IVA)</FormLabel><FormControl><Input type="text" inputMode="decimal" {...field} onChange={(e) => handleNumericChange(e, field)} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
-                    <FormField control={form.control} name="value" render={({ field }) => (<FormItem><FormLabel>Valor Total Pedido (€ IVA incl.)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Calculado automáticamente" {...field} value={field.value ?? ""} readOnly disabled={productRelatedFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="value" render={({ field }) => (<FormItem><FormLabel>Valor Total Pedido (€ IVA incl.)</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? ""} onChange={(e) => handleNumericChange(e, field)} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
                 </div>
               </>
             ) : (
@@ -436,47 +383,11 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
               </>
             )}
 
-            <Separator className="my-6" />
-            <h3 className="text-md font-semibold text-muted-foreground">Información de Cliente y Facturación</h3>
-             
-            <Card className="mt-4 bg-muted/30">
-                <CardHeader className="pb-2"><CardTitle className="text-base flex items-center"><Building2 className="mr-2 h-5 w-5 text-primary"/>Datos de la Cuenta Asociada</CardTitle></CardHeader>
-                <CardContent className="text-sm space-y-3 pt-2">
-                    {associatedAccount ? (
-                        <>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
-                            <div><span className="font-semibold">Nombre Fiscal:</span> {associatedAccount.legalName || 'N/D'}</div>
-                            <div><span className="font-semibold">CIF:</span> {associatedAccount.cif}</div>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
-                            <div><span className="font-semibold">Contacto:</span> {associatedAccount.mainContactName || 'N/D'}</div>
-                            <div><span className="font-semibold">Email:</span> {associatedAccount.mainContactEmail || 'N/D'}</div>
-                            <div><span className="font-semibold">Teléfono:</span> {associatedAccount.mainContactPhone || 'N/D'}</div>
-                        </div>
-                        <div>
-                            <h4 className="font-semibold mt-2">Dirección Fiscal:</h4>
-                            <p className="text-muted-foreground">{formatAddressForDisplay(associatedAccount.addressBilling)}</p>
-                        </div>
-                        <div>
-                            <h4 className="font-semibold mt-2">Dirección de Entrega:</h4>
-                            <p className="text-muted-foreground">{formatAddressForDisplay(associatedAccount.addressShipping)}</p>
-                        </div>
-                        {isAdmin && (
-                        <Button variant="link" asChild className="p-0 h-auto text-xs mt-2"><Link href={`/accounts/${associatedAccount.id}?edit=true`} target="_blank"><ExternalLink className="mr-1 h-3 w-3"/>Editar datos en la ficha de la cuenta</Link></Button>
-                        )}
-                        </>
-                    ) : (
-                        <p className="text-muted-foreground">Este pedido no está asociado a una cuenta o no se pudo cargar la información.</p>
-                    )}
-                </CardContent>
-            </Card>
-
-
             {(order?.status === 'Seguimiento' || order?.status === 'Fallido' || order?.status === 'Programada') && (
                 <>
                   <Separator className="my-6" />
                   <h3 className="text-md font-semibold text-muted-foreground">Información de Seguimiento/Programación Original</h3>
-                  <FormField control={form.control} name="nextActionType" render={({ field }) => (<FormItem><FormLabel>Próxima Acción (Original)</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={true}><FormControl><SelectTrigger><SelectValue placeholder="N/A" /></SelectTrigger></FormControl><SelectContent>{nextActionTypeList.map(action => (<SelectItem key={action} value={action}>{action}</SelectItem>))}</SelectContent></FormItem>)}/>
+                  <FormField control={form.control} name="nextActionType" render={({ field }) => (<FormItem><FormLabel>Próxima Acción (Original)</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={true}><FormControl><SelectTrigger><SelectValue placeholder="N/A" /></SelectTrigger></FormControl><SelectContent>{nextActionTypeList.map(action => (<SelectItem key={action} value={action}>{action}</SelectItem>))}</SelectContent></Select></FormItem>)}/>
                   {order?.nextActionType === "Opción personalizada" && (<FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Detalle Próx. Acción Personalizada (Original)</FormLabel><FormControl><Input {...field} disabled={true} /></FormControl></FormItem>)} />)}
                   <FormField
                     control={form.control}
@@ -590,7 +501,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
               </Button>
               <DialogClose asChild><Button type="button" variant="outline" disabled={isSaving}>Cancelar</Button></DialogClose>
               {!(isReadOnlyForMostFields && !canEditStatusAndNotesOnly) && (
-                <Button type="submit" disabled={isButtonDisabled}>
+                <Button type="submit" disabled={isSaving || isLoadingDropdownData || (!form.formState.isDirty && !!order)}>
                   {isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</>) : ("Guardar Cambios")}
                 </Button>
               )}
@@ -601,14 +512,4 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
       </DialogContent>
     </Dialog>
   );
-}
-
-function isValidUrl(urlString: string | undefined | null): boolean {
-  if (!urlString) return false;
-  try {
-    new URL(urlString);
-    return true;
-  } catch (e) {
-    return false;
-  }
 }

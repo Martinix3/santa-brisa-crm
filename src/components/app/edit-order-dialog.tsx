@@ -140,8 +140,8 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
 
   // Auto-calculate total value
   React.useEffect(() => {
-    const units = typeof watchedNumberOfUnits === 'number' ? watchedNumberOfUnits : 0;
-    const price = typeof watchedUnitPrice === 'number' ? watchedUnitPrice : 0;
+    const units = watchedNumberOfUnits || 0;
+    const price = watchedUnitPrice || 0;
     
     if (units > 0 && price > 0) {
       const subtotal = units * price;
@@ -223,6 +223,9 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
             failureReasonCustom: order.failureReasonCustom || "",
         });
 
+        // Force validation after resetting form to update isValid state
+        form.trigger();
+
         // Find or fetch associated account data
         setAssociatedAccount(null);
         setIsLoadingAccountDetails(true);
@@ -247,17 +250,28 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   }, [order, isOpen, form, allAccounts]);
   
   React.useEffect(() => {
-    if (['Seguimiento', 'Fallido', 'Programada'].includes(currentStatus)) {
-        form.setValue('clientType', undefined, { shouldDirty: true });
-        form.setValue('products', undefined, { shouldDirty: true });
-        form.setValue('numberOfUnits', undefined, { shouldDirty: true });
-        form.setValue('unitPrice', undefined, { shouldDirty: true });
-        form.setValue('value', undefined, { shouldDirty: true });
-        form.setValue('paymentMethod', undefined, { shouldDirty: true });
+    const shouldClearFields = ['Seguimiento', 'Fallido', 'Programada'].includes(currentStatus);
+    const shouldClearInvoice = currentStatus !== 'Facturado';
+    
+    let needsUpdate = false;
+
+    if (shouldClearFields) {
+      if (form.getValues('clientType') !== undefined) { form.setValue('clientType', undefined, { shouldDirty: true }); needsUpdate = true; }
+      if (form.getValues('products') !== undefined) { form.setValue('products', undefined, { shouldDirty: true }); needsUpdate = true; }
+      if (form.getValues('numberOfUnits') !== undefined) { form.setValue('numberOfUnits', undefined, { shouldDirty: true }); needsUpdate = true; }
+      if (form.getValues('unitPrice') !== undefined) { form.setValue('unitPrice', undefined, { shouldDirty: true }); needsUpdate = true; }
+      if (form.getValues('value') !== undefined) { form.setValue('value', undefined, { shouldDirty: true }); needsUpdate = true; }
+      if (form.getValues('paymentMethod') !== undefined) { form.setValue('paymentMethod', undefined, { shouldDirty: true }); needsUpdate = true; }
     }
-    if (currentStatus !== 'Facturado') {
-        form.setValue('invoiceUrl', '', { shouldDirty: true });
+
+    if (shouldClearInvoice) {
+      if (form.getValues('invoiceUrl') !== '') { form.setValue('invoiceUrl', '', { shouldDirty: true }); needsUpdate = true; }
     }
+    
+    if(needsUpdate) {
+        form.trigger();
+    }
+
   }, [currentStatus, form]);
 
   const onSubmit = async (data: EditOrderFormValues) => {
@@ -599,7 +613,3 @@ function isValidUrl(urlString: string | undefined): boolean {
     return false;
   }
 }
-
-    
-
-    

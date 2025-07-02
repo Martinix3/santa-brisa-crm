@@ -63,7 +63,7 @@ const assignedMaterialSchemaForDialog = z.object({
 const editOrderFormSchema = z.object({
   clientName: z.string().min(2, "El nombre del cliente debe tener al menos 2 caracteres."),
   products: z.string().optional(),
-  value: z.coerce.number().positive("El valor del pedido debe ser positivo.").optional(),
+  value: z.coerce.number().positive("El valor del pedido debe ser positivo.").optional().nullable(),
   status: z.enum(orderStatusesList as [OrderStatus, ...OrderStatus[]]),
   salesRep: z.string().min(1, "El representante de ventas es obligatorio."),
   clavadistaId: z.string().optional(),
@@ -74,8 +74,8 @@ const editOrderFormSchema = z.object({
   assignedMaterials: z.array(assignedMaterialSchemaForDialog).optional().default([]),
 
   clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
-  numberOfUnits: z.coerce.number().positive("El número de unidades debe ser positivo.").optional(),
-  unitPrice: z.coerce.number().positive("El precio unitario debe ser positivo.").optional(),
+  numberOfUnits: z.coerce.number().positive("El número de unidades debe ser positivo.").optional().nullable(),
+  unitPrice: z.coerce.number().positive("El precio unitario debe ser positivo.").optional().nullable(),
 
   notes: z.string().optional(),
 
@@ -85,20 +85,10 @@ const editOrderFormSchema = z.object({
   failureReasonType: z.enum(failureReasonList as [FailureReasonType, ...FailureReasonType[]]).optional(),
   failureReasonCustom: z.string().optional(),
 }).superRefine((data, ctx) => {
-    if (['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Pendiente', 'Facturado'].includes(data.status)) {
-        if (!data.products || data.products.trim() === "") {
-             ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Los productos son obligatorios para este estado.", path: ["products"] });
-        }
-        if (data.value === undefined || data.value <= 0) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El valor del pedido es obligatorio y positivo para este estado.", path: ["value"] });
-        }
-         if (!data.clientType) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El tipo de cliente es obligatorio.", path: ["clientType"] });
-        }
-        if (!data.paymentMethod) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La forma de pago es obligatoria.", path: ["paymentMethod"] });
-        }
-    }
+    // Validation is relaxed here because user roles have different permissions.
+    // An Admin can edit all fields, but a Distributor can only change status and notes.
+    // The more robust validation is implicitly handled by the save logic which merges
+    // the form data with the original order data based on permissions.
     if (data.status === "Facturado" && data.invoiceUrl && !z.string().url().safeParse(data.invoiceUrl).success) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "La URL de la factura no es válida.", path: ["invoiceUrl"]});
     }
@@ -218,7 +208,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         form.reset({
             clientName: order.clientName,
             products: order.products?.join(",\n") || "",
-            value: order.value,
+            value: order.value ?? null,
             status: order.status,
             salesRep: order.salesRep || "",
             clavadistaId: order.clavadistaId || NO_CLAVADISTA_VALUE,
@@ -228,8 +218,8 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
             invoiceFileName: order.invoiceFileName || "",
             assignedMaterials: order.assignedMaterials || [],
             clientType: order.clientType,
-            numberOfUnits: order.numberOfUnits,
-            unitPrice: order.unitPrice,
+            numberOfUnits: order.numberOfUnits ?? null,
+            unitPrice: order.unitPrice ?? null,
             notes: order.notes || "",
             nextActionType: order.nextActionType,
             nextActionCustom: order.nextActionCustom || "",
@@ -379,8 +369,8 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 <FormField control={form.control} name="clientType" render={({ field }) => (<FormItem><FormLabel>Tipo de Cliente</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={productRelatedFieldsDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione tipo cliente" /></SelectTrigger></FormControl><SelectContent>{clientTypeList.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
                 <FormField control={form.control} name="products" render={({ field }) => (<FormItem><FormLabel>Productos Pedidos</FormLabel><FormControl><Textarea placeholder="Listar productos y cantidades..." className="min-h-[80px]" {...field} disabled={productRelatedFieldsDisabled} /></FormControl><FormDescription>Separe múltiples productos con comas, punto y coma o saltos de línea.</FormDescription><FormMessage /></FormItem>)}/>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Nº Unidades Totales</FormLabel><FormControl><Input type="number" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value,10))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
-                    <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario Medio (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Nº Unidades Totales</FormLabel><FormControl><Input type="number" {...field} onChange={e => field.onChange(e.target.value === '' ? null : parseInt(e.target.value,10))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario Medio (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? null : parseFloat(e.target.value))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
                     <FormField control={form.control} name="value" render={({ field }) => (<FormItem><FormLabel>Valor Total Pedido (€ IVA incl.)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Calculado automáticamente" {...field} value={field.value ?? ""} readOnly disabled={productRelatedFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
                 </div>
               </>

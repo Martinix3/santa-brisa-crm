@@ -57,7 +57,7 @@ const NO_CLAVADISTA_VALUE = "##NONE##";
 const editOrderFormSchema = z.object({
   clientName: z.string().optional(),
   products: z.string().optional(),
-  value: z.number({ invalid_type_error: "Debe ser un número." }).positive("El valor debe ser positivo.").optional().nullable(),
+  value: z.number({ invalid_type_error: "Debe ser un número" }).positive("El valor debe ser positivo.").optional().nullable(),
   status: z.enum(orderStatusesList as [OrderStatus, ...OrderStatus[]]),
   salesRep: z.string().optional(),
   clavadistaId: z.string().optional().nullable(),
@@ -69,19 +69,17 @@ const editOrderFormSchema = z.object({
     materialId: z.string().min(1, "Debe seleccionar un material."),
     quantity: z.coerce.number().min(1, "La cantidad debe ser al menos 1."),
   })).optional().default([]),
-
   clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
-  numberOfUnits: z.number({ invalid_type_error: "Debe ser un número" }).positive("Debe ser un número positivo.").optional().nullable(),
-  unitPrice: z.number({ invalid_type_error: "Debe ser un número" }).positive("Debe ser un número positivo.").optional().nullable(),
-
+  numberOfUnits: z.number({ invalid_type_error: "Debe ser un número." }).positive("El número de unidades debe ser positivo.").optional().nullable(),
+  unitPrice: z.number({ invalid_type_error: "Debe ser un número." }).positive("El precio unitario debe ser positivo.").optional().nullable(),
   notes: z.string().optional(),
-
   nextActionType: z.enum(nextActionTypeList as [NextActionType, ...NextActionType[]]).optional(),
   nextActionCustom: z.string().optional(),
   nextActionDate: z.date().optional(),
   failureReasonType: z.enum(failureReasonList as [FailureReasonType, ...FailureReasonType[]]).optional(),
   failureReasonCustom: z.string().optional(),
 });
+
 
 export type EditOrderFormValues = z.infer<typeof editOrderFormSchema>;
 
@@ -132,14 +130,19 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     },
   });
 
+  const { fields: materialFields, append: appendMaterial, remove: removeMaterial } = useFieldArray({
+    control: form.control, name: "assignedMaterials",
+  });
+
   const watchedNumberOfUnits = form.watch("numberOfUnits");
   const watchedUnitPrice = form.watch("unitPrice");
+  const watchedInvoiceUrl = form.watch("invoiceUrl");
 
   React.useEffect(() => {
-    const units = watchedNumberOfUnits || 0;
-    const price = watchedUnitPrice || 0;
+    const units = watchedNumberOfUnits;
+    const price = watchedUnitPrice;
     
-    if (units > 0 && price > 0) {
+    if (units && price && units > 0 && price > 0) {
       const subtotal = units * price;
       const totalValue = parseFloat((subtotal * 1.21).toFixed(2));
       if (form.getValues("value") !== totalValue) {
@@ -152,12 +155,8 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     }
   }, [watchedNumberOfUnits, watchedUnitPrice, form]);
 
-  const { fields: materialFields, append: appendMaterial, remove: removeMaterial } = useFieldArray({
-    control: form.control, name: "assignedMaterials",
-  });
 
   const watchedMaterials = form.watch("assignedMaterials");
-  const watchedInvoiceUrl = form.watch("invoiceUrl");
 
   const totalEstimatedMaterialCostForDialog = React.useMemo(() => {
     return watchedMaterials.reduce((total, current) => {
@@ -195,28 +194,29 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   React.useEffect(() => {
     if (isOpen && order) {
         form.reset({
-            clientName: order.clientName || undefined,
-            products: order.products?.join(",\n") || "",
+            clientName: order.clientName || "",
+            products: order.products?.join(",\\n") || "",
             value: order.value ?? undefined,
             status: order.status,
-            salesRep: order.salesRep || undefined,
+            salesRep: order.salesRep || "",
             clavadistaId: order.clavadistaId || NO_CLAVADISTA_VALUE,
             canalOrigenColocacion: order.canalOrigenColocacion || undefined,
             paymentMethod: order.paymentMethod || undefined,
             invoiceUrl: order.invoiceUrl || "",
             invoiceFileName: order.invoiceFileName || "",
             assignedMaterials: order.assignedMaterials || [],
-            clientType: order.clientType,
+            clientType: order.clientType ?? undefined,
             numberOfUnits: order.numberOfUnits ?? undefined,
             unitPrice: order.unitPrice ?? undefined,
             notes: order.notes || "",
-            nextActionType: order.nextActionType,
+            nextActionType: order.nextActionType ?? undefined,
             nextActionCustom: order.nextActionCustom || "",
             nextActionDate: order.nextActionDate && isValid(parseISO(order.nextActionDate)) ? parseISO(order.nextActionDate) : undefined,
-            failureReasonType: order.failureReasonType,
+            failureReasonType: order.failureReasonType ?? undefined,
             failureReasonCustom: order.failureReasonCustom || "",
         });
-        form.trigger(); // Trigger validation after reset
+        
+        form.trigger();
         
         setAssociatedAccount(null);
         setIsLoadingAccountDetails(true);
@@ -254,7 +254,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     }
 
     if (shouldClearInvoice) {
-      if (form.getValues('invoiceUrl') !== "" && form.getValues('invoiceUrl') !== null) { form.setValue('invoiceUrl', null, { shouldDirty: true }); }
+      if (form.getValues('invoiceUrl') !== null && form.getValues('invoiceUrl') !== undefined && form.getValues('invoiceUrl') !== "") { form.setValue('invoiceUrl', null, { shouldDirty: true }); }
     }
     
     form.trigger();
@@ -264,10 +264,10 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const onSubmit = async (data: EditOrderFormValues) => {
     if (!order) return;
     
-    let dataToSave = { ...data };
+    let dataToSave: any = { ...data };
     
     if (dataToSave.clavadistaId === NO_CLAVADISTA_VALUE) {
-      delete (dataToSave as Partial<EditOrderFormValues>).clavadistaId;
+      delete dataToSave.clavadistaId;
     }
     
     setIsSaving(true);
@@ -283,6 +283,18 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
 
   const handlePrint = () => {
     window.print();
+  };
+  
+  const handleNumericChange = (e: React.ChangeEvent<HTMLInputElement>, field: any) => {
+    const value = e.target.value;
+    if (value === "") {
+        field.onChange(undefined);
+    } else {
+        const numericValue = Number(value.replace(",", "."));
+        if (!isNaN(numericValue)) {
+            field.onChange(numericValue);
+        }
+    }
   };
 
   if (!order && isOpen) { 
@@ -337,7 +349,14 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
             </div>
         ) : (
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
+          <form onSubmit={form.handleSubmit(onSubmit, (errors) => {
+              console.error("Form Validation Errors:", errors);
+              toast({
+                title: "Error de Validación",
+                description: "Por favor, revisa los campos marcados en rojo. Hay errores en el formulario.",
+                variant: "destructive"
+              });
+          })}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="Nombre del cliente" {...field} value={field.value ?? ""} disabled={!canEditOrderDetailsOverall || formFieldsGenericDisabled} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="salesRep" render={({ field }) => (<FormItem><FormLabel>Representante de Ventas</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={salesRepFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un representante" /></SelectTrigger></FormControl><SelectContent>{salesReps.map((member: TeamMember) => (<SelectItem key={member.id} value={member.name}>{member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
@@ -397,11 +416,11 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
 
             {(!['Seguimiento', 'Fallido', 'Programada'].includes(currentStatus)) ? (
               <>
-                <FormField control={form.control} name="clientType" render={({ field }) => (<FormItem><FormLabel>Tipo de Cliente</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={productRelatedFieldsDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione tipo cliente" /></SelectTrigger></FormControl><SelectContent>{clientTypeList.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</Select><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="clientType" render={({ field }) => (<FormItem><FormLabel>Tipo de Cliente</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={productRelatedFieldsDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione tipo cliente" /></SelectTrigger></FormControl><SelectContent>{clientTypeList.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
                 <FormField control={form.control} name="products" render={({ field }) => (<FormItem><FormLabel>Productos Pedidos</FormLabel><FormControl><Textarea placeholder="Listar productos y cantidades..." className="min-h-[80px]" {...field} disabled={productRelatedFieldsDisabled} /></FormControl><FormDescription>Separe múltiples productos con comas, punto y coma o saltos de línea.</FormDescription><FormMessage /></FormItem>)}/>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Nº Unidades Totales</FormLabel><FormControl><Input type="text" inputMode="decimal" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : e.target.value.replace(',', '.'))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
-                    <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario Medio (€ sin IVA)</FormLabel><FormControl><Input type="text" inputMode="decimal" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : e.target.value.replace(',', '.'))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Nº Unidades Totales</FormLabel><FormControl><Input type="text" inputMode="decimal" {...field} onChange={(e) => handleNumericChange(e, field)} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario Medio (€ sin IVA)</FormLabel><FormControl><Input type="text" inputMode="decimal" {...field} onChange={(e) => handleNumericChange(e, field)} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
                     <FormField control={form.control} name="value" render={({ field }) => (<FormItem><FormLabel>Valor Total Pedido (€ IVA incl.)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Calculado automáticamente" {...field} value={field.value ?? ""} readOnly disabled={productRelatedFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
                 </div>
               </>
@@ -486,7 +505,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                   />
                    {order?.status === 'Fallido' && (
                      <>
-                      <FormField control={form.control} name="failureReasonType" render={({ field }) => (<FormItem><FormLabel>Motivo Fallo (Original)</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={true}><FormControl><SelectTrigger><SelectValue placeholder="N/A" /></SelectTrigger></FormControl><SelectContent>{failureReasonList.map(reason => (<SelectItem key={reason} value={reason}>{reason}</SelectItem>))}</Select></FormItem>)}/>
+                      <FormField control={form.control} name="failureReasonType" render={({ field }) => (<FormItem><FormLabel>Motivo Fallo (Original)</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={true}><FormControl><SelectTrigger><SelectValue placeholder="N/A" /></SelectTrigger></FormControl><SelectContent>{failureReasonList.map(reason => (<SelectItem key={reason} value={reason}>{reason}</SelectItem>))}</SelectContent></Select></FormItem>)}/>
                       {order?.failureReasonType === "Otro (especificar)" && (<FormField control={form.control} name="failureReasonCustom" render={({ field }) => (<FormItem><FormLabel>Detalle Motivo Fallo Personalizado (Original)</FormLabel><FormControl><Textarea {...field} disabled={true} /></FormControl></FormItem>)} />)}
                      </>
                    )}

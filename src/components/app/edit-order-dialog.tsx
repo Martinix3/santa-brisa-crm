@@ -60,21 +60,21 @@ const assignedMaterialSchemaForDialog = z.object({
 });
 
 const editOrderFormSchema = z.object({
-  clientName: z.string().optional(),
+  clientName: z.string().min(1, "El nombre del cliente es obligatorio.").optional(),
   products: z.string().optional(),
-  value: z.number({ invalid_type_error: "Debe ser un número" }).positive("El valor del pedido debe ser positivo.").optional().nullable(),
+  value: z.number({ invalid_type_error: "Debe ser un número." }).positive("El valor debe ser positivo.").optional().nullable(),
   status: z.enum(orderStatusesList as [OrderStatus, ...OrderStatus[]]),
-  salesRep: z.string().optional(),
+  salesRep: z.string().min(1, "Debe seleccionar un representante.").optional(),
   clavadistaId: z.string().optional(),
   canalOrigenColocacion: z.enum(canalOrigenColocacionList as [CanalOrigenColocacion, ...CanalOrigenColocacion[]]).optional(),
   paymentMethod: z.enum(paymentMethodList as [PaymentMethod, ...PaymentMethod[]]).optional(),
-  invoiceUrl: z.string().trim().url("Debe ser una URL válida.").or(z.literal('')).optional(),
+  invoiceUrl: z.string().trim().url("Debe ser una URL válida.").optional().nullable(),
   invoiceFileName: z.string().optional(),
   assignedMaterials: z.array(assignedMaterialSchemaForDialog).optional().default([]),
 
   clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
-  numberOfUnits: z.number({ invalid_type_error: "Debe ser un número" }).positive("El número de unidades debe ser positivo.").optional().nullable(),
-  unitPrice: z.number({ invalid_type_error: "Debe ser un número" }).positive("El precio unitario debe ser positivo.").optional().nullable(),
+  numberOfUnits: z.number({ invalid_type_error: "Debe ser un número." }).positive("Debe ser un número positivo.").optional().nullable(),
+  unitPrice: z.number({ invalid_type_error: "Debe ser un número." }).positive("Debe ser un número positivo.").optional().nullable(),
 
   notes: z.string().optional(),
 
@@ -147,11 +147,12 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
       const subtotal = units * price;
       const totalValue = parseFloat((subtotal * 1.21).toFixed(2));
       if (form.getValues("value") !== totalValue) {
-        form.setValue("value", totalValue, { 
-          shouldDirty: true, 
-          shouldValidate: true 
-        });
+        form.setValue("value", totalValue, { shouldDirty: true });
       }
+    } else {
+        if (form.getValues("value") !== undefined) {
+             form.setValue("value", undefined, { shouldDirty: true });
+        }
     }
   }, [watchedNumberOfUnits, watchedUnitPrice, form]);
 
@@ -209,7 +210,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
             clavadistaId: order.clavadistaId || NO_CLAVADISTA_VALUE,
             canalOrigenColocacion: order.canalOrigenColocacion || undefined,
             paymentMethod: order.paymentMethod || undefined,
-            invoiceUrl: order.invoiceUrl || "",
+            invoiceUrl: order.invoiceUrl || null,
             invoiceFileName: order.invoiceFileName || "",
             assignedMaterials: order.assignedMaterials || [],
             clientType: order.clientType,
@@ -250,36 +251,32 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   }, [order, isOpen, form, allAccounts]);
   
   React.useEffect(() => {
-    const shouldClearFields = ['Seguimiento', 'Fallido', 'Programada'].includes(currentStatus);
+    const shouldClearProductFields = ['Seguimiento', 'Fallido', 'Programada'].includes(currentStatus);
     const shouldClearInvoice = currentStatus !== 'Facturado';
     
-    let needsUpdate = false;
-
-    if (shouldClearFields) {
-      if (form.getValues('clientType') !== undefined) { form.setValue('clientType', undefined, { shouldDirty: true }); needsUpdate = true; }
-      if (form.getValues('products') !== undefined) { form.setValue('products', undefined, { shouldDirty: true }); needsUpdate = true; }
-      if (form.getValues('numberOfUnits') !== undefined) { form.setValue('numberOfUnits', undefined, { shouldDirty: true }); needsUpdate = true; }
-      if (form.getValues('unitPrice') !== undefined) { form.setValue('unitPrice', undefined, { shouldDirty: true }); needsUpdate = true; }
-      if (form.getValues('value') !== undefined) { form.setValue('value', undefined, { shouldDirty: true }); needsUpdate = true; }
-      if (form.getValues('paymentMethod') !== undefined) { form.setValue('paymentMethod', undefined, { shouldDirty: true }); needsUpdate = true; }
+    if (shouldClearProductFields) {
+      if (form.getValues('clientType') !== undefined) form.setValue('clientType', undefined, { shouldDirty: true });
+      if (form.getValues('products') !== undefined) form.setValue('products', undefined, { shouldDirty: true });
+      if (form.getValues('numberOfUnits') !== undefined) form.setValue('numberOfUnits', undefined, { shouldDirty: true });
+      if (form.getValues('unitPrice') !== undefined) form.setValue('unitPrice', undefined, { shouldDirty: true });
+      if (form.getValues('value') !== undefined) form.setValue('value', undefined, { shouldDirty: true });
+      if (form.getValues('paymentMethod') !== undefined) form.setValue('paymentMethod', undefined, { shouldDirty: true });
     }
 
     if (shouldClearInvoice) {
-      if (form.getValues('invoiceUrl') !== '') { form.setValue('invoiceUrl', '', { shouldDirty: true }); needsUpdate = true; }
-    }
-    
-    if(needsUpdate) {
-        form.trigger();
+      if (form.getValues('invoiceUrl') !== null) form.setValue('invoiceUrl', null, { shouldDirty: true });
     }
 
+    form.trigger();
   }, [currentStatus, form]);
 
   const onSubmit = async (data: EditOrderFormValues) => {
     if (!order) return;
     setIsSaving(true);
     const dataToSave: any = { ...data };
+    
     if (dataToSave.clavadistaId === NO_CLAVADISTA_VALUE) {
-      dataToSave.clavadistaId = null;
+      delete dataToSave.clavadistaId;
     }
     
     try {
@@ -348,7 +345,14 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
             </div>
         ) : (
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
+          <form onSubmit={form.handleSubmit(onSubmit, (errors) => {
+              console.error("Form Validation Errors:", errors);
+              toast({
+                title: "Error de Validación",
+                description: "Por favor, revisa los campos marcados en rojo. Hay errores en el formulario.",
+                variant: "destructive"
+              })
+          })}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="Nombre del cliente" {...field} disabled={!canEditOrderDetailsOverall || formFieldsGenericDisabled} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="salesRep" render={({ field }) => (<FormItem><FormLabel>Representante de Ventas</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={salesRepFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un representante" /></SelectTrigger></FormControl><SelectContent>{salesReps.map((member: TeamMember) => (<SelectItem key={member.id} value={member.name}>{member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
@@ -411,8 +415,8 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 <FormField control={form.control} name="clientType" render={({ field }) => (<FormItem><FormLabel>Tipo de Cliente</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={productRelatedFieldsDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione tipo cliente" /></SelectTrigger></FormControl><SelectContent>{clientTypeList.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
                 <FormField control={form.control} name="products" render={({ field }) => (<FormItem><FormLabel>Productos Pedidos</FormLabel><FormControl><Textarea placeholder="Listar productos y cantidades..." className="min-h-[80px]" {...field} disabled={productRelatedFieldsDisabled} /></FormControl><FormDescription>Separe múltiples productos con comas, punto y coma o saltos de línea.</FormDescription><FormMessage /></FormItem>)}/>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Nº Unidades Totales</FormLabel><FormControl><Input type="number" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
-                    <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario Medio (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Nº Unidades Totales</FormLabel><FormControl><Input type="number" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value.replace(',', '.')))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario Medio (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value.replace(',', '.')))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
                     <FormField control={form.control} name="value" render={({ field }) => (<FormItem><FormLabel>Valor Total Pedido (€ IVA incl.)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Calculado automáticamente" {...field} value={field.value ?? ""} readOnly disabled={productRelatedFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
                 </div>
               </>
@@ -425,7 +429,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 <Separator className="my-6" />
                 <h3 className="text-md font-semibold text-muted-foreground">Información de Factura</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                  <FormField control={form.control} name="invoiceUrl" render={({ field }) => (<FormItem><FormLabel>URL de la Factura</FormLabel><FormControl><Input placeholder="https://ejemplo.com/factura.pdf" {...field} disabled={invoiceSectionDisabled} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="invoiceUrl" render={({ field }) => (<FormItem><FormLabel>URL de la Factura</FormLabel><FormControl><Input placeholder="https://ejemplo.com/factura.pdf" {...field} value={field.value ?? ''} disabled={invoiceSectionDisabled} /></FormControl><FormMessage /></FormItem>)} />
                 </div>
                  {watchedInvoiceUrl && isValidUrl(watchedInvoiceUrl) && (
                     <Button variant="link" asChild className="p-0 h-auto mt-1">
@@ -604,7 +608,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   );
 }
 
-function isValidUrl(urlString: string | undefined): boolean {
+function isValidUrl(urlString: string | undefined | null): boolean {
   if (!urlString) return false;
   try {
     new URL(urlString);

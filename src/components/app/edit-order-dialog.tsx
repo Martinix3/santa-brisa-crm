@@ -139,13 +139,6 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     },
   });
 
-  // --- DEBUG LOG 1: Log form state on every render ---
-  console.log("DEBUG: EditDialog Form State:", { 
-    isDirty: form.formState.isDirty, 
-    isValid: form.formState.isValid, 
-    errors: form.formState.errors 
-  });
-
   const watchedNumberOfUnits = form.watch("numberOfUnits");
   const watchedUnitPrice = form.watch("unitPrice");
 
@@ -156,11 +149,13 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     
     if (units > 0 && price > 0) {
       const subtotal = units * price;
-      const totalValue = subtotal * 1.21;
-      form.setValue("value", parseFloat(totalValue.toFixed(2)), { 
-        shouldDirty: true, 
-        shouldValidate: true 
-      });
+      const totalValue = parseFloat((subtotal * 1.21).toFixed(2));
+      if (form.getValues("value") !== totalValue) {
+        form.setValue("value", totalValue, { 
+          shouldDirty: true, 
+          shouldValidate: true 
+        });
+      }
     }
   }, [watchedNumberOfUnits, watchedUnitPrice, form]);
 
@@ -258,12 +253,16 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   }, [order, isOpen, form, allAccounts]);
 
   const onSubmit = async (data: EditOrderFormValues) => {
-    // --- DEBUG LOG 2: Check if onSubmit is triggered ---
-    console.log("DEBUG: onSubmit triggered in EditOrderDialog. Data to save:", data);
     if (!order) return;
     setIsSaving(true);
-    await onSave(data, order.id);
-    setIsSaving(false);
+    try {
+      await onSave(data, order.id);
+    } catch(e: any) {
+        console.error("Fallo al guardar desde el diálogo:", e);
+        toast({ title: "Error al Guardar", description: `No se pudo guardar: ${e.message}`, variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handlePrint = () => {
@@ -302,17 +301,6 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   
   const isButtonDisabled = isSaving || isLoadingDropdownData || isLoadingAccountDetails || (!form.formState.isDirty && !!order);
   
-  // --- DEBUG LOG 3: Log the disabled state condition ---
-  console.log("DEBUG: Save Button Disabled State:", {
-    isButtonDisabled,
-    isSaving,
-    isLoadingDropdownData,
-    isLoadingAccountDetails,
-    isDirty: form.formState.isDirty,
-    hasOrder: !!order,
-    condition: `(!form.formState.isDirty && !!order) -> ${!form.formState.isDirty && !!order}`
-  });
-
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md md:max-w-lg lg:max-w-3xl xl:max-w-4xl max-h-[90vh] overflow-y-auto print-dialog-content">
@@ -333,7 +321,14 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
             </div>
         ) : (
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
+          <form onSubmit={form.handleSubmit(onSubmit, (errors) => {
+              console.error("Form Validation Errors:", errors);
+              toast({
+                title: "Error de Validación",
+                description: "Por favor, revisa los campos marcados en rojo. Hay errores en el formulario.",
+                variant: "destructive",
+              });
+          })} className="space-y-4 py-2">
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="Nombre del cliente" {...field} disabled={!canEditOrderDetailsOverall || formFieldsGenericDisabled} /></FormControl><FormMessage /></FormItem>)} />

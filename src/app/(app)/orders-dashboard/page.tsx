@@ -135,8 +135,6 @@ export default function OrdersDashboardPage() {
   };
 
   const handleUpdateOrder = async (updatedData: EditOrderFormValues, orderId: string) => {
-    // --- DEBUG LOG 4: Check if parent handler is reached ---
-    console.log("DEBUG: handleUpdateOrder triggered in orders-dashboard.tsx", { updatedData, orderId });
     setIsLoading(true);
     try {
       const orderToUpdate = allOrders.find(o => o.id === orderId);
@@ -152,10 +150,10 @@ export default function OrdersDashboardPage() {
       const canEditStatusAndNotes = isAdmin || isDistributor;
 
       const fullUpdatedOrderData: Partial<Order> = {
-        clientName: canEditFullOrderDetails ? updatedData.clientName : orderToUpdate.clientName,
+        clientName: canEditFullOrderDetails && updatedData.clientName ? updatedData.clientName : orderToUpdate.clientName,
         products: canEditFullOrderDetails && updatedData.products ? updatedData.products.split(/[,;\n]+/).map(p => p.trim()).filter(p => p.length > 0) : orderToUpdate.products,
         value: canEditFullOrderDetails && updatedData.value !== undefined ? updatedData.value : orderToUpdate.value,
-        salesRep: canEditFullOrderDetails ? updatedData.salesRep : orderToUpdate.salesRep,
+        salesRep: canEditFullOrderDetails && updatedData.salesRep ? updatedData.salesRep : orderToUpdate.salesRep,
         clavadistaId: canEditFullOrderDetails ? (updatedData.clavadistaId === '##NONE##' ? null : updatedData.clavadistaId) : orderToUpdate.clavadistaId,
         paymentMethod: canEditFullOrderDetails ? updatedData.paymentMethod : orderToUpdate.paymentMethod,
         invoiceUrl: canEditFullOrderDetails ? updatedData.invoiceUrl : orderToUpdate.invoiceUrl,

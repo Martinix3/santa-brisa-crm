@@ -61,15 +61,15 @@ const assignedMaterialSchemaForDialog = z.object({
 
 
 const editOrderFormSchema = z.object({
-  clientName: z.string().min(2, "El nombre del cliente debe tener al menos 2 caracteres."),
+  clientName: z.string().optional(),
   products: z.string().optional(),
   value: z.coerce.number({ invalid_type_error: "Debe ser un número" }).positive("El valor del pedido debe ser positivo.").optional().nullable(),
   status: z.enum(orderStatusesList as [OrderStatus, ...OrderStatus[]]),
-  salesRep: z.string().min(1, "El representante de ventas es obligatorio."),
+  salesRep: z.string().optional(),
   clavadistaId: z.string().optional(),
   canalOrigenColocacion: z.enum(canalOrigenColocacionList as [CanalOrigenColocacion, ...CanalOrigenColocacion[]]).optional(),
   paymentMethod: z.enum(paymentMethodList as [PaymentMethod, ...PaymentMethod[]]).optional(),
-  invoiceUrl: z.string().url("Debe ser una URL válida a la factura.").optional().or(z.literal("")),
+  invoiceUrl: z.string().url("Debe ser una URL válida.").optional().or(z.literal("")),
   invoiceFileName: z.string().optional(),
   assignedMaterials: z.array(assignedMaterialSchemaForDialog).optional().default([]),
 

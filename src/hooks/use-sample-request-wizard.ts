@@ -1,4 +1,6 @@
 
+"use client";
+
 import * as React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -17,7 +19,7 @@ export function useSampleRequestWizard() {
   const { teamMember, userRole, refreshDataSignature } = useAuth();
   
   const [step, setStep] = React.useState<Step>("client");
-  const [client, setClient] = React.useState<Account | { id: 'new'; name: string } | null>(null);
+  const [client, setClient] = React.useState<Account | { id: 'new'; nombre: string } | null>(null);
   
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -36,7 +38,7 @@ export function useSampleRequestWizard() {
   const filteredAccounts = React.useMemo(() => {
     if (!debouncedSearchTerm) return [];
     return allAccounts.filter(acc =>
-      acc.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      acc.nombre.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
       (acc.cif && acc.cif.toLowerCase().includes(debouncedSearchTerm.toLowerCase()))
     );
   }, [debouncedSearchTerm, allAccounts]);
@@ -83,11 +85,11 @@ export function useSampleRequestWizard() {
     loadData();
   }, [toast, userRole]);
 
-  const handleClientSelect = (selectedClient: Account | { id: 'new'; name: string }) => {
+  const handleClientSelect = (selectedClient: Account | { id: 'new'; nombre: string }) => {
     setClient(selectedClient);
     const isNew = selectedClient.id === 'new';
     form.setValue('isNewClient', isNew);
-    form.setValue('clientName', selectedClient.name);
+    form.setValue('clientName', selectedClient.nombre);
     if (!isNew) {
       form.setValue('accountId', selectedClient.id);
     } else {

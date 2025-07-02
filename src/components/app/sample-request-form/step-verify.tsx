@@ -22,7 +22,7 @@ export const StepVerify: React.FC<StepVerifyProps> = ({ form, client, handleBack
           <Card>
               <CardHeader><CardTitle className="text-lg">Resumen de la Solicitud</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
-                  <p><strong>Cliente:</strong> {client?.name} {client?.id === 'new' && <span className="text-primary font-bold">(Nuevo)</span>}</p>
+                  <p><strong>Cliente:</strong> {client?.nombre} {client?.id === 'new' && <span className="text-primary font-bold">(Nuevo)</span>}</p>
                   <p><strong>Propósito:</strong> <span className="font-semibold">{formValues.purpose || 'N/D'}</span></p>
                   <p><strong>Cantidad de Muestras:</strong> <span className="font-semibold">{formValues.numberOfSamples || 'N/D'}</span></p>
                   

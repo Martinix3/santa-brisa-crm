@@ -149,9 +149,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         form.setValue("value", totalValue, { shouldDirty: true });
       }
     } else {
-        if (form.getValues("value") !== undefined) {
-             form.setValue("value", undefined, { shouldDirty: true });
-        }
+        form.setValue("value", undefined, { shouldDirty: true });
     }
   }, [watchedNumberOfUnits, watchedUnitPrice, form]);
 
@@ -286,11 +284,11 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   };
   
   const handleNumericChange = (e: React.ChangeEvent<HTMLInputElement>, field: any) => {
-    const value = e.target.value;
+    const value = e.target.value.replace(",", ".");
     if (value === "") {
         field.onChange(undefined);
     } else {
-        const numericValue = Number(value.replace(",", "."));
+        const numericValue = Number(value);
         if (!isNaN(numericValue)) {
             field.onChange(numericValue);
         }
@@ -328,7 +326,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const invoiceSectionDisabled = !canManageInvoice || isLoadingDropdownData || isLoadingAccountDetails;
   
   const isButtonDisabled = isSaving || isLoadingDropdownData || isLoadingAccountDetails || !form.formState.isValid;
-  
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md md:max-w-lg lg:max-w-3xl xl:max-w-4xl max-h-[90vh] overflow-y-auto print-dialog-content">
@@ -349,14 +347,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
             </div>
         ) : (
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit, (errors) => {
-              console.error("Form Validation Errors:", errors);
-              toast({
-                title: "Error de Validación",
-                description: "Por favor, revisa los campos marcados en rojo. Hay errores en el formulario.",
-                variant: "destructive"
-              });
-          })}>
+          <form onSubmit={form.handleSubmit(onSubmit)}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="Nombre del cliente" {...field} value={field.value ?? ""} disabled={!canEditOrderDetailsOverall || formFieldsGenericDisabled} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="salesRep" render={({ field }) => (<FormItem><FormLabel>Representante de Ventas</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={salesRepFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un representante" /></SelectTrigger></FormControl><SelectContent>{salesReps.map((member: TeamMember) => (<SelectItem key={member.id} value={member.name}>{member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
@@ -485,7 +476,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 <>
                   <Separator className="my-6" />
                   <h3 className="text-md font-semibold text-muted-foreground">Información de Seguimiento/Programación Original</h3>
-                  <FormField control={form.control} name="nextActionType" render={({ field }) => (<FormItem><FormLabel>Próxima Acción (Original)</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={true}><FormControl><SelectTrigger><SelectValue placeholder="N/A" /></SelectTrigger></FormControl><SelectContent>{nextActionTypeList.map(action => (<SelectItem key={action} value={action}>{action}</SelectItem>))}</Select></FormItem>)}/>
+                  <FormField control={form.control} name="nextActionType" render={({ field }) => (<FormItem><FormLabel>Próxima Acción (Original)</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={true}><FormControl><SelectTrigger><SelectValue placeholder="N/A" /></SelectTrigger></FormControl><SelectContent>{nextActionTypeList.map(action => (<SelectItem key={action} value={action}>{action}</SelectItem>))}</SelectContent></FormItem>)}/>
                   {order?.nextActionType === "Opción personalizada" && (<FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Detalle Próx. Acción Personalizada (Original)</FormLabel><FormControl><Input {...field} disabled={true} /></FormControl></FormItem>)} />)}
                   <FormField
                     control={form.control}
@@ -622,3 +613,4 @@ function isValidUrl(urlString: string | undefined | null): boolean {
   }
 }
 
+    

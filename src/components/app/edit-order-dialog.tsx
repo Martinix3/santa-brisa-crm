@@ -59,11 +59,10 @@ const assignedMaterialSchemaForDialog = z.object({
   quantity: z.coerce.number().min(1, "La cantidad debe ser al menos 1."),
 });
 
-
 const editOrderFormSchema = z.object({
   clientName: z.string().optional(),
   products: z.string().optional(),
-  value: z.coerce.number({ invalid_type_error: "Debe ser un número" }).positive("El valor del pedido debe ser positivo.").optional().nullable(),
+  value: z.number({ invalid_type_error: "Debe ser un número" }).positive("El valor del pedido debe ser positivo.").optional().nullable(),
   status: z.enum(orderStatusesList as [OrderStatus, ...OrderStatus[]]),
   salesRep: z.string().optional(),
   clavadistaId: z.string().optional(),
@@ -74,8 +73,8 @@ const editOrderFormSchema = z.object({
   assignedMaterials: z.array(assignedMaterialSchemaForDialog).optional().default([]),
 
   clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
-  numberOfUnits: z.coerce.number({ invalid_type_error: "Debe ser un número" }).positive("El número de unidades debe ser positivo.").optional().nullable(),
-  unitPrice: z.coerce.number({ invalid_type_error: "Debe ser un número" }).positive("El precio unitario debe ser positivo.").optional().nullable(),
+  numberOfUnits: z.number({ invalid_type_error: "Debe ser un número" }).positive("El número de unidades debe ser positivo.").optional().nullable(),
+  unitPrice: z.number({ invalid_type_error: "Debe ser un número" }).positive("El precio unitario debe ser positivo.").optional().nullable(),
 
   notes: z.string().optional(),
 
@@ -204,7 +203,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         form.reset({
             clientName: order.clientName,
             products: order.products?.join(",\n") || "",
-            value: order.value ?? null,
+            value: order.value ?? undefined,
             status: order.status,
             salesRep: order.salesRep || "",
             clavadistaId: order.clavadistaId || NO_CLAVADISTA_VALUE,
@@ -214,8 +213,8 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
             invoiceFileName: order.invoiceFileName || "",
             assignedMaterials: order.assignedMaterials || [],
             clientType: order.clientType,
-            numberOfUnits: order.numberOfUnits ?? null,
-            unitPrice: order.unitPrice ?? null,
+            numberOfUnits: order.numberOfUnits ?? undefined,
+            unitPrice: order.unitPrice ?? undefined,
             notes: order.notes || "",
             nextActionType: order.nextActionType,
             nextActionCustom: order.nextActionCustom || "",
@@ -251,9 +250,9 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     if (['Seguimiento', 'Fallido', 'Programada'].includes(currentStatus)) {
         form.setValue('clientType', undefined, { shouldDirty: true });
         form.setValue('products', undefined, { shouldDirty: true });
-        form.setValue('numberOfUnits', null, { shouldDirty: true });
-        form.setValue('unitPrice', null, { shouldDirty: true });
-        form.setValue('value', null, { shouldDirty: true });
+        form.setValue('numberOfUnits', undefined, { shouldDirty: true });
+        form.setValue('unitPrice', undefined, { shouldDirty: true });
+        form.setValue('value', undefined, { shouldDirty: true });
         form.setValue('paymentMethod', undefined, { shouldDirty: true });
     }
     if (currentStatus !== 'Facturado') {
@@ -264,9 +263,9 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const onSubmit = async (data: EditOrderFormValues) => {
     if (!order) return;
     setIsSaving(true);
-    const dataToSave = { ...data };
+    const dataToSave: any = { ...data };
     if (dataToSave.clavadistaId === NO_CLAVADISTA_VALUE) {
-      delete dataToSave.clavadistaId;
+      dataToSave.clavadistaId = null;
     }
     
     try {
@@ -335,7 +334,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
             </div>
         ) : (
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
+          <form onSubmit={form.handleSubmit(onSubmit)}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="Nombre del cliente" {...field} disabled={!canEditOrderDetailsOverall || formFieldsGenericDisabled} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="salesRep" render={({ field }) => (<FormItem><FormLabel>Representante de Ventas</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={salesRepFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un representante" /></SelectTrigger></FormControl><SelectContent>{salesReps.map((member: TeamMember) => (<SelectItem key={member.id} value={member.name}>{member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
@@ -398,8 +397,8 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 <FormField control={form.control} name="clientType" render={({ field }) => (<FormItem><FormLabel>Tipo de Cliente</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={productRelatedFieldsDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione tipo cliente" /></SelectTrigger></FormControl><SelectContent>{clientTypeList.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
                 <FormField control={form.control} name="products" render={({ field }) => (<FormItem><FormLabel>Productos Pedidos</FormLabel><FormControl><Textarea placeholder="Listar productos y cantidades..." className="min-h-[80px]" {...field} disabled={productRelatedFieldsDisabled} /></FormControl><FormDescription>Separe múltiples productos con comas, punto y coma o saltos de línea.</FormDescription><FormMessage /></FormItem>)}/>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Nº Unidades Totales</FormLabel><FormControl><Input type="number" {...field} onChange={e => field.onChange(e.target.value === '' ? null : parseInt(e.target.value,10))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
-                    <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario Medio (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? null : parseFloat(e.target.value))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Nº Unidades Totales</FormLabel><FormControl><Input type="number" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario Medio (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
                     <FormField control={form.control} name="value" render={({ field }) => (<FormItem><FormLabel>Valor Total Pedido (€ IVA incl.)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="Calculado automáticamente" {...field} value={field.value ?? ""} readOnly disabled={productRelatedFieldsDisabled}/></FormControl><FormMessage /></FormItem>)}/>
                 </div>
               </>
@@ -600,5 +599,7 @@ function isValidUrl(urlString: string | undefined): boolean {
     return false;
   }
 }
+
+    
 
     

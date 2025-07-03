@@ -18,65 +18,48 @@ export async function processCarteraData(
     teamMembers: TeamMember[]
 ): Promise<EnrichedAccount[]> {
     // 1. Create maps for efficient lookup
-    const accountsMap = new Map(accounts.map(acc => [acc.id, acc]));
     const teamMembersMap = new Map(teamMembers.map(tm => [tm.id, tm]));
-    const ordersByAccount = new Map<string, Order[]>();
+    const accountsMap = new Map(accounts.map(acc => [acc.id, acc]));
 
-    // 2. Group all orders by their accountId
+    const ordersByAccountId = new Map<string, Order[]>();
+
+    // 2. Associate all orders with accounts, using robust matching.
     for (const order of orders) {
-        const accountId = order.accountId;
-        if (!accountId) continue;
+        let associatedAccountId: string | undefined;
 
-        if (!ordersByAccount.has(accountId)) {
-            ordersByAccount.set(accountId, []);
+        // Priority 1: Direct ID link
+        if (order.accountId && accountsMap.has(order.accountId)) {
+            associatedAccountId = order.accountId;
+        } 
+        // Priority 2: Find account by name if no ID link
+        else if (order.clientName) {
+            const matchedAccount = accounts.find(acc => acc.nombre.trim().toLowerCase() === order.clientName.trim().toLowerCase());
+            if (matchedAccount) {
+                associatedAccountId = matchedAccount.id;
+            }
         }
-        // Add a temporary sort date to handle invalid or missing dates gracefully
-        (order as any).tempSortDate = parseISO(order.visitDate || order.createdAt || new Date().toISOString());
-        ordersByAccount.get(accountId)!.push(order);
+        
+        if (associatedAccountId) {
+            if (!ordersByAccountId.has(associatedAccountId)) {
+                ordersByAccountId.set(associatedAccountId, []);
+            }
+            ordersByAccountId.get(associatedAccountId)!.push(order);
+        }
     }
 
-    // Sort interactions for each account
-    for (const accountOrders of ordersByAccount.values()) {
+    // 3. Create enriched account promises for ALL accounts, ensuring each has its list of orders
+    const enrichedAccountsPromises = accounts.map(async (account) => {
+        const accountOrders = ordersByAccountId.get(account.id) || [];
+        
+        // Sort interactions for each account by date
         accountOrders.sort((a, b) => {
-            const dateA = (a as any).tempSortDate;
-            const dateB = (b as any).tempSortDate;
+            const dateA = parseISO(a.visitDate || a.createdAt || new Date(0).toISOString());
+            const dateB = parseISO(b.visitDate || b.createdAt || new Date(0).toISOString());
             if (!isValid(dateA)) return 1;
             if (!isValid(dateB)) return -1;
-            return dateB.getTime() - dateA.getTime();
+            return dateB.getTime() - a.getTime();
         });
-    }
-
-    // 3. Create a set of all account IDs that have data (from accounts OR orders)
-    const allAccountIdsWithData = new Set([...accountsMap.keys(), ...ordersByAccount.keys()]);
-
-    // 4. Create enriched account promises for ALL accounts with data
-    const enrichedAccountsPromises = Array.from(allAccountIdsWithData).map(async (accountId) => {
-        const account = accountsMap.get(accountId);
-        const accountOrders = ordersByAccount.get(accountId) || [];
-
-        // If account doesn't exist in DB but has orders, create a placeholder in-memory
-        if (!account && accountOrders.length > 0) {
-            const firstOrder = accountOrders[0];
-            const placeholderAccount: Account = {
-                id: accountId,
-                nombre: firstOrder.clientName,
-                ciudad: undefined,
-                potencial: 'medio',
-                responsableId: teamMembers.find(tm => tm.name === firstOrder.salesRep)?.id || '',
-                status: 'Seguimiento', // Placeholder status
-                leadScore: 0, // Placeholder score
-                cif: '',
-                type: 'Otro',
-                createdAt: firstOrder.createdAt,
-                updatedAt: firstOrder.createdAt,
-            };
-            // Add to map for processing
-            accountsMap.set(accountId, placeholderAccount);
-        }
-
-        const finalAccount = accountsMap.get(accountId)!;
-        if (!finalAccount) return null; // Should not happen with the logic above
-
+        
         // Get priority task
         const openTasks = accountOrders.filter(o => o.status === 'Programada' || o.status === 'Seguimiento');
         openTasks.sort((a, b) => {
@@ -90,14 +73,13 @@ export async function processCarteraData(
         });
         const nextInteraction = openTasks[0] || undefined;
         
-        // Get last interaction date
         const lastInteractionOrder = accountOrders[0];
-        const lastInteractionDate = lastInteractionOrder ? ((lastInteractionOrder as any).tempSortDate) : undefined;
+        const lastInteractionDate = lastInteractionOrder ? parseISO(lastInteractionOrder.visitDate || lastInteractionOrder.createdAt || new Date(0).toISOString()) : undefined;
         
         // Calculate status and score
-        const status = await calculateAccountStatus(accountOrders, finalAccount);
+        const status = await calculateAccountStatus(accountOrders, account);
         const recentOrderValue = accountOrders.filter(o => VALID_SALE_STATUSES.includes(o.status) && o.createdAt && isValid(parseISO(o.createdAt)) && isAfter(parseISO(o.createdAt), subDays(new Date(), 30))).reduce((sum, o) => sum + (o.value || 0), 0);
-        const leadScore = calculateLeadScore(status, finalAccount.potencial, lastInteractionDate, recentOrderValue);
+        const leadScore = calculateLeadScore(status, account.potencial, lastInteractionDate, recentOrderValue);
 
         // Calculate totals
         const successfulOrders = accountOrders.filter(o => VALID_SALE_STATUSES.includes(o.status));
@@ -105,10 +87,10 @@ export async function processCarteraData(
         const totalValue = successfulOrders.reduce((sum, o) => sum + (o.value || 0), 0);
 
         // Get responsable info
-        const responsable = finalAccount.salesRepId ? teamMembersMap.get(finalAccount.salesRepId) : undefined;
+        const responsable = account.salesRepId ? teamMembersMap.get(account.salesRepId) : undefined;
         
         return {
-            ...finalAccount,
+            ...account,
             status,
             leadScore,
             nextInteraction,

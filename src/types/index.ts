@@ -228,7 +228,7 @@ export interface TeamMemberFormValues {
 }
 
 export type PurchaseStatus = 'Borrador' | 'Proforma Recibida' | 'Pagado' | 'Pago a 30 días' | 'Factura Recibida' | 'Completado' | 'Cancelado';
-export type PurchaseCategory = 'Materia Prima (COGS)' | 'Material de Embalaje (COGS)' | 'Gastos de Logística' | 'Gasto de Marketing' | 'Gasto Operativo' | 'Otro';
+export type PurchaseCategory = 'Materia Prima (COGS)' | 'Material de Embalaje (COGS)' | 'Material Promocional' | 'Gastos de Eventos' | 'Publicidad y Promoción' | 'Gastos de Logística' | 'Gastos Operativos' | 'Otro';
 export type Currency = "EUR" | "USD" | "MXN";
 
 export interface PurchaseItem {

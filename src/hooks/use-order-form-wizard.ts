@@ -227,33 +227,49 @@ export function useOrderWizard() {
 
   const onFormError = (errors: any) => {
     console.error("Validation Errors:", errors);
-    const errorMessages = Object.entries(errors).map(([fieldName, error]: [string, any]) => {
-        let message = `Campo '${fieldName}'`;
-        if (typeof error === 'object' && error !== null && 'message' in error) {
-            message = `${error.message}`;
-        }
-        if (fieldName === 'items' && Array.isArray(error)) {
-            const itemErrors = error.map((itemError, index) => {
-                if (itemError) {
-                    return `Artículo ${index + 1}: ${Object.values(itemError).map((e: any) => e.message).join(', ')}`;
-                }
-                return null;
-            }).filter(Boolean);
-            if(itemErrors.length > 0) message = `Errores en artículos: ${itemErrors.join('; ')}`;
-        }
-        return message;
-    });
+    let errorMessages: string[] = [];
 
+    // If RHF doesn't populate the errors object, we'll build a helpful message manually.
+    if (Object.keys(errors).length === 0) {
+        const values = form.getValues();
+        const commonErrors = [];
+        if (values.outcome === 'successful') {
+            if (!values.numberOfUnits || values.numberOfUnits <= 0) commonErrors.push('Unidades');
+            if (!values.unitPrice || values.unitPrice <= 0) commonErrors.push('Precio Unitario');
+            if (!values.paymentMethod) commonErrors.push('Forma de Pago');
+             if (values.isNewClient && (!values.nombreFiscal || !values.cif || !values.direccionFiscal_street)) {
+                commonErrors.push('Datos Fiscales/Dirección');
+            }
+        }
+        if (values.outcome === 'follow-up' && !values.nextActionType) {
+            commonErrors.push('Próxima Acción');
+        }
+        if (values.outcome === 'failed' && !values.failureReasonType) {
+            commonErrors.push('Motivo del Fallo');
+        }
+        if (values.userRole === 'Clavadista' && values.outcome === 'follow-up' && !values.clavadistaSelectedSalesRepId) {
+            commonErrors.push('Asignación de Comercial (obligatorio para Clavadista)');
+        }
+
+        if (commonErrors.length > 0) {
+            errorMessages.push(`Faltan campos obligatorios: ${commonErrors.join(', ')}.`);
+        } else {
+            errorMessages.push('Hay campos requeridos sin completar. Por favor, revisa el formulario.');
+        }
+    } else {
+        // Default behavior if errors object is populated
+        errorMessages = Object.values(errors).map((error: any) => error.message);
+    }
+    
     toast({
       title: "Errores en el formulario",
-      description: `Por favor, corrige los siguientes errores: ${errorMessages.join('. ')}`,
+      description: errorMessages.join(' '),
       variant: "destructive",
       duration: 9000,
     });
   };
   
   const onSubmit = async (values: OrderFormValues) => {
-    console.log('🚀 onSubmit disparado', values);
     if (!teamMember || !userRole) {
         toast({ title: "Error de autenticación", description: "No se pudo identificar al usuario. Por favor, recargue la página.", variant: "destructive" });
         return;
@@ -405,3 +421,5 @@ export function useOrderWizard() {
     materialFields, appendMaterial, removeMaterial, userRole, teamMember
   };
 }
+
+    

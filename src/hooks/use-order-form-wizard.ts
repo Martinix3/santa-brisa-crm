@@ -231,8 +231,8 @@ export function useOrderWizard() {
   
   const onSubmit = async (values: OrderFormValues) => {
     setIsSubmitting(true);
-    if (!teamMember) {
-        toast({ title: "Error", description: "No se pudo identificar al usuario.", variant: "destructive" });
+    if (!teamMember || !userRole) {
+        toast({ title: "Error de autenticación", description: "No se pudo identificar al usuario. Por favor, recargue la página.", variant: "destructive" });
         setIsSubmitting(false);
         return;
     }
@@ -248,65 +248,56 @@ export function useOrderWizard() {
                     salesRepNameForOrder = selectedRep.name;
                     salesRepIdForAccount = selectedRep.id;
                 }
-            } else if (userRole === 'Clavadista') {
+            } else if (userRole === 'Clavadista' && values.outcome === 'follow-up') {
                 const selectedRepByClavadista = salesRepsList.find(sr => sr.id === values.clavadistaSelectedSalesRepId);
                 if (selectedRepByClavadista) {
                     salesRepNameForOrder = selectedRepByClavadista.name;
                     salesRepIdForAccount = selectedRepByClavadista.id;
                 } else {
-                    throw new Error("Comercial asignado no válido.");
+                    throw new Error("Un Clavadista debe asignar un comercial para un seguimiento.");
                 }
             }
             
-            let currentAccountId = client?.id !== 'new' ? client?.id : undefined;
+            let currentAccountId: string | null = client?.id !== 'new' ? (client?.id || null) : null;
 
             if (client?.id === 'new') {
                 const newAccountRef = doc(collection(db, "accounts"));
                 currentAccountId = newAccountRef.id;
-
                 const isSuccessfulOutcome = values.outcome === 'successful';
-
-                const newAccountData: any = {
+                
+                const newAccountData: Omit<Account, 'status' | 'leadScore'> = {
                     id: currentAccountId,
                     nombre: client.nombre,
-                    legalName: isSuccessfulOutcome ? (values.nombreFiscal || null) : null,
-                    cif: isSuccessfulOutcome ? (values.cif || null) : null,
+                    legalName: isSuccessfulOutcome ? (values.nombreFiscal || undefined) : undefined,
+                    cif: isSuccessfulOutcome ? (values.cif || '') : '',
                     type: isSuccessfulOutcome ? (values.clientType || 'Otro') : 'Otro',
                     addressBilling: isSuccessfulOutcome && values.direccionFiscal_street ? {
-                        street: values.direccionFiscal_street,
-                        number: values.direccionFiscal_number || null,
-                        city: values.direccionFiscal_city,
-                        province: values.direccionFiscal_province,
-                        postalCode: values.direccionFiscal_postalCode,
-                        country: values.direccionFiscal_country
-                    } : null,
+                        street: values.direccionFiscal_street || null, number: values.direccionFiscal_number || null, city: values.direccionFiscal_city || null,
+                        province: values.direccionFiscal_province || null, postalCode: values.direccionFiscal_postalCode || null, country: values.direccionFiscal_country || "España",
+                    } : undefined,
                     addressShipping: isSuccessfulOutcome ? (values.sameAsBilling && values.direccionFiscal_street ? {
-                        street: values.direccionFiscal_street, number: values.direccionFiscal_number, city: values.direccionFiscal_city,
-                        province: values.direccionFiscal_province, postalCode: values.direccionFiscal_postalCode, country: values.direccionFiscal_country,
+                        street: values.direccionFiscal_street || null, number: values.direccionFiscal_number || null, city: values.direccionFiscal_city || null,
+                        province: values.direccionFiscal_province || null, postalCode: values.direccionFiscal_postalCode || null, country: values.direccionFiscal_country || "España",
                     } : (values.direccionEntrega_street ? {
-                        street: values.direccionEntrega_street, number: values.direccionEntrega_number, city: values.direccionEntrega_city,
-                        province: values.direccionEntrega_province, postalCode: values.direccionEntrega_postalCode, country: values.direccionEntrega_country,
-                    } : null)) : null,
-                    mainContactName: isSuccessfulOutcome ? (values.contactoNombre || null) : null,
-                    mainContactEmail: isSuccessfulOutcome ? (values.contactoCorreo || null) : null,
-                    mainContactPhone: isSuccessfulOutcome ? (values.contactoTelefono || null) : null,
-                    notes: isSuccessfulOutcome ? (values.observacionesAlta || null) : "Cuenta creada automáticamente desde una interacción inicial.",
+                        street: values.direccionEntrega_street || null, number: values.direccionEntrega_number || null, city: values.direccionEntrega_city || null,
+                        province: values.direccionEntrega_province || null, postalCode: values.direccionEntrega_postalCode || null, country: values.direccionEntrega_country || "España",
+                    } : undefined)) : undefined,
+                    mainContactName: isSuccessfulOutcome ? (values.contactoNombre || undefined) : undefined,
+                    mainContactEmail: isSuccessfulOutcome ? (values.contactoCorreo || undefined) : undefined,
+                    mainContactPhone: isSuccessfulOutcome ? (values.contactoTelefono || undefined) : undefined,
+                    notes: isSuccessfulOutcome ? (values.observacionesAlta || undefined) : "Cuenta creada automáticamente desde una interacción inicial.",
                     salesRepId: salesRepIdForAccount,
                     responsableId: salesRepIdForAccount,
-                    iban: isSuccessfulOutcome ? (values.iban || null) : null,
-                    createdAt: Timestamp.fromDate(new Date()),
-                    updatedAt: Timestamp.fromDate(new Date()),
-                    potencial: 'medio'
+                    iban: isSuccessfulOutcome ? (values.iban || undefined) : undefined,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    potencial: 'medio',
+                    ciudad: values.direccionFiscal_city || values.direccionEntrega_city || undefined,
                 };
                 
-                Object.keys(newAccountData).forEach(key => {
-                    if (newAccountData[key as keyof typeof newAccountData] === undefined) {
-                         (newAccountData as any)[key] = null;
-                    }
-                });
-
-                transaction.set(newAccountRef, newAccountData);
-            } else if (client?.id !== 'new' && values.iban && client?.id) {
+                transaction.set(newAccountRef, JSON.parse(JSON.stringify(newAccountData, (k, v) => v === undefined ? null : v)));
+            
+            } else if (client?.id && values.outcome === 'successful' && values.iban) {
                 const existingAccount = allAccounts.find(a => a.id === client.id);
                 if (existingAccount && !existingAccount.iban) {
                     transaction.update(doc(db, "accounts", client.id), { iban: values.iban, updatedAt: Timestamp.fromDate(new Date()) });
@@ -316,49 +307,42 @@ export function useOrderWizard() {
             const subtotal = (values.numberOfUnits || 0) * (values.unitPrice || 0);
             const ivaAmount = subtotal * 0.21;
             const newOrderRef = doc(collection(db, "orders"));
-            
             const isVisitLikeInteraction = values.outcome === 'successful' || values.outcome === 'failed';
             
-            const orderData: any = {
-                clientName: client!.nombre,
-                accountId: currentAccountId || null,
+            let status: OrderStatus = 'Pendiente';
+            if (values.outcome === "successful") status = 'Confirmado';
+            else if (values.outcome === 'follow-up') status = 'Seguimiento';
+            else if (values.outcome === 'failed') status = 'Fallido';
+
+            const orderData = {
+                clientName: client!.nombre, accountId: currentAccountId,
                 visitDate: isVisitLikeInteraction ? Timestamp.fromDate(new Date()) : null,
-                createdAt: Timestamp.fromDate(new Date()),
-                lastUpdated: Timestamp.fromDate(new Date()),
-                salesRep: salesRepNameForOrder,
-                clavadistaId: values.clavadistaId === NO_CLAVADISTA_VALUE ? null : values.clavadistaId,
+                createdAt: Timestamp.fromDate(new Date()), lastUpdated: Timestamp.fromDate(new Date()),
+                salesRep: salesRepNameForOrder, status: status,
+                clavadistaId: values.clavadistaId === NO_CLAVADISTA_VALUE ? null : values.clavadistaId || null,
                 clientStatus: (client!.id === 'new' ? 'new' : 'existing'),
-                status: 'Pendiente', 
                 originatingTaskId: originatingTask?.id || null,
                 canalOrigenColocacion: values.canalOrigenColocacion || null,
                 assignedMaterials: values.assignedMaterials || [],
                 notes: values.notes || null,
+                products: values.outcome === "successful" ? ["Santa Brisa 750ml"] : [],
+                numberOfUnits: values.outcome === "successful" ? (values.numberOfUnits || null) : null,
+                unitPrice: values.outcome === "successful" ? (values.unitPrice || null) : null,
+                value: values.outcome === "successful" ? (subtotal + ivaAmount) : null,
+                clientType: values.outcome === "successful" ? (values.clientType || null) : null,
+                paymentMethod: values.outcome === "successful" ? (values.paymentMethod || null) : null,
+                iban: values.outcome === "successful" ? (values.iban || null) : null,
+                nextActionType: values.outcome === 'follow-up' ? (values.nextActionType || null) : null,
+                nextActionCustom: values.outcome === 'follow-up' && values.nextActionType === 'Opción personalizada' ? (values.nextActionCustom || null) : null,
+                nextActionDate: values.outcome === 'follow-up' && values.nextActionDate ? Timestamp.fromDate(values.nextActionDate) : null,
+                failureReasonType: values.outcome === 'failed' ? (values.failureReasonType || null) : null,
+                failureReasonCustom: values.outcome === 'failed' && values.failureReasonType === 'Otro (especificar)' ? (values.failureReasonCustom || null) : null,
             };
 
-            if (values.outcome === "successful") {
-                orderData.status = 'Confirmado';
-                orderData.products = ["Santa Brisa 750ml"];
-                orderData.numberOfUnits = values.numberOfUnits || null;
-                orderData.unitPrice = values.unitPrice || null;
-                orderData.value = subtotal + ivaAmount;
-                orderData.clientType = values.clientType || null;
-                orderData.paymentMethod = values.paymentMethod || null;
-                orderData.iban = values.iban || null;
-            } else if (values.outcome === 'follow-up') {
-                orderData.status = 'Seguimiento';
-                orderData.nextActionType = values.nextActionType || null;
-                orderData.nextActionCustom = values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : null;
-                orderData.nextActionDate = values.nextActionDate ? Timestamp.fromDate(values.nextActionDate) : null;
-            } else if (values.outcome === 'failed') {
-                orderData.status = 'Fallido';
-                orderData.failureReasonType = values.failureReasonType || null;
-                orderData.failureReasonCustom = values.failureReasonType === 'Otro (especificar)' ? values.failureReasonCustom : null;
-            }
-            
             transaction.set(newOrderRef, orderData);
             
             if (originatingTask) {
-               transaction.update(doc(db, "orders", originatingTask.id), { status: "Completado" as OrderStatus, lastUpdated: Timestamp.fromDate(new Date()) });
+               transaction.update(doc(db, "orders", originatingTask.id), { status: "Completado", lastUpdated: Timestamp.fromDate(new Date()) });
             }
 
              if (values.assignedMaterials && values.assignedMaterials.length > 0) {
@@ -382,7 +366,8 @@ export function useOrderWizard() {
         else router.push('/accounts');
 
     } catch (err: any) {
-        toast({ title: "Error en Transacción", description: `No se pudo guardar la interacción: ${err.message}`, variant: "destructive" });
+        console.error("Error en la transacción del formulario:", err, "Datos del formulario:", JSON.stringify(values, null, 2));
+        toast({ title: "Error Crítico al Guardar", description: `No se pudo registrar la interacción. Por favor, contacta con soporte. Error: ${err.message}`, variant: "destructive", duration: 10000 });
     } finally {
         setIsSubmitting(false);
     }
@@ -394,3 +379,5 @@ export function useOrderWizard() {
     materialFields, appendMaterial, removeMaterial, userRole, teamMember
   };
 }
+
+    

@@ -2,9 +2,9 @@
 "use client";
 
 import * as React from "react";
-import { format, isSameDay, parseISO, startOfDay, isValid, startOfWeek, endOfWeek, endOfDay, startOfMonth, endOfMonth, eachDayOfInterval, isWithinInterval } from "date-fns";
+import { format, isSameDay, parseISO, startOfDay, isValid, startOfWeek, endOfWeek, endOfMonth, isWithinInterval } from "date-fns";
 import { es } from "date-fns/locale";
-import { Calendar as CalendarIcon, ClipboardList, PartyPopper, Loader2, Filter, ChevronLeft, ChevronRight, Info, User, Send, Briefcase, Footprints } from "lucide-react";
+import { Calendar as CalendarIcon, ClipboardList, PartyPopper, Loader2, Filter, ChevronLeft, ChevronRight, Info, User, Send, Briefcase, Footprints, AlertTriangle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -12,17 +12,18 @@ import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
-import { getOrdersFS } from "@/services/order-service";
+import { getOrdersFS, addScheduledTaskFS } from "@/services/order-service";
 import { getEventsFS } from "@/services/event-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
-import type { Order, CrmEvent, TeamMember, UserRole, OrderStatus, FollowUpResultFormValues } from "@/types";
+import type { Order, CrmEvent, TeamMember, UserRole, OrderStatus, FollowUpResultFormValues, NewScheduledTaskData } from "@/types";
 import StatusBadge from "@/components/app/status-badge";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { db } from "@/lib/firebase";
-import { runTransaction, doc, collection } from "firebase/firestore";
+import { runTransaction, doc, collection, Timestamp } from "firebase/firestore";
 import FollowUpResultDialog from "@/components/app/follow-up-result-dialog";
+import NewTaskDialog from "@/components/app/new-task-dialog";
 
 // --- TYPE DEFINITIONS ---
 type AgendaItemType = 'tarea_comercial' | 'evento';
@@ -76,6 +77,9 @@ export default function MyAgendaPage() {
   const [isFollowUpDialogOpen, setIsFollowUpDialogOpen] = React.useState(false);
   const [currentTask, setCurrentTask] = React.useState<Order | null>(null);
   
+  const [isNewTaskDialogOpen, setIsNewTaskDialogOpen] = React.useState(false);
+  const [newTaskDate, setNewTaskDate] = React.useState<Date | undefined>();
+  
   const isAdmin = userRole === 'Admin';
   
   React.useEffect(() => {
@@ -94,7 +98,7 @@ export default function MyAgendaPage() {
                 id: o.id,
                 date: parseISO((o.status === 'Programada' ? o.visitDate : o.nextActionDate)!),
                 type: 'tarea_comercial',
-                title: `Interacción con ${o.clientName}`,
+                title: o.clientName,
                 description: getInteractionType(o),
                 rawItem: o,
             }));
@@ -291,7 +295,7 @@ export default function MyAgendaPage() {
 
             if (data.outcome === "successful") {
                 newInteractionData.status = 'Confirmado';
-                newInteractionData.visitDate = new Date();
+                newInteractionData.visitDate = Timestamp.fromDate(new Date());
                 newInteractionData.products = ["Santa Brisa 750ml"];
                 newInteractionData.numberOfUnits = data.numberOfUnits;
                 newInteractionData.unitPrice = data.unitPrice;
@@ -301,11 +305,11 @@ export default function MyAgendaPage() {
                 newInteractionData.status = 'Seguimiento';
                 newInteractionData.nextActionType = data.nextActionType;
                 newInteractionData.nextActionCustom = data.nextActionType === 'Opción personalizada' ? data.nextActionCustom : null;
-                newInteractionData.nextActionDate = data.nextActionDate ? format(data.nextActionDate, 'yyyy-MM-dd') : null;
+                newInteractionData.nextActionDate = data.nextActionDate ? Timestamp.fromDate(data.nextActionDate) : null;
                 newInteractionData.visitDate = null;
             } else if (data.outcome === "failed") {
                 newInteractionData.status = 'Fallido';
-                newInteractionData.visitDate = new Date();
+                newInteractionData.visitDate = Timestamp.fromDate(new Date());
                 newInteractionData.failureReasonType = data.failureReasonType;
                 newInteractionData.failureReasonCustom = data.failureReasonType === 'Otro (especificar)' ? data.failureReasonCustom : null;
             }
@@ -321,6 +325,28 @@ export default function MyAgendaPage() {
         setCurrentTask(null);
     }
   };
+
+  const handleDayClick = (day: Date, modifiers: any) => {
+    if (modifiers.disabled) return;
+    setNewTaskDate(day);
+    setIsNewTaskDialogOpen(true);
+  };
+  
+  const handleSaveNewTask = async (data: NewScheduledTaskData) => {
+    if (!teamMember) {
+      toast({ title: "Error", description: "No se pudo identificar al usuario.", variant: "destructive" });
+      return;
+    }
+    try {
+      await addScheduledTaskFS(data, teamMember);
+      toast({ title: "¡Tarea Creada!", description: "La nueva tarea ha sido añadida a la agenda." });
+      refreshDataSignature();
+      setIsNewTaskDialogOpen(false);
+    } catch (error: any) {
+      toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
+    }
+  };
+
 
   return (
     <Sheet open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
@@ -382,13 +408,14 @@ export default function MyAgendaPage() {
               <Card>
                   <CardHeader>
                       <CardTitle>Calendario de Actividades</CardTitle>
-                      <CardDescription>Navega por el calendario para seleccionar un día específico.</CardDescription>
+                      <CardDescription>Navega o haz clic en un día para añadir una nueva tarea.</CardDescription>
                   </CardHeader>
                   <CardContent className="p-2">
                       <Calendar
                           mode="single"
                           selected={selectedDate}
                           onSelect={(day) => { if(day) { setSelectedDate(day); setViewMode('day'); } }}
+                          onDayClick={handleDayClick}
                           locale={es}
                           modifiers={{ 
                             commercial: commercialTaskDays,
@@ -496,6 +523,14 @@ export default function MyAgendaPage() {
         currentUser={teamMember}
         currentUserRole={userRole}
     />
+     <NewTaskDialog
+        isOpen={isNewTaskDialogOpen}
+        onOpenChange={setIsNewTaskDialogOpen}
+        selectedDate={newTaskDate}
+        onSave={handleSaveNewTask}
+      />
     </Sheet>
   );
 }
+
+    

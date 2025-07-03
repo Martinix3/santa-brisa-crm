@@ -7,7 +7,7 @@ import {
   collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
   type DocumentSnapshot,
 } from "firebase/firestore";
-import type { Order, AssignedPromotionalMaterial, AccountFormValues } from '@/types';
+import type { Order, AssignedPromotionalMaterial, AccountFormValues, NewScheduledTaskData, OrderStatus, TeamMember } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 import { updateMaterialStockFS } from './promotional-material-service';
 import { getAccountByIdFS, addAccountFS } from './account-service';
@@ -167,6 +167,41 @@ export const addOrderFS = async (data: Partial<Order> & {visitDate: Date | strin
   return docRef.id;
 };
 
+export const addScheduledTaskFS = async (data: NewScheduledTaskData, creator: TeamMember): Promise<string> => {
+  let accountId = data.accountId;
+  let clientName = data.newClientName;
+  let assignedTo = creator;
+
+  if (data.clientSelectionMode === 'existing') {
+    const account = await getAccountByIdFS(data.accountId!);
+    if (!account) throw new Error("Account not found");
+    clientName = account.nombre;
+  }
+  
+  if (data.assignedToId) {
+    const assignedMember = await getTeamMemberByIdFS(data.assignedToId);
+    if(assignedMember) assignedTo = assignedMember;
+  }
+  
+  const orderData = {
+    clientName: clientName!,
+    accountId: accountId || null,
+    visitDate: Timestamp.fromDate(data.visitDate),
+    createdAt: Timestamp.fromDate(new Date()),
+    lastUpdated: Timestamp.fromDate(new Date()),
+    salesRep: assignedTo.name,
+    status: 'Programada' as OrderStatus,
+    notes: data.notes,
+    clientStatus: data.clientSelectionMode === 'new' ? 'new' : 'existing',
+    taskCategory: 'Commercial',
+    isCompleted: false,
+  };
+  
+  const docRef = await addDoc(collection(db, ORDERS_COLLECTION), orderData);
+  return docRef.id;
+}
+
+
 export const updateOrderFS = async (id: string, data: Partial<Order> & {visitDate?: Date | string}): Promise<void> => { 
   const orderDocRef = doc(db, ORDERS_COLLECTION, id);
   const existingOrderDoc = await getDoc(orderDocRef);
@@ -254,3 +289,5 @@ export const initializeMockOrdersInFirestore = async (mockOrdersData: Order[]) =
         console.log('Orders collection is not empty. Skipping initialization.');
     }
 };
+
+    

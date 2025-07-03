@@ -439,3 +439,15 @@ export interface Interaction {
 }
 
 export type Step = "client" | "outcome" | "details" | "verify";
+
+
+export interface NewScheduledTaskData {
+  clientSelectionMode: 'existing' | 'new';
+  accountId?: string;
+  newClientName?: string;
+  notes: string;
+  assignedToId?: string;
+  visitDate: Date;
+}
+
+    

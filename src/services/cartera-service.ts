@@ -57,7 +57,7 @@ export async function processCarteraData(
             const dateB = parseISO(b.visitDate || b.createdAt || new Date(0).toISOString());
             if (!isValid(dateA)) return 1;
             if (!isValid(dateB)) return -1;
-            return dateB.getTime() - a.getTime();
+            return dateB.getTime() - dateA.getTime();
         });
         
         // Get priority task

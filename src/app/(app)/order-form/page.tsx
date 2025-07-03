@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -18,32 +17,32 @@ import { StepVerify } from "@/components/app/order-form/step-verify";
 
 export default function OrderFormWizardPage() {
   const wizard = useOrderWizard();
-  const { form, step, client, handleBack, isSubmitting, availableMaterials, teamMember, userRole, onSubmit } = wizard;
+  const { form, step, client, handleBack, isSubmitting, availableMaterials, teamMember, userRole, onSubmit, salesRepsList, clavadistas, materialFields, appendMaterial, removeMaterial, debouncedSearchTerm, searchTerm, setSearchTerm, filteredAccounts, handleClientSelect, setStep } = wizard;
 
   const renderStepContent = () => {
     switch (step) {
       case "client":
         return (
           <motion.div key="client" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
-            <StepClient {...wizard} />
+            <StepClient searchTerm={searchTerm} setSearchTerm={setSearchTerm} filteredAccounts={filteredAccounts} handleClientSelect={handleClientSelect} debouncedSearchTerm={debouncedSearchTerm} />
           </motion.div>
         );
       case "outcome":
         return (
           <motion.div key="outcome" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
-            <StepOutcome {...wizard} />
+            <StepOutcome form={form} client={client} setStep={setStep} handleBack={handleBack} />
           </motion.div>
         );
       case "details":
          return (
           <motion.div key="details" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
-            <StepDetails {...wizard} />
+            <StepDetails form={form} handleBack={handleBack} handleNextStep={wizard.handleNextStep} availableMaterials={availableMaterials} materialFields={materialFields} appendMaterial={appendMaterial} removeMaterial={removeMaterial} userRole={userRole} salesRepsList={salesRepsList} clavadistas={clavadistas} />
           </motion.div>
         );
       case "new_client_data":
         return (
           <motion.div key="new_client_data" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
-            <StepNewClientData {...wizard} />
+            <StepNewClientData form={form} client={client} handleBack={handleBack} handleNextStep={wizard.handleNextStep} />
           </motion.div>
         );
        case "verify":
@@ -57,7 +56,6 @@ export default function OrderFormWizardPage() {
                 availableMaterials={availableMaterials}
                 teamMember={teamMember}
                 userRole={userRole}
-                onSubmit={onSubmit}
             />
           </motion.div>
         );
@@ -71,7 +69,7 @@ export default function OrderFormWizardPage() {
         <h1 className="text-3xl font-headline font-semibold">Registrar Interacción</h1>
       </header>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(wizard.onSubmit)}>
+        <form onSubmit={form.handleSubmit(onSubmit)}>
           <Card className="max-w-4xl mx-auto shadow-lg mt-6 overflow-hidden">
             <AnimatePresence mode="wait">
               {renderStepContent()}

@@ -181,7 +181,7 @@ export const addScheduledTaskFS = async (data: NewScheduledTaskData, creator: Te
           throw new Error("El nombre del nuevo cliente es obligatorio para tareas comerciales.");
       }
   } else {
-      clientName = data.notes.substring(0, 50); // Use notes as title for admin tasks
+      clientName = data.notes.substring(0, 50) || "Tarea Administrativa"; 
       accountId = undefined;
   }
   
@@ -191,7 +191,7 @@ export const addScheduledTaskFS = async (data: NewScheduledTaskData, creator: Te
   }
   
   const orderData = {
-    clientName: clientName || 'Tarea sin título',
+    clientName: clientName,
     accountId: accountId || null,
     visitDate: Timestamp.fromDate(data.visitDate),
     createdAt: Timestamp.fromDate(new Date()),
@@ -238,6 +238,44 @@ export const updateOrderFS = async (id: string, data: Partial<Order> & {visitDat
     }
   }
 };
+
+export const updateScheduledTaskFS = async (taskId: string, data: NewScheduledTaskData): Promise<void> => {
+  const taskDocRef = doc(db, ORDERS_COLLECTION, taskId);
+  
+  const updatePayload: { [key: string]: any } = {
+    lastUpdated: Timestamp.fromDate(new Date())
+  };
+
+  if(data.notes) updatePayload.notes = data.notes;
+  if(data.visitDate) updatePayload.visitDate = Timestamp.fromDate(data.visitDate);
+
+  if (data.taskCategory === 'Commercial') {
+      if (data.clientSelectionMode === 'new' && data.newClientName) {
+        updatePayload.clientName = data.newClientName;
+        updatePayload.accountId = null; // A new client name implies we detach from any old accountId
+      } else if (data.clientSelectionMode === 'existing' && data.accountId) {
+          const account = await getAccountByIdFS(data.accountId);
+          if (account) {
+            updatePayload.clientName = account.nombre;
+            updatePayload.accountId = data.accountId;
+          }
+      }
+  } else {
+    // For admin tasks, client/account info is not relevant or derived from notes
+    updatePayload.clientName = data.notes.substring(0, 50) || "Tarea Administrativa";
+    updatePayload.accountId = null;
+  }
+  
+  if (data.assignedToId) {
+      const assignedMember = await getTeamMemberByIdFS(data.assignedToId);
+      if (assignedMember) {
+          updatePayload.salesRep = assignedMember.name;
+      }
+  }
+
+  await updateDoc(taskDocRef, updatePayload);
+};
+
 
 export const deleteOrderFS = async (id: string): Promise<void> => {
   const orderDocRef = doc(db, ORDERS_COLLECTION, id);

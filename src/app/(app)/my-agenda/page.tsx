@@ -4,16 +4,16 @@
 import * as React from "react";
 import { format, isSameDay, parseISO, startOfDay, endOfDay, isValid, startOfWeek, endOfWeek, isWithinInterval, addDays, startOfMonth, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
-import { Calendar as CalendarIcon, ClipboardList, PartyPopper, Loader2, Filter, ChevronLeft, ChevronRight, Info, User, Send, Briefcase, Footprints, AlertTriangle, PlusCircle } from "lucide-react";
+import { Calendar as CalendarIcon, ClipboardList, PartyPopper, Loader2, Filter, ChevronLeft, ChevronRight, Info, User, Send, Briefcase, Footprints, AlertTriangle, PlusCircle, Trash2, Edit } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
-import { getOrdersFS, addScheduledTaskFS } from "@/services/order-service";
-import { getEventsFS, addEventFS } from "@/services/event-service";
+import { getOrdersFS, addScheduledTaskFS, deleteOrderFS, updateScheduledTaskFS } from "@/services/order-service";
+import { getEventsFS, addEventFS, deleteEventFS, updateEventFS } from "@/services/event-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import type { Order, CrmEvent, TeamMember, UserRole, OrderStatus, FollowUpResultFormValues, NewScheduledTaskData, EventFormValues } from "@/types";
 import StatusBadge from "@/components/app/status-badge";
@@ -26,6 +26,8 @@ import FollowUpResultDialog from "@/components/app/follow-up-result-dialog";
 import NewTaskDialog from "@/components/app/new-task-dialog";
 import NewEntryTypeDialog, { type EntryType } from "@/components/app/new-entry-type-dialog";
 import EventDialog from "@/components/app/event-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Separator } from "@/components/ui/separator";
 
 
 // --- TYPE DEFINITIONS ---
@@ -89,6 +91,7 @@ export default function MyAgendaPage() {
   const [currentTask, setCurrentTask] = React.useState<Order | null>(null);
   
   const [isNewTaskDialogOpen, setIsNewTaskDialogOpen] = React.useState(false);
+  const [taskToEdit, setTaskToEdit] = React.useState<Order | null>(null);
   const [newTaskDate, setNewTaskDate] = React.useState<Date | undefined>();
   const [newTaskCategory, setNewTaskCategory] = React.useState<'Commercial' | 'General'>('Commercial');
   
@@ -96,6 +99,8 @@ export default function MyAgendaPage() {
   
   const [isEventDialogOpen, setIsEventDialogOpen] = React.useState(false);
   const [eventToEdit, setEventToEdit] = React.useState<CrmEvent | null>(null);
+
+  const [itemToDelete, setItemToDelete] = React.useState<AgendaItem | null>(null);
 
 
   const isAdmin = userRole === 'Admin';
@@ -202,7 +207,6 @@ export default function MyAgendaPage() {
 
     filteredItemsForHighlight.forEach(item => {
         const date = startOfDay(item.date);
-        date.setHours(12); // Normalize date to prevent TZ issues
         if (item.type === 'tarea_comercial') {
             commercial.add(date.getTime());
         } else if (item.type === 'evento') {
@@ -350,9 +354,11 @@ export default function MyAgendaPage() {
     setIsEntryTypeDialogOpen(false);
     if (type === 'commercial_task') {
         setNewTaskCategory('Commercial');
+        setTaskToEdit(null);
         setIsNewTaskDialogOpen(true);
     } else if (type === 'admin_task') {
         setNewTaskCategory('General');
+        setTaskToEdit(null);
         setIsNewTaskDialogOpen(true);
     } else if (type === 'event') {
         setEventToEdit(null);
@@ -360,31 +366,38 @@ export default function MyAgendaPage() {
     }
   };
   
-  const handleSaveNewTask = async (data: NewScheduledTaskData) => {
+  const handleSaveTask = async (data: NewScheduledTaskData, originalTaskId?: string) => {
     if (!teamMember) {
       toast({ title: "Error", description: "No se pudo identificar al usuario.", variant: "destructive" });
       return;
     }
     try {
-      // Adjust the date to prevent timezone issues.
-      // By setting the time to noon local time, we ensure that when it's converted to UTC, it remains on the same day.
       const adjustedDate = new Date(data.visitDate);
       adjustedDate.setHours(12, 0, 0, 0);
+      const saveData = { ...data, visitDate: adjustedDate };
 
-      await addScheduledTaskFS({ ...data, visitDate: adjustedDate }, teamMember);
-      toast({ title: "¡Tarea Creada!", description: "La nueva tarea ha sido añadida a la agenda." });
+      if(originalTaskId) {
+        await updateScheduledTaskFS(originalTaskId, saveData);
+        toast({ title: "¡Tarea Actualizada!", description: "La tarea ha sido modificada en la agenda." });
+      } else {
+        await addScheduledTaskFS(saveData, teamMember);
+        toast({ title: "¡Tarea Creada!", description: "La nueva tarea ha sido añadida a la agenda." });
+      }
+      
       refreshDataSignature();
       setIsNewTaskDialogOpen(false);
+      setTaskToEdit(null);
     } catch (error: any) {
-      toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
+      toast({ title: "Error al Guardar Tarea", description: error.message, variant: "destructive" });
     }
   };
 
   const handleSaveEvent = async (data: EventFormValues, eventId?: string) => {
-    if (!isAdmin && !eventId) return; 
+    if (!isAdmin) return;
     try {
       if (eventId) {
-        // Update logic would go here, currently not used from this page
+        await updateEventFS(eventId, data);
+        toast({ title: "¡Evento Actualizado!", description: `El evento "${data.name}" ha sido actualizado.` });
       } else {
         await addEventFS(data);
         toast({ title: "¡Evento Añadido!", description: `El evento "${data.name}" ha sido añadido.` });
@@ -394,9 +407,46 @@ export default function MyAgendaPage() {
       setEventToEdit(null);
     } catch (error) {
         console.error("Error saving event:", error);
-        toast({ title: "Error al Guardar", description: "No se pudo guardar el evento.", variant: "destructive"});
+        toast({ title: "Error al Guardar Evento", description: "No se pudo guardar el evento.", variant: "destructive"});
     }
   };
+  
+  const handleEditSelectedItem = () => {
+      if (!selectedItem) return;
+      if (selectedItem.type === 'evento') {
+          setEventToEdit(selectedItem.rawItem as CrmEvent);
+          setIsEventDialogOpen(true);
+      } else {
+          setTaskToEdit(selectedItem.rawItem as Order);
+          setNewTaskCategory((selectedItem.rawItem as Order).taskCategory);
+          setIsNewTaskDialogOpen(true);
+      }
+      setSelectedItem(null); // Close the sheet
+  }
+
+  const handleDeleteSelectedItem = () => {
+      if (!selectedItem) return;
+      setItemToDelete(selectedItem);
+  }
+
+  const confirmDeleteItem = async () => {
+      if(!itemToDelete) return;
+      try {
+        if(itemToDelete.type === 'evento') {
+            await deleteEventFS(itemToDelete.id);
+            toast({ title: "Evento Eliminado", description: "El evento ha sido eliminado de la agenda."});
+        } else {
+            await deleteOrderFS(itemToDelete.id);
+            toast({ title: "Tarea Eliminada", description: "La tarea ha sido eliminada de la agenda."});
+        }
+        refreshDataSignature();
+      } catch (error) {
+        toast({ title: "Error al Eliminar", description: "No se pudo eliminar el elemento.", variant: "destructive"});
+      } finally {
+        setItemToDelete(null);
+        setSelectedItem(null);
+      }
+  }
   
   const renderViewContent = () => {
     if (viewMode === 'day') {
@@ -462,6 +512,7 @@ export default function MyAgendaPage() {
   };
 
   return (
+    <>
     <Sheet open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
     <div className="flex flex-col h-full space-y-6">
        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -471,17 +522,11 @@ export default function MyAgendaPage() {
                 Agenda del Equipo
             </h1>
         </div>
-        <Button onClick={handleOpenNewEntryDialog}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Añadir Entrada
-        </Button>
+        <div className="flex-shrink-0">
+          {/* Este botón ahora está junto al calendario */}
+        </div>
       </header>
-       <div className="flex items-center flex-wrap space-x-4 text-xs text-muted-foreground p-2">
-          <div className="flex items-center gap-1.5"><ClipboardList className="h-4 w-4 text-yellow-500"/> Tarea Comercial</div>
-          <div className="flex items-center gap-1.5"><PartyPopper className="h-4 w-4 text-purple-500"/> Evento</div>
-          <div className="flex items-center gap-1.5"><Briefcase className="h-4 w-4 text-blue-500"/> Tarea Admin.</div>
-       </div>
-
+       
        <Card>
          <CardHeader>
             <CardTitle className="flex items-center gap-2"><Filter className="h-5 w-5 text-muted-foreground"/>Filtros de Agenda</CardTitle>
@@ -526,10 +571,6 @@ export default function MyAgendaPage() {
        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-grow">
           <div className="lg:col-span-1">
               <Card>
-                  <CardHeader>
-                      <CardTitle>Calendario de Actividades</CardTitle>
-                      <CardDescription>Navega o haz clic en un día para ver sus actividades.</CardDescription>
-                  </CardHeader>
                   <CardContent className="p-2">
                       <Calendar
                           mode="single"
@@ -541,10 +582,10 @@ export default function MyAgendaPage() {
                             event: eventDays,
                             admin: adminTaskDays
                           }}
-                          modifiersStyles={{
-                            commercial: { backgroundColor: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' },
-                            event: { backgroundColor: 'hsl(262.1 83.3% 57.8%)', color: 'hsl(var(--primary-foreground))' },
-                            admin: { backgroundColor: 'hsl(217.2 91.2% 59.8%)', color: 'hsl(var(--primary-foreground))' }
+                          classNames={{
+                            day_modifier_commercial: 'day-commercial-dot',
+                            day_modifier_event: 'day-event-dot',
+                            day_modifier_admin: 'day-admin-dot'
                           }}
                           className="p-0"
                           classNames={{
@@ -552,6 +593,18 @@ export default function MyAgendaPage() {
                               day_today: "bg-accent text-accent-foreground",
                           }}
                        />
+                        <Separator className="my-2"/>
+                        <div className="p-2 space-y-3">
+                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-yellow-500"/> Tarea Comercial</span>
+                                <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-purple-500"/> Evento</span>
+                                <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-500"/> Tarea Admin.</span>
+                            </div>
+                            <Button onClick={handleOpenNewEntryDialog} className="w-full">
+                                <PlusCircle className="mr-2 h-4 w-4" />
+                                Añadir Entrada para este día
+                            </Button>
+                        </div>
                   </CardContent>
               </Card>
           </div>
@@ -582,9 +635,7 @@ export default function MyAgendaPage() {
          <SheetContent>
             <SheetHeader>
                 <SheetTitle className="flex items-center gap-2">{getAgendaItemIcon(selectedItem)} {selectedItem.title}</SheetTitle>
-                <SheetDescription>
-                    {selectedItem.description}
-                </SheetDescription>
+                <SheetDescription>{selectedItem.description}</SheetDescription>
                 <div className="font-medium text-foreground mt-2">{format(selectedItem.date, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: es })}</div>
             </SheetHeader>
             <div className="py-4 space-y-4">
@@ -610,9 +661,34 @@ export default function MyAgendaPage() {
                      </div>
                  )}
             </div>
+            {(isAdmin || (userRole === 'SalesRep' && (selectedItem.rawItem as Order).salesRep === teamMember?.name)) && (
+                <>
+                <Separator />
+                <div className="pt-4 flex justify-end gap-2">
+                    <Button variant="outline" onClick={handleEditSelectedItem}><Edit className="mr-2 h-4 w-4" /> Editar</Button>
+                    <Button variant="destructive" onClick={handleDeleteSelectedItem}><Trash2 className="mr-2 h-4 w-4" /> Eliminar</Button>
+                </div>
+                </>
+            )}
          </SheetContent>
         )}
     </div>
+    
+    <AlertDialog open={!!itemToDelete} onOpenChange={(open) => !open && setItemToDelete(null)}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Esta acción no se puede deshacer. Se eliminará permanentemente la entrada: <strong className="text-foreground">"{itemToDelete?.title}"</strong>.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setItemToDelete(null)}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={confirmDeleteItem} variant="destructive">Sí, eliminar</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+
     <FollowUpResultDialog
         order={currentTask}
         isOpen={isFollowUpDialogOpen}
@@ -624,10 +700,14 @@ export default function MyAgendaPage() {
     />
      <NewTaskDialog
         isOpen={isNewTaskDialogOpen}
-        onOpenChange={setIsNewTaskDialogOpen}
+        onOpenChange={(open) => {
+            setIsNewTaskDialogOpen(open);
+            if(!open) setTaskToEdit(null);
+        }}
         selectedDate={newTaskDate}
-        onSave={handleSaveNewTask}
+        onSave={handleSaveTask}
         taskCategory={newTaskCategory}
+        taskToEdit={taskToEdit}
       />
       <NewEntryTypeDialog
         isOpen={isEntryTypeDialogOpen}
@@ -644,10 +724,11 @@ export default function MyAgendaPage() {
             if (!open) setEventToEdit(null);
             }}
             onSave={handleSaveEvent}
-            isReadOnly={!!eventToEdit}
+            isReadOnly={false}
             allTeamMembers={teamMembers}
         />
         )}
     </Sheet>
+    </>
   );
 }

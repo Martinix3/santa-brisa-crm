@@ -106,6 +106,27 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+  
+  .rdp-day_selected {
+    --dot-commercial: transparent !important;
+    --dot-event: transparent !important;
+    --dot-admin: transparent !important;
+  }
+  
+  .day-commercial-dot {
+    --dot-commercial: radial-gradient(circle 3px at 50% 50%, hsl(var(--primary)) 100%, transparent 0);
+  }
+  .day-event-dot {
+    --dot-event: radial-gradient(circle 3px at 50% 50%, hsl(262.1 83.3% 57.8%) 100%, transparent 0);
+  }
+  .day-admin-dot {
+    --dot-admin: radial-gradient(circle 3px at 50% 50%, hsl(217.2 91.2% 59.8%) 100%, transparent 0);
+  }
+  .rdp-day {
+      background-image: var(--dot-commercial, transparent), var(--dot-event, transparent), var(--dot-admin, transparent);
+      background-repeat: no-repeat, no-repeat, no-repeat;
+      background-position: 25% 85%, 50% 85%, 75% 85%;
+  }
 }
 
 

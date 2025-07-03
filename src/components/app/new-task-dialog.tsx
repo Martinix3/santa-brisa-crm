@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -14,11 +15,10 @@ import { Loader2, Calendar } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { getAccountsFS } from "@/services/account-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
-import type { Account, TeamMember, UserRole, NewScheduledTaskData } from "@/types";
+import type { Account, TeamMember, UserRole, NewScheduledTaskData, Order } from "@/types";
 import { format } from "date-fns";
 import { es } from 'date-fns/locale';
 
-// This is the new schema factory function
 const getNewTaskFormSchema = (taskCategory: 'Commercial' | 'General') => {
   return z.object({
     clientSelectionMode: z.enum(['existing', 'new']).default('existing'),
@@ -28,7 +28,6 @@ const getNewTaskFormSchema = (taskCategory: 'Commercial' | 'General') => {
     assignedToId: z.string().optional(),
     visitDate: z.date(),
   }).superRefine((data, ctx) => {
-    // Only validate client fields for Commercial tasks
     if (taskCategory === 'Commercial') {
       if (data.clientSelectionMode === 'existing' && !data.accountId) {
         ctx.addIssue({ path: ['accountId'], message: 'Debes seleccionar una cuenta existente.' });
@@ -46,26 +45,33 @@ type NewTaskFormValues = z.infer<ReturnType<typeof getNewTaskFormSchema>>;
 interface NewTaskDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (data: NewScheduledTaskData) => Promise<void>;
+  onSave: (data: NewScheduledTaskData, originalTaskId?: string) => Promise<void>;
   selectedDate: Date | undefined;
   taskCategory: 'Commercial' | 'General';
+  taskToEdit?: Order | null;
 }
 
-export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDate, taskCategory }: NewTaskDialogProps) {
+export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDate, taskCategory, taskToEdit }: NewTaskDialogProps) {
   const { userRole, teamMember } = useAuth();
   const [isSaving, setIsSaving] = React.useState(false);
   const [accounts, setAccounts] = React.useState<Account[]>([]);
   const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   
-  const title = taskCategory === 'Commercial' ? 'Añadir Nueva Tarea Comercial' : 'Añadir Tarea Administrativa';
-  const description = taskCategory === 'Commercial' 
-      ? `Programando una nueva visita o tarea de seguimiento para el ${selectedDate ? format(selectedDate, "dd 'de' MMMM 'de' yyyy", { locale: es }) : ''}.`
-      : `Programando una nueva tarea interna/administrativa para el ${selectedDate ? format(selectedDate, "dd 'de' MMMM 'de' yyyy", { locale: es }) : ''}.`;
+  const isEditMode = !!taskToEdit;
+  const title = isEditMode
+    ? `Editar Tarea: ${taskToEdit.clientName}`
+    : (taskCategory === 'Commercial' ? 'Añadir Nueva Tarea Comercial' : 'Añadir Tarea Administrativa');
+  
+  const description = isEditMode 
+      ? "Modifica los detalles de la tarea programada."
+      : (taskCategory === 'Commercial' 
+          ? `Programando una nueva visita o tarea de seguimiento para el ${selectedDate ? format(selectedDate, "dd 'de' MMMM 'de' yyyy", { locale: es }) : ''}.`
+          : `Programando una nueva tarea interna/administrativa para el ${selectedDate ? format(selectedDate, "dd 'de' MMMM 'de' yyyy", { locale: es }) : ''}.`);
 
 
   const form = useForm<NewTaskFormValues>({
-    resolver: zodResolver(getNewTaskFormSchema(taskCategory)), // Using the factory function
+    resolver: zodResolver(getNewTaskFormSchema(taskCategory)),
     defaultValues: {
       clientSelectionMode: 'existing',
       accountId: undefined,
@@ -98,20 +104,32 @@ export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDa
 
   React.useEffect(() => {
     if (isOpen) {
-      form.reset({
-        visitDate: selectedDate ?? new Date(),
-        clientSelectionMode: 'existing',
-        accountId: undefined,
-        newClientName: '',
-        notes: '',
-        assignedToId: userRole === 'Admin' ? teamMember?.id : undefined,
-      });
+        if (isEditMode && taskToEdit) {
+            const assignedMember = teamMembers.find(m => m.name === taskToEdit.salesRep);
+            form.reset({
+                visitDate: taskToEdit.visitDate ? parseISO(taskToEdit.visitDate) : new Date(),
+                notes: taskToEdit.notes || '',
+                accountId: taskToEdit.accountId,
+                clientSelectionMode: 'existing',
+                newClientName: taskToEdit.clientName,
+                assignedToId: assignedMember?.id,
+            });
+        } else {
+            form.reset({
+                visitDate: selectedDate ?? new Date(),
+                clientSelectionMode: 'existing',
+                accountId: undefined,
+                newClientName: '',
+                notes: '',
+                assignedToId: userRole === 'Admin' ? teamMember?.id : undefined,
+            });
+        }
     }
-  }, [isOpen, selectedDate, form, userRole, teamMember]);
+  }, [isOpen, isEditMode, taskToEdit, selectedDate, form, userRole, teamMember, teamMembers]);
 
   const onSubmit = async (data: NewTaskFormValues) => {
     setIsSaving(true);
-    await onSave({ ...data, taskCategory });
+    await onSave({ ...data, taskCategory }, taskToEdit?.id);
     setIsSaving(false);
   };
   
@@ -134,7 +152,7 @@ export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDa
                   <FormField control={form.control} name="clientSelectionMode" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Cliente</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={isEditMode}>
                         <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
                         <SelectContent>
                           <SelectItem value="existing">Cliente Existente</SelectItem>

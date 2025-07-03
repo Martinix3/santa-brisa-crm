@@ -20,7 +20,7 @@ import Link from "next/link";
 import { getAccountByIdFS, updateAccountFS, getAccountsFS } from "@/services/account-service";
 import { getOrdersFS } from "@/services/order-service"; 
 import { getTeamMembersFS } from "@/services/team-member-service";
-import { calculateAccountStatus } from "@/lib/account-logic";
+import { calculateCommercialStatus } from "@/lib/account-logic";
 
 
 const formatAddress = (address?: AddressDetails): string => {
@@ -106,7 +106,28 @@ export default function AccountDetailPage() {
           }).sort((a,b) => parseISO(b.createdAt || b.visitDate).getTime() - parseISO(a.createdAt || a.visitDate).getTime());
           
           setRelatedInteractions(interactions);
-          setCalculatedStatus(calculateAccountStatus(interactions, foundAccount));
+          
+          const openTasks = interactions.filter(o => o.status === 'Programada' || o.status === 'Seguimiento');
+          openTasks.sort((a, b) => {
+              const dateAString = (a.status === 'Programada' ? a.visitDate : a.nextActionDate);
+              const dateBString = (b.status === 'Programada' ? b.visitDate : b.nextActionDate);
+              if(!dateAString) return 1; if(!dateBString) return -1;
+              const dateA = parseISO(dateAString);
+              const dateB = parseISO(dateBString);
+              if (!isValid(dateA)) return 1; if (!isValid(dateB)) return -1;
+              if (dateA.getTime() !== dateB.getTime()) return dateA.getTime() - dateB.getTime();
+              if (a.status === 'Programada' && b.status !== 'Programada') return -1;
+              if (b.status === 'Programada' && a.status !== 'Programada') return 1;
+              return 0;
+          });
+          const nextInteraction = openTasks[0];
+          
+          if (nextInteraction) {
+              setCalculatedStatus(nextInteraction.status as 'Programada' | 'Seguimiento');
+          } else {
+              const commercialStatus = await calculateCommercialStatus(interactions);
+              setCalculatedStatus(commercialStatus);
+          }
         }
 
         if (canEditAccount) {

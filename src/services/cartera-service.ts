@@ -2,9 +2,9 @@
 
 'use server';
 
-import type { Account, Order, TeamMember, EnrichedAccount } from '@/types';
+import type { Account, Order, TeamMember, EnrichedAccount, AccountStatus } from '@/types';
 import { parseISO, isValid, isAfter, subDays } from 'date-fns';
-import { calculateAccountStatus, calculateLeadScore } from '@/lib/account-logic';
+import { calculateCommercialStatus, calculateLeadScore } from '@/lib/account-logic';
 import { VALID_SALE_STATUSES } from '@/lib/constants';
 
 /**
@@ -21,7 +21,6 @@ export async function processCarteraData(
     const ordersByAccountId = new Map<string, Order[]>();
     const ordersByClientName = new Map<string, Order[]>();
 
-    // Group all orders by their accountId AND clientName for robustness.
     for (const order of orders) {
         if (order.accountId) {
             if (!ordersByAccountId.has(order.accountId)) {
@@ -39,9 +38,7 @@ export async function processCarteraData(
         }
     }
     
-    // Process each account from the formal accounts list.
     const enrichedAccountsPromises = accounts.map(async (account): Promise<EnrichedAccount> => {
-        // Combine orders found by ID and by Name, then de-duplicate.
         const ordersById = ordersByAccountId.get(account.id) || [];
         const ordersByName = ordersByClientName.get(account.nombre.toLowerCase().trim()) || [];
         
@@ -49,7 +46,6 @@ export async function processCarteraData(
         [...ordersById, ...ordersByName].forEach(order => combinedOrdersMap.set(order.id, order));
         const accountOrders = Array.from(combinedOrdersMap.values());
         
-        // Sort interactions for this account by date, descending.
         accountOrders.sort((a, b) => {
             const dateA = parseISO(a.visitDate || a.createdAt || new Date(0).toISOString());
             const dateB = parseISO(b.visitDate || b.createdAt || new Date(0).toISOString());
@@ -58,7 +54,6 @@ export async function processCarteraData(
             return dateB.getTime() - dateA.getTime();
         });
 
-        // Find the highest-priority open task for this account
         const openTasks = accountOrders.filter(o => o.status === 'Programada' || o.status === 'Seguimiento');
         openTasks.sort((a, b) => {
             const dateAString = (a.status === 'Programada' ? a.visitDate : a.nextActionDate);
@@ -74,11 +69,16 @@ export async function processCarteraData(
         });
         const nextInteraction = openTasks[0] || undefined;
         
+        let status: AccountStatus;
+        if (nextInteraction) {
+            status = nextInteraction.status as 'Programada' | 'Seguimiento';
+        } else {
+            status = await calculateCommercialStatus(accountOrders);
+        }
+
         const lastInteractionOrder = accountOrders[0];
         const lastInteractionDate = lastInteractionOrder ? parseISO(lastInteractionOrder.visitDate || lastInteractionOrder.createdAt || new Date(0).toISOString()) : undefined;
         
-        // Calculate final status and lead score based on all its interactions
-        const status = await calculateAccountStatus(accountOrders);
         const recentOrderValue = accountOrders
             .filter(o => VALID_SALE_STATUSES.includes(o.status) && o.createdAt && isValid(parseISO(o.createdAt)) && isAfter(parseISO(o.createdAt), subDays(new Date(), 30)))
             .reduce((sum, o) => sum + (o.value || 0), 0);
@@ -108,6 +108,5 @@ export async function processCarteraData(
 
     const enrichedAccounts = await Promise.all(enrichedAccountsPromises);
     
-    // Final sort based on the calculated lead score
     return enrichedAccounts.sort((a, b) => b.leadScore - a.leadScore);
 }

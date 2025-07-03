@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -21,7 +22,7 @@ import { getOrdersFS } from "@/services/order-service";
 import { getAccountsFS } from "@/services/account-service";
 import { getTeamMemberByIdFS } from "@/services/team-member-service";
 import { useToast } from "@/hooks/use-toast";
-import { calculateAccountStatus } from "@/lib/account-logic";
+import { calculateCommercialStatus } from "@/lib/account-logic";
 import { VALID_SALE_STATUSES, ALL_VISIT_STATUSES } from "@/lib/constants";
 
 
@@ -89,7 +90,21 @@ export default function TeamMemberProfilePage() {
         
         const enrichedAccountsPromises = accountsForMember.map(async (account) => {
             const accountOrders = fetchedOrders.filter(order => order.accountId === account.id || order.clientName === account.nombre);
-            const status = await calculateAccountStatus(accountOrders, account);
+            
+            const openTasks = accountOrders.filter(o => o.status === 'Programada' || o.status === 'Seguimiento');
+            const nextInteraction = openTasks.sort((a, b) => {
+                const dateA = parseISO((a.status === 'Programada' ? a.visitDate : a.nextActionDate) || '1970-01-01');
+                const dateB = parseISO((b.status === 'Programada' ? b.visitDate : b.nextActionDate) || '1970-01-01');
+                return dateA.getTime() - dateB.getTime();
+            })[0];
+            
+            let status: AccountStatus;
+            if (nextInteraction) {
+                status = nextInteraction.status as 'Programada' | 'Seguimiento';
+            } else {
+                status = await calculateCommercialStatus(accountOrders);
+            }
+
             return { ...account, status };
         });
 

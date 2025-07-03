@@ -5,19 +5,19 @@ import { parseISO, differenceInDays, isValid } from 'date-fns';
 import { VALID_SALE_STATUSES } from '@/lib/constants';
 
 /**
- * Calculates the current commercial status of an account based on its entire interaction history.
- * The rules are applied in a specific priority order.
+ * Calculates the commercial status of an account based on its sales history,
+ * assuming there are NO open tasks. This is a fallback status.
  * @param ordersForAccount All interactions related to the account.
  * @param account The account document itself.
  * @returns The calculated commercial status of the account.
  */
-export async function calculateAccountStatus(
-    ordersForAccount: Order[],
-    account: Pick<Account, 'createdAt'>
-): Promise<AccountStatus> {
+export async function calculateCommercialStatus(
+    ordersForAccount: Order[]
+): Promise<Exclude<AccountStatus, 'Programada' | 'Seguimiento'>> {
     
-    // Rule 1 (Highest Priority): Check for successful sales.
+    // Check for successful sales.
     const successfulOrders = ordersForAccount.filter(o => VALID_SALE_STATUSES.includes(o.status));
+    
     if (successfulOrders.length >= 2) {
         return 'Repetición';
     }
@@ -25,16 +25,8 @@ export async function calculateAccountStatus(
         return 'Activo';
     }
 
-    // Rule 2: If no sales, check for any open tasks ('Programada' or 'Seguimiento').
-    const hasOpenTasks = ordersForAccount.some(o =>
-        o.status === 'Programada' || o.status === 'Seguimiento'
-    );
-    if (hasOpenTasks) {
-        return 'Potencial';
-    }
-
-    // Rule 3 (Default): If no sales and no open tasks, the account is considered inactive.
-    return 'Inactivo';
+    // Default: If no sales and no open tasks, the account is considered failed for this view.
+    return 'Fallido';
 }
 
 
@@ -54,8 +46,9 @@ export function calculateLeadScore(
     switch (accountStatus) {
         case 'Repetición': score = 90; break;
         case 'Activo': score = 75; break;
-        case 'Potencial': score = 50; break;
-        case 'Inactivo': score = 10; break;
+        case 'Seguimiento': score = 60; break;
+        case 'Programada': score = 50; break;
+        case 'Fallido': score = 10; break;
         default: score = 0;
     }
 

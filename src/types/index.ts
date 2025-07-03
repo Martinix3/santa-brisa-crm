@@ -37,7 +37,7 @@ export interface TeamMember {
 // --- NEW DATA MODEL FROM SPEC ---
 
 export type PotencialType = 'alto' | 'medio' | 'bajo';
-export type AccountStatus = 'Activo' | 'Potencial' | 'Inactivo' | 'Repetición';
+export type AccountStatus = 'Repetición' | 'Activo' | 'Programada' | 'Seguimiento' | 'Fallido';
 
 export interface Account {
   id: string;

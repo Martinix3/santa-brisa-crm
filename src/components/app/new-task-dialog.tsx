@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -19,23 +18,30 @@ import type { Account, TeamMember, UserRole, NewScheduledTaskData } from "@/type
 import { format } from "date-fns";
 import { es } from 'date-fns/locale';
 
-const newTaskFormSchema = z.object({
-  clientSelectionMode: z.enum(['existing', 'new']).default('existing'),
-  accountId: z.string().optional(),
-  newClientName: z.string().optional(),
-  notes: z.string().min(3, "Las notas deben tener al menos 3 caracteres."),
-  assignedToId: z.string().optional(),
-  visitDate: z.date(),
-}).superRefine((data, ctx) => {
-  if (data.clientSelectionMode === 'existing' && !data.accountId) {
-    ctx.addIssue({ path: ['accountId'], message: 'Debes seleccionar una cuenta existente.' });
-  }
-  if (data.clientSelectionMode === 'new' && (!data.newClientName || data.newClientName.trim().length < 2)) {
-    ctx.addIssue({ path: ['newClientName'], message: 'El nombre del nuevo cliente es obligatorio.' });
-  }
-});
+// This is the new schema factory function
+const getNewTaskFormSchema = (taskCategory: 'Commercial' | 'General') => {
+  return z.object({
+    clientSelectionMode: z.enum(['existing', 'new']).default('existing'),
+    accountId: z.string().optional(),
+    newClientName: z.string().optional(),
+    notes: z.string().min(3, "Las notas deben tener al menos 3 caracteres."),
+    assignedToId: z.string().optional(),
+    visitDate: z.date(),
+  }).superRefine((data, ctx) => {
+    // Only validate client fields for Commercial tasks
+    if (taskCategory === 'Commercial') {
+      if (data.clientSelectionMode === 'existing' && !data.accountId) {
+        ctx.addIssue({ path: ['accountId'], message: 'Debes seleccionar una cuenta existente.' });
+      }
+      if (data.clientSelectionMode === 'new' && (!data.newClientName || data.newClientName.trim().length < 2)) {
+        ctx.addIssue({ path: ['newClientName'], message: 'El nombre del nuevo cliente es obligatorio.' });
+      }
+    }
+  });
+};
 
-type NewTaskFormValues = z.infer<typeof newTaskFormSchema>;
+
+type NewTaskFormValues = z.infer<ReturnType<typeof getNewTaskFormSchema>>;
 
 interface NewTaskDialogProps {
   isOpen: boolean;
@@ -59,14 +65,14 @@ export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDa
 
 
   const form = useForm<NewTaskFormValues>({
-    resolver: zodResolver(newTaskFormSchema),
+    resolver: zodResolver(getNewTaskFormSchema(taskCategory)), // Using the factory function
     defaultValues: {
       clientSelectionMode: 'existing',
       accountId: undefined,
       newClientName: '',
       notes: '',
       assignedToId: undefined,
-      visitDate: new Date(),
+      visitDate: selectedDate ?? new Date(),
     }
   });
 
@@ -91,9 +97,9 @@ export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDa
   }, [isOpen, userRole, taskCategory]);
 
   React.useEffect(() => {
-    if (isOpen && selectedDate) {
+    if (isOpen) {
       form.reset({
-        visitDate: selectedDate,
+        visitDate: selectedDate ?? new Date(),
         clientSelectionMode: 'existing',
         accountId: undefined,
         newClientName: '',

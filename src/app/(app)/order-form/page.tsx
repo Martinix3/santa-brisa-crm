@@ -1,28 +1,53 @@
+
 "use client";
 
 import * as React from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Form } from "@/components/ui/form";
-import { FileText } from "lucide-react";
+import { FileText, Loader2 } from "lucide-react";
 import { useOrderWizard } from "@/hooks/use-order-form-wizard";
 
-// pasos
-import { StepClient }       from "@/components/app/order-form/step-client";
-import { StepOutcome }      from "@/components/app/order-form/step-outcome";
-import { StepDetails }      from "@/components/app/order-form/step-details";
-import { StepVerify }       from "@/components/app/order-form/step-verify";
+// Step Components
+import { StepClient } from "@/components/app/order-form/step-client";
+import { StepOutcome } from "@/components/app/order-form/step-outcome";
+import { StepDetails } from "@/components/app/order-form/step-details";
+import { StepVerify } from "@/components/app/order-form/step-verify";
 
 export default function OrderFormWizardPage() {
   const wizard = useOrderWizard();
   const {
-    form, step, client, handleBack, availableMaterials,
-    teamMember, userRole, onSubmit, onFormError,
-    salesRepsList, clavadistas, materialFields,
-    appendMaterial, removeMaterial, debouncedSearchTerm,
-    searchTerm, setSearchTerm, filteredAccounts,
-    handleClientSelect, setStep
+    form,
+    step,
+    client,
+    handleBack,
+    availableMaterials,
+    teamMember,
+    userRole,
+    onSubmit,
+    onFormError,
+    salesRepsList,
+    clavadistas,
+    materialFields,
+    appendMaterial,
+    removeMaterial,
+    debouncedSearchTerm,
+    searchTerm,
+    setSearchTerm,
+    filteredAccounts,
+    handleClientSelect,
+    setStep,
+    isLoading,
   } = wizard;
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-8">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Cargando datos para el formulario...</p>
+      </div>
+    );
+  }
 
   const renderStepContent = () => {
     switch (step) {
@@ -38,14 +63,12 @@ export default function OrderFormWizardPage() {
             />
           </motion.div>
         );
-
       case "outcome":
         return (
           <motion.div key="outcome" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
             <StepOutcome form={form} client={client} setStep={setStep} handleBack={handleBack} />
           </motion.div>
         );
-
       case "details":
         return (
           <motion.div key="details" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
@@ -63,7 +86,6 @@ export default function OrderFormWizardPage() {
             />
           </motion.div>
         );
-
       case "verify":
         return (
           <motion.div key="verify" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>

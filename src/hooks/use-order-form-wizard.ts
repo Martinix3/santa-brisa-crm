@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -16,7 +16,6 @@ import { db } from "@/lib/firebase";
 import { collection, doc } from "firebase/firestore";
 import type { Account, Order, PromotionalMaterial, TeamMember, UserRole, OrderStatus, AccountType } from "@/types";
 import { orderFormSchema, type OrderFormValues, NO_CLAVADISTA_VALUE, ADMIN_SELF_REGISTER_VALUE, type Step } from '@/lib/schemas/order-form-schema';
-import { format } from "date-fns";
 
 export function useOrderWizard() {
   const { toast } = useToast();
@@ -226,49 +225,39 @@ export function useOrderWizard() {
   };
 
   const onFormError = (errors: any) => {
-    let errorMessages: string[] = [];
-    const values = form.getValues();
-    
-    // Manual check if RHF error object is empty, which can happen in complex forms.
     if (Object.keys(errors).length === 0) {
-        const commonErrors = [];
+        const values = form.getValues();
+        let errorMessages = [];
         if (values.outcome === 'successful') {
-            if (!values.numberOfUnits || values.numberOfUnits <= 0) commonErrors.push('Unidades');
-            if (!values.unitPrice || values.unitPrice <= 0) commonErrors.push('Precio Unitario');
-            if (!values.paymentMethod) commonErrors.push('Forma de Pago');
+            if (!values.numberOfUnits || values.numberOfUnits <= 0) errorMessages.push('Unidades');
+            if (!values.unitPrice || values.unitPrice <= 0) errorMessages.push('Precio Unitario');
+            if (!values.paymentMethod) errorMessages.push('Forma de Pago');
             if (values.isNewClient) {
-              if (!values.nombreFiscal?.trim()) commonErrors.push('Nombre Fiscal');
-              if (!values.cif?.trim()) commonErrors.push('CIF');
-              if (!values.direccionFiscal_street?.trim()) commonErrors.push('Dirección Fiscal');
+              if (!values.nombreFiscal?.trim()) errorMessages.push('Nombre Fiscal');
+              if (!values.cif?.trim()) errorMessages.push('CIF');
+              if (!values.direccionFiscal_street?.trim()) errorMessages.push('Dirección Fiscal');
             }
         }
-        if (values.outcome === 'follow-up' && !values.nextActionType) commonErrors.push('Próxima Acción');
-        if (values.outcome === 'failed' && !values.failureReasonType) commonErrors.push('Motivo del Fallo');
+        if (values.outcome === 'follow-up' && !values.nextActionType) errorMessages.push('Próxima Acción');
+        if (values.outcome === 'failed' && !values.failureReasonType) errorMessages.push('Motivo del Fallo');
         if (values.userRole === 'Clavadista' && values.outcome === 'follow-up' && !values.clavadistaSelectedSalesRepId) {
-            commonErrors.push('Asignación de Comercial');
+            errorMessages.push('Asignación de Comercial para el seguimiento');
         }
 
-        if (commonErrors.length > 0) {
-            errorMessages.push(`Faltan campos obligatorios: ${commonErrors.join(', ')}.`);
+        if (errorMessages.length > 0) {
+            toast({
+                title: "Campos requeridos faltantes",
+                description: `Por favor, complete los siguientes campos: ${errorMessages.join(', ')}.`,
+                variant: "destructive",
+                duration: 7000
+            });
         } else {
-            errorMessages.push('Hay campos requeridos sin completar. Por favor, revisa el formulario.');
+            toast({ title: "Error de validación", description: "Por favor, revise el formulario.", variant: "destructive" });
         }
     } else {
-        errorMessages = Object.entries(errors).map(([fieldName, error]: [string, any]) => {
-            let message = `Campo '${fieldName}'`;
-            if (typeof error === 'object' && error !== null && 'message' in error) {
-                message += `: ${error.message}`;
-            }
-            return message;
-        });
+        const errorMessages = Object.entries(errors).map(([fieldName, error]: [string, any]) => `${fieldName}: ${error.message}`);
+        toast({ title: "Errores en el formulario", description: errorMessages.join('; '), variant: "destructive", duration: 9000 });
     }
-    
-    toast({
-      title: "Errores en el formulario",
-      description: errorMessages.join(' '),
-      variant: "destructive",
-      duration: 9000,
-    });
   };
   
   const onSubmit = async (values: OrderFormValues) => {

@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -34,7 +35,7 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { Order, OrderStatus, UserRole, TeamMember, NextActionType, FailureReasonType, ClientType, PromotionalMaterial, Account, CanalOrigenColocacion, PaymentMethod } from "@/types"; 
+import type { Order, OrderStatus, UserRole, TeamMember, NextActionType, FailureReasonType, ClientType, PromotionalMaterial, Account, CanalOrigenColocacion, PaymentMethod, AddressDetails } from "@/types"; 
 import { orderStatusesList, nextActionTypeList, failureReasonList, clientTypeList, canalOrigenColocacionList, paymentMethodList } from "@/lib/data"; 
 import { Loader2, CalendarIcon, Printer, Award, Package, PlusCircle, Trash2, Zap, CreditCard, UploadCloud, Link2 } from "lucide-react"; 
 import { Separator } from "@/components/ui/separator";
@@ -104,6 +105,26 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const [availableMaterials, setAvailableMaterials] = React.useState<PromotionalMaterial[]>([]);
   const [isLoadingDropdownData, setIsLoadingDropdownData] = React.useState(true);
   const { toast } = useToast();
+
+  const associatedAccount = React.useMemo(() => {
+    if (!order) return null;
+    if (order.accountId) {
+      return allAccounts.find(acc => acc.id === order.accountId) || null;
+    }
+    return allAccounts.find(acc => acc.nombre.toLowerCase().trim() === order.clientName.toLowerCase().trim()) || null;
+  }, [order, allAccounts]);
+
+  const formatAddressForDisplay = (address?: AddressDetails): string => {
+      if (!address) return 'No especificada';
+      const parts = [
+        (address.street ? `${address.street}${address.number ? `, ${address.number}` : ''}` : null),
+        address.city,
+        address.province,
+        address.postalCode,
+      ].filter(Boolean);
+      if (parts.length === 0) return 'No especificada';
+      return parts.join(',\n');
+  };
 
   const form = useForm<EditOrderFormValues>({
     resolver: zodResolver(editOrderFormSchema),
@@ -348,6 +369,31 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                     )}
                 />
             </div>
+            
+            {associatedAccount && (
+              <>
+                <Separator className="my-6" />
+                <h3 className="text-md font-semibold text-muted-foreground">Detalles de la Cuenta</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm p-3 border rounded-md bg-muted/50">
+                  <div>
+                    <p className="font-semibold">CIF/NIF</p>
+                    <p>{associatedAccount.cif || 'No especificado'}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold">Tipo de Cuenta</p>
+                    <p>{associatedAccount.type}</p>
+                  </div>
+                  <div className="col-span-1">
+                      <p className="font-semibold">Dirección Facturación</p>
+                      <p className="whitespace-pre-line">{formatAddressForDisplay(associatedAccount.addressBilling)}</p>
+                  </div>
+                   <div className="col-span-1">
+                      <p className="font-semibold">Dirección Entrega</p>
+                      <p className="whitespace-pre-line">{formatAddressForDisplay(associatedAccount.addressShipping)}</p>
+                  </div>
+                </div>
+              </>
+            )}
 
             <Separator className="my-6" />
             <h3 className="text-md font-semibold text-muted-foreground pt-2">Información del Pedido y Productos</h3>

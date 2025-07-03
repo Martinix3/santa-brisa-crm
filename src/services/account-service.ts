@@ -149,59 +149,44 @@ export const updateAccountFS = async (id: string, data: Partial<AccountFormValue
 export const deleteAccountFS = async (id: string): Promise<void> => {
   const batch = writeBatch(db);
 
-  // First, get the account details to find its name
+  // 1. Get the account to be deleted to retrieve its name and other identifiers.
   const accountDocRef = doc(db, ACCOUNTS_COLLECTION, id);
   const accountSnap = await getDoc(accountDocRef);
   if (!accountSnap.exists()) {
-    console.warn(`Account ${id} does not exist. Cannot delete.`);
-    // Consider if you should still try to delete orders by ID, just in case.
-    // For now, we'll exit if the main document is gone.
-    return;
+      console.warn(`Account ${id} does not exist. Cannot delete.`);
+      return;
   }
   const accountData = accountSnap.data();
-  const accountName = accountData.nombre;
+  const accountNameToMatch = accountData.nombre?.trim().toLowerCase();
 
-  // 1. Delete the account document
+  // 2. Delete the account document itself.
   batch.delete(accountDocRef);
 
-  // 2. Find and delete related orders/interactions by BOTH accountId and clientName
+  // 3. Fetch ALL orders to perform a robust, case-insensitive filter in memory.
+  // This is more reliable than a case-sensitive Firestore query if data consistency is not guaranteed.
   const ordersCol = collection(db, ORDERS_COLLECTION);
+  const allOrdersSnapshot = await getDocs(ordersCol);
   
-  // Create two separate queries because Firestore does not support OR clauses on different fields
-  const qById = query(ordersCol, where('accountId', '==', id));
-  const qByName = query(ordersCol, where('clientName', '==', accountName));
+  let deletedOrdersCount = 0;
+  allOrdersSnapshot.forEach(orderDoc => {
+      const orderData = orderDoc.data();
+      const clientNameInOrder = orderData.clientName?.trim().toLowerCase();
+
+      // Check for a match by accountId OR by case-insensitive name.
+      if (orderData.accountId === id || (accountNameToMatch && clientNameInOrder === accountNameToMatch)) {
+          batch.delete(orderDoc.ref);
+          deletedOrdersCount++;
+      }
+  });
 
   try {
-    // Execute both queries in parallel
-    const [ordersByIdSnapshot, ordersByNameSnapshot] = await Promise.all([
-      getDocs(qById),
-      getDocs(qByName),
-    ]);
-    
-    // Use a Map to automatically handle duplicates (orders that match both by ID and name)
-    const ordersToDelete = new Map<string, any>();
-    
-    ordersByIdSnapshot.forEach(orderDoc => {
-      ordersToDelete.set(orderDoc.id, orderDoc.ref);
-    });
-
-    ordersByNameSnapshot.forEach(orderDoc => {
-      ordersToDelete.set(orderDoc.id, orderDoc.ref);
-    });
-    
-    let deletedCount = 0;
-    ordersToDelete.forEach(orderRef => {
-      batch.delete(orderRef);
-      deletedCount++;
-    });
-
-    // Commit all deletions in one atomic operation
-    await batch.commit();
-    console.log(`Account ${id} ('${accountName}') and ${deletedCount} related orders deleted successfully.`);
-
+      // 4. Commit all deletions atomically.
+      await batch.commit();
+      console.log(`Account ${id} ('${accountData.nombre}') and ${deletedOrdersCount} related orders deleted successfully.`);
   } catch (error) {
-    console.error(`Error during batched deletion for account ${id}:`, error);
-    throw error; // Re-throw the error to be caught by the calling function
+      console.error(`Error during batched deletion for account ${id}:`, error);
+      // Re-throw the error to be handled by the calling component (e.g., to show a toast).
+      throw error;
   }
 };
 

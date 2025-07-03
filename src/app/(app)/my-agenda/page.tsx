@@ -2,9 +2,9 @@
 "use client";
 
 import * as React from "react";
-import { format, isSameDay, parseISO, startOfDay, isValid, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, isWithinInterval } from "date-fns";
+import { format, isSameDay, parseISO, startOfDay, isValid, startOfWeek, endOfWeek, endOfDay, startOfMonth, endOfMonth, eachDayOfInterval, isWithinInterval } from "date-fns";
 import { es } from "date-fns/locale";
-import { Calendar as CalendarIcon, ClipboardList, PartyPopper, Loader2, Filter, ChevronLeft, ChevronRight, Info, User, Send, Briefcase } from "lucide-react";
+import { Calendar as CalendarIcon, ClipboardList, PartyPopper, Loader2, Filter, ChevronLeft, ChevronRight, Info, User, Send, Briefcase, Footprints } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -19,7 +19,7 @@ import type { Order, CrmEvent, TeamMember, UserRole, OrderStatus } from "@/types
 import StatusBadge from "@/components/app/status-badge";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 
 // --- TYPE DEFINITIONS ---
 type AgendaItemType = 'tarea_comercial' | 'evento';
@@ -51,7 +51,7 @@ const getAgendaItemIcon = (item: AgendaItem) => {
 const getInteractionType = (interaction: Order): string => {
     if (interaction.status === 'Programada') return "Visita Programada";
     if (interaction.status === 'Seguimiento') return `Seguimiento: ${interaction.nextActionType || 'N/D'}`;
-    return "Tarea Desconocida";
+    return "Tarea Comercial";
 }
 
 // --- MAIN COMPONENT ---
@@ -382,8 +382,8 @@ export default function MyAgendaPage() {
                 <SheetTitle className="flex items-center gap-2">{getAgendaItemIcon(selectedItem)} {selectedItem.title}</SheetTitle>
                 <SheetDescription>
                     {selectedItem.description}
-                    <p className="font-medium text-foreground mt-2">{format(selectedItem.date, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: es })}</p>
                 </SheetDescription>
+                <div className="font-medium text-foreground pt-2">{format(selectedItem.date, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: es })}</div>
             </SheetHeader>
             <div className="py-4 space-y-4">
                 {selectedItem.type === 'tarea_comercial' && (

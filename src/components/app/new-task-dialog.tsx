@@ -60,6 +60,14 @@ export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDa
 
   const form = useForm<NewTaskFormValues>({
     resolver: zodResolver(newTaskFormSchema),
+    defaultValues: {
+      clientSelectionMode: 'existing',
+      accountId: undefined,
+      newClientName: '',
+      notes: '',
+      assignedToId: undefined,
+      visitDate: new Date(),
+    }
   });
 
   React.useEffect(() => {
@@ -83,7 +91,7 @@ export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDa
   }, [isOpen, userRole, taskCategory]);
 
   React.useEffect(() => {
-    if (selectedDate) {
+    if (isOpen && selectedDate) {
       form.reset({
         visitDate: selectedDate,
         clientSelectionMode: 'existing',
@@ -93,7 +101,7 @@ export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDa
         assignedToId: userRole === 'Admin' ? teamMember?.id : undefined,
       });
     }
-  }, [selectedDate, form, userRole, teamMember]);
+  }, [isOpen, selectedDate, form, userRole, teamMember]);
 
   const onSubmit = async (data: NewTaskFormValues) => {
     setIsSaving(true);

@@ -366,7 +366,12 @@ export default function MyAgendaPage() {
       return;
     }
     try {
-      await addScheduledTaskFS(data, teamMember);
+      // Adjust the date to prevent timezone issues.
+      // By setting the time to noon local time, we ensure that when it's converted to UTC, it remains on the same day.
+      const adjustedDate = new Date(data.visitDate);
+      adjustedDate.setHours(12, 0, 0, 0);
+
+      await addScheduledTaskFS({ ...data, visitDate: adjustedDate }, teamMember);
       toast({ title: "¡Tarea Creada!", description: "La nueva tarea ha sido añadida a la agenda." });
       refreshDataSignature();
       setIsNewTaskDialogOpen(false);
@@ -580,7 +585,7 @@ export default function MyAgendaPage() {
                 <SheetDescription>
                     {selectedItem.description}
                 </SheetDescription>
-                <div className="font-medium text-foreground pt-2">{format(selectedItem.date, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: es })}</div>
+                <div className="font-medium text-foreground mt-2">{format(selectedItem.date, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: es })}</div>
             </SheetHeader>
             <div className="py-4 space-y-4">
                 {(selectedItem.type === 'tarea_comercial' || selectedItem.type === 'tarea_administrativa') && (

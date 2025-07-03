@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -12,7 +11,6 @@ import { useOrderWizard } from "@/hooks/use-order-form-wizard";
 import { StepClient }       from "@/components/app/order-form/step-client";
 import { StepOutcome }      from "@/components/app/order-form/step-outcome";
 import { StepDetails }      from "@/components/app/order-form/step-details";
-import { StepNewClientData } from "@/components/app/order-form/step-new-client-data";
 import { StepVerify }       from "@/components/app/order-form/step-verify";
 
 export default function OrderFormWizardPage() {
@@ -62,18 +60,6 @@ export default function OrderFormWizardPage() {
               userRole={userRole}
               salesRepsList={salesRepsList}
               clavadistas={clavadistas}
-            />
-          </motion.div>
-        );
-
-      case "new_client_data":
-        return (
-          <motion.div key="new_client_data" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
-            <StepNewClientData
-              form={form}
-              client={client}
-              handleBack={handleBack}
-              handleNextStep={wizard.handleNextStep}
             />
           </motion.div>
         );

@@ -200,14 +200,7 @@ export function useOrderWizard() {
   const handleBack = () => {
     if (step === "outcome") setStep("client");
     if (step === "details") setStep("outcome");
-    if (step === "new_client_data") setStep("details");
-    if (step === "verify") {
-      if (client?.id === 'new' && form.getValues('outcome') === 'successful') {
-        setStep("new_client_data");
-      } else {
-        setStep("details");
-      }
-    }
+    if (step === "verify") setStep("details");
   };
 
   const handleNextStep = async () => {
@@ -218,25 +211,19 @@ export function useOrderWizard() {
       else if (outcome === 'follow-up') fieldsToValidate = ['nextActionType', 'nextActionCustom', 'nextActionDate', 'selectedSalesRepId', 'clavadistaSelectedSalesRepId'];
       else if (outcome === 'failed') fieldsToValidate = ['failureReasonType', 'failureReasonCustom'];
       fieldsToValidate.push('assignedMaterials');
-    }
-    
-    if (step === 'new_client_data') {
-        fieldsToValidate = ['nombreFiscal', 'cif', 'direccionFiscal_street', 'direccionFiscal_city', 'direccionFiscal_province', 'direccionFiscal_postalCode'];
+      
+      if(form.getValues('isNewClient') && outcome === 'successful') {
+        fieldsToValidate.push('nombreFiscal', 'cif', 'direccionFiscal_street', 'direccionFiscal_city', 'direccionFiscal_province', 'direccionFiscal_postalCode');
         if (!form.getValues('sameAsBilling')) {
           fieldsToValidate.push('direccionEntrega_street', 'direccionEntrega_city', 'direccionEntrega_province', 'direccionEntrega_postalCode');
         }
+      }
     }
 
     const isValid = fieldsToValidate.length > 0 ? await form.trigger(fieldsToValidate) : true;
     if (!isValid) return;
 
     if (step === 'details') {
-      if (client?.id === 'new' && form.getValues('outcome') === 'successful') {
-        setStep('new_client_data');
-      } else {
-        setStep('verify');
-      }
-    } else if (step === 'new_client_data') {
       setStep('verify');
     }
   };
@@ -269,7 +256,6 @@ export function useOrderWizard() {
   };
   
   const onSubmit = async (values: OrderFormValues) => {
-    console.log('🚀 onSubmit disparado', values);
     setIsSubmitting(true);
     if (!teamMember || !userRole) {
         toast({ title: "Error de autenticación", description: "No se pudo identificar al usuario. Por favor, recargue la página.", variant: "destructive" });

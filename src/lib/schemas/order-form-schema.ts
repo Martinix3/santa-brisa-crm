@@ -6,7 +6,7 @@ import type { UserRole } from "@/types";
 export const NO_CLAVADISTA_VALUE = "##NONE##";
 export const ADMIN_SELF_REGISTER_VALUE = "##ADMIN_SELF##";
 
-export type Step = "client" | "outcome" | "details" | "new_client_data" | "verify";
+export type Step = "client" | "outcome" | "details" | "verify";
 
 const assignedMaterialSchema = z.object({
   materialId: z.string().min(1, "Debe seleccionar un material."),
@@ -14,7 +14,7 @@ const assignedMaterialSchema = z.object({
 });
 
 const baseOrderFormSchema = z.object({
-  userRole: z.enum(userRolesList as [UserRole, ...UserRole[]]).optional(),
+  userRole: z.enum(userRolesList as [UserRole, ...UserRole[]]).nullable(),
   isNewClient: z.boolean().default(false),
   outcome: z.enum(["successful", "failed", "follow-up"]).optional(),
   clavadistaId: z.string().optional(),

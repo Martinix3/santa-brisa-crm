@@ -9,11 +9,11 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, ArrowRight, Trash2, PlusCircle, Calendar as CalendarIcon, Award, Package, Info } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Trash2, PlusCircle, Calendar as CalendarIcon, Award, Package, Info, Checkbox } from 'lucide-react';
 import { format, subDays, isEqual } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { paymentMethodList, nextActionTypeList, failureReasonList, canalOrigenColocacionList } from '@/lib/data';
+import { paymentMethodList, nextActionTypeList, failureReasonList, canalOrigenColocacionList, provincesSpainList } from '@/lib/data';
 import { ADMIN_SELF_REGISTER_VALUE, NO_CLAVADISTA_VALUE } from '@/lib/schemas/order-form-schema';
 import type { OrderFormValues } from '@/lib/schemas/order-form-schema';
 import type { PromotionalMaterial, TeamMember, UserRole } from '@/types';
@@ -49,6 +49,10 @@ export const StepDetails: React.FC<StepDetailsProps> = ({
   const failureReasonTypeWatched = useWatch({ control: form.control, name: 'failureReasonType' });
   const watchedMaterials = useWatch({ control: form.control, name: 'assignedMaterials' });
 
+  // New watches for this change
+  const isNewClient = useWatch({ control: form.control, name: 'isNewClient' });
+  const watchSameAsBilling = useWatch({ control: form.control, name: 'sameAsBilling' });
+
   React.useEffect(() => {
     if (watchedMaterials) {
         watchedMaterials.forEach((item, index) => {
@@ -77,11 +81,11 @@ export const StepDetails: React.FC<StepDetailsProps> = ({
       </CardHeader>
       <CardContent className="space-y-6">
           <div className="space-y-4">
-              <h3 className="text-md font-semibold text-primary">Detalles del Pedido (Opcional si no hay venta)</h3>
+              <h3 className="text-md font-semibold text-primary">Detalles del Pedido</h3>
               <div className="text-sm text-muted-foreground flex items-start gap-2 p-3 bg-secondary/30 rounded-lg">
                 <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
                 <p>
-                  Si la visita resultó en un <strong className="text-foreground">pedido exitoso</strong>, estos campos son obligatorios. Para <strong className="text-foreground">seguimientos</strong> o <strong className="text-foreground">visitas fallidas</strong>, puedes dejarlos en blanco.
+                  Si la visita resultó en un <strong className="text-foreground">pedido exitoso</strong>, estos campos son obligatorios. Para <strong className="text-foreground">seguimientos</strong> o <strong className="text-foreground">visitas fallidas</strong>, son opcionales.
                 </p>
               </div>
               <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades</FormLabel><FormControl><Input type="number" min={1} step={1} placeholder="Ej: 12" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)}/>
@@ -174,6 +178,53 @@ export const StepDetails: React.FC<StepDetailsProps> = ({
                     <FormField control={form.control} name="failureReasonType" render={({ field }) => (<FormItem><FormLabel>Motivo del Fallo</FormLabel><Select onValueChange={field.onChange} value={field.value ?? ""}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar motivo..."/></SelectTrigger></FormControl><SelectContent>{failureReasonList.map(r=>(<SelectItem key={r} value={r}>{r}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
                     {failureReasonTypeWatched === 'Otro (especificar)' && <FormField control={form.control} name="failureReasonCustom" render={({ field }) => (<FormItem><FormLabel>Especificar Motivo</FormLabel><FormControl><Input {...field}/></FormControl><FormMessage/></FormItem>)}/>}
               </div>
+          )}
+
+           {isNewClient && (
+            <>
+                <Separator className="!mt-8" />
+                <h3 className="text-lg font-semibold text-primary">Información de la Nueva Cuenta</h3>
+                <p className="text-sm text-muted-foreground">
+                  Completa los datos de facturación y entrega. Son obligatorios si el resultado fue un pedido exitoso.
+                </p>
+
+                <Separator/><h3 className="font-semibold text-base mt-2">Datos de Facturación</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField control={form.control} name="nombreFiscal" render={({ field }) => (<FormItem><FormLabel>Nombre Fiscal</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)}/>
+                  <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)}/>
+                </div>
+                <FormField control={form.control} name="direccionFiscal_street" render={({ field }) => (<FormItem><FormLabel>Calle Fiscal</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    <FormField control={form.control} name="direccionFiscal_number" render={({ field }) => (<FormItem><FormLabel>Número</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="direccionFiscal_postalCode" render={({ field }) => (<FormItem><FormLabel>C.P.</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="direccionFiscal_city" render={({ field }) => (<FormItem><FormLabel>Ciudad</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="direccionFiscal_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel><Select onValueChange={field.onChange} value={field.value ?? ""}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                </div>
+                
+                <Separator/><h3 className="font-semibold text-base mt-2">Datos de Entrega</h3>
+                <FormField control={form.control} name="sameAsBilling" render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-2 space-y-0"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="font-normal">La dirección de entrega es la misma que la de facturación</FormLabel></FormItem>
+                )} />
+
+                {!watchSameAsBilling && (
+                    <div className="space-y-4 pt-2 border-l-2 pl-4 border-primary">
+                        <FormField control={form.control} name="direccionEntrega_street" render={({ field }) => (<FormItem><FormLabel>Calle Entrega</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            <FormField control={form.control} name="direccionEntrega_number" render={({ field }) => (<FormItem><FormLabel>Número</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="direccionEntrega_postalCode" render={({ field }) => (<FormItem><FormLabel>C.P.</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="direccionEntrega_city" render={({ field }) => (<FormItem><FormLabel>Ciudad</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="direccionEntrega_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel><Select onValueChange={field.onChange} value={field.value ?? ""}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar provincia" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map(p=>(<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                        </div>
+                    </div>
+                )}
+                <Separator/><h3 className="font-semibold text-base mt-2">Datos de Contacto (Opcional)</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="contactoNombre" render={({ field }) => (<FormItem><FormLabel>Nombre Contacto</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="contactoTelefono" render={({ field }) => (<FormItem><FormLabel>Teléfono Contacto</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)}/>
+                </div>
+                <FormField control={form.control} name="contactoCorreo" render={({ field }) => (<FormItem><FormLabel>Email Contacto</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="observacionesAlta" render={({ field }) => (<FormItem><FormLabel>Observaciones sobre el Alta</FormLabel><FormControl><Textarea placeholder="Ej: Condiciones especiales acordadas..." {...field} /></FormControl><FormMessage /></FormItem>)} />
+            </>
           )}
           
           <Separator className="!mt-8" />

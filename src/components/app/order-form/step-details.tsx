@@ -9,7 +9,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, ArrowRight, Trash2, PlusCircle, Calendar as CalendarIcon, Award, Package } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Trash2, PlusCircle, Calendar as CalendarIcon, Award, Package, Info } from 'lucide-react';
 import { format, subDays, isEqual } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -76,24 +76,31 @@ export const StepDetails: React.FC<StepDetailsProps> = ({
           <CardTitle>Paso 3: Completa los Detalles</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-          {outcomeWatched === 'successful' && (
-              <div className="space-y-4">
-                  <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades</FormLabel><FormControl><Input type="number" min={1} step={1} placeholder="Ej: 12" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)}/>
-                  <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario (€ sin IVA)</FormLabel><FormControl><Input type="number" min={0.01} step={0.01} placeholder="Ej: 15.50" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage /></FormItem>)}/>
-                  <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel>Forma de Pago</FormLabel><Select onValueChange={field.onChange} value={field.value ?? ""}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar forma de pago"/></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(m=>(<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
-                   {paymentMethodWatched === 'Giro Bancario' && (
-                      <FormField control={form.control} name="iban" render={({ field }) => (
-                          <FormItem>
-                              <FormLabel>IBAN</FormLabel>
-                              <FormControl><Input placeholder="ES00 0000 0000 0000 0000 0000" {...field} value={field.value ?? ""} /></FormControl>
-                              <FormMessage />
-                          </FormItem>
-                      )}/>
-                  )}
+          <div className="space-y-4">
+              <h3 className="text-md font-semibold text-primary">Detalles del Pedido (Opcional si no hay venta)</h3>
+              <div className="text-sm text-muted-foreground flex items-start gap-2 p-3 bg-secondary/30 rounded-lg">
+                <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <p>
+                  Si la visita resultó en un <strong className="text-foreground">pedido exitoso</strong>, estos campos son obligatorios. Para <strong className="text-foreground">seguimientos</strong> o <strong className="text-foreground">visitas fallidas</strong>, puedes dejarlos en blanco.
+                </p>
               </div>
-          )}
+              <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades</FormLabel><FormControl><Input type="number" min={1} step={1} placeholder="Ej: 12" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)}/>
+              <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario (€ sin IVA)</FormLabel><FormControl><Input type="number" min={0.01} step={0.01} placeholder="Ej: 15.50" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage /></FormItem>)}/>
+              <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel>Forma de Pago</FormLabel><Select onValueChange={field.onChange} value={field.value ?? ""}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar forma de pago"/></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(m=>(<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
+               {paymentMethodWatched === 'Giro Bancario' && (
+                  <FormField control={form.control} name="iban" render={({ field }) => (
+                      <FormItem>
+                          <FormLabel>IBAN</FormLabel>
+                          <FormControl><Input placeholder="ES00 0000 0000 0000 0000 0000" {...field} value={field.value ?? ""} /></FormControl>
+                          <FormMessage />
+                      </FormItem>
+                  )}/>
+              )}
+          </div>
+          
           {outcomeWatched === 'follow-up' && (
-              <div className="space-y-4">
+              <div className="space-y-4 pt-4 border-t">
+                  <h3 className="text-md font-semibold text-primary">Próxima Tarea de Seguimiento</h3>
                   <FormField control={form.control} name="nextActionType" render={({ field }) => (<FormItem><FormLabel>Próxima Acción</FormLabel><Select onValueChange={field.onChange} value={field.value ?? ""} ><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar próxima acción..." /></SelectTrigger></FormControl><SelectContent>{nextActionTypeList.map((type) => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
                   {nextActionTypeWatched === 'Opción personalizada' && <FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Especificar Acción</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>}
                   <FormField
@@ -161,8 +168,9 @@ export const StepDetails: React.FC<StepDetailsProps> = ({
                   )}
               </div>
           )}
-            {outcomeWatched === 'failed' && (
-              <div className="space-y-4">
+          {outcomeWatched === 'failed' && (
+              <div className="space-y-4 pt-4 border-t">
+                  <h3 className="text-md font-semibold text-primary">Detalles del Fallo</h3>
                     <FormField control={form.control} name="failureReasonType" render={({ field }) => (<FormItem><FormLabel>Motivo del Fallo</FormLabel><Select onValueChange={field.onChange} value={field.value ?? ""}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar motivo..."/></SelectTrigger></FormControl><SelectContent>{failureReasonList.map(r=>(<SelectItem key={r} value={r}>{r}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
                     {failureReasonTypeWatched === 'Otro (especificar)' && <FormField control={form.control} name="failureReasonCustom" render={({ field }) => (<FormItem><FormLabel>Especificar Motivo</FormLabel><FormControl><Input {...field}/></FormControl><FormMessage/></FormItem>)}/>}
               </div>

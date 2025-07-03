@@ -29,9 +29,6 @@ import { getTeamMembersFS } from "@/services/team-member-service";
 import Link from "next/link";
 
 
-const relevantOrderStatusesForDashboard: OrderStatus[] = ['Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Cancelado'];
-
-
 export default function OrdersDashboardPage() {
   const { toast } = useToast();
   const { userRole: currentUserRole, refreshDataSignature } = useAuth();
@@ -60,7 +57,9 @@ export default function OrdersDashboardPage() {
           getAccountsFS()
         ]);
         
-        setAllOrders(firestoreOrders.filter(order => relevantOrderStatusesForDashboard.includes(order.status)));
+        // This is the core logic fix: Define which statuses are tasks and exclude them.
+        const taskStatuses: OrderStatus[] = ['Programada', 'Seguimiento', 'Fallido', 'Completado'];
+        setAllOrders(firestoreOrders.filter(order => !taskStatuses.includes(order.status)));
         
         setAllAccounts(firestoreAccounts);
 
@@ -80,7 +79,7 @@ export default function OrdersDashboardPage() {
   }, [toast, refreshDataSignature, currentUserRole]);
 
 
-  const uniqueStatusesForFilter = ["Todos", ...relevantOrderStatusesForDashboard] as (OrderStatus | "Todos")[];
+  const uniqueStatusesForFilter = ["Todos", ...orderStatusesList.filter(s => !['Programada', 'Seguimiento', 'Fallido', 'Completado'].includes(s))] as (OrderStatus | "Todos")[];
 
   const accountsMapById = React.useMemo(() => new Map(allAccounts.map(acc => [acc.id, acc])), [allAccounts]);
   const accountsMapByName = React.useMemo(() => {
@@ -557,8 +556,8 @@ export default function OrdersDashboardPage() {
                                   value={order.status} 
                                   onValueChange={(newStatus) => handleChangeOrderStatus(order, newStatus as OrderStatus)}
                               >
-                                {relevantOrderStatusesForDashboard.map((statusVal) => (
-                                  <DropdownMenuRadioItem key={statusVal} value={statusVal} disabled={!relevantOrderStatusesForDashboard.includes(statusVal as OrderStatus)}>
+                                {orderStatusesList.filter(s => !['Programada', 'Seguimiento', 'Fallido', 'Completado'].includes(s)).map((statusVal) => (
+                                  <DropdownMenuRadioItem key={statusVal} value={statusVal}>
                                     {statusVal}
                                   </DropdownMenuRadioItem>
                                 ))}

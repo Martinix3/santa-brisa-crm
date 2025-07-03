@@ -26,7 +26,7 @@ import DeliveryNoteDialog from "@/components/app/delivery-note-dialog";
 
 export default function DirectSalesSbPage() {
   const { toast } = useToast();
-  const { userRole, refreshDataSignature } = useAuth();
+  const { userRole, dataSignature, refreshDataSignature } = useAuth();
   const [sales, setSales] = React.useState<DirectSale[]>([]);
   const [accounts, setAccounts] = React.useState<Account[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -63,7 +63,7 @@ export default function DirectSalesSbPage() {
     } else {
         setIsLoading(false);
     }
-  }, [toast, isAdmin, refreshDataSignature]);
+  }, [toast, isAdmin, dataSignature]);
   
   const accountsMap = React.useMemo(() => new Map(accounts.map(acc => [acc.id, acc])), [accounts]);
 

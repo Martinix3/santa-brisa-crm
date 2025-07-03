@@ -62,7 +62,7 @@ export default function AccountDetailPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { userRole, teamMember, refreshDataSignature } = useAuth();
+  const { userRole, teamMember, dataSignature, refreshDataSignature } = useAuth();
   const { toast } = useToast();
 
   const [account, setAccount] = React.useState<Account | null>(null);
@@ -122,7 +122,7 @@ export default function AccountDetailPage() {
       }
     }
     loadAccountData();
-  }, [accountId, toast, canEditAccount, refreshDataSignature]);
+  }, [accountId, toast, canEditAccount, dataSignature]);
 
   React.useEffect(() => {
     if (canEditAccount && searchParams.get('edit') === 'true' && account && !isLoading) {

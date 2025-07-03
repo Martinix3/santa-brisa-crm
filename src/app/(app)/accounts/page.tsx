@@ -27,7 +27,7 @@ type BucketFilter = "Todos" | "Vencidas" | "Para Hoy" | "Pendientes";
 
 export default function AccountsPage() {
   const { toast } = useToast();
-  const { userRole, teamMember, refreshDataSignature } = useAuth();
+  const { userRole, teamMember, dataSignature, refreshDataSignature } = useAuth();
   
   const [enrichedAccounts, setEnrichedAccounts] = React.useState<EnrichedAccount[]>([]);
   const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([]);
@@ -65,7 +65,7 @@ export default function AccountsPage() {
       }
     }
     loadData();
-  }, [toast, refreshDataSignature]);
+  }, [toast, dataSignature]);
   
   const { activeAccounts, potentialAccounts, failedAccounts } = React.useMemo(() => {
     const todayStart = startOfDay(new Date());
@@ -228,11 +228,11 @@ export default function AccountsPage() {
         description: `La cuenta "${accountToDelete.nombre}" y sus interacciones asociadas han sido eliminadas.`,
         variant: "destructive"
       });
-      setAccountToDelete(null);
-      refreshDataSignature(); // This reloads data, so we don't need to manually filter the state
+      refreshDataSignature();
     } catch (error) {
       console.error("Error deleting account:", error);
       toast({ title: "Error al Eliminar", description: "No se pudo eliminar la cuenta y sus interacciones.", variant: "destructive" });
+    } finally {
       setIsLoading(false);
       setAccountToDelete(null);
     }

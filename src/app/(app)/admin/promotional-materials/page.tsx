@@ -23,7 +23,7 @@ import { mockPromotionalMaterials as initialMockMaterialsForSeeding } from "@/li
 
 export default function PromotionalMaterialsPage() {
   const { toast } = useToast();
-  const { userRole, refreshDataSignature } = useAuth();
+  const { userRole, dataSignature, refreshDataSignature } = useAuth();
   const [materials, setMaterials] = React.useState<PromotionalMaterial[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [editingMaterial, setEditingMaterial] = React.useState<PromotionalMaterial | null>(null);
@@ -50,7 +50,7 @@ export default function PromotionalMaterialsPage() {
       }
     }
     loadMaterials();
-  }, [toast, refreshDataSignature]);
+  }, [toast, dataSignature]);
 
 
   const handleAddNewMaterial = () => {

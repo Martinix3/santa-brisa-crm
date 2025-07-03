@@ -18,7 +18,7 @@ import { getSuppliersFS, addSupplierFS, deleteSupplierFS } from "@/services/supp
 
 export default function SuppliersPage() {
   const { toast } = useToast();
-  const { userRole, refreshDataSignature } = useAuth();
+  const { userRole, dataSignature, refreshDataSignature } = useAuth();
   const [suppliers, setSuppliers] = React.useState<Supplier[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSupplierDialogOpen, setIsSupplierDialogOpen] = React.useState(false);
@@ -46,7 +46,7 @@ export default function SuppliersPage() {
     } else {
       setIsLoading(false);
     }
-  }, [toast, isAdmin, refreshDataSignature]);
+  }, [toast, isAdmin, dataSignature]);
 
   const handleAddNewSupplier = () => {
     if (!isAdmin) return;

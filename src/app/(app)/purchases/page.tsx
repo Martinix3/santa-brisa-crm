@@ -27,7 +27,7 @@ import { testUpload } from "@/services/test-upload-service";
 
 export default function PurchasesPage() {
   const { toast } = useToast();
-  const { userRole, refreshDataSignature } = useAuth();
+  const { userRole, dataSignature, refreshDataSignature } = useAuth();
   const [purchases, setPurchases] = React.useState<Purchase[]>([]);
   const [materials, setMaterials] = React.useState<PromotionalMaterial[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -69,7 +69,7 @@ export default function PurchasesPage() {
     } else {
         setIsLoading(false);
     }
-  }, [toast, isAdmin, refreshDataSignature]);
+  }, [toast, isAdmin, dataSignature]);
 
   const handleAddNewPurchase = () => {
     if (!isAdmin) return;

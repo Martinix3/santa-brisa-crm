@@ -31,7 +31,7 @@ import Link from "next/link";
 
 export default function OrdersDashboardPage() {
   const { toast } = useToast();
-  const { userRole: currentUserRole, refreshDataSignature } = useAuth();
+  const { userRole: currentUserRole, dataSignature, refreshDataSignature } = useAuth();
   
   const [allOrders, setAllOrders] = React.useState<Order[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -76,7 +76,7 @@ export default function OrdersDashboardPage() {
       }
     }
     loadInitialData();
-  }, [toast, refreshDataSignature, currentUserRole]);
+  }, [toast, dataSignature, currentUserRole]);
 
 
   const uniqueStatusesForFilter = ["Todos", ...orderStatusesList.filter(s => !['Programada', 'Seguimiento', 'Fallido', 'Completado'].includes(s))] as (OrderStatus | "Todos")[];

@@ -241,23 +241,31 @@ export function useOrderWizard() {
     }
   };
 
-  const handleFinalSubmit = async () => {
-    const isValid = await form.trigger();
+  const onFormError = (errors: any) => {
+    console.error("Validation Errors on submit:", errors);
+    const errorMessages = Object.entries(errors).map(([fieldName, error]: [string, any]) => {
+        let message = `Campo '${fieldName}'`;
+        if (typeof error === 'object' && error !== null && 'message' in error) {
+            message = `${error.message}`;
+        }
+        if (fieldName === 'items' && Array.isArray(error)) {
+            const itemErrors = error.map((itemError, index) => {
+                if (itemError) {
+                    return `Artículo ${index + 1}: ${Object.values(itemError).map((e: any) => e.message).join(', ')}`;
+                }
+                return null;
+            }).filter(Boolean);
+            if(itemErrors.length > 0) message = `Errores en artículos: ${itemErrors.join('; ')}`;
+        }
+        return message;
+    });
 
-    if (!isValid) {
-      const errorList = Object.entries(form.formState.errors).map(([fieldName, error]) => `${fieldName}: ${error.message}`);
-      console.error("Validation Errors:", form.formState.errors);
-      toast({
-        title: "Errores en el formulario",
-        description: `Por favor, corrige los siguientes errores: ${errorList.join(', ')}`,
-        variant: "destructive",
-        duration: 9000,
-      });
-      return;
-    }
-    
-    const values = form.getValues();
-    await onSubmit(values);
+    toast({
+      title: "Errores en el formulario",
+      description: `Por favor, corrige los siguientes errores: ${errorMessages.join('. ')}`,
+      variant: "destructive",
+      duration: 9000,
+    });
   };
   
   const onSubmit = async (values: OrderFormValues) => {
@@ -414,7 +422,7 @@ export function useOrderWizard() {
 
   return {
     form, step, setStep, client, handleClientSelect, searchTerm, setSearchTerm, filteredAccounts, debouncedSearchTerm, handleBack,
-    handleNextStep, onSubmit, handleFinalSubmit, isLoading, isSubmitting, clavadistas, salesRepsList, availableMaterials,
+    handleNextStep, onSubmit, onFormError, isLoading, isSubmitting, clavadistas, salesRepsList, availableMaterials,
     materialFields, appendMaterial, removeMaterial, userRole, teamMember
   };
 }

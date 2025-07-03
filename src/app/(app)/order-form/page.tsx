@@ -19,7 +19,7 @@ export default function OrderFormWizardPage() {
   const wizard = useOrderWizard();
   const {
     form, step, client, handleBack, availableMaterials,
-    isSubmitting, teamMember, userRole, handleFinalSubmit,
+    isSubmitting, teamMember, userRole, onSubmit, onFormError,
     salesRepsList, clavadistas, materialFields,
     appendMaterial, removeMaterial, debouncedSearchTerm,
     searchTerm, setSearchTerm, filteredAccounts,
@@ -89,7 +89,6 @@ export default function OrderFormWizardPage() {
               availableMaterials={availableMaterials}
               teamMember={teamMember}
               userRole={userRole}
-              handleFinalSubmit={handleFinalSubmit}
             />
           </motion.div>
         );
@@ -104,9 +103,11 @@ export default function OrderFormWizardPage() {
       </header>
       
       <Form {...form}>
-        <Card className="max-w-4xl mx-auto shadow-lg mt-6 overflow-hidden">
-          <AnimatePresence mode="wait">{renderStepContent()}</AnimatePresence>
-        </Card>
+        <form onSubmit={form.handleSubmit(onSubmit, onFormError)} noValidate>
+          <Card className="max-w-4xl mx-auto shadow-lg mt-6 overflow-hidden">
+            <AnimatePresence mode="wait">{renderStepContent()}</AnimatePresence>
+          </Card>
+        </form>
       </Form>
     </div>
   );

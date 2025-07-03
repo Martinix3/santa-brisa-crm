@@ -19,7 +19,7 @@ import type { Order, CrmEvent, TeamMember, UserRole, OrderStatus } from "@/types
 import StatusBadge from "@/components/app/status-badge";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 
 // --- TYPE DEFINITIONS ---
 type AgendaItemType = 'tarea_comercial' | 'evento';
@@ -42,7 +42,7 @@ type ViewMode = 'day' | 'week' | 'month';
 // --- HELPER FUNCTIONS ---
 const getAgendaItemIcon = (item: AgendaItem) => {
   switch(item.type) {
-    case 'tarea_comercial': return <ClipboardList className="h-4 w-4 text-primary flex-shrink-0" />;
+    case 'tarea_comercial': return <ClipboardList className="h-4 w-4 text-yellow-500 flex-shrink-0" />;
     case 'evento': return <PartyPopper className="h-4 w-4 text-purple-500 flex-shrink-0" />;
     default: return <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />;
   }
@@ -201,7 +201,10 @@ export default function MyAgendaPage() {
       }
       
       const items = filteredItemsForHighlight
-          .filter(item => isWithinInterval(item.date, { start: intervalStart, end: intervalEnd }))
+          .filter(item => {
+            if(viewMode === 'day') return isSameDay(item.date, selectedDate);
+            return isWithinInterval(item.date, { start: intervalStart, end: intervalEnd });
+          })
           .sort((a,b) => a.date.getTime() - b.date.getTime());
 
       return { interval: { start: intervalStart, end: intervalEnd }, itemsForView: items };
@@ -255,7 +258,7 @@ export default function MyAgendaPage() {
             Agenda del Equipo
         </h1>
         <div className="flex items-center flex-wrap space-x-4 text-xs text-muted-foreground mt-2 p-2">
-            <div className="flex items-center gap-1.5"><ClipboardList className="h-4 w-4 text-primary"/> Tarea Comercial</div>
+            <div className="flex items-center gap-1.5"><ClipboardList className="h-4 w-4 text-yellow-500"/> Tarea Comercial</div>
             <div className="flex items-center gap-1.5"><PartyPopper className="h-4 w-4 text-purple-500"/> Evento</div>
             <div className="flex items-center gap-1.5 opacity-50"><Briefcase className="h-4 w-4 text-blue-500"/> Tarea Admin. (Próx.)</div>
         </div>
@@ -383,7 +386,7 @@ export default function MyAgendaPage() {
                 <SheetDescription>
                     {selectedItem.description}
                 </SheetDescription>
-                <div className="font-medium text-foreground pt-2">{format(selectedItem.date, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: es })}</div>
+                <div className="font-medium text-foreground mt-2">{format(selectedItem.date, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: es })}</div>
             </SheetHeader>
             <div className="py-4 space-y-4">
                 {selectedItem.type === 'tarea_comercial' && (

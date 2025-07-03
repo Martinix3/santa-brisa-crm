@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -225,40 +225,51 @@ export function useOrderWizard() {
   };
 
   const onFormError = (errors: any) => {
-    if (Object.keys(errors).length === 0) {
-        const values = form.getValues();
-        let errorMessages = [];
-        if (values.outcome === 'successful') {
-            if (!values.numberOfUnits || values.numberOfUnits <= 0) errorMessages.push('Unidades');
-            if (!values.unitPrice || values.unitPrice <= 0) errorMessages.push('Precio Unitario');
-            if (!values.paymentMethod) errorMessages.push('Forma de Pago');
-            if (values.isNewClient) {
-              if (!values.nombreFiscal?.trim()) errorMessages.push('Nombre Fiscal');
-              if (!values.cif?.trim()) errorMessages.push('CIF');
-              if (!values.direccionFiscal_street?.trim()) errorMessages.push('Dirección Fiscal');
-            }
+    console.error("Validation Errors:", errors);
+    const values = form.getValues();
+    let errorMessages = [];
+    
+    // Check for specific fields based on outcome
+    if (values.outcome === 'successful') {
+        if (!values.numberOfUnits || values.numberOfUnits <= 0) errorMessages.push('Unidades');
+        if (!values.unitPrice || values.unitPrice <= 0) errorMessages.push('Precio Unitario');
+        if (!values.paymentMethod) errorMessages.push('Forma de Pago');
+        if (values.isNewClient) {
+          if (!values.nombreFiscal?.trim()) errorMessages.push('Nombre Fiscal');
+          if (!values.cif?.trim()) errorMessages.push('CIF');
+          if (!values.direccionFiscal_street?.trim()) errorMessages.push('Dirección Fiscal');
         }
-        if (values.outcome === 'follow-up' && !values.nextActionType) errorMessages.push('Próxima Acción');
-        if (values.outcome === 'failed' && !values.failureReasonType) errorMessages.push('Motivo del Fallo');
-        if (values.userRole === 'Clavadista' && values.outcome === 'follow-up' && !values.clavadistaSelectedSalesRepId) {
-            errorMessages.push('Asignación de Comercial para el seguimiento');
-        }
-
-        if (errorMessages.length > 0) {
-            toast({
-                title: "Campos requeridos faltantes",
-                description: `Por favor, complete los siguientes campos: ${errorMessages.join(', ')}.`,
-                variant: "destructive",
-                duration: 7000
-            });
-        } else {
-            toast({ title: "Error de validación", description: "Por favor, revise el formulario.", variant: "destructive" });
-        }
-    } else {
-        const errorMessages = Object.entries(errors).map(([fieldName, error]: [string, any]) => `${fieldName}: ${error.message}`);
-        toast({ title: "Errores en el formulario", description: errorMessages.join('; '), variant: "destructive", duration: 9000 });
     }
-  };
+    if (values.outcome === 'follow-up' && !values.nextActionType) {
+        errorMessages.push('Próxima Acción');
+    }
+    if (values.outcome === 'failed' && !values.failureReasonType) {
+        errorMessages.push('Motivo del Fallo');
+    }
+    if (values.userRole === 'Clavadista' && values.outcome === 'follow-up' && !values.clavadistaSelectedSalesRepId) {
+        errorMessages.push('Asignación de Comercial para el seguimiento');
+    }
+    
+    // Check for any reported errors from RHF if our logic misses something
+    const formErrorList = Object.entries(errors).map(([fieldName, error]: [string, any]) => `${fieldName}: ${error.message}`);
+    
+    let finalDescription = "";
+    if (errorMessages.length > 0) {
+        finalDescription = `Por favor, complete los siguientes campos: ${errorMessages.join(', ')}.`;
+    } else if (formErrorList.length > 0) {
+        finalDescription = `Por favor, revise estos errores: ${formErrorList.join('; ')}`;
+    } else {
+        finalDescription = "Por favor, revise el formulario. Faltan campos obligatorios.";
+    }
+
+    toast({
+        title: "Errores en el formulario",
+        description: finalDescription,
+        variant: "destructive",
+        duration: 9000
+    });
+};
+
   
   const onSubmit = async (values: OrderFormValues) => {
     if (!teamMember || !userRole) {
@@ -412,3 +423,5 @@ export function useOrderWizard() {
     materialFields, appendMaterial, removeMaterial, userRole, teamMember
   };
 }
+
+    

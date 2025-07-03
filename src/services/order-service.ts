@@ -67,6 +67,8 @@ const fromFirestoreOrder = (docSnap: DocumentSnapshot): Order => {
     accountId: data.accountId || undefined,
     createdAt: parseRequiredDate(data.createdAt),
     originatingTaskId: data.originatingTaskId || undefined,
+    taskCategory: data.taskCategory || 'Commercial',
+    isCompleted: data.isCompleted || false,
   };
   return order;
 };
@@ -80,7 +82,8 @@ const toFirestoreOrder = (data: Partial<Order> & { visitDate?: Date | string, ne
     'assignedMaterials', 'canalOrigenColocacion', 'paymentMethod', 'iban', 'invoiceUrl', 'invoiceFileName', 
     'clientType', 'numberOfUnits', 'unitPrice', 'clientStatus', 
     'notes', 'nextActionType', 'nextActionCustom', 'failureReasonType', 
-    'failureReasonCustom', 'accountId', 'originatingTaskId'
+    'failureReasonCustom', 'accountId', 'originatingTaskId',
+    'taskCategory', 'isCompleted'
   ];
 
   directOrderKeys.forEach(key => {
@@ -120,6 +123,8 @@ const toFirestoreOrder = (data: Partial<Order> & { visitDate?: Date | string, ne
   });
   if (!firestoreData.assignedMaterials) firestoreData.assignedMaterials = [];
   if (!firestoreData.products) firestoreData.products = [];
+  if (!firestoreData.taskCategory) firestoreData.taskCategory = 'Commercial';
+  if (firestoreData.isCompleted === undefined) firestoreData.isCompleted = false;
 
   return firestoreData;
 };

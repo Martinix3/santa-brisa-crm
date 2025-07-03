@@ -18,15 +18,15 @@ export async function calculateCommercialStatus(
     // Check for successful sales.
     const successfulOrders = ordersForAccount.filter(o => VALID_SALE_STATUSES.includes(o.status));
     
-    if (successfulOrders.length >= 2) {
-        return 'Repetición';
-    }
-    if (successfulOrders.length === 1) {
-        return 'Activo';
-    }
+    const count = successfulOrders.length;
 
-    // Default: If no sales and no open tasks, the account is considered failed for this view.
-    return 'Fallido';
+    if (count >= 2) {
+        return 'Repetición';
+    } else if (count === 1) {
+        return 'Activo';
+    } else {
+        return 'Fallido';
+    }
 }
 
 

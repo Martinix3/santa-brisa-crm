@@ -65,41 +65,47 @@ export default function MyAgendaPage() {
       try {
         const [orders, events] = await Promise.all([getOrdersFS(), getEventsFS()]);
         
-        let userOrders = orders;
-        let userEvents = events;
+        let userOrders: Order[] = [];
+        let userEvents: CrmEvent[] = [];
 
-        if (userRole === 'SalesRep' && teamMember) {
-            userOrders = orders.filter(o => o.salesRep === teamMember.name && (o.status === 'Programada' || o.status === 'Seguimiento'));
+        if (userRole === 'Admin') {
+            userOrders = orders;
+            userEvents = events;
+        } else if (userRole === 'SalesRep' && teamMember) {
+            userOrders = orders.filter(o => o.salesRep === teamMember.name);
             userEvents = events.filter(e => e.assignedTeamMemberIds.includes(teamMember.id));
         } else if (userRole === 'Clavadista' && teamMember) {
-            userOrders = orders.filter(o => o.clavadistaId === teamMember.id && (o.status === 'Programada' || o.status === 'Seguimiento'));
+            userOrders = orders.filter(o => o.clavadistaId === teamMember.id);
             userEvents = events.filter(e => e.assignedTeamMemberIds.includes(teamMember.id));
-        } else if (userRole === 'Admin') {
-            userOrders = orders.filter(o => o.status === 'Programada' || o.status === 'Seguimiento');
-        } else {
-            userOrders = [];
-            userEvents = [];
         }
 
         const orderItems: AgendaItem[] = userOrders
+            .filter(o => {
+                if (o.status === 'Programada') {
+                    return o.visitDate && isValid(parseISO(o.visitDate));
+                }
+                if (o.status === 'Seguimiento') {
+                    return o.nextActionDate && isValid(parseISO(o.nextActionDate));
+                }
+                return false;
+            })
             .map(o => ({
                 id: o.id,
                 date: parseISO((o.status === 'Programada' ? o.visitDate : o.nextActionDate)!),
-                type: 'order',
+                type: 'order' as const,
                 title: o.clientName,
                 rawItem: o,
-            }))
-            .filter(item => isValid(item.date));
+            }));
 
         const eventItems: AgendaItem[] = userEvents
+            .filter(e => e.startDate && isValid(parseISO(e.startDate)))
             .map(e => ({
                 id: e.id,
                 date: parseISO(e.startDate),
-                type: 'event',
+                type: 'event' as const,
                 title: e.name,
                 rawItem: e,
-            }))
-            .filter(item => isValid(item.date));
+            }));
             
         setAllAgendaItems([...orderItems, ...eventItems]);
 

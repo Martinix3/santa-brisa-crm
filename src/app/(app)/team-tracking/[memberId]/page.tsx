@@ -7,21 +7,22 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-// mockTeamMembers removed
-import type { TeamMember, Order, Account, OrderStatus } from "@/types";
+import type { TeamMember, Order, Account, OrderStatus, EnrichedAccount } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { ArrowLeft, Mail, Package, Briefcase, Footprints, AlertTriangle, ShoppingCart, Loader2 } from "lucide-react";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import StatusBadge from "@/components/app/status-badge";
-import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
+import { ChartContainer } from "@/components/ui/chart";
 import { Line, LineChart, ResponsiveContainer, CartesianGrid, XAxis, YAxis, Tooltip as RechartsTooltip } from "recharts";
 import { format, parseISO, isValid, getMonth, getYear, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Link from "next/link";
 import { getOrdersFS } from "@/services/order-service";
 import { getAccountsFS } from "@/services/account-service";
-import { getTeamMemberByIdFS } from "@/services/team-member-service"; // For fetching member details
+import { getTeamMemberByIdFS } from "@/services/team-member-service";
 import { useToast } from "@/hooks/use-toast";
+import { calculateAccountStatus } from "@/lib/account-logic";
+import { VALID_SALE_STATUSES, ALL_VISIT_STATUSES } from "@/lib/constants";
 
 
 const chartConfig = (color: string) => ({
@@ -41,11 +42,11 @@ interface PerformanceDataPoint {
 export default function TeamMemberProfilePage() {
   const params = useParams();
   const router = useRouter();
-  const { toast } = useToast(); // Added toast
+  const { toast } = useToast();
   
   const [member, setMember] = React.useState<TeamMember | null>(null);
   const [memberOrders, setMemberOrders] = React.useState<Order[]>([]);
-  const [memberAccounts, setMemberAccounts] = React.useState<Account[]>([]);
+  const [enrichedMemberAccounts, setEnrichedMemberAccounts] = React.useState<Account[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [performanceChartData, setPerformanceChartData] = React.useState<PerformanceDataPoint[]>([]);
 
@@ -64,7 +65,7 @@ export default function TeamMemberProfilePage() {
       setIsLoading(true);
       try {
         const foundMember = await getTeamMemberByIdFS(memberId);
-        if (!foundMember || foundMember.role !== 'SalesRep') { // Ensure it's a SalesRep
+        if (!foundMember || foundMember.role !== 'SalesRep') {
           setMember(null);
           if (foundMember && foundMember.role !== 'SalesRep') {
             toast({ title: "Perfil No Válido", description: "Este perfil no corresponde a un Representante de Ventas.", variant: "destructive" });
@@ -75,38 +76,43 @@ export default function TeamMemberProfilePage() {
         setMember(foundMember);
 
         const [fetchedOrders, fetchedAccounts] = await Promise.all([
-          getOrdersFS(), // Consider fetching only orders for this salesRep if performance is an issue
-          getAccountsFS()  // Consider fetching only accounts for this salesRepId
+          getOrdersFS(),
+          getAccountsFS()
         ]);
 
         const ordersByMember = fetchedOrders
           .filter(order => order.salesRep === foundMember.name)
-          .sort((a,b) => parseISO(b.visitDate).getTime() - parseISO(a.visitDate).getTime());
+          .sort((a,b) => parseISO(b.createdAt || b.visitDate).getTime() - parseISO(a.createdAt || a.visitDate).getTime());
         setMemberOrders(ordersByMember);
 
-        const accountsForMember = fetchedAccounts
-          .filter(acc => acc.salesRepId === foundMember.id)
-          .sort((a,b) => (a.name.toLowerCase() > b.name.toLowerCase() ? 1 : -1));
-        setMemberAccounts(accountsForMember);
+        const accountsForMember = fetchedAccounts.filter(acc => acc.salesRepId === foundMember.id);
+        
+        const enrichedAccountsPromises = accountsForMember.map(async (account) => {
+            const accountOrders = fetchedOrders.filter(order => order.accountId === account.id || order.clientName === account.nombre);
+            const status = await calculateAccountStatus(accountOrders, account);
+            return { ...account, status };
+        });
+
+        const calculatedAccounts = await Promise.all(enrichedAccountsPromises);
+        setEnrichedMemberAccounts(calculatedAccounts.sort((a,b) => (a.nombre.toLowerCase() > b.nombre.toLowerCase() ? 1 : -1)));
 
         let bottles = 0;
         let orderCount = 0;
         let visitCount = 0;
         const monthlySales: Record<string, number> = {}; 
-        const visitStatuses: OrderStatus[] = ['Programada', 'Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Fallido', 'Seguimiento', 'Cancelado'];
 
         ordersByMember.forEach(order => {
-          if (['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado'].includes(order.status) && order.numberOfUnits) {
+          if (VALID_SALE_STATUSES.includes(order.status) && order.numberOfUnits) {
             bottles += order.numberOfUnits;
             orderCount++;
 
-            const orderDate = parseISO(order.visitDate);
+            const orderDate = parseISO(order.visitDate || order.createdAt);
             if (isValid(orderDate)) {
               const yearMonth = format(orderDate, 'yyyy-MM');
               monthlySales[yearMonth] = (monthlySales[yearMonth] || 0) + order.numberOfUnits;
             }
           }
-          if (visitStatuses.includes(order.status)) {
+          if (ALL_VISIT_STATUSES.includes(order.status)) {
             visitCount++;
           }
         });
@@ -261,7 +267,7 @@ export default function TeamMemberProfilePage() {
                       return (
                       <TableRow key={order.id}>
                         <TableCell className="font-medium">{order.clientName}</TableCell>
-                        <TableCell>{format(parseISO(order.visitDate), "dd/MM/yy", { locale: es })}</TableCell>
+                        <TableCell>{format(parseISO(order.visitDate || order.createdAt), "dd/MM/yy", { locale: es })}</TableCell>
                         <TableCell>{interactionType}</TableCell>
                         <TableCell className="text-right">
                            {order.status !== 'Programada' && order.status !== 'Seguimiento' && order.status !== 'Fallido' && order.value !== undefined ? (
@@ -288,7 +294,7 @@ export default function TeamMemberProfilePage() {
             <CardDescription>Directorio de las cuentas de clientes actualmente asignadas o creadas por {member.name}.</CardDescription>
           </CardHeader>
           <CardContent>
-            {memberAccounts.length > 0 ? (
+            {enrichedMemberAccounts.length > 0 ? (
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -299,11 +305,11 @@ export default function TeamMemberProfilePage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {memberAccounts.slice(0, 10).map(account => ( 
+                    {enrichedMemberAccounts.slice(0, 10).map(account => ( 
                       <TableRow key={account.id}>
                         <TableCell>
                           <Link href={`/accounts/${account.id}`} className="font-medium hover:underline text-primary">
-                            {account.name}
+                            {account.nombre}
                           </Link>
                         </TableCell>
                         <TableCell>{account.type}</TableCell>
@@ -312,7 +318,7 @@ export default function TeamMemberProfilePage() {
                     ))}
                   </TableBody>
                 </Table>
-                {memberAccounts.length > 10 && <p className="text-xs text-muted-foreground mt-2 text-center">Mostrando 10 de {memberAccounts.length} cuentas. Ver todas en el módulo de Cuentas.</p>}
+                {enrichedMemberAccounts.length > 10 && <p className="text-xs text-muted-foreground mt-2 text-center">Mostrando 10 de {enrichedMemberAccounts.length} cuentas. Ver todas en el módulo de Cuentas.</p>}
               </div>
             ) : (
               <p className="text-sm text-muted-foreground text-center py-8">{member.name} no tiene cuentas asignadas actualmente.</p>

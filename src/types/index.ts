@@ -40,22 +40,6 @@ export type PotencialType = 'alto' | 'medio' | 'bajo';
 export type AccountStatus = 'Programada' | 'Seguimiento' | 'Pedido' | 'Repetición' | 'Fallido';
 export const accountStatusList: AccountStatus[] = ['Programada', 'Seguimiento', 'Pedido', 'Repetición', 'Fallido'];
 
-export type InteractionType = 'Visita' | 'Llamada' | 'Mail' | 'Otro';
-export type InteractionResult = 'Programada' | 'Requiere seguimiento' | 'Pedido Exitoso' | 'Fallida';
-
-export interface Interaction {
-  id: string;
-  accountId: string;
-  tipo: InteractionType;
-  resultado: InteractionResult;
-  fecha_prevista: string; // timestamp
-  fecha_real?: string; // timestamp
-  importe?: number;
-  promoItems?: { sku: string, qty: number }[];
-  createdBy: string; // User ID
-  createdAt: string; // To get the latest one
-}
-
 export interface Account {
   id: string;
   nombre: string;
@@ -66,7 +50,6 @@ export interface Account {
   
   status: AccountStatus; // This is now a calculated field in EnrichedAccount, but the type is reused. The raw field may be deprecated.
   leadScore: number;
-  nextInteraction?: Interaction;
 
   // Existing fields to keep for compatibility/other modules
   legalName?: string;

@@ -47,7 +47,7 @@ export async function calculateAccountStatus(
     account: Pick<Account, 'createdAt'>
 ): Promise<AccountStatus> {
     
-    // Priority 1: Check for successful sales. This always takes precedence.
+    // Rule 1: Check for successful sales. This has the highest priority.
     const successfulOrders = ordersForAccount.filter(o => VALID_SALE_STATUSES.includes(o.status));
     if (successfulOrders.length >= 2) {
         return 'Repetición';
@@ -56,13 +56,14 @@ export async function calculateAccountStatus(
         return 'Pedido';
     }
 
-    // Priority 2: If no sales, check for open tasks ('Programada' or 'Seguimiento').
+    // Rule 2: If no sales, check for open tasks ('Programada' or 'Seguimiento').
     const priorityOpenTask = getPriorityOpenTask(ordersForAccount);
     if (priorityOpenTask) {
+        // The status of the highest-priority open task determines the account status.
         return priorityOpenTask.status as AccountStatus; // Will be 'Programada' or 'Seguimiento'
     }
 
-    // Priority 3: If no sales and no open tasks, analyze the most recent closed interaction.
+    // Rule 3: If no sales and no open tasks, analyze the most recent closed interaction.
     const closedInteractions = ordersForAccount
         .filter(o => o.status !== 'Programada' && o.status !== 'Seguimiento')
         .sort((a, b) => {
@@ -78,13 +79,8 @@ export async function calculateAccountStatus(
         return 'Fallido';
     }
     
-    // Default for new-ish accounts with no history, or only 'Completado' tasks without a sale/failure.
-    // If there are any interactions at all, but none of the above match, it's a 'Seguimiento' case.
-    if (ordersForAccount.length > 0) {
-        return 'Seguimiento';
-    }
-
-    // If an account exists but has NO interactions at all, it's also a 'Seguimiento' case by default.
+    // Rule 4 (Default): New accounts, or those with only 'Completado' tasks that didn't lead to a sale.
+    // These should be prompted for action.
     return 'Seguimiento';
 }
 

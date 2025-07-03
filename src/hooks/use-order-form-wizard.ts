@@ -257,28 +257,56 @@ export function useOrderWizard() {
             }
             
             let currentAccountId = client?.id !== 'new' ? client?.id : undefined;
-            if (client?.id === 'new' && values.outcome === 'successful') {
+
+            // Always create an account for a new client, regardless of outcome
+            if (client?.id === 'new') {
                 const newAccountRef = doc(collection(db, "accounts"));
                 currentAccountId = newAccountRef.id;
-                const newAccountData = {
-                  id: currentAccountId,
-                  nombre: client.nombre,
-                  legalName: values.nombreFiscal,
-                  cif: values.cif || "",
-                  type: values.clientType || 'Otro',
-                  status: 'Activo' as OrderStatus,
-                  addressBilling: { street: values.direccionFiscal_street, number: values.direccionFiscal_number, city: values.direccionFiscal_city, province: values.direccionFiscal_province, postalCode: values.direccionFiscal_postalCode, country: values.direccionFiscal_country },
-                  addressShipping: { street: values.direccionEntrega_street, number: values.direccionEntrega_number, city: values.direccionEntrega_city, province: values.direccionEntrega_province, postalCode: values.direccionEntrega_postalCode, country: values.direccionEntrega_country },
-                  mainContactName: values.contactoNombre,
-                  mainContactEmail: values.contactoCorreo,
-                  mainContactPhone: values.contactoTelefono,
-                  notes: values.observacionesAlta,
-                  salesRepId: salesRepIdForAccount,
-                  iban: values.iban,
-                  createdAt: new Date(),
-                  updatedAt: new Date(),
+
+                // A successful outcome means we collected full data. Otherwise, create a basic record.
+                const isSuccessfulOutcome = values.outcome === 'successful';
+
+                const newAccountData: any = {
+                    id: currentAccountId,
+                    nombre: client.nombre,
+                    legalName: isSuccessfulOutcome ? (values.nombreFiscal || null) : null,
+                    cif: isSuccessfulOutcome ? (values.cif || null) : null,
+                    type: isSuccessfulOutcome ? (values.clientType || 'Otro') : 'Otro',
+                    // The 'status' field is calculated, not stored. 'potencial' will be set to 'medio' by default.
+                    addressBilling: isSuccessfulOutcome && values.direccionFiscal_street ? {
+                        street: values.direccionFiscal_street,
+                        number: values.direccionFiscal_number || null,
+                        city: values.direccionFiscal_city,
+                        province: values.direccionFiscal_province,
+                        postalCode: values.direccionFiscal_postalCode,
+                        country: values.direccionFiscal_country
+                    } : null,
+                    addressShipping: isSuccessfulOutcome ? (values.sameAsBilling && values.direccionFiscal_street ? {
+                        street: values.direccionFiscal_street, number: values.direccionFiscal_number, city: values.direccionFiscal_city,
+                        province: values.direccionFiscal_province, postalCode: values.direccionFiscal_postalCode, country: values.direccionFiscal_country,
+                    } : (values.direccionEntrega_street ? {
+                        street: values.direccionEntrega_street, number: values.direccionEntrega_number, city: values.direccionEntrega_city,
+                        province: values.direccionEntrega_province, postalCode: values.direccionEntrega_postalCode, country: values.direccionEntrega_country,
+                    } : null)) : null,
+                    mainContactName: isSuccessfulOutcome ? (values.contactoNombre || null) : null,
+                    mainContactEmail: isSuccessfulOutcome ? (values.contactoCorreo || null) : null,
+                    mainContactPhone: isSuccessfulOutcome ? (values.contactoTelefono || null) : null,
+                    notes: isSuccessfulOutcome ? (values.observacionesAlta || null) : "Cuenta creada automáticamente desde una interacción inicial.",
+                    salesRepId: salesRepIdForAccount,
+                    responsableId: salesRepIdForAccount, // Ensure new main field is set
+                    iban: isSuccessfulOutcome ? (values.iban || null) : null,
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
                 };
-                transaction.set(newAccountRef, newAccountData as any);
+                
+                // Clean up null/undefined values just in case
+                Object.keys(newAccountData).forEach(key => {
+                    if (newAccountData[key as keyof typeof newAccountData] === undefined) {
+                         (newAccountData as any)[key] = null;
+                    }
+                });
+
+                transaction.set(newAccountRef, newAccountData);
             } else if (client?.id !== 'new' && values.iban && client?.id) {
                 const existingAccount = allAccounts.find(a => a.id === client.id);
                 if (existingAccount && !existingAccount.iban) {

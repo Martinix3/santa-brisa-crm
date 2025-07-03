@@ -4,10 +4,14 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Send, Loader2 } from 'lucide-react';
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 import type { useOrderWizard } from '@/hooks/use-order-form-wizard';
+import type { OrderFormValues } from '@/lib/schemas/order-form-schema';
 
 type WizardHookReturn = ReturnType<typeof useOrderWizard>;
 
-interface StepVerifyProps extends Pick<WizardHookReturn, 'form' | 'client' | 'handleBack' | 'isSubmitting' | 'availableMaterials' | 'teamMember' | 'userRole' | 'onSubmit'> {}
+interface StepVerifyProps extends Pick<WizardHookReturn, 'form' | 'client' | 'handleBack' | 'isSubmitting' | 'availableMaterials' | 'teamMember' | 'userRole'> {
+  onSubmit: (values: OrderFormValues) => Promise<void>;
+}
+
 
 export const StepVerify: React.FC<StepVerifyProps> = ({ form, client, handleBack, isSubmitting, availableMaterials, teamMember, userRole, onSubmit }) => {
   const formValuesWatched = form.watch();

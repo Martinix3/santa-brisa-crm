@@ -18,7 +18,7 @@ import { StepVerify } from "@/components/app/order-form/step-verify";
 
 export default function OrderFormWizardPage() {
   const wizard = useOrderWizard();
-  const { form, step, isSubmitting } = wizard;
+  const { form, step, client, handleBack, isSubmitting, availableMaterials, teamMember, userRole, onSubmit } = wizard;
 
   const renderStepContent = () => {
     switch (step) {
@@ -49,7 +49,16 @@ export default function OrderFormWizardPage() {
        case "verify":
         return (
           <motion.div key="verify" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
-            <StepVerify {...wizard} />
+            <StepVerify
+                form={form}
+                client={client}
+                handleBack={handleBack}
+                isSubmitting={isSubmitting}
+                availableMaterials={availableMaterials}
+                teamMember={teamMember}
+                userRole={userRole}
+                onSubmit={onSubmit}
+            />
           </motion.div>
         );
     }

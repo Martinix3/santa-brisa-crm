@@ -44,7 +44,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
     const isOverdue = nextActionDate ? isBefore(nextActionDate, startOfDay(new Date())) : false;
     const leadScoreColor = account.leadScore > 75 ? 'bg-green-500' : account.leadScore > 40 ? 'bg-yellow-500' : 'bg-red-500';
 
-    const accountIsActive = account.status === 'Pedido' || account.status === 'Repetición';
+    const accountIsActive = account.status === 'Activo' || account.status === 'Repetición';
 
     const nextActionText = account.nextInteraction
         ? account.nextInteraction.status === 'Programada'
@@ -60,7 +60,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                 <TableCell className="p-1 text-center align-middle">
                      <div className={cn("w-1 h-10 rounded-full",
                         accountIsActive ? "bg-green-400" :
-                        account.status === "Programada" || account.status === "Seguimiento" ? "bg-blue-400" :
+                        account.status === "Potencial" ? "bg-blue-400" :
                         "bg-red-400"
                     )}></div>
                 </TableCell>
@@ -101,7 +101,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                            </div>
                         </TooltipTrigger>
                         <TooltipContent>
-                            {isOverdue && nextActionDate ? `Caducó el ${format(nextActionDate, 'dd/MM/yyyy', { locale: es })}` : `Estado actual de la cuenta`}
+                            {isOverdue && nextActionDate ? `Caducó el ${format(nextActionDate, 'dd/MM/yyyy', { locale: es })}` : `Estado comercial de la cuenta`}
                         </TooltipContent>
                     </Tooltip>
                 </TableCell>

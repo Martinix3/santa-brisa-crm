@@ -1,87 +1,40 @@
 
+
 import type { Account, Order, AccountStatus, PotencialType } from '@/types';
-import { parseISO, differenceInDays, isValid, startOfDay, isBefore, isAfter, subDays } from 'date-fns';
+import { parseISO, differenceInDays, isValid } from 'date-fns';
 import { VALID_SALE_STATUSES } from '@/lib/constants';
 
 /**
- * Determines the most relevant open task from a list of interactions.
- * 'Programada' has priority over 'Seguimiento'.
- * The oldest open task is considered the most urgent.
- */
-function getPriorityOpenTask(ordersForAccount: Order[]): Order | undefined {
-    const openTasks = ordersForAccount.filter(o =>
-        o.status === 'Programada' || o.status === 'Seguimiento'
-    );
-
-    if (openTasks.length === 0) return undefined;
-
-    openTasks.sort((a, b) => {
-        const dateA = parseISO((a.status === 'Programada' ? a.visitDate : a.nextActionDate)!);
-        const dateB = parseISO((b.status === 'Programada' ? b.visitDate : b.nextActionDate)!);
-        
-        if (!isValid(dateA)) return 1;
-        if (!isValid(dateB)) return -1;
-        
-        // If dates are different, oldest comes first
-        if (dateA.getTime() !== dateB.getTime()) {
-            return dateA.getTime() - dateB.getTime();
-        }
-        
-        // If dates are the same, 'Programada' has priority over 'Seguimiento'
-        if (a.status === 'Programada' && b.status !== 'Programada') return -1;
-        if (b.status === 'Programada' && a.status !== 'Programada') return 1;
-        
-        return 0;
-    });
-
-    return openTasks[0];
-}
-
-
-/**
- * Calculates the current status of an account based on its interactions.
+ * Calculates the current commercial status of an account based on its entire interaction history.
  * The rules are applied in a specific priority order.
+ * @param ordersForAccount All interactions related to the account.
+ * @param account The account document itself.
+ * @returns The calculated commercial status of the account.
  */
 export async function calculateAccountStatus(
     ordersForAccount: Order[],
     account: Pick<Account, 'createdAt'>
 ): Promise<AccountStatus> {
     
-    // Rule 1: Check for successful sales. This has the highest priority.
+    // Rule 1 (Highest Priority): Check for successful sales.
     const successfulOrders = ordersForAccount.filter(o => VALID_SALE_STATUSES.includes(o.status));
     if (successfulOrders.length >= 2) {
         return 'Repetición';
     }
     if (successfulOrders.length === 1) {
-        return 'Pedido';
+        return 'Activo';
     }
 
-    // Rule 2: If no sales, check for open tasks ('Programada' or 'Seguimiento').
-    const priorityOpenTask = getPriorityOpenTask(ordersForAccount);
-    if (priorityOpenTask) {
-        // The status of the highest-priority open task determines the account status.
-        return priorityOpenTask.status as AccountStatus; // Will be 'Programada' or 'Seguimiento'
+    // Rule 2: If no sales, check for any open tasks ('Programada' or 'Seguimiento').
+    const hasOpenTasks = ordersForAccount.some(o =>
+        o.status === 'Programada' || o.status === 'Seguimiento'
+    );
+    if (hasOpenTasks) {
+        return 'Potencial';
     }
 
-    // Rule 3: If no sales and no open tasks, analyze the most recent closed interaction.
-    const closedInteractions = ordersForAccount
-        .filter(o => o.status !== 'Programada' && o.status !== 'Seguimiento')
-        .sort((a, b) => {
-            const dateA = a.visitDate ? parseISO(a.visitDate) : (a.createdAt ? parseISO(a.createdAt) : new Date(0));
-            const dateB = b.visitDate ? parseISO(b.visitDate) : (b.createdAt ? parseISO(b.createdAt) : new Date(0));
-            if (!isValid(dateA)) return 1;
-            if (!isValid(dateB)) return -1;
-            return dateB.getTime() - dateA.getTime();
-        });
-
-    const lastClosedInteraction = closedInteractions[0];
-    if (lastClosedInteraction && lastClosedInteraction.status === 'Fallido') {
-        return 'Fallido';
-    }
-    
-    // Rule 4 (Default): New accounts, or those with only 'Completado' tasks that didn't lead to a sale.
-    // These should be prompted for action.
-    return 'Seguimiento';
+    // Rule 3 (Default): If no sales and no open tasks, the account is considered inactive.
+    return 'Inactivo';
 }
 
 
@@ -100,10 +53,9 @@ export function calculateLeadScore(
     // Base score from status
     switch (accountStatus) {
         case 'Repetición': score = 90; break;
-        case 'Pedido': score = 80; break;
-        case 'Programada': score = 70; break;
-        case 'Seguimiento': score = 50; break;
-        case 'Fallido': score = 20; break;
+        case 'Activo': score = 75; break;
+        case 'Potencial': score = 50; break;
+        case 'Inactivo': score = 10; break;
         default: score = 0;
     }
 

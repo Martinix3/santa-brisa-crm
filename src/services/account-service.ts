@@ -31,7 +31,7 @@ const fromFirestore = (docSnap: DocumentSnapshot): Account => {
     // The 'status' field from Firestore is now considered legacy.
     // The true status is calculated dynamically by cartera-service.
     // We provide a default fallback here.
-    status: 'Seguimiento',
+    status: 'Inactivo',
     leadScore: 0,
     
     legalName: data.legalName || '',
@@ -149,54 +149,25 @@ export const updateAccountFS = async (id: string, data: Partial<AccountFormValue
 export const deleteAccountFS = async (id: string): Promise<void> => {
   const batch = writeBatch(db);
 
+  // 1. Get the account document to delete it.
   const accountDocRef = doc(db, ACCOUNTS_COLLECTION, id);
-  const accountSnap = await getDoc(accountDocRef);
+  batch.delete(accountDocRef);
 
-  let accountNameToMatch: string;
-
-  if (accountSnap.exists()) {
-    // Case 1: A real account document exists.
-    console.log(`Deleting real account with ID: ${id}`);
-    const accountData = accountSnap.data();
-    accountNameToMatch = accountData.nombre?.trim().toLowerCase();
-    
-    // Add the account document itself to the batch.
-    batch.delete(accountDocRef);
-  } else {
-    // Case 2: No account document found. Assume ID is a normalized name for a virtual account.
-    console.log(`Deleting virtual account represented by name: "${id}"`);
-    accountNameToMatch = id.trim().toLowerCase();
-  }
-
-  // Fetch all orders that could possibly be related.
-  // This is necessary because we need to match by both accountId and name.
-  // We can't do an OR query in Firestore easily (accountId == id OR clientName == name),
-  // so fetching all and filtering in memory is the most robust way given inconsistent data.
-  const ordersCol = collection(db, ORDERS_COLLECTION);
-  const allOrdersSnapshot = await getDocs(ordersCol);
-  
-  let deletedOrdersCount = 0;
-  allOrdersSnapshot.forEach(orderDoc => {
-      const orderData = orderDoc.data();
-      const clientNameInOrder = orderData.clientName?.trim().toLowerCase();
-
-      // Delete if accountId matches (for real accounts) OR if the name matches.
-      // The name match is crucial for both real and virtual accounts.
-      if (orderData.accountId === id || (accountNameToMatch && clientNameInOrder === accountNameToMatch)) {
-          batch.delete(orderDoc.ref);
-          deletedOrdersCount++;
-      }
+  // 2. Query for all orders related to this accountId and add their deletions to the batch.
+  const ordersQuery = query(collection(db, ORDERS_COLLECTION), where("accountId", "==", id));
+  const ordersSnapshot = await getDocs(ordersQuery);
+  ordersSnapshot.forEach(orderDoc => {
+      batch.delete(orderDoc.ref);
   });
 
   try {
       await batch.commit();
-      console.log(`Deletion complete. Account/group '${accountNameToMatch}' and ${deletedOrdersCount} related interactions deleted.`);
+      console.log(`Deletion complete for account ${id} and its related interactions.`);
   } catch (error) {
-      console.error(`Error during batched deletion for account/group '${accountNameToMatch}':`, error);
+      console.error(`Error during batched deletion for account ${id}:`, error);
       throw error; // Re-throw to be handled by the UI
   }
 };
-
 
 export const initializeMockAccountsInFirestore = async (mockAccounts: any[]) => {
     const accountsCol = collection(db, ACCOUNTS_COLLECTION);

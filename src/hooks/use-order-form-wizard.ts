@@ -6,13 +6,12 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { getAccountsFS, addAccountFS, getAccountByIdFS } from "@/services/account-service";
-import { addOrderFS, updateOrderFS, getOrderByIdFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
-import { getPromotionalMaterialsFS, updateMaterialStockFS } from "@/services/promotional-material-service";
+import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
 import { runTransaction } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { collection, doc } from "firebase/firestore";
-import type { Account, Order, PromotionalMaterial, TeamMember, UserRole, OrderStatus, ClientType, PaymentMethod, NextActionType, FailureReasonType } from "@/types";
+import type { Account, Order, PromotionalMaterial, TeamMember, UserRole, OrderStatus, AccountType } from "@/types";
 import { orderFormSchema, type OrderFormValues, NO_CLAVADISTA_VALUE, ADMIN_SELF_REGISTER_VALUE, type Step } from '@/lib/schemas/order-form-schema';
 import { format } from "date-fns";
 
@@ -258,12 +257,10 @@ export function useOrderWizard() {
             
             let currentAccountId = client?.id !== 'new' ? client?.id : undefined;
 
-            // Always create an account for a new client, regardless of outcome
             if (client?.id === 'new') {
                 const newAccountRef = doc(collection(db, "accounts"));
                 currentAccountId = newAccountRef.id;
 
-                // A successful outcome means we collected full data. Otherwise, create a basic record.
                 const isSuccessfulOutcome = values.outcome === 'successful';
 
                 const newAccountData: any = {
@@ -272,7 +269,6 @@ export function useOrderWizard() {
                     legalName: isSuccessfulOutcome ? (values.nombreFiscal || null) : null,
                     cif: isSuccessfulOutcome ? (values.cif || null) : null,
                     type: isSuccessfulOutcome ? (values.clientType || 'Otro') : 'Otro',
-                    // The 'status' field is calculated, not stored. 'potencial' will be set to 'medio' by default.
                     addressBilling: isSuccessfulOutcome && values.direccionFiscal_street ? {
                         street: values.direccionFiscal_street,
                         number: values.direccionFiscal_number || null,
@@ -293,13 +289,13 @@ export function useOrderWizard() {
                     mainContactPhone: isSuccessfulOutcome ? (values.contactoTelefono || null) : null,
                     notes: isSuccessfulOutcome ? (values.observacionesAlta || null) : "Cuenta creada automáticamente desde una interacción inicial.",
                     salesRepId: salesRepIdForAccount,
-                    responsableId: salesRepIdForAccount, // Ensure new main field is set
+                    responsableId: salesRepIdForAccount,
                     iban: isSuccessfulOutcome ? (values.iban || null) : null,
                     createdAt: new Date(),
                     updatedAt: new Date(),
+                    potencial: 'medio'
                 };
                 
-                // Clean up null/undefined values just in case
                 Object.keys(newAccountData).forEach(key => {
                     if (newAccountData[key as keyof typeof newAccountData] === undefined) {
                          (newAccountData as any)[key] = null;
@@ -378,7 +374,7 @@ export function useOrderWizard() {
         refreshDataSignature();
         
         if (values.outcome === 'successful') router.push('/orders-dashboard');
-        else router.push('/crm-follow-up');
+        else router.push('/accounts');
 
     } catch (err: any) {
         toast({ title: "Error en Transacción", description: `No se pudo guardar la interacción: ${err.message}`, variant: "destructive" });

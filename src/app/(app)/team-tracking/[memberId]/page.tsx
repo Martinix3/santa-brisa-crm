@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import type { TeamMember, Order, Account, OrderStatus, EnrichedAccount } from "@/types";
+import type { TeamMember, Order, Account, OrderStatus, EnrichedAccount, AccountStatus } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { ArrowLeft, Mail, Package, Briefcase, Footprints, AlertTriangle, ShoppingCart, Loader2 } from "lucide-react";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
@@ -313,7 +313,7 @@ export default function TeamMemberProfilePage() {
                           </Link>
                         </TableCell>
                         <TableCell>{account.type}</TableCell>
-                        <TableCell className="text-center"><StatusBadge type="account" status={account.status} /></TableCell>
+                        <TableCell className="text-center"><StatusBadge type="account" status={account.status as AccountStatus} /></TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

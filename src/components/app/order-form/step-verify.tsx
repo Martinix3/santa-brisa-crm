@@ -1,10 +1,10 @@
 import * as React from 'react';
-import { CardHeader, CardTitle, CardDescription, CardContent, CardFooter, Card } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Send, Loader2 } from 'lucide-react';
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 
-export const StepVerify = ({ form, client, handleBack, isSubmitting, availableMaterials, teamMember, userRole }) => {
+export const StepVerify = ({ form, client, handleBack, isSubmitting, availableMaterials, teamMember, userRole, onSubmit }) => {
   const formValuesWatched = form.watch();
   const outcomeWatched = formValuesWatched.outcome;
   
@@ -24,7 +24,7 @@ export const StepVerify = ({ form, client, handleBack, isSubmitting, availableMa
           <Card>
               <CardHeader><CardTitle className="text-lg">Resumen de la Interacción</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
-                  <p><strong>Cliente:</strong> {client?.name} {client?.id === 'new' && <span className="text-primary font-bold">(Nuevo)</span>}</p>
+                  <p><strong>Cliente:</strong> {client?.nombre} {client?.id === 'new' && <span className="text-primary font-bold">(Nuevo)</span>}</p>
                   <p><strong>Resultado:</strong> <span className="font-semibold">{outcomeWatched === 'successful' ? 'Pedido Exitoso' : outcomeWatched === 'follow-up' ? 'Requiere Seguimiento' : 'Visita Fallida'}</span></p>
                   
                   {outcomeWatched === 'successful' && (
@@ -73,7 +73,7 @@ export const StepVerify = ({ form, client, handleBack, isSubmitting, availableMa
       </CardContent>
         <CardFooter className="flex justify-between">
           <Button type="button" variant="ghost" onClick={handleBack} disabled={isSubmitting}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
-          <Button type="submit" disabled={!canSubmit}>
+          <Button type="button" onClick={form.handleSubmit(onSubmit)} disabled={!canSubmit}>
               {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Guardando...</> : <><Send className="mr-2 h-4 w-4"/> Confirmar y Guardar</>}
           </Button>
       </CardFooter>

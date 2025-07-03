@@ -1,25 +1,24 @@
-
 "use client";
 
 import * as React from "react";
-import { addDays, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format, isSameDay, isWithinInterval, parseISO, isValid } from "date-fns";
+import { format, isSameDay, parseISO, startOfDay, isValid } from "date-fns";
 import { es } from "date-fns/locale";
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, PartyPopper, ClipboardList, Loader2, Info, Send } from "lucide-react";
+import { Calendar as CalendarIcon, ClipboardList, PartyPopper, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter, SheetClose } from "@/components/ui/sheet";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Calendar } from "@/components/ui/calendar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { getOrdersFS } from "@/services/order-service";
 import { getEventsFS } from "@/services/event-service";
-import type { Order, CrmEvent, TeamMember, UserRole, OrderStatus, CrmEventStatus } from "@/types";
-import { cn } from "@/lib/utils";
+import { getTeamMembersFS } from "@/services/team-member-service";
+import type { Order, CrmEvent, TeamMember, UserRole } from "@/types";
 import { Separator } from "@/components/ui/separator";
 import StatusBadge from "@/components/app/status-badge";
 import Link from "next/link";
-import FollowUpResultDialog from "@/components/app/follow-up-result-dialog";
-
+import { cn } from "@/lib/utils";
 
 // --- TYPE DEFINITIONS ---
 interface AgendaItemBase {
@@ -27,14 +26,14 @@ interface AgendaItemBase {
   date: Date;
   type: 'order' | 'event';
   title: string;
+  description?: string;
   rawItem: Order | CrmEvent;
 }
 interface AgendaOrderItem extends AgendaItemBase { type: 'order'; rawItem: Order; }
 interface AgendaEventItem extends AgendaItemBase { type: 'event'; rawItem: CrmEvent; }
 type AgendaItem = AgendaOrderItem | AgendaEventItem;
 
-type ViewMode = 'week' | 'month';
-
+type TypeFilter = 'all' | 'tasks' | 'events';
 
 // --- HELPER FUNCTIONS ---
 const getAgendaItemIcon = (item: AgendaItem) => {
@@ -43,72 +42,59 @@ const getAgendaItemIcon = (item: AgendaItem) => {
   return <CalendarIcon className="h-5 w-5 text-gray-500 flex-shrink-0" />;
 };
 
-
 // --- MAIN COMPONENT ---
 export default function MyAgendaPage() {
   const { userRole, teamMember, dataSignature } = useAuth();
   const { toast } = useToast();
 
-  const [viewMode, setViewMode] = React.useState<ViewMode>('week');
-  const [currentDate, setCurrentDate] = React.useState(new Date());
-  
-  const [allAgendaItems, setAllAgendaItems] = React.useState<AgendaItem[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [allAgendaItems, setAllAgendaItems] = React.useState<AgendaItem[]>([]);
+  const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([]);
 
-  const [selectedItem, setSelectedItem] = React.useState<AgendaItem | null>(null);
-  const [isSheetOpen, setIsSheetOpen] = React.useState(false);
-  const [isQuickAddOpen, setIsQuickAddOpen] = React.useState(false);
-  const [isFollowUpDialogOpen, setIsFollowUpDialogOpen] = React.useState(false);
+  // State for filters and selection
+  const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(new Date());
+  const [userFilter, setUserFilter] = React.useState<string>('all');
+  const [typeFilter, setTypeFilter] = React.useState<TypeFilter>('all');
+  
+  const isAdmin = userRole === 'Admin';
 
   React.useEffect(() => {
     async function loadAgendaData() {
       setIsLoading(true);
       try {
-        const [orders, events] = await Promise.all([getOrdersFS(), getEventsFS()]);
-        
-        let userOrders: Order[] = [];
-        let userEvents: CrmEvent[] = [];
+        const [orders, events, members] = await Promise.all([
+          getOrdersFS(),
+          getEventsFS(),
+          getTeamMembersFS(['SalesRep', 'Clavadista', 'Admin'])
+        ]);
 
-        if (userRole === 'Admin') {
-            userOrders = orders;
-            userEvents = events;
-        } else if (userRole === 'SalesRep' && teamMember) {
-            userOrders = orders.filter(o => o.salesRep === teamMember.name);
-            userEvents = events.filter(e => e.assignedTeamMemberIds.includes(teamMember.id));
-        } else if (userRole === 'Clavadista' && teamMember) {
-            userOrders = orders.filter(o => o.clavadistaId === teamMember.id);
-            userEvents = events.filter(e => e.assignedTeamMemberIds.includes(teamMember.id));
-        }
-
-        const orderItems: AgendaItem[] = userOrders
+        const orderItems: AgendaItem[] = orders
             .filter(o => {
-                if (o.status === 'Programada') {
-                    return o.visitDate && isValid(parseISO(o.visitDate));
-                }
-                if (o.status === 'Seguimiento') {
-                    return o.nextActionDate && isValid(parseISO(o.nextActionDate));
-                }
-                return false;
+                const dateStr = o.status === 'Programada' ? o.visitDate : o.nextActionDate;
+                return (o.status === 'Programada' || o.status === 'Seguimiento') && dateStr && isValid(parseISO(dateStr));
             })
             .map(o => ({
                 id: o.id,
                 date: parseISO((o.status === 'Programada' ? o.visitDate : o.nextActionDate)!),
                 type: 'order' as const,
                 title: o.clientName,
+                description: o.nextActionType || `Visita a ${o.clientName}`,
                 rawItem: o,
             }));
-
-        const eventItems: AgendaItem[] = userEvents
+        
+        const eventItems: AgendaItem[] = events
             .filter(e => e.startDate && isValid(parseISO(e.startDate)))
             .map(e => ({
                 id: e.id,
                 date: parseISO(e.startDate),
                 type: 'event' as const,
                 title: e.name,
+                description: e.type,
                 rawItem: e,
             }));
-            
+        
         setAllAgendaItems([...orderItems, ...eventItems]);
+        setTeamMembers(members);
 
       } catch (error) {
         console.error("Error loading agenda data:", error);
@@ -118,195 +104,163 @@ export default function MyAgendaPage() {
       }
     }
     loadAgendaData();
-  }, [dataSignature, teamMember, userRole, toast]);
-
-  const { visibleItems, intervalLabel } = React.useMemo(() => {
-    let start: Date, end: Date, label: string;
-
-    if (viewMode === 'week') {
-      start = startOfWeek(currentDate, { weekStartsOn: 1 });
-      end = endOfWeek(currentDate, { weekStartsOn: 1 });
-      label = `Semana del ${format(start, 'd MMM')} al ${format(end, 'd MMM, yyyy', { locale: es })}`;
-    } else { // month
-      start = startOfMonth(currentDate);
-      end = endOfMonth(currentDate);
-      label = format(currentDate, 'MMMM yyyy', { locale: es });
-    }
-
-    const items = allAgendaItems.filter(item => isWithinInterval(item.date, { start, end }));
-    return { visibleItems: items, intervalLabel: label };
-  }, [allAgendaItems, currentDate, viewMode]);
-
-  const groupedItems = React.useMemo(() => {
-    const groups: { [key: string]: AgendaItem[] } = {};
-    visibleItems.forEach(item => {
-      const dayKey = format(item.date, 'yyyy-MM-dd');
-      if (!groups[dayKey]) groups[dayKey] = [];
-      groups[dayKey].push(item);
-    });
-    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
-  }, [visibleItems]);
-
-
-  const handleDateChange = (direction: 'prev' | 'next' | 'today') => {
-    if (direction === 'today') {
-      setCurrentDate(new Date());
-      return;
-    }
-    const amount = direction === 'prev' ? -1 : 1;
-    if (viewMode === 'week') {
-      setCurrentDate(addDays(currentDate, amount * 7));
-    } else {
-      setCurrentDate(prev => new Date(prev.setMonth(prev.getMonth() + amount)));
-    }
-  };
-
-  const handleItemClick = (item: AgendaItem) => {
-    setSelectedItem(item);
-    setIsSheetOpen(true);
-  };
+  }, [dataSignature, toast]);
   
-  const handleOpenFollowUp = () => {
-    setIsSheetOpen(false);
-    setTimeout(() => {
-        setIsFollowUpDialogOpen(true);
-    }, 150); // Delay to allow sheet to close
-  }
+  const highlightedDays = React.useMemo(() => {
+      return allAgendaItems.map(item => startOfDay(item.date));
+  }, [allAgendaItems]);
+
+  const filteredItems = React.useMemo(() => {
+      if (!selectedDate) return [];
+
+      let items = allAgendaItems.filter(item => isSameDay(item.date, selectedDate));
+
+      if (typeFilter !== 'all') {
+          const itemType = typeFilter === 'tasks' ? 'order' : 'event';
+          items = items.filter(item => item.type === itemType);
+      }
+      
+      let userFilteredItems;
+      if (isAdmin) {
+          if (userFilter === 'all') {
+              userFilteredItems = items;
+          } else {
+              userFilteredItems = items.filter(item => {
+                  if (item.type === 'order') {
+                      const order = item.rawItem as Order;
+                      const assignedMember = teamMembers.find(m => m.name === order.salesRep);
+                      return assignedMember?.id === userFilter;
+                  }
+                  if (item.type === 'event') {
+                      const event = item.rawItem as CrmEvent;
+                      return event.assignedTeamMemberIds.includes(userFilter);
+                  }
+                  return false;
+              });
+          }
+      } else if (teamMember) {
+          userFilteredItems = items.filter(item => {
+              if (item.type === 'order') {
+                  const order = item.rawItem as Order;
+                  return order.salesRep === teamMember.name || order.clavadistaId === teamMember.id;
+              }
+              if (item.type === 'event') {
+                  const event = item.rawItem as CrmEvent;
+                  return event.assignedTeamMemberIds.includes(teamMember.id);
+              }
+              return false;
+          });
+      } else {
+          userFilteredItems = [];
+      }
+      
+      return userFilteredItems.sort((a,b) => a.date.getTime() - b.date.getTime());
+  }, [allAgendaItems, selectedDate, typeFilter, userFilter, isAdmin, teamMember, teamMembers]);
+
+
+  const handleDayClick = (day: Date) => {
+    setSelectedDate(day);
+  };
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <header className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
+       <header className="mb-6">
         <h1 className="text-3xl font-headline font-semibold flex items-center gap-2">
             <CalendarIcon className="h-8 w-8 text-primary"/>
             Mi Agenda
         </h1>
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          <div className="flex items-center p-1 border rounded-md">
-            <Button variant="ghost" size="icon" onClick={() => handleDateChange('prev')}><ChevronLeft className="h-4 w-4" /></Button>
-            <Button variant="ghost" className="hidden sm:inline-flex" onClick={() => handleDateChange('today')}>Hoy</Button>
-            <Button variant="ghost" size="icon" onClick={() => handleDateChange('next')}><ChevronRight className="h-4 w-4" /></Button>
+        <p className="text-muted-foreground">Planifica y gestiona tus visitas, tareas y eventos.</p>
+       </header>
+
+       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-grow">
+          {/* Calendar Column */}
+          <div className="lg:col-span-1">
+              <Card>
+                  <CardContent className="p-2">
+                      <Calendar
+                          mode="single"
+                          selected={selectedDate}
+                          onSelect={handleDayClick}
+                          locale={es}
+                          modifiers={{ highlighted: highlightedDays }}
+                          modifiersClassNames={{ highlighted: 'day-highlighted' }}
+                          className="p-0"
+                          classNames={{
+                              day_selected: "bg-primary text-primary-foreground hover:bg-primary/90 focus:bg-primary/90",
+                              day_today: "bg-accent text-accent-foreground",
+                          }}
+                       />
+                  </CardContent>
+              </Card>
           </div>
-          <div className="flex-grow text-center">
-            <span className="text-lg font-medium capitalize">{intervalLabel}</span>
-          </div>
-           <div className="flex items-center p-1 border rounded-md bg-muted">
-            <Button variant={viewMode === 'week' ? 'secondary' : 'ghost'} size="sm" onClick={() => setViewMode('week')}>Semana</Button>
-            <Button variant={viewMode === 'month' ? 'secondary' : 'ghost'} size="sm" onClick={() => setViewMode('month')}>Mes</Button>
-          </div>
-        </div>
-      </header>
-      
-      {/* Agenda Grid */}
-      <div className="flex-grow overflow-y-auto pr-2">
-        {isLoading ? (
-            <div className="flex justify-center items-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-        ) : groupedItems.length === 0 ? (
-            <div className="text-center py-16 text-muted-foreground">No hay actividades para este período.</div>
-        ) : (
-            <div className="grid grid-cols-1 gap-6">
-                {groupedItems.map(([dayKey, items]) => (
-                    <div key={dayKey}>
-                        <h2 className="font-semibold text-lg mb-2 sticky top-0 bg-background/80 backdrop-blur-sm py-2">
-                           {format(parseISO(dayKey), "EEEE, d 'de' MMMM", { locale: es })}
-                        </h2>
-                        <div className="space-y-3">
-                            {items.map(item => (
-                                <button key={item.id} className="w-full text-left" onClick={() => handleItemClick(item)}>
-                                    <Card className="hover:bg-secondary/50 transition-colors shadow-sm">
-                                        <CardContent className="p-3 flex items-start gap-3">
-                                            {getAgendaItemIcon(item)}
-                                            <div className="flex-grow">
-                                                <p className="font-medium">{item.title}</p>
-                                                <p className="text-sm text-muted-foreground">
-                                                  {item.type === 'order' ? (item.rawItem as Order).nextActionType : (item.rawItem as CrmEvent).type}
-                                                </p>
-                                            </div>
+          
+          {/* Agenda List Column */}
+          <div className="lg:col-span-2">
+              <Card className="h-full flex flex-col">
+                  <CardHeader>
+                      <CardTitle>Actividades para el {selectedDate ? format(selectedDate, 'd MMM, yyyy', {locale: es}) : 'día seleccionado'}</CardTitle>
+                      <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                         {isAdmin && (
+                            <Select value={userFilter} onValueChange={setUserFilter}>
+                                <SelectTrigger><SelectValue placeholder="Filtrar por usuario..." /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Todos los Usuarios</SelectItem>
+                                    {teamMembers.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                         )}
+                         <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as TypeFilter)}>
+                            <SelectTrigger><SelectValue placeholder="Filtrar por tipo..." /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Todo</SelectItem>
+                                <SelectItem value="tasks">Visitas y Tareas</SelectItem>
+                                <SelectItem value="events">Eventos</SelectItem>
+                            </SelectContent>
+                         </Select>
+                      </div>
+                  </CardHeader>
+                  <CardContent className="flex-grow overflow-y-auto pr-3">
+                      {isLoading ? (
+                          <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+                      ) : filteredItems.length > 0 ? (
+                          <div className="space-y-4">
+                              {filteredItems.map(item => (
+                                  <div key={item.id} className="p-3 border rounded-lg shadow-sm bg-background hover:bg-secondary/50 transition-colors">
+                                      <div className="flex items-start gap-3">
+                                          {getAgendaItemIcon(item)}
+                                          <div className="flex-grow">
+                                              <p className="font-semibold">{item.title}</p>
+                                              <p className="text-sm text-muted-foreground">{item.description}</p>
+                                          </div>
+                                          <div className="flex flex-col items-end gap-1">
                                             {item.type === 'order' && <StatusBadge type="order" status={(item.rawItem as Order).status}/>}
                                             {item.type === 'event' && <StatusBadge type="event" status={(item.rawItem as CrmEvent).status}/>}
-                                        </CardContent>
-                                    </Card>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                ))}
-            </div>
-        )}
-      </div>
-
-       {/* Floating Action Button */}
-      <Button 
-        className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-50" 
-        onClick={() => toast({ title: "Próximamente", description: "El widget de adición rápida estará disponible pronto." })}
-        aria-label="Añadir nueva tarea"
-      >
-        <Plus className="h-8 w-8" />
-      </Button>
-
-      {/* Detail Sheet */}
-       <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-            <SheetContent className="w-full sm:w-3/4 md:max-w-md lg:max-w-lg overflow-y-auto">
-                {selectedItem && (
-                    <>
-                        <SheetHeader>
-                            <SheetTitle className="flex items-center gap-3 text-xl">
-                                {getAgendaItemIcon(selectedItem)}
-                                {selectedItem.title}
-                            </SheetTitle>
-                            <SheetDescription>
-                                {format(selectedItem.date, "EEEE, d 'de' MMMM, yyyy", { locale: es })}
-                            </SheetDescription>
-                        </SheetHeader>
-                        <Separator className="my-4"/>
-                        <div className="space-y-4 text-sm">
-                            {selectedItem.type === 'order' && (
-                                <>
-                                    <p><strong>Tipo:</strong> Tarea Comercial</p>
-                                    <p><strong>Estado:</strong> <StatusBadge type="order" status={(selectedItem.rawItem as Order).status} /></p>
-                                    <p><strong>Acción:</strong> {(selectedItem.rawItem as Order).nextActionType || 'N/A'}</p>
-                                    <p><strong>Asignado a:</strong> {(selectedItem.rawItem as Order).salesRep}</p>
-                                    { (selectedItem.rawItem as Order).notes && <p><strong>Notas:</strong> {(selectedItem.rawItem as Order).notes}</p>}
-                                </>
-                            )}
-                             {selectedItem.type === 'event' && (
-                                <>
-                                    <p><strong>Tipo:</strong> Evento</p>
-                                    <p><strong>Estado:</strong> <StatusBadge type="event" status={(selectedItem.rawItem as CrmEvent).status} /></p>
-                                    <p><strong>Ubicación:</strong> {(selectedItem.rawItem as CrmEvent).location || 'N/D'}</p>
-                                    { (selectedItem.rawItem as CrmEvent).description && <p><strong>Descripción:</strong> {(selectedItem.rawItem as CrmEvent).description}</p>}
-                                </>
-                            )}
-                        </div>
-                        <SheetFooter className="mt-6">
-                            <SheetClose asChild><Button variant="outline">Cerrar</Button></SheetClose>
-                             {selectedItem.type === 'order' && (
-                                <Button onClick={handleOpenFollowUp}><Send className="mr-2 h-4 w-4"/>Registrar Resultado</Button>
-                            )}
-                             {selectedItem.type === 'event' && (
-                                <Button asChild><Link href="/events"><Info className="mr-2 h-4 w-4"/>Ver en Eventos</Link></Button>
-                            )}
-                        </SheetFooter>
-                    </>
-                )}
-            </SheetContent>
-       </Sheet>
-       
-       {/* Follow-up Dialog */}
-        {selectedItem?.type === 'order' && (
-             <FollowUpResultDialog
-                order={selectedItem.rawItem as Order}
-                isOpen={isFollowUpDialogOpen}
-                onOpenChange={setIsFollowUpDialogOpen}
-                onSave={async () => {
-                    toast({ title: "Guardado", description: "La acción se guardaría aquí." });
-                    setIsFollowUpDialogOpen(false);
-                }}
-                allTeamMembers={[]}
-                currentUser={teamMember}
-                currentUserRole={userRole}
-            />
-        )}
+                                          </div>
+                                      </div>
+                                      <div className="mt-2 text-right">
+                                         {item.type === 'order' && (
+                                            <Button asChild variant="outline" size="sm">
+                                                <Link href={`/order-form?originatingTaskId=${item.id}`}>Registrar Resultado</Link>
+                                            </Button>
+                                         )}
+                                          {item.type === 'event' && (
+                                            <Button asChild variant="outline" size="sm">
+                                                <Link href={`/events?viewEventId=${item.id}`}>Ver Evento</Link>
+                                            </Button>
+                                         )}
+                                      </div>
+                                  </div>
+                              ))}
+                          </div>
+                      ) : (
+                          <div className="flex items-center justify-center h-full text-muted-foreground text-center">
+                              <p>No hay actividades programadas para este día con los filtros seleccionados.</p>
+                          </div>
+                      )}
+                  </CardContent>
+              </Card>
+          </div>
+       </div>
     </div>
   );
 }

@@ -160,8 +160,8 @@ export interface Order {
   accountId?: string; 
   createdAt: string; 
   originatingTaskId?: string;
-  taskCategory?: 'Commercial' | 'General';
-  isCompleted?: boolean;
+  taskCategory: 'Commercial' | 'General';
+  isCompleted: boolean;
 }
 
 export type MarketingResourceType = 'Folleto' | 'Presentación' | 'Imagen' | 'Guía';

@@ -21,7 +21,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 // --- TYPE DEFINITIONS ---
-type AgendaItemType = 'visita' | 'tarea' | 'evento';
+type AgendaItemType = 'tarea_comercial' | 'evento';
 
 interface AgendaItemBase {
   id: string;
@@ -31,19 +31,17 @@ interface AgendaItemBase {
   description?: string;
   rawItem: Order | CrmEvent;
 }
-interface AgendaVisitaItem extends AgendaItemBase { type: 'visita'; rawItem: Order; }
-interface AgendaTareaItem extends AgendaItemBase { type: 'tarea'; rawItem: Order; }
+interface AgendaTareaComercialItem extends AgendaItemBase { type: 'tarea_comercial'; rawItem: Order; }
 interface AgendaEventItem extends AgendaItemBase { type: 'evento'; rawItem: CrmEvent; }
-type AgendaItem = AgendaVisitaItem | AgendaTareaItem | AgendaEventItem;
+type AgendaItem = AgendaTareaComercialItem | AgendaEventItem;
 
-type TypeFilter = 'all' | 'visitas' | 'tareas' | 'eventos';
+type TypeFilter = 'all' | 'tareas_comerciales' | 'eventos';
 type ViewMode = 'day' | 'week' | 'month';
 
 // --- HELPER FUNCTIONS ---
 const getAgendaItemIcon = (item: AgendaItem) => {
   switch(item.type) {
-    case 'visita': return <Footprints className="h-4 w-4 text-blue-500 flex-shrink-0" />;
-    case 'tarea': return <ClipboardList className="h-4 w-4 text-green-500 flex-shrink-0" />;
+    case 'tarea_comercial': return <ClipboardList className="h-4 w-4 text-green-500 flex-shrink-0" />;
     case 'evento': return <PartyPopper className="h-4 w-4 text-purple-500 flex-shrink-0" />;
     default: return <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />;
   }
@@ -77,25 +75,14 @@ export default function MyAgendaPage() {
           getTeamMembersFS(['SalesRep', 'Clavadista', 'Admin'])
         ]);
 
-        const visitaItems: AgendaItem[] = orders
-            .filter(o => o.status === 'Programada' && o.visitDate && isValid(parseISO(o.visitDate)))
+        const tareaComercialItems: AgendaItem[] = orders
+            .filter(o => (o.status === 'Programada' || o.status === 'Seguimiento') && (o.status === 'Programada' ? o.visitDate : o.nextActionDate) && isValid(parseISO((o.status === 'Programada' ? o.visitDate : o.nextActionDate)!)))
             .map(o => ({
                 id: o.id,
-                date: parseISO(o.visitDate!),
-                type: 'visita',
-                title: `Visita a ${o.clientName}`,
-                description: o.notes || 'Visita de captación/seguimiento programada.',
-                rawItem: o,
-            }));
-        
-        const tareaItems: AgendaItem[] = orders
-            .filter(o => o.status === 'Seguimiento' && o.nextActionDate && isValid(parseISO(o.nextActionDate)))
-            .map(o => ({
-                id: o.id,
-                date: parseISO(o.nextActionDate!),
-                type: 'tarea',
-                title: `Seguimiento con ${o.clientName}`,
-                description: o.nextActionType || 'Realizar seguimiento',
+                date: parseISO((o.status === 'Programada' ? o.visitDate : o.nextActionDate)!),
+                type: 'tarea_comercial',
+                title: `Interacción con ${o.clientName}`,
+                description: o.status === 'Programada' ? 'Visita programada' : (o.nextActionType || 'Realizar seguimiento'),
                 rawItem: o,
             }));
         
@@ -110,7 +97,7 @@ export default function MyAgendaPage() {
                 rawItem: e,
             }));
         
-        setAllAgendaItems([...visitaItems, ...tareaItems, ...eventItems]);
+        setAllAgendaItems([...tareaComercialItems, ...eventItems]);
         setTeamMembers(members);
 
       } catch (error) {
@@ -130,8 +117,7 @@ export default function MyAgendaPage() {
 
     if (typeFilter !== 'all') {
       items = items.filter(item => {
-        if(typeFilter === 'visitas') return item.type === 'visita';
-        if(typeFilter === 'tareas') return item.type === 'tarea';
+        if(typeFilter === 'tareas_comerciales') return item.type === 'tarea_comercial';
         if(typeFilter === 'eventos') return item.type === 'evento';
         return false;
       });
@@ -141,7 +127,7 @@ export default function MyAgendaPage() {
     if (isAdmin) {
         if (userFilter !== 'all') {
             userFilteredItems = items.filter(item => {
-                if (item.type === 'visita' || item.type === 'tarea') {
+                if (item.type === 'tarea_comercial') {
                     const order = item.rawItem as Order;
                     const assignedMember = teamMembers.find(m => m.name === order.salesRep);
                     return assignedMember?.id === userFilter || order.clavadistaId === userFilter;
@@ -157,7 +143,7 @@ export default function MyAgendaPage() {
         }
     } else if (teamMember) {
         userFilteredItems = items.filter(item => {
-            if (item.type === 'visita' || item.type === 'tarea') {
+            if (item.type === 'tarea_comercial') {
                 const order = item.rawItem as Order;
                 return order.salesRep === teamMember.name || order.clavadistaId === teamMember.id;
             }
@@ -175,13 +161,11 @@ export default function MyAgendaPage() {
 
 
   const highlightedDays = React.useMemo(() => {
-    const dates = filteredItemsForHighlight.map(item => {
-        const d = startOfDay(item.date);
-        d.setHours(12, 0, 0, 0); 
-        return d;
+    const dates = new Set<number>();
+    filteredItemsForHighlight.forEach(item => {
+      dates.add(startOfDay(item.date).getTime());
     });
-    const uniqueDates = Array.from(new Set(dates.map(d => d.getTime()))).map(time => new Date(time));
-    return uniqueDates;
+    return Array.from(dates).map(time => new Date(time));
   }, [filteredItemsForHighlight]);
 
   const { interval, itemsForView } = React.useMemo(() => {
@@ -251,12 +235,6 @@ export default function MyAgendaPage() {
     }
   };
   
-  const getActionText = (order: Order) => {
-    if (order.status === 'Programada') return "Visita de nuevo";
-    if (order.status === 'Seguimiento' && order.nextActionType === 'Opción personalizada') return order.nextActionCustom || "Seguimiento personalizado";
-    return order.nextActionType || "Seguimiento";
-  };
-
   return (
     <div className="flex flex-col h-full space-y-6">
        <header>
@@ -264,13 +242,16 @@ export default function MyAgendaPage() {
             <CalendarIcon className="h-8 w-8 text-primary"/>
             Agenda del Equipo
         </h1>
-        <p className="text-muted-foreground">Planifica y gestiona tus visitas, tareas y eventos.</p>
+        <div className="flex items-center flex-wrap space-x-4 text-xs text-muted-foreground mt-2 p-2">
+            <div className="flex items-center gap-1.5"><ClipboardList className="h-4 w-4 text-green-500"/> Tarea Comercial</div>
+            <div className="flex items-center gap-1.5"><PartyPopper className="h-4 w-4 text-purple-500"/> Evento</div>
+        </div>
        </header>
 
        <Card>
          <CardHeader>
             <CardTitle className="flex items-center gap-2"><Filter className="h-5 w-5 text-muted-foreground"/>Filtros de Agenda</CardTitle>
-            <CardDescription>Utiliza los filtros para personalizar la vista de tu agenda, mostrando acciones de seguimiento o eventos específicos.</CardDescription>
+            <CardDescription>Utiliza los filtros para personalizar la vista de tu agenda.</CardDescription>
          </CardHeader>
          <CardContent className="flex flex-col sm:flex-row gap-4">
              {isAdmin && (
@@ -291,8 +272,7 @@ export default function MyAgendaPage() {
                     <SelectTrigger><SelectValue placeholder="Filtrar por tipo..." /></SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">Todo</SelectItem>
-                        <SelectItem value="visitas">Visitas</SelectItem>
-                        <SelectItem value="tareas">Tareas</SelectItem>
+                        <SelectItem value="tareas_comerciales">Tareas Comerciales</SelectItem>
                         <SelectItem value="eventos">Eventos</SelectItem>
                     </SelectContent>
                  </Select>
@@ -334,11 +314,6 @@ export default function MyAgendaPage() {
                               day_today: "bg-accent text-accent-foreground",
                           }}
                        />
-                        <div className="flex items-center flex-wrap space-x-4 text-xs text-muted-foreground mt-4 p-2">
-                            <div className="flex items-center gap-1.5"><Footprints className="h-4 w-4 text-blue-500"/> Visita</div>
-                            <div className="flex items-center gap-1.5"><ClipboardList className="h-4 w-4 text-green-500"/> Tarea</div>
-                            <div className="flex items-center gap-1.5"><PartyPopper className="h-4 w-4 text-purple-500"/> Evento</div>
-                        </div>
                   </CardContent>
               </Card>
           </div>
@@ -360,7 +335,7 @@ export default function MyAgendaPage() {
                       ) : itemsForView.length > 0 ? (
                         <div className="space-y-4">
                             {itemsForView.map(item => {
-                                const order = (item.type === 'visita' || item.type === 'tarea') ? item.rawItem as Order : null;
+                                const order = item.type === 'tarea_comercial' ? item.rawItem as Order : null;
                                 const event = item.type === 'evento' ? item.rawItem as CrmEvent : null;
                                 const originalOrderDate = order?.originatingTaskId ? allAgendaItems.find(i => i.id === order.originatingTaskId)?.date : null;
 
@@ -375,7 +350,6 @@ export default function MyAgendaPage() {
                                       <p className="flex items-center gap-2"><Info className="h-4 w-4"/> Acción: {item.description}</p>
                                       {order && <p className="flex items-center gap-2"><User className="h-4 w-4"/> Responsable(s): {order.salesRep}{order.clavadistaId ? `, ${teamMembersMap.get(order.clavadistaId)?.name || 'Clavadista'}` : ''}</p>}
                                       {event && event.assignedTeamMemberIds.length > 0 && <p className="flex items-center gap-2"><User className="h-4 w-4"/> Asignados: {event.assignedTeamMemberIds.map(id => teamMembersMap.get(id)?.name).filter(Boolean).join(', ')}</p>}
-                                      {originalOrderDate && <p className="flex items-center gap-2"><CalendarDays className="h-4 w-4"/> Fecha Original Visita: {format(originalOrderDate, 'dd/MM/yy')}</p>}
                                   </div>
                                   {(order || event) && (
                                     <Button asChild size="sm" className="w-full mt-3 bg-primary hover:bg-primary/90">

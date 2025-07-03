@@ -24,6 +24,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 
 
 type BucketFilter = "Todos" | "Vencidas" | "Para Hoy" | "Pendientes";
+type SortOption = "leadScore_desc" | "nextAction_asc" | "lastInteraction_desc";
 
 export default function AccountsPage() {
   const { toast } = useToast();
@@ -41,6 +42,7 @@ export default function AccountsPage() {
   const [searchTerm, setSearchTerm] = React.useState("");
   const [responsibleFilter, setResponsibleFilter] = React.useState("Todos");
   const [bucketFilter, setBucketFilter] = React.useState<BucketFilter>("Todos");
+  const [sortOption, setSortOption] = React.useState<SortOption>("leadScore_desc");
   
   const isAdmin = userRole === 'Admin';
   const salesAndAdminMembers = teamMembers.filter(m => m.role === 'Admin' || m.role === 'SalesRep');
@@ -99,18 +101,46 @@ export default function AccountsPage() {
         if (bucketFilter === 'Pendientes') return nextActionDate > todayEnd;
         return false;
     };
+
+    const sortFunction = (a: EnrichedAccount, b: EnrichedAccount) => {
+        switch (sortOption) {
+            case 'nextAction_asc': {
+                const dateA = a.nextInteraction?.status === 'Programada' ? (a.nextInteraction.visitDate ? parseISO(a.nextInteraction.visitDate) : null) : (a.nextInteraction?.nextActionDate ? parseISO(a.nextInteraction.nextActionDate) : null);
+                const dateB = b.nextInteraction?.status === 'Programada' ? (b.nextInteraction.visitDate ? parseISO(b.nextInteraction.visitDate) : null) : (b.nextInteraction?.nextActionDate ? parseISO(b.nextInteraction.nextActionDate) : null);
+                if (!dateA && !dateB) return 0;
+                if (!dateA) return 1;
+                if (!dateB) return -1;
+                if (!isValid(dateA)) return 1;
+                if (!isValid(dateB)) return -1;
+                return dateA.getTime() - dateB.getTime();
+            }
+            case 'lastInteraction_desc': {
+                const dateA = a.lastInteractionDate;
+                const dateB = b.lastInteractionDate;
+                if (!dateA && !dateB) return 0;
+                if (!dateA) return 1;
+                if (!dateB) return -1;
+                if (!isValid(dateA)) return 1;
+                if (!isValid(dateB)) return -1;
+                return dateB.getTime() - a.getTime();
+            }
+            case 'leadScore_desc':
+            default:
+                return b.leadScore - a.leadScore;
+        }
+    };
     
     const baseFiltered = enrichedAccounts.filter(applyFilters).filter(applyResponsibleFilter).filter(applyBucketFilter);
     const hasOrder = (acc: EnrichedAccount) => ['Activo', 'Repetición'].includes(acc.status);
     const isPotential = (acc: EnrichedAccount) => ['Programada', 'Seguimiento'].includes(acc.status);
 
     return {
-      activeAccounts: baseFiltered.filter(acc => hasOrder(acc)),
-      potentialAccounts: baseFiltered.filter(acc => isPotential(acc)),
-      failedAccounts: baseFiltered.filter(acc => !hasOrder(acc) && !isPotential(acc)),
+      activeAccounts: baseFiltered.filter(acc => hasOrder(acc)).sort(sortFunction),
+      potentialAccounts: baseFiltered.filter(acc => isPotential(acc)).sort(sortFunction),
+      failedAccounts: baseFiltered.filter(acc => !hasOrder(acc) && !isPotential(acc)).sort(sortFunction),
     };
 
-  }, [searchTerm, enrichedAccounts, responsibleFilter, bucketFilter, isAdmin]);
+  }, [searchTerm, enrichedAccounts, responsibleFilter, bucketFilter, isAdmin, sortOption]);
 
 
   const handleAddNewAccount = () => {
@@ -222,7 +252,7 @@ export default function AccountsPage() {
     if (!isAdmin || !accountToDelete) return;
     setIsLoading(true);
     try {
-      await deleteAccountFS(accountToDelete.id, accountToDelete.nombre);
+      await deleteAccountFS(accountToDelete.id);
       toast({
         title: "¡Cuenta Eliminada!",
         description: `La cuenta "${accountToDelete.nombre}" y sus interacciones asociadas han sido eliminadas.`,
@@ -276,6 +306,16 @@ export default function AccountsPage() {
                       </SelectContent>
                   </Select>
                )}
+                <Select value={sortOption} onValueChange={(v) => setSortOption(v as SortOption)}>
+                    <SelectTrigger className="w-full sm:w-[240px]">
+                        <SelectValue placeholder="Ordenar por..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="leadScore_desc">Prioridad (Lead Score)</SelectItem>
+                        <SelectItem value="nextAction_asc">Fecha Próxima Tarea</SelectItem>
+                        <SelectItem value="lastInteraction_desc">Fecha Última Interacción</SelectItem>
+                    </SelectContent>
+                </Select>
                 <div className="flex-grow flex justify-end gap-2 w-full sm:w-auto">
                   {isAdmin && (
                     <Button onClick={handleAddNewAccount} disabled={isLoading}>

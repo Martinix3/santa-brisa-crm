@@ -56,12 +56,10 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
     return (
         <TooltipProvider>
         <>
-            <TableRow className={cn("border-b", isOverdue && "bg-red-50/50 dark:bg-red-900/10")} data-state={isExpanded ? "selected" : ""}>
+            <TableRow className={cn("border-b", isOverdue && "bg-rose-50/50 dark:bg-rose-900/10")} data-state={isExpanded ? "selected" : ""}>
                 <TableCell className="p-1 text-center align-middle">
-                     <div className={cn("w-1 h-10 rounded-full",
-                        accountIsActive ? "bg-green-400" :
-                        account.status === "Potencial" ? "bg-blue-400" :
-                        "bg-red-400"
+                     <div className={cn("w-1 h-10 rounded-full mx-auto",
+                        accountIsActive ? "bg-emerald-500" : "bg-rose-500"
                     )}></div>
                 </TableCell>
                 <TableCell className="font-medium align-middle">

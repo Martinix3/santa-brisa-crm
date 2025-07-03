@@ -108,5 +108,5 @@ export async function processCarteraData(
 
     const enrichedAccounts = await Promise.all(enrichedAccountsPromises);
     
-    return enrichedAccounts.sort((a, b) => b.leadScore - a.leadScore);
+    return enrichedAccounts;
 }

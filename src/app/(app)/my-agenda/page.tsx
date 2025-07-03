@@ -2,9 +2,9 @@
 "use client";
 
 import * as React from "react";
-import { format, isSameDay, parseISO, startOfDay, isValid, startOfWeek, endOfWeek, endOfMonth, isWithinInterval, startOfMonth, endOfDay } from "date-fns";
+import { format, isSameDay, parseISO, startOfDay, isValid, startOfWeek, endOfWeek, endOfMonth, isWithinInterval, addDays } from "date-fns";
 import { es } from "date-fns/locale";
-import { Calendar as CalendarIcon, ClipboardList, PartyPopper, Loader2, Filter, ChevronLeft, ChevronRight, Info, User, Send, Briefcase, Footprints, AlertTriangle } from "lucide-react";
+import { Calendar as CalendarIcon, ClipboardList, PartyPopper, Loader2, Filter, ChevronLeft, ChevronRight, Info, User, Send, Briefcase, Footprints, AlertTriangle, PlusCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -233,7 +233,6 @@ export default function MyAgendaPage() {
       
       const items = filteredItemsForHighlight
           .filter(item => {
-            if(viewMode === 'day') return isSameDay(item.date, selectedDate);
             return isWithinInterval(item.date, { start: intervalStart, end: intervalEnd });
           })
           .sort((a,b) => a.date.getTime() - b.date.getTime());
@@ -348,9 +347,8 @@ export default function MyAgendaPage() {
     }
   };
 
-  const handleDayClick = (day: Date, modifiers: any) => {
-    if (modifiers.disabled) return;
-    setNewTaskDate(day);
+  const handleOpenNewEntryDialog = () => {
+    setNewTaskDate(selectedDate);
     setIsEntryTypeDialogOpen(true);
   };
 
@@ -404,17 +402,23 @@ export default function MyAgendaPage() {
   return (
     <Sheet open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
     <div className="flex flex-col h-full space-y-6">
-       <header>
-        <h1 className="text-3xl font-headline font-semibold flex items-center gap-2">
+       <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
             <CalendarIcon className="h-8 w-8 text-primary"/>
-            Agenda del Equipo
-        </h1>
-        <div className="flex items-center flex-wrap space-x-4 text-xs text-muted-foreground mt-2 p-2">
-            <div className="flex items-center gap-1.5"><ClipboardList className="h-4 w-4 text-primary"/> Tarea Comercial</div>
-            <div className="flex items-center gap-1.5"><PartyPopper className="h-4 w-4 text-purple-500"/> Evento</div>
-            <div className="flex items-center gap-1.5"><Briefcase className="h-4 w-4 text-blue-500"/> Tarea Admin.</div>
+            <h1 className="text-3xl font-headline font-semibold">
+                Agenda del Equipo
+            </h1>
         </div>
-       </header>
+        <Button onClick={handleOpenNewEntryDialog}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Añadir Entrada
+        </Button>
+      </header>
+       <div className="flex items-center flex-wrap space-x-4 text-xs text-muted-foreground p-2">
+          <div className="flex items-center gap-1.5"><ClipboardList className="h-4 w-4 text-primary"/> Tarea Comercial</div>
+          <div className="flex items-center gap-1.5"><PartyPopper className="h-4 w-4 text-purple-500"/> Evento</div>
+          <div className="flex items-center gap-1.5"><Briefcase className="h-4 w-4 text-blue-500"/> Tarea Admin.</div>
+       </div>
 
        <Card>
          <CardHeader>
@@ -461,14 +465,13 @@ export default function MyAgendaPage() {
               <Card>
                   <CardHeader>
                       <CardTitle>Calendario de Actividades</CardTitle>
-                      <CardDescription>Navega o haz clic en un día para añadir una nueva entrada.</CardDescription>
+                      <CardDescription>Navega o haz clic en un día para ver sus actividades.</CardDescription>
                   </CardHeader>
                   <CardContent className="p-2">
                       <Calendar
                           mode="single"
                           selected={selectedDate}
                           onSelect={(day) => { if(day) { setSelectedDate(day); setViewMode('day'); } }}
-                          onDayClick={handleDayClick}
                           locale={es}
                           modifiers={{ 
                             commercial: commercialTaskDays,

@@ -23,9 +23,10 @@ interface AccountTableRowProps {
     allTeamMembers: TeamMember[];
     onResponsibleUpdate: (accountId: string, newResponsibleId: string | null) => Promise<void>;
     onOpenFollowUpDialog: (task: Order) => void;
+    onDeleteAccount: (account: EnrichedAccount) => void;
 }
 
-const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembers, onResponsibleUpdate, onOpenFollowUpDialog }) => {
+const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembers, onResponsibleUpdate, onOpenFollowUpDialog, onDeleteAccount }) => {
     const { userRole } = useAuth();
     const [isExpanded, setIsExpanded] = React.useState(false);
     const isAdmin = userRole === 'Admin';
@@ -144,7 +145,16 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                            ) : (
                                 <DropdownMenuItem asChild><Link href={`/order-form?accountId=${account.id}`}><PlusCircle className="mr-2 h-4 w-4"/>Registrar Interacción</Link></DropdownMenuItem>
                            )}
-                           {isAdmin && (<><DropdownMenuSeparator /><DropdownMenuItem className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4" />Eliminar Cuenta</DropdownMenuItem></>)}
+                           {isAdmin && (<>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                                className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                onSelect={(e) => { e.preventDefault(); onDeleteAccount(account); }}
+                            >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Eliminar Cuenta
+                            </DropdownMenuItem>
+                           </>)}
                         </DropdownMenuContent>
                      </DropdownMenu>
                 </TableCell>

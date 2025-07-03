@@ -6,11 +6,13 @@ import { db } from '@/lib/firebase';
 import {
   collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
   type DocumentSnapshot,
+  writeBatch, where
 } from "firebase/firestore";
 import type { Account, AccountFormValues, PotencialType } from '@/types';
 import { format, parseISO } from 'date-fns';
 
 const ACCOUNTS_COLLECTION = 'accounts';
+const ORDERS_COLLECTION = 'orders'; 
 
 // This function now returns the raw account data from Firestore.
 // The business logic (status, leadScore) is handled in cartera-service.
@@ -145,8 +147,31 @@ export const updateAccountFS = async (id: string, data: Partial<AccountFormValue
 };
 
 export const deleteAccountFS = async (id: string): Promise<void> => {
+  const batch = writeBatch(db);
+
+  // 1. Delete the account document
   const accountDocRef = doc(db, ACCOUNTS_COLLECTION, id);
-  await deleteDoc(accountDocRef);
+  batch.delete(accountDocRef);
+
+  // 2. Find and delete related orders/interactions
+  const ordersCol = collection(db, ORDERS_COLLECTION);
+  const q = query(ordersCol, where('accountId', '==', id));
+  
+  try {
+    const ordersSnapshot = await getDocs(q);
+    
+    ordersSnapshot.forEach(orderDoc => {
+      console.log(`Marking order ${orderDoc.id} for deletion.`);
+      batch.delete(orderDoc.ref);
+    });
+
+    // Commit the batch
+    await batch.commit();
+    console.log(`Account ${id} and ${ordersSnapshot.size} related orders deleted successfully.`);
+  } catch (error) {
+    console.error(`Error during batched deletion for account ${id}:`, error);
+    throw error;
+  }
 };
 
 export const initializeMockAccountsInFirestore = async (mockAccounts: any[]) => {

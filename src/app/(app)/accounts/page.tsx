@@ -9,9 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import type { EnrichedAccount, TeamMember, Order, NextActionType, UserRole, OrderStatus, FollowUpResultFormValues } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { PlusCircle, Loader2, Search, AlertTriangle, ChevronDown } from "lucide-react";
+import { PlusCircle, Loader2, Search, AlertTriangle, ChevronDown, Trash2 } from "lucide-react";
 import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
-import { getAccountsFS, addAccountFS, updateAccountFS } from "@/services/account-service";
+import { getAccountsFS, addAccountFS, updateAccountFS, deleteAccountFS } from "@/services/account-service";
 import { getOrdersFS, updateOrderFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { processCarteraData } from "@/services/cartera-service";
@@ -20,6 +20,7 @@ import { startOfDay, endOfDay, isBefore, isEqual, parseISO, isValid, format } fr
 import { db } from "@/lib/firebase";
 import { runTransaction, doc, collection } from "firebase/firestore";
 import FollowUpResultDialog from "@/components/app/follow-up-result-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 
 type BucketFilter = "Todos" | "Vencidas" | "Para Hoy" | "Pendientes";
@@ -35,6 +36,7 @@ export default function AccountsPage() {
   const [isAccountDialogOpen, setIsAccountDialogOpen] = React.useState(false);
   const [isFollowUpDialogOpen, setIsFollowUpDialogOpen] = React.useState(false);
   const [currentTask, setCurrentTask] = React.useState<Order | null>(null);
+  const [accountToDelete, setAccountToDelete] = React.useState<EnrichedAccount | null>(null);
 
   const [searchTerm, setSearchTerm] = React.useState("");
   const [responsibleFilter, setResponsibleFilter] = React.useState("Todos");
@@ -210,6 +212,31 @@ export default function AccountsPage() {
         setCurrentTask(null);
     }
   };
+
+  const handleDeleteAccountClick = (account: EnrichedAccount) => {
+    if (!isAdmin) return;
+    setAccountToDelete(account);
+  };
+  
+  const confirmDeleteAccount = async () => {
+    if (!isAdmin || !accountToDelete) return;
+    setIsLoading(true);
+    try {
+      await deleteAccountFS(accountToDelete.id);
+      toast({
+        title: "¡Cuenta Eliminada!",
+        description: `La cuenta "${accountToDelete.nombre}" y sus interacciones asociadas han sido eliminadas.`,
+        variant: "destructive"
+      });
+      setAccountToDelete(null);
+      refreshDataSignature(); // This reloads data, so we don't need to manually filter the state
+    } catch (error) {
+      console.error("Error deleting account:", error);
+      toast({ title: "Error al Eliminar", description: "No se pudo eliminar la cuenta y sus interacciones.", variant: "destructive" });
+      setIsLoading(false);
+      setAccountToDelete(null);
+    }
+  };
   
   return (
     <div className="space-y-6">
@@ -278,9 +305,9 @@ export default function AccountsPage() {
                         <th className="w-[13%] text-right pr-4 font-medium text-muted-foreground p-2">Acciones</th>
                         </tr>
                     </thead>
-                    <AccountGroup title="Activos" accounts={activeAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onOpenFollowUpDialog={handleOpenFollowUpDialog}/>
-                    <AccountGroup title="Potenciales" accounts={potentialAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onOpenFollowUpDialog={handleOpenFollowUpDialog} />
-                    <AccountGroup title="Fallidos" accounts={failedAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onOpenFollowUpDialog={handleOpenFollowUpDialog}/>
+                    <AccountGroup title="Activos" accounts={activeAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onOpenFollowUpDialog={handleOpenFollowUpDialog} onDeleteAccount={handleDeleteAccountClick} />
+                    <AccountGroup title="Potenciales" accounts={potentialAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onOpenFollowUpDialog={handleOpenFollowUpDialog} onDeleteAccount={handleDeleteAccountClick} />
+                    <AccountGroup title="Fallidos" accounts={failedAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onOpenFollowUpDialog={handleOpenFollowUpDialog} onDeleteAccount={handleDeleteAccountClick}/>
                 </table>
             )}
           </div>
@@ -309,6 +336,23 @@ export default function AccountsPage() {
           />
       )}
 
+      {accountToDelete && (
+        <AlertDialog open={!!accountToDelete} onOpenChange={(open) => !open && setAccountToDelete(null)}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Esta acción no se puede deshacer. Se eliminará permanentemente la cuenta <strong className="text-foreground">"{accountToDelete.nombre}"</strong> y todas sus interacciones asociadas.
+                </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setAccountToDelete(null)}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={confirmDeleteAccount} variant="destructive">Sí, eliminar todo</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+      )}
+
     </div>
   );
 }
@@ -319,9 +363,10 @@ interface AccountGroupProps {
   teamMembers: TeamMember[];
   onResponsibleUpdate: (accountId: string, newResponsibleId: string | null) => Promise<void>;
   onOpenFollowUpDialog: (task: Order) => void;
+  onDeleteAccount: (account: EnrichedAccount) => void;
 }
 
-const AccountGroup: React.FC<AccountGroupProps> = ({ title, accounts, teamMembers, onResponsibleUpdate, onOpenFollowUpDialog }) => {
+const AccountGroup: React.FC<AccountGroupProps> = ({ title, accounts, teamMembers, onResponsibleUpdate, onOpenFollowUpDialog, onDeleteAccount }) => {
     const [isExpanded, setIsExpanded] = React.useState(false);
     const visibleAccounts = isExpanded ? accounts : accounts.slice(0, 5);
 
@@ -343,6 +388,7 @@ const AccountGroup: React.FC<AccountGroupProps> = ({ title, accounts, teamMember
                     allTeamMembers={teamMembers}
                     onResponsibleUpdate={onResponsibleUpdate}
                     onOpenFollowUpDialog={onOpenFollowUpDialog}
+                    onDeleteAccount={onDeleteAccount}
                 />
             ))}
             {accounts.length > 5 && (

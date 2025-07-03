@@ -284,6 +284,7 @@ export interface PurchaseFormValues {
   taxRate: number;
   notes?: string;
   invoiceFile?: File | null;
+  invoiceDataUri?: string | null;
   invoiceUrl?: string;
   invoiceContentType?: string;
   storagePath?: string;

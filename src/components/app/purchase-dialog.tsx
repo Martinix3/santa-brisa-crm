@@ -77,6 +77,7 @@ const purchaseFormSchema = z.object({
   taxRate: z.coerce.number().min(0, "El IVA no puede ser negativo.").default(21),
   notes: z.string().optional(),
   invoiceFile: z.any().refine(v => v == null || v instanceof File, { message: "Debe ser un archivo." }).optional().nullable(),
+  invoiceDataUri: z.string().optional().nullable(),
   invoiceUrl: z.union([z.literal(""), z.string().url("URL no válida")]).optional(),
   invoiceContentType: z.string().optional(),
   storagePath: z.string().optional(),
@@ -92,6 +93,15 @@ interface PurchaseDialogProps {
   onOpenChange: (open: boolean) => void;
   onSave: (data: PurchaseFormValues, purchaseId?: string) => Promise<void>;
   isReadOnly?: boolean;
+}
+
+async function fileToDataUri(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (error) => reject(error);
+      reader.readAsDataURL(file);
+  });
 }
 
 export default function PurchaseDialog({ purchase, prefilledData, prefilledFile, isOpen, onOpenChange, onSave, isReadOnly = false }: PurchaseDialogProps) {
@@ -269,7 +279,14 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
     if (isReadOnly) return;
     setIsSaving(true);
     try {
-      await onSave(data, purchase?.id);
+      const { invoiceFile, ...rest } = data;
+      const dataToSave: Partial<PurchaseFormValues> = rest;
+      
+      if (invoiceFile) {
+        dataToSave.invoiceDataUri = await fileToDataUri(invoiceFile);
+      }
+      
+      await onSave(dataToSave as PurchaseFormValues, purchase?.id);
     } catch (error) {
       console.error("Submission failed in dialog:", error);
     } finally {

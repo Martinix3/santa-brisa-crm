@@ -14,19 +14,27 @@ import { updateMaterialStockFS, processMaterialUpdateFromPurchase } from './prom
 const PURCHASES_COLLECTION = 'purchases';
 const SUPPLIERS_COLLECTION = 'suppliers';
 
-async function uploadInvoice(file: File, purchaseId: string): Promise<{ downloadUrl: string; storagePath: string; contentType: string }> {
+async function uploadInvoice(dataUri: string, purchaseId: string): Promise<{ downloadUrl: string; storagePath: string; contentType: string }> {
   const adminBucket = await getAdminBucket();
-  const fileExtension = file.name.split('.').pop() || 'bin';
+
+  const matches = dataUri.match(/^data:(.+);base64,(.*)$/);
+  if (!matches || matches.length !== 3) {
+    throw new Error('Formato de data URI inválido.');
+  }
+
+  const contentType = matches[1];
+  const buffer = Buffer.from(matches[2], 'base64');
+  const fileExtension = contentType.split('/')[1] || 'bin';
   const path = `invoices/purchases/${purchaseId}/invoice_${Date.now()}.${fileExtension}`;
   try {
-    const buffer = Buffer.from(await file.arrayBuffer());
-    await adminBucket.file(path).save(buffer, {
-      contentType: file.type,
+    const file = adminBucket.file(path);
+    await file.save(buffer, {
+      contentType: contentType,
       resumable: false,
     });
     const url = `https://storage.googleapis.com/${adminBucket.name}/${path}`;
     console.log(`File uploaded to ${path}, public URL: ${url}`);
-    return { downloadUrl: url, storagePath: path, contentType: file.type };
+    return { downloadUrl: url, storagePath: path, contentType: contentType };
   } catch (err: any) {
     console.error(`Error uploading to Firebase Storage at path ${path}:`, err);
     throw new Error(`Failed to upload to storage: ${err.message}`);
@@ -183,9 +191,9 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
         const newDocRef = doc(purchasesCol);
         const purchaseId = newDocRef.id;
 
-        if (data.invoiceFile) {
+        if (data.invoiceDataUri) {
             console.log(`Uploading invoice for new purchase ID: ${purchaseId}`);
-            const { downloadUrl, storagePath, contentType } = await uploadInvoice(data.invoiceFile, purchaseId);
+            const { downloadUrl, storagePath, contentType } = await uploadInvoice(data.invoiceDataUri, purchaseId);
             data.invoiceUrl = downloadUrl;
             data.storagePath = storagePath;
             data.invoiceContentType = contentType;
@@ -233,7 +241,7 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
         }
     }
 
-    if (data.invoiceFile) { 
+    if (data.invoiceDataUri) { 
         console.log(`Uploading new invoice for existing purchase ID: ${id}`);
         if (oldData.storagePath) {
             try {
@@ -244,7 +252,7 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
               console.warn(`Could not delete old invoice file ${oldData.storagePath}, it may not exist or permissions are insufficient.`);
             }
         }
-        const { downloadUrl, storagePath, contentType } = await uploadInvoice(data.invoiceFile, id);
+        const { downloadUrl, storagePath, contentType } = await uploadInvoice(data.invoiceDataUri, id);
         data.invoiceUrl = downloadUrl;
         data.storagePath = storagePath;
         data.invoiceContentType = contentType;

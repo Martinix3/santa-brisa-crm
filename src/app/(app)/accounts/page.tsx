@@ -101,7 +101,7 @@ export default function AccountsPage() {
     };
     
     const baseFiltered = enrichedAccounts.filter(applyFilters).filter(applyResponsibleFilter).filter(applyBucketFilter);
-    const hasOrder = (acc: EnrichedAccount) => ['Pedido', 'Repetición'].includes(acc.status);
+    const hasOrder = (acc: EnrichedAccount) => ['Activo', 'Repetición'].includes(acc.status);
     const isPotential = (acc: EnrichedAccount) => ['Programada', 'Seguimiento'].includes(acc.status);
 
     return {
@@ -222,7 +222,7 @@ export default function AccountsPage() {
     if (!isAdmin || !accountToDelete) return;
     setIsLoading(true);
     try {
-      await deleteAccountFS(accountToDelete.id);
+      await deleteAccountFS(accountToDelete.id, accountToDelete.nombre);
       toast({
         title: "¡Cuenta Eliminada!",
         description: `La cuenta "${accountToDelete.nombre}" y sus interacciones asociadas han sido eliminadas.`,

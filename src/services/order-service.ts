@@ -172,10 +172,17 @@ export const addScheduledTaskFS = async (data: NewScheduledTaskData, creator: Te
   let clientName = data.newClientName;
   let assignedTo = creator;
 
-  if (data.clientSelectionMode === 'existing') {
-    const account = await getAccountByIdFS(data.accountId!);
-    if (!account) throw new Error("Account not found");
-    clientName = account.nombre;
+  if (data.taskCategory === 'Commercial') {
+      if (data.clientSelectionMode === 'existing') {
+          const account = await getAccountByIdFS(data.accountId!);
+          if (!account) throw new Error("Account not found");
+          clientName = account.nombre;
+      } else if (!clientName?.trim()) {
+          throw new Error("El nombre del nuevo cliente es obligatorio para tareas comerciales.");
+      }
+  } else {
+      clientName = data.notes.substring(0, 50); // Use notes as title for admin tasks
+      accountId = undefined;
   }
   
   if (data.assignedToId) {
@@ -184,7 +191,7 @@ export const addScheduledTaskFS = async (data: NewScheduledTaskData, creator: Te
   }
   
   const orderData = {
-    clientName: clientName || 'Tarea Administrativa',
+    clientName: clientName || 'Tarea sin título',
     accountId: accountId || null,
     visitDate: Timestamp.fromDate(data.visitDate),
     createdAt: Timestamp.fromDate(new Date()),
@@ -192,7 +199,7 @@ export const addScheduledTaskFS = async (data: NewScheduledTaskData, creator: Te
     salesRep: assignedTo.name,
     status: 'Programada' as OrderStatus,
     notes: data.notes,
-    clientStatus: data.clientSelectionMode === 'new' ? 'new' : (data.accountId ? 'existing' : null),
+    clientStatus: data.taskCategory === 'Commercial' ? (data.clientSelectionMode === 'new' ? 'new' : 'existing') : null,
     taskCategory: data.taskCategory || 'Commercial',
     isCompleted: false,
   };

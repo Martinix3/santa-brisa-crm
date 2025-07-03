@@ -130,7 +130,7 @@ export type PaymentMethod = 'Adelantado' | 'Contado' | 'Transferencia 30 días' 
 export interface Order {
   id: string;
   clientName: string;
-  visitDate: string; 
+  visitDate?: string; 
   products?: string[]; 
   value?: number; 
   status: OrderStatus;

@@ -20,15 +20,29 @@ const fromFirestoreOrder = (docSnap: DocumentSnapshot): Order => {
   const data = docSnap.data();
   if (!data) throw new Error("Document data is undefined.");
 
+  const parseOptionalDate = (dateField: any): string | undefined => {
+      if (!dateField) return undefined;
+      if (dateField instanceof Timestamp) return format(dateField.toDate(), "yyyy-MM-dd");
+      if (typeof dateField === 'string' && isValid(parseISO(dateField))) return dateField;
+      return undefined;
+  };
+  
+  const parseRequiredDate = (dateField: any, formatStr: string = "yyyy-MM-dd HH:mm:ss"): string => {
+      if(!dateField) return format(new Date(), formatStr);
+      if(dateField instanceof Timestamp) return format(dateField.toDate(), formatStr);
+      if(typeof dateField === 'string' && isValid(parseISO(dateField))) return dateField;
+      return format(new Date(), formatStr);
+  };
+
   const order: Order = {
     id: docSnap.id,
     clientName: data.clientName || '',
-    visitDate: data.visitDate instanceof Timestamp ? format(data.visitDate.toDate(), "yyyy-MM-dd") : (typeof data.visitDate === 'string' ? data.visitDate : format(new Date(), "yyyy-MM-dd")),
+    visitDate: parseOptionalDate(data.visitDate),
     products: data.products || [],
     value: data.value,
     status: data.status || 'Pendiente',
     salesRep: data.salesRep || '',
-    lastUpdated: data.lastUpdated instanceof Timestamp ? format(data.lastUpdated.toDate(), "yyyy-MM-dd") : (typeof data.lastUpdated === 'string' ? data.lastUpdated : format(new Date(), "yyyy-MM-dd")),
+    lastUpdated: parseRequiredDate(data.lastUpdated),
     clavadistaId: data.clavadistaId || undefined, 
     assignedMaterials: data.assignedMaterials || [],
     canalOrigenColocacion: data.canalOrigenColocacion || undefined,
@@ -46,12 +60,12 @@ const fromFirestoreOrder = (docSnap: DocumentSnapshot): Order => {
 
     nextActionType: data.nextActionType,
     nextActionCustom: data.nextActionCustom || '',
-    nextActionDate: data.nextActionDate instanceof Timestamp ? format(data.nextActionDate.toDate(), "yyyy-MM-dd") : (typeof data.nextActionDate === 'string' ? data.nextActionDate : undefined),
+    nextActionDate: parseOptionalDate(data.nextActionDate),
     failureReasonType: data.failureReasonType,
     failureReasonCustom: data.failureReasonCustom || '',
     
     accountId: data.accountId || undefined,
-    createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd HH:mm:ss") : (typeof data.createdAt === 'string' ? data.createdAt : format(new Date(), "yyyy-MM-dd HH:mm:ss")),
+    createdAt: parseRequiredDate(data.createdAt),
     originatingTaskId: data.originatingTaskId || undefined,
   };
   return order;

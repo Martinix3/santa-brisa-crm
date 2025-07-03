@@ -317,10 +317,12 @@ export function useOrderWizard() {
             const ivaAmount = subtotal * 0.21;
             const newOrderRef = doc(collection(db, "orders"));
             
+            const isVisitLikeInteraction = values.outcome === 'successful' || values.outcome === 'failed';
+            
             const orderData: any = {
                 clientName: client!.nombre,
                 accountId: currentAccountId || null,
-                visitDate: Timestamp.fromDate(new Date()),
+                visitDate: isVisitLikeInteraction ? Timestamp.fromDate(new Date()) : null,
                 createdAt: Timestamp.fromDate(new Date()),
                 lastUpdated: Timestamp.fromDate(new Date()),
                 salesRep: salesRepNameForOrder,
@@ -346,7 +348,7 @@ export function useOrderWizard() {
                 orderData.status = 'Seguimiento';
                 orderData.nextActionType = values.nextActionType || null;
                 orderData.nextActionCustom = values.nextActionType === 'Opción personalizada' ? values.nextActionCustom : null;
-                orderData.nextActionDate = values.nextActionDate ? format(values.nextActionDate, 'yyyy-MM-dd') : null;
+                orderData.nextActionDate = values.nextActionDate ? Timestamp.fromDate(values.nextActionDate) : null;
             } else if (values.outcome === 'failed') {
                 orderData.status = 'Fallido';
                 orderData.failureReasonType = values.failureReasonType || null;

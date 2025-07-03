@@ -523,7 +523,10 @@ export default function MyAgendaPage() {
             </h1>
         </div>
         <div className="flex-shrink-0">
-          {/* Este botón ahora está junto al calendario */}
+          <Button onClick={handleOpenNewEntryDialog} className="w-full sm:w-auto">
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Añadir Entrada
+          </Button>
         </div>
       </header>
        
@@ -582,6 +585,11 @@ export default function MyAgendaPage() {
                             event: eventDays,
                             admin: adminTaskDays
                           }}
+                          modifiersClassNames={{
+                            commercial: 'rdp-day_commercial',
+                            event: 'rdp-day_event',
+                            admin: 'rdp-day_admin',
+                          }}
                           className="p-0"
                        />
                         <Separator className="my-2"/>
@@ -591,10 +599,6 @@ export default function MyAgendaPage() {
                                 <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-purple"/> Evento</span>
                                 <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-blue"/> Tarea Admin.</span>
                             </div>
-                            <Button onClick={handleOpenNewEntryDialog} className="w-full">
-                                <PlusCircle className="mr-2 h-4 w-4" />
-                                Añadir Entrada para este día
-                            </Button>
                         </div>
                   </CardContent>
               </Card>

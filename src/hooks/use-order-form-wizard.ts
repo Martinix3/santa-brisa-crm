@@ -56,10 +56,10 @@ export function useOrderWizard() {
     resolver: zodResolver(orderFormSchema),
     mode: "onBlur",
     defaultValues: {
-      userRole: userRole,
+      userRole: null, // Initialized as null, will be updated by useEffect
       isNewClient: false,
       outcome: undefined,
-      clavadistaId: userRole === 'Clavadista' && teamMember ? teamMember.id : NO_CLAVADISTA_VALUE,
+      clavadistaId: NO_CLAVADISTA_VALUE,
       selectedSalesRepId: "",
       clavadistaSelectedSalesRepId: "",
       canalOrigenColocacion: undefined,
@@ -96,6 +96,18 @@ export function useOrderWizard() {
       assignedMaterials: [],
     },
   });
+
+  React.useEffect(() => {
+    // When userRole is loaded from auth context, reset the form
+    // with the role value. This ensures validation schema has the correct role.
+    if (userRole) {
+        form.reset({
+            ...form.getValues(), // Keep all other values the user might have entered
+            userRole: userRole,
+            clavadistaId: userRole === 'Clavadista' && teamMember ? teamMember.id : form.getValues('clavadistaId')
+        });
+    }
+  }, [userRole, teamMember, form]);
 
   const { fields: materialFields, append: appendMaterial, remove: removeMaterial } = useFieldArray({
     control: form.control, name: "assignedMaterials",
@@ -272,7 +284,6 @@ export function useOrderWizard() {
                     legalName: isSuccessfulOutcome ? (values.nombreFiscal || undefined) : undefined,
                     cif: isSuccessfulOutcome ? (values.cif || '') : '',
                     type: isSuccessfulOutcome ? (values.clientType || 'Otro') : 'Otro',
-                    status: isSuccessfulOutcome ? 'Activo' : 'Potencial',
                     potencial: 'medio',
                     addressBilling: isSuccessfulOutcome && values.direccionFiscal_street ? {
                         street: values.direccionFiscal_street || null, number: values.direccionFiscal_number || null, city: values.direccionFiscal_city || null,

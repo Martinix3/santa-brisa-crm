@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Send, Loader2 } from 'lucide-react';
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 
-export const StepVerify = ({ form, client, handleBack, isSubmitting, availableMaterials, teamMember, userRole, onSubmit }) => {
+export const StepVerify = ({ form, client, handleBack, isSubmitting, availableMaterials, teamMember, userRole }) => {
   const formValuesWatched = form.watch();
   const outcomeWatched = formValuesWatched.outcome;
   
@@ -73,7 +73,7 @@ export const StepVerify = ({ form, client, handleBack, isSubmitting, availableMa
       </CardContent>
         <CardFooter className="flex justify-between">
           <Button type="button" variant="ghost" onClick={handleBack} disabled={isSubmitting}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
-          <Button type="button" onClick={form.handleSubmit(onSubmit)} disabled={!canSubmit}>
+          <Button type="submit" disabled={!canSubmit}>
               {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Guardando...</> : <><Send className="mr-2 h-4 w-4"/> Confirmar y Guardar</>}
           </Button>
       </CardFooter>

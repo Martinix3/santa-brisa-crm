@@ -272,6 +272,8 @@ export function useOrderWizard() {
                     legalName: isSuccessfulOutcome ? (values.nombreFiscal || undefined) : undefined,
                     cif: isSuccessfulOutcome ? (values.cif || '') : '',
                     type: isSuccessfulOutcome ? (values.clientType || 'Otro') : 'Otro',
+                    status: isSuccessfulOutcome ? 'Activo' : 'Potencial',
+                    potencial: 'medio',
                     addressBilling: isSuccessfulOutcome && values.direccionFiscal_street ? {
                         street: values.direccionFiscal_street || null, number: values.direccionFiscal_number || null, city: values.direccionFiscal_city || null,
                         province: values.direccionFiscal_province || null, postalCode: values.direccionFiscal_postalCode || null, country: values.direccionFiscal_country || "España",
@@ -292,7 +294,6 @@ export function useOrderWizard() {
                     iban: isSuccessfulOutcome ? (values.iban || undefined) : undefined,
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString(),
-                    potencial: 'medio',
                     ciudad: values.direccionFiscal_city || values.direccionEntrega_city || undefined,
                 };
                 

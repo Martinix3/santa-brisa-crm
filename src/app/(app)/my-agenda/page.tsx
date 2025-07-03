@@ -266,7 +266,7 @@ export default function MyAgendaPage() {
     if (viewMode === 'day') {
         newDate.setDate(newDate.getDate() + (direction === 'next' ? 1 : -1));
     } else if (viewMode === 'week') {
-        newDate.setDate(newDate.getDate() + (direction === 'next' ? 7 : -7));
+        newDate.setDate(newDate.getDate() + (direction === 'next' ? 7 : -1));
     } else if (viewMode === 'month') {
         newDate.setMonth(newDate.getMonth() + (direction === 'next' ? 1 : -1));
     }
@@ -582,13 +582,11 @@ export default function MyAgendaPage() {
                             event: eventDays,
                             admin: adminTaskDays
                           }}
-                          classNames={{
-                            day_modifier_commercial: 'day-commercial-dot',
-                            day_modifier_event: 'day-event-dot',
-                            day_modifier_admin: 'day-admin-dot'
-                          }}
                           className="p-0"
                           classNames={{
+                              day_modifier_commercial: 'day-commercial-dot',
+                              day_modifier_event: 'day-event-dot',
+                              day_modifier_admin: 'day-admin-dot',
                               day_selected: "bg-black text-white hover:bg-black/90 focus:bg-black/90",
                               day_today: "bg-accent text-accent-foreground",
                           }}

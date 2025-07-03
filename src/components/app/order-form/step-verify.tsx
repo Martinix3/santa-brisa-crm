@@ -11,11 +11,11 @@ import type { useOrderWizard } from "@/hooks/use-order-form-wizard";
 type WizardHookReturn = ReturnType<typeof useOrderWizard>;
 type StepVerifyProps  = Pick<
   WizardHookReturn,
-  "form" | "client" | "handleBack" | "isSubmitting" | "availableMaterials" | "teamMember" | "userRole" | "handleFinalSubmit"
+  "form" | "client" | "handleBack" | "availableMaterials" | "teamMember" | "userRole"
 >;
 
 export const StepVerify: React.FC<StepVerifyProps> = ({
-  form, client, handleBack, isSubmitting, availableMaterials, teamMember, userRole, handleFinalSubmit
+  form, client, handleBack, availableMaterials, teamMember, userRole
 }) => {
   const v          = form.watch();
   const isSuccess  = v.outcome === "successful";
@@ -24,7 +24,7 @@ export const StepVerify: React.FC<StepVerifyProps> = ({
   const subtotal   = (v.numberOfUnits || 0) * (v.unitPrice || 0);
   const total      = subtotal * 1.21;
   
-  const canSubmit = !isSubmitting && !!teamMember && !!userRole;
+  const canSubmit = !form.formState.isSubmitting && !!teamMember && !!userRole;
 
   return (
     <>
@@ -92,12 +92,12 @@ export const StepVerify: React.FC<StepVerifyProps> = ({
       </CardContent>
 
       <CardFooter className="flex justify-between">
-        <Button type="button" variant="ghost" onClick={handleBack} disabled={isSubmitting}>
+        <Button type="button" variant="ghost" onClick={handleBack} disabled={form.formState.isSubmitting}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Volver
         </Button>
 
-        <Button type="button" onClick={handleFinalSubmit} disabled={isSubmitting || !canSubmit}>
-          {isSubmitting
+        <Button type="submit" disabled={!canSubmit}>
+          {form.formState.isSubmitting
             ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando…</>)
             : (<><Send className="mr-2 h-4 w-4" /> Confirmar y Guardar</>)}
         </Button>

@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -17,7 +18,7 @@ export default function OrderFormWizardPage() {
   const wizard = useOrderWizard();
   const {
     form, step, client, handleBack, availableMaterials,
-    isSubmitting, teamMember, userRole, onSubmit, onFormError,
+    teamMember, userRole, onSubmit, onFormError,
     salesRepsList, clavadistas, materialFields,
     appendMaterial, removeMaterial, debouncedSearchTerm,
     searchTerm, setSearchTerm, filteredAccounts,
@@ -71,7 +72,6 @@ export default function OrderFormWizardPage() {
               form={form}
               client={client}
               handleBack={handleBack}
-              isSubmitting={isSubmitting}
               availableMaterials={availableMaterials}
               teamMember={teamMember}
               userRole={userRole}

@@ -28,7 +28,6 @@ export function useOrderWizard() {
   const [client, setClient] = React.useState<Account | { id: 'new'; nombre: string } | null>(null);
   
   const [isLoading, setIsLoading] = React.useState(true);
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
   
   const [allAccounts, setAllAccounts] = React.useState<Account[]>([]);
   const [clavadistas, setClavadistas] = React.useState<TeamMember[]>([]);
@@ -98,11 +97,9 @@ export function useOrderWizard() {
   });
 
   React.useEffect(() => {
-    // When userRole is loaded from auth context, reset the form
-    // with the role value. This ensures validation schema has the correct role.
     if (userRole) {
         form.reset({
-            ...form.getValues(), // Keep all other values the user might have entered
+            ...form.getValues(),
             userRole: userRole,
             clavadistaId: userRole === 'Clavadista' && teamMember ? teamMember.id : form.getValues('clavadistaId')
         });
@@ -130,7 +127,7 @@ export function useOrderWizard() {
       form.setValue('direccionEntrega_postalCode', df_postalCode);
       form.setValue('direccionEntrega_country', df_country);
     } else {
-      if (form.getValues('sameAsBilling') === false) { // Only clear if it was explicitly unchecked
+      if (form.getValues('sameAsBilling') === false) { 
         form.setValue('direccionEntrega_street', '');
         form.setValue('direccionEntrega_number', '');
         form.setValue('direccionEntrega_city', '');
@@ -229,7 +226,7 @@ export function useOrderWizard() {
   };
 
   const onFormError = (errors: any) => {
-    console.error("Validation Errors on submit:", errors);
+    console.error("Validation Errors:", errors);
     const errorMessages = Object.entries(errors).map(([fieldName, error]: [string, any]) => {
         let message = `Campo '${fieldName}'`;
         if (typeof error === 'object' && error !== null && 'message' in error) {
@@ -256,10 +253,9 @@ export function useOrderWizard() {
   };
   
   const onSubmit = async (values: OrderFormValues) => {
-    setIsSubmitting(true);
+    console.log('🚀 onSubmit disparado', values);
     if (!teamMember || !userRole) {
         toast({ title: "Error de autenticación", description: "No se pudo identificar al usuario. Por favor, recargue la página.", variant: "destructive" });
-        setIsSubmitting(false);
         return;
     }
 
@@ -365,7 +361,6 @@ export function useOrderWizard() {
                 failureReasonCustom: values.outcome === 'failed' && values.failureReasonType === 'Otro (especificar)' ? (values.failureReasonCustom || null) : null,
             };
             
-            // Clean up undefined fields before sending to Firestore
             for (const key in orderData) {
                 if (orderData[key] === undefined) {
                     orderData[key] = null;
@@ -401,14 +396,12 @@ export function useOrderWizard() {
     } catch (err: any) {
         console.error("Error en la transacción del formulario:", err, "Datos del formulario:", JSON.stringify(values, null, 2));
         toast({ title: "Error Crítico al Guardar", description: `No se pudo registrar la interacción. Por favor, contacta con soporte. Error: ${err.message}`, variant: "destructive", duration: 10000 });
-    } finally {
-        setIsSubmitting(false);
     }
   };
 
   return {
     form, step, setStep, client, handleClientSelect, searchTerm, setSearchTerm, filteredAccounts, debouncedSearchTerm, handleBack,
-    handleNextStep, onSubmit, onFormError, isLoading, isSubmitting, clavadistas, salesRepsList, availableMaterials,
+    handleNextStep, onSubmit, onFormError, isLoading, clavadistas, salesRepsList, availableMaterials,
     materialFields, appendMaterial, removeMaterial, userRole, teamMember
   };
 }

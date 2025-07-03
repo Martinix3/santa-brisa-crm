@@ -149,30 +149,62 @@ export const updateAccountFS = async (id: string, data: Partial<AccountFormValue
 export const deleteAccountFS = async (id: string): Promise<void> => {
   const batch = writeBatch(db);
 
-  // 1. Delete the account document
+  // First, get the account details to find its name
   const accountDocRef = doc(db, ACCOUNTS_COLLECTION, id);
+  const accountSnap = await getDoc(accountDocRef);
+  if (!accountSnap.exists()) {
+    console.warn(`Account ${id} does not exist. Cannot delete.`);
+    // Consider if you should still try to delete orders by ID, just in case.
+    // For now, we'll exit if the main document is gone.
+    return;
+  }
+  const accountData = accountSnap.data();
+  const accountName = accountData.nombre;
+
+  // 1. Delete the account document
   batch.delete(accountDocRef);
 
-  // 2. Find and delete related orders/interactions
+  // 2. Find and delete related orders/interactions by BOTH accountId and clientName
   const ordersCol = collection(db, ORDERS_COLLECTION);
-  const q = query(ordersCol, where('accountId', '==', id));
   
+  // Create two separate queries because Firestore does not support OR clauses on different fields
+  const qById = query(ordersCol, where('accountId', '==', id));
+  const qByName = query(ordersCol, where('clientName', '==', accountName));
+
   try {
-    const ordersSnapshot = await getDocs(q);
+    // Execute both queries in parallel
+    const [ordersByIdSnapshot, ordersByNameSnapshot] = await Promise.all([
+      getDocs(qById),
+      getDocs(qByName),
+    ]);
     
-    ordersSnapshot.forEach(orderDoc => {
-      console.log(`Marking order ${orderDoc.id} for deletion.`);
-      batch.delete(orderDoc.ref);
+    // Use a Map to automatically handle duplicates (orders that match both by ID and name)
+    const ordersToDelete = new Map<string, any>();
+    
+    ordersByIdSnapshot.forEach(orderDoc => {
+      ordersToDelete.set(orderDoc.id, orderDoc.ref);
     });
 
-    // Commit the batch
+    ordersByNameSnapshot.forEach(orderDoc => {
+      ordersToDelete.set(orderDoc.id, orderDoc.ref);
+    });
+    
+    let deletedCount = 0;
+    ordersToDelete.forEach(orderRef => {
+      batch.delete(orderRef);
+      deletedCount++;
+    });
+
+    // Commit all deletions in one atomic operation
     await batch.commit();
-    console.log(`Account ${id} and ${ordersSnapshot.size} related orders deleted successfully.`);
+    console.log(`Account ${id} ('${accountName}') and ${deletedCount} related orders deleted successfully.`);
+
   } catch (error) {
     console.error(`Error during batched deletion for account ${id}:`, error);
-    throw error;
+    throw error; // Re-throw the error to be caught by the calling function
   }
 };
+
 
 export const initializeMockAccountsInFirestore = async (mockAccounts: any[]) => {
     const accountsCol = collection(db, ACCOUNTS_COLLECTION);

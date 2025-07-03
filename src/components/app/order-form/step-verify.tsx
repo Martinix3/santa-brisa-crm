@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -10,11 +11,11 @@ import type { useOrderWizard } from "@/hooks/use-order-form-wizard";
 type WizardHookReturn = ReturnType<typeof useOrderWizard>;
 type StepVerifyProps  = Pick<
   WizardHookReturn,
-  "form" | "client" | "handleBack" | "isSubmitting" | "availableMaterials" | "teamMember" | "userRole"
+  "form" | "client" | "handleBack" | "isSubmitting" | "availableMaterials" | "teamMember" | "userRole" | "handleFinalSubmit"
 >;
 
 export const StepVerify: React.FC<StepVerifyProps> = ({
-  form, client, handleBack, isSubmitting, availableMaterials, teamMember, userRole
+  form, client, handleBack, isSubmitting, availableMaterials, teamMember, userRole, handleFinalSubmit
 }) => {
   const v          = form.watch();
   const isSuccess  = v.outcome === "successful";
@@ -22,9 +23,8 @@ export const StepVerify: React.FC<StepVerifyProps> = ({
 
   const subtotal   = (v.numberOfUnits || 0) * (v.unitPrice || 0);
   const total      = subtotal * 1.21;
-
-  // ✅ usa el estado interno de RHF – no dependas de props externas
-  const canSubmit = !form.formState.isSubmitting && !!teamMember && !!userRole;
+  
+  const canSubmit = !isSubmitting && !!teamMember && !!userRole;
 
   return (
     <>
@@ -96,9 +96,8 @@ export const StepVerify: React.FC<StepVerifyProps> = ({
           <ArrowLeft className="mr-2 h-4 w-4" /> Volver
         </Button>
 
-        {/* 🔑 botón submit real */}
-        <Button type="submit" disabled={!canSubmit}>
-          {form.formState.isSubmitting
+        <Button type="button" onClick={handleFinalSubmit} disabled={isSubmitting || !canSubmit}>
+          {isSubmitting
             ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando…</>)
             : (<><Send className="mr-2 h-4 w-4" /> Confirmar y Guardar</>)}
         </Button>

@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -18,7 +19,7 @@ export default function OrderFormWizardPage() {
   const wizard = useOrderWizard();
   const {
     form, step, client, handleBack, availableMaterials,
-    isSubmitting, teamMember, userRole, onSubmit,
+    isSubmitting, teamMember, userRole, handleFinalSubmit,
     salesRepsList, clavadistas, materialFields,
     appendMaterial, removeMaterial, debouncedSearchTerm,
     searchTerm, setSearchTerm, filteredAccounts,
@@ -88,6 +89,7 @@ export default function OrderFormWizardPage() {
               availableMaterials={availableMaterials}
               teamMember={teamMember}
               userRole={userRole}
+              handleFinalSubmit={handleFinalSubmit}
             />
           </motion.div>
         );
@@ -100,14 +102,11 @@ export default function OrderFormWizardPage() {
         <FileText className="h-8 w-8 text-primary" />
         <h1 className="text-3xl font-headline font-semibold">Registrar Interacción</h1>
       </header>
-
-      {/* ⚠️ UN SOLO FORMULARIO – el que viene de RHF/shadcn */}
+      
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
-          <Card className="max-w-4xl mx-auto shadow-lg mt-6 overflow-hidden">
-            <AnimatePresence mode="wait">{renderStepContent()}</AnimatePresence>
-          </Card>
-        </form>
+        <Card className="max-w-4xl mx-auto shadow-lg mt-6 overflow-hidden">
+          <AnimatePresence mode="wait">{renderStepContent()}</AnimatePresence>
+        </Card>
       </Form>
     </div>
   );

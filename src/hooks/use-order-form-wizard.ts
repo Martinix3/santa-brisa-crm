@@ -240,6 +240,25 @@ export function useOrderWizard() {
       setStep('verify');
     }
   };
+
+  const handleFinalSubmit = async () => {
+    const isValid = await form.trigger();
+
+    if (!isValid) {
+      const errorList = Object.entries(form.formState.errors).map(([fieldName, error]) => `${fieldName}: ${error.message}`);
+      console.error("Validation Errors:", form.formState.errors);
+      toast({
+        title: "Errores en el formulario",
+        description: `Por favor, corrige los siguientes errores: ${errorList.join(', ')}`,
+        variant: "destructive",
+        duration: 9000,
+      });
+      return;
+    }
+    
+    const values = form.getValues();
+    await onSubmit(values);
+  };
   
   const onSubmit = async (values: OrderFormValues) => {
     console.log('🚀 onSubmit disparado', values);
@@ -395,7 +414,7 @@ export function useOrderWizard() {
 
   return {
     form, step, setStep, client, handleClientSelect, searchTerm, setSearchTerm, filteredAccounts, debouncedSearchTerm, handleBack,
-    handleNextStep, onSubmit, isLoading, isSubmitting, clavadistas, salesRepsList, availableMaterials,
+    handleNextStep, onSubmit, handleFinalSubmit, isLoading, isSubmitting, clavadistas, salesRepsList, availableMaterials,
     materialFields, appendMaterial, removeMaterial, userRole, teamMember
   };
 }

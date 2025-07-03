@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -13,10 +12,23 @@ import { cn } from "@/lib/utils";
 import Link from 'next/link';
 import { parseISO, isBefore, startOfDay, format, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
-import type { EnrichedAccount, TeamMember, Order } from "@/types";
+import type { EnrichedAccount, TeamMember, Order, AccountStatus } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import AccountHistoryTable from './account-history-table';
+
+const getStatusColorClass = (status: AccountStatus) => {
+    switch (status) {
+        case 'Activo':
+        case 'Repetición':
+            return 'bg-emerald-500';
+        case 'Programada':
+        case 'Seguimiento':
+            return 'bg-amber-500';
+        default:
+            return 'bg-rose-500';
+    }
+};
 
 interface AccountTableRowProps {
     account: EnrichedAccount;
@@ -45,6 +57,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
     const leadScoreColor = account.leadScore > 75 ? 'bg-green-500' : account.leadScore > 40 ? 'bg-yellow-500' : 'bg-red-500';
 
     const accountIsActive = account.status === 'Activo' || account.status === 'Repetición';
+    const statusColorClass = getStatusColorClass(account.status);
 
     const nextActionText = account.nextInteraction
         ? account.nextInteraction.status === 'Programada'
@@ -58,9 +71,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
         <>
             <TableRow className={cn("border-b", isOverdue && "bg-rose-50/50 dark:bg-rose-900/10")} data-state={isExpanded ? "selected" : ""}>
                 <TableCell className="p-1 text-center align-middle">
-                     <div className={cn("w-1 h-10 rounded-full mx-auto",
-                        accountIsActive ? "bg-emerald-500" : "bg-rose-500"
-                    )}></div>
+                     <div className={cn("w-1 h-10 rounded-full mx-auto", statusColorClass)}></div>
                 </TableCell>
                 <TableCell className="font-medium align-middle">
                      <div className="flex items-center gap-3">
@@ -106,9 +117,16 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                 <TableCell className="align-middle">
                     {account.nextInteraction ? (
                         <div className="flex items-center justify-between gap-2">
-                            <span className="text-sm text-muted-foreground truncate" title={nextActionText}>
-                                {nextActionText}
-                            </span>
+                            <div>
+                                <span className="text-sm text-muted-foreground truncate" title={nextActionText}>
+                                    {nextActionText}
+                                </span>
+                                {nextActionDate && isValid(nextActionDate) && (
+                                    <p className="text-xs text-muted-foreground/80">
+                                        {format(nextActionDate, "dd MMM yyyy", { locale: es })}
+                                    </p>
+                                )}
+                            </div>
                             <Button variant="outline" size="sm" onClick={() => onOpenFollowUpDialog(account.nextInteraction!)}>
                                 <Check className="mr-1 h-4 w-4" /> Completar
                             </Button>

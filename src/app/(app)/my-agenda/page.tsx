@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { format, isSameDay, parseISO, startOfDay, isValid, startOfWeek, endOfWeek, endOfMonth, isWithinInterval } from "date-fns";
+import { format, isSameDay, parseISO, startOfDay, isValid, startOfWeek, endOfWeek, endOfMonth, isWithinInterval, endOfDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { Calendar as CalendarIcon, ClipboardList, PartyPopper, Loader2, Filter, ChevronLeft, ChevronRight, Info, User, Send, Briefcase, Footprints, AlertTriangle } from "lucide-react";
 

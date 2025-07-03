@@ -289,24 +289,26 @@ body {
 }
 
 /* Calendar Dot Modifiers */
-/* This robust method uses a pseudo-element on the button to ensure dots appear on top of other styles (like selection). */
 .rdp-button {
-  position: relative !important; /* Ensure positioning context for the pseudo-element */
+  position: relative !important;
+  overflow: visible !important; /* Allow the pseudo-element to be visible */
 }
 
 .rdp-button::after {
   content: '';
-  display: block;
   position: absolute;
-  bottom: 4px; /* Position at the bottom of the button */
+  display: block;
+  bottom: 4px;
   left: 0;
-  right: 0;
+  width: 100%; /* Explicit width is crucial */
   height: 5px;
-  /* Use multiple background gradients to create the dots */
+  pointer-events: none; /* Make sure dots don't block clicks */
   background-repeat: no-repeat;
-  background-position: center;
-  background-position: 30% 0, 50% 0, 70% 0; /* Horizontal positions for up to 3 dots */
-  background-size: 5px 5px;
+  /* Position the 3 potential dots */
+  background-position: 30% 0, 50% 0, 70% 0; 
+  /* Size each dot individually */
+  background-size: 5px 5px, 5px 5px, 5px 5px;
+  /* The variables will be populated by the modifier classes below */
   background-image: 
     var(--dot-commercial, transparent), 
     var(--dot-event, transparent), 

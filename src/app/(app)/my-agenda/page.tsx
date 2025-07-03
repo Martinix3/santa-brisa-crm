@@ -15,11 +15,14 @@ import { useToast } from "@/hooks/use-toast";
 import { getOrdersFS } from "@/services/order-service";
 import { getEventsFS } from "@/services/event-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
-import type { Order, CrmEvent, TeamMember, UserRole, OrderStatus } from "@/types";
+import type { Order, CrmEvent, TeamMember, UserRole, OrderStatus, FollowUpResultFormValues } from "@/types";
 import StatusBadge from "@/components/app/status-badge";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { db } from "@/lib/firebase";
+import { runTransaction, doc, collection } from "firebase/firestore";
+import FollowUpResultDialog from "@/components/app/follow-up-result-dialog";
 
 // --- TYPE DEFINITIONS ---
 type AgendaItemType = 'tarea_comercial' | 'evento';
@@ -56,7 +59,7 @@ const getInteractionType = (interaction: Order): string => {
 
 // --- MAIN COMPONENT ---
 export default function MyAgendaPage() {
-  const { userRole, teamMember, dataSignature } = useAuth();
+  const { userRole, teamMember, dataSignature, refreshDataSignature } = useAuth();
   const { toast } = useToast();
 
   const [isLoading, setIsLoading] = React.useState(true);
@@ -69,6 +72,9 @@ export default function MyAgendaPage() {
   const [userFilter, setUserFilter] = React.useState<string>('all');
   const [typeFilter, setTypeFilter] = React.useState<TypeFilter>('all');
   const [viewMode, setViewMode] = React.useState<ViewMode>('week');
+  
+  const [isFollowUpDialogOpen, setIsFollowUpDialogOpen] = React.useState(false);
+  const [currentTask, setCurrentTask] = React.useState<Order | null>(null);
   
   const isAdmin = userRole === 'Admin';
   
@@ -249,6 +255,73 @@ export default function MyAgendaPage() {
     setSelectedItem(item);
   };
   
+  const handleOpenFollowUpDialog = (task: Order) => {
+    setCurrentTask(task);
+    setIsFollowUpDialogOpen(true);
+  };
+  
+  const handleSaveFollowUp = async (data: FollowUpResultFormValues, originalTask: Order) => {
+    try {
+        await runTransaction(db, async (transaction) => {
+            const originalTaskRef = doc(db, 'orders', originalTask.id);
+            transaction.update(originalTaskRef, { status: "Completado" as OrderStatus, lastUpdated: new Date() });
+            
+            const newOrderRef = doc(collection(db, 'orders'));
+            
+            const subtotal = (data.numberOfUnits || 0) * (data.unitPrice || 0);
+            const totalValue = subtotal * 1.21;
+            
+            let salesRepName = originalTask.salesRep;
+            if (data.assignedSalesRepId && salesRepName !== teamMember?.name) {
+                const assignedRep = teamMembers.find(m => m.id === data.assignedSalesRepId);
+                if(assignedRep) salesRepName = assignedRep.name;
+            }
+
+            const newInteractionData: any = {
+                clientName: originalTask.clientName,
+                accountId: originalTask.accountId || null,
+                createdAt: new Date(),
+                lastUpdated: new Date(),
+                salesRep: salesRepName,
+                clavadistaId: originalTask.clavadistaId || null,
+                clientStatus: "existing",
+                originatingTaskId: originalTask.id,
+                notes: data.notes || null,
+            };
+
+            if (data.outcome === "successful") {
+                newInteractionData.status = 'Confirmado';
+                newInteractionData.visitDate = new Date();
+                newInteractionData.products = ["Santa Brisa 750ml"];
+                newInteractionData.numberOfUnits = data.numberOfUnits;
+                newInteractionData.unitPrice = data.unitPrice;
+                newInteractionData.value = totalValue;
+                newInteractionData.paymentMethod = data.paymentMethod;
+            } else if (data.outcome === "follow-up") {
+                newInteractionData.status = 'Seguimiento';
+                newInteractionData.nextActionType = data.nextActionType;
+                newInteractionData.nextActionCustom = data.nextActionType === 'Opción personalizada' ? data.nextActionCustom : null;
+                newInteractionData.nextActionDate = data.nextActionDate ? format(data.nextActionDate, 'yyyy-MM-dd') : null;
+                newInteractionData.visitDate = null;
+            } else if (data.outcome === "failed") {
+                newInteractionData.status = 'Fallido';
+                newInteractionData.visitDate = new Date();
+                newInteractionData.failureReasonType = data.failureReasonType;
+                newInteractionData.failureReasonCustom = data.failureReasonType === 'Otro (especificar)' ? data.failureReasonCustom : null;
+            }
+            transaction.set(newOrderRef, newInteractionData);
+        });
+        toast({ title: "Interacción Registrada", description: "Se ha guardado el resultado y actualizado la cartera."});
+        refreshDataSignature();
+    } catch(err: any) {
+        console.error("Transaction failed: ", err);
+        toast({title: "Error en la transacción", description: "No se pudo guardar el resultado.", variant: "destructive"});
+    } finally {
+        setIsFollowUpDialogOpen(false);
+        setCurrentTask(null);
+    }
+  };
+
   return (
     <Sheet open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
     <div className="flex flex-col h-full space-y-6">
@@ -390,8 +463,8 @@ export default function MyAgendaPage() {
             </SheetHeader>
             <div className="py-4 space-y-4">
                 {selectedItem.type === 'tarea_comercial' && (
-                  <Button asChild className="w-full">
-                    <Link href={`/order-form?originatingTaskId=${selectedItem.id}`}><Send className="mr-2 h-4 w-4"/>Registrar Resultado</Link>
+                  <Button className="w-full" onClick={() => handleOpenFollowUpDialog(selectedItem.rawItem as Order)}>
+                      <Send className="mr-2 h-4 w-4"/>Registrar Resultado
                   </Button>
                 )}
                  {selectedItem.type === 'evento' && (
@@ -414,6 +487,15 @@ export default function MyAgendaPage() {
          </SheetContent>
         )}
     </div>
+    <FollowUpResultDialog
+        order={currentTask}
+        isOpen={isFollowUpDialogOpen}
+        onOpenChange={setIsFollowUpDialogOpen}
+        onSave={handleSaveFollowUp}
+        allTeamMembers={teamMembers}
+        currentUser={teamMember}
+        currentUserRole={userRole}
+    />
     </Sheet>
   );
 }

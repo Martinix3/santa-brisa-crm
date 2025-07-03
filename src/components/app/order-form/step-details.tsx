@@ -1,3 +1,4 @@
+
 import * as React from 'react';
 import { useWatch, type UseFormReturn, type FieldArrayWithId } from 'react-hook-form';
 import { CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
@@ -9,7 +10,8 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, ArrowRight, Trash2, PlusCircle, Calendar as CalendarIcon, Award, Package, Info, Checkbox } from 'lucide-react';
+import { Checkbox } from "@/components/ui/checkbox";
+import { ArrowLeft, ArrowRight, Trash2, PlusCircle, Calendar as CalendarIcon, Award, Package, Info } from 'lucide-react';
 import { format, subDays, isEqual } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';

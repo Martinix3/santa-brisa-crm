@@ -289,16 +289,37 @@ body {
 }
 
 /* Calendar Dot Modifiers */
-.rdp-day_selected {
-  background-image: none !important;
+/* This robust method uses a pseudo-element on the button to ensure dots appear on top of other styles (like selection). */
+.rdp-button {
+  position: relative !important; /* Ensure positioning context for the pseudo-element */
 }
 
-.rdp-day_modifier_commercial { --dot-1: radial-gradient(circle 3px at 50% 50%, hsl(var(--brand-yellow-hsl))); }
-.rdp-day_modifier_event { --dot-2: radial-gradient(circle 3px at 50% 50%, hsl(var(--brand-purple-hsl))); }
-.rdp-day_modifier_admin { --dot-3: radial-gradient(circle 3px at 50% 50%, hsl(var(--brand-blue-hsl))); }
-
-.rdp-day {
+.rdp-button::after {
+  content: '';
+  display: block;
+  position: absolute;
+  bottom: 4px; /* Position at the bottom of the button */
+  left: 0;
+  right: 0;
+  height: 5px;
+  /* Use multiple background gradients to create the dots */
   background-repeat: no-repeat;
-  background-position: 20% 85%, 50% 85%, 80% 85%;
-  background-image: var(--dot-1, transparent), var(--dot-2, transparent), var(--dot-3, transparent);
+  background-position: center;
+  background-position: 30% 0, 50% 0, 70% 0; /* Horizontal positions for up to 3 dots */
+  background-size: 5px 5px;
+  background-image: 
+    var(--dot-commercial, transparent), 
+    var(--dot-event, transparent), 
+    var(--dot-admin, transparent);
+}
+
+/* When a modifier class is on the parent cell, set the corresponding CSS variable for the dot */
+.rdp-day_modifier_commercial .rdp-button::after {
+  --dot-commercial: radial-gradient(circle, hsl(var(--brand-yellow-hsl)) 50%, transparent 55%);
+}
+.rdp-day_modifier_event .rdp-button::after {
+  --dot-event: radial-gradient(circle, hsl(var(--brand-purple-hsl)) 50%, transparent 55%);
+}
+.rdp-day_modifier_admin .rdp-button::after {
+  --dot-admin: radial-gradient(circle, hsl(var(--brand-blue-hsl)) 50%, transparent 55%);
 }

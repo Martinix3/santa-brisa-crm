@@ -122,7 +122,7 @@ export default function AccountsPage() {
                 if (!dateB) return -1;
                 if (!isValid(dateA)) return 1;
                 if (!isValid(dateB)) return -1;
-                return dateB.getTime() - a.getTime();
+                return dateB.getTime() - dateA.getTime();
             }
             case 'leadScore_desc':
             default:

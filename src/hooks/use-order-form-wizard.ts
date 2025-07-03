@@ -1,4 +1,6 @@
 
+"use client";
+
 import * as React from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,7 +10,8 @@ import { useAuth } from "@/contexts/auth-context";
 import { getAccountsFS, addAccountFS, getAccountByIdFS } from "@/services/account-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
-import { runTransaction } from "firebase/firestore";
+import { getOrderByIdFS } from "@/services/order-service";
+import { runTransaction, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { collection, doc } from "firebase/firestore";
 import type { Account, Order, PromotionalMaterial, TeamMember, UserRole, OrderStatus, AccountType } from "@/types";
@@ -291,8 +294,8 @@ export function useOrderWizard() {
                     salesRepId: salesRepIdForAccount,
                     responsableId: salesRepIdForAccount,
                     iban: isSuccessfulOutcome ? (values.iban || null) : null,
-                    createdAt: new Date(),
-                    updatedAt: new Date(),
+                    createdAt: Timestamp.fromDate(new Date()),
+                    updatedAt: Timestamp.fromDate(new Date()),
                     potencial: 'medio'
                 };
                 
@@ -306,7 +309,7 @@ export function useOrderWizard() {
             } else if (client?.id !== 'new' && values.iban && client?.id) {
                 const existingAccount = allAccounts.find(a => a.id === client.id);
                 if (existingAccount && !existingAccount.iban) {
-                    transaction.update(doc(db, "accounts", client.id), { iban: values.iban, updatedAt: new Date() });
+                    transaction.update(doc(db, "accounts", client.id), { iban: values.iban, updatedAt: Timestamp.fromDate(new Date()) });
                 }
             }
 
@@ -317,9 +320,9 @@ export function useOrderWizard() {
             const orderData: any = {
                 clientName: client!.nombre,
                 accountId: currentAccountId || null,
-                visitDate: new Date(),
-                createdAt: new Date(),
-                lastUpdated: new Date(),
+                visitDate: Timestamp.fromDate(new Date()),
+                createdAt: Timestamp.fromDate(new Date()),
+                lastUpdated: Timestamp.fromDate(new Date()),
                 salesRep: salesRepNameForOrder,
                 clavadistaId: values.clavadistaId === NO_CLAVADISTA_VALUE ? null : values.clavadistaId,
                 clientStatus: (client!.id === 'new' ? 'new' : 'existing'),
@@ -353,7 +356,7 @@ export function useOrderWizard() {
             transaction.set(newOrderRef, orderData);
             
             if (originatingTask) {
-               transaction.update(doc(db, "orders", originatingTask.id), { status: "Completado" as OrderStatus, lastUpdated: new Date() });
+               transaction.update(doc(db, "orders", originatingTask.id), { status: "Completado" as OrderStatus, lastUpdated: Timestamp.fromDate(new Date()) });
             }
 
              if (values.assignedMaterials && values.assignedMaterials.length > 0) {

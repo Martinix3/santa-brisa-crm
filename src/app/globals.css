@@ -109,14 +109,8 @@ body {
 }
 
 @layer utilities {
-  .day-highlighted:not([aria-selected]) > .rdp-button {
-    background-color: hsl(var(--primary) / 0.25);
-    color: hsl(var(--primary-foreground) / 0.9);
-    border-radius: var(--radius);
-    font-weight: 500;
-  }
-  .day-highlighted:not([aria-selected]):hover > .rdp-button {
-    background-color: hsl(var(--primary) / 0.35);
+  .rdp-day_highlighted:not([aria-selected]) {
+    @apply bg-primary/20 text-primary-foreground font-medium rounded-lg;
   }
 }
 

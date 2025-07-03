@@ -129,7 +129,12 @@ export default function MyAgendaPage() {
     let items = allAgendaItems;
 
     if (typeFilter !== 'all') {
-      items = items.filter(item => item.type === typeFilter);
+      items = items.filter(item => {
+        if(typeFilter === 'visitas') return item.type === 'visita';
+        if(typeFilter === 'tareas') return item.type === 'tarea';
+        if(typeFilter === 'eventos') return item.type === 'evento';
+        return false;
+      });
     }
     
     let userFilteredItems;
@@ -170,7 +175,13 @@ export default function MyAgendaPage() {
 
 
   const highlightedDays = React.useMemo(() => {
-      return filteredItemsForHighlight.map(item => startOfDay(item.date));
+    const dates = filteredItemsForHighlight.map(item => {
+        const d = startOfDay(item.date);
+        d.setHours(12, 0, 0, 0); 
+        return d;
+    });
+    const uniqueDates = Array.from(new Set(dates.map(d => d.getTime()))).map(time => new Date(time));
+    return uniqueDates;
   }, [filteredItemsForHighlight]);
 
   const { interval, itemsForView } = React.useMemo(() => {
@@ -206,12 +217,39 @@ export default function MyAgendaPage() {
   }, [itemsForView]);
 
   const handleDateChange = (direction: 'prev' | 'next') => {
-      const newDate = new Date(selectedDate);
-      if (viewMode === 'day') newDate.setDate(newDate.getDate() + (direction === 'next' ? 1 : -1));
-      if (viewMode === 'week') newDate.setDate(newDate.getDate() + (direction === 'next' ? 7 : -7));
-      if (viewMode === 'month') newDate.setMonth(newDate.getMonth() + (direction === 'next' ? 1 : -1));
-      setSelectedDate(newDate);
-  }
+    if (viewMode === 'day') {
+        const sortedUniqueDays = Array.from(
+            new Set(filteredItemsForHighlight.map(item => startOfDay(item.date).getTime()))
+        ).sort((a, b) => a - b);
+        
+        const currentDayStart = startOfDay(selectedDate).getTime();
+
+        if (direction === 'next') {
+            const nextDay = sortedUniqueDays.find(day => day > currentDayStart);
+            if (nextDay) {
+                setSelectedDate(new Date(nextDay));
+            } else {
+                const newDate = new Date(selectedDate);
+                newDate.setDate(newDate.getDate() + 1);
+                setSelectedDate(newDate);
+            }
+        } else { // prev
+            const prevDay = sortedUniqueDays.reverse().find(day => day < currentDayStart);
+             if (prevDay) {
+                setSelectedDate(new Date(prevDay));
+            } else {
+                const newDate = new Date(selectedDate);
+                newDate.setDate(newDate.getDate() - 1);
+                setSelectedDate(newDate);
+            }
+        }
+    } else {
+        const newDate = new Date(selectedDate);
+        if (viewMode === 'week') newDate.setDate(newDate.getDate() + (direction === 'next' ? 7 : -7));
+        if (viewMode === 'month') newDate.setMonth(newDate.getMonth() + (direction === 'next' ? 1 : -1));
+        setSelectedDate(newDate);
+    }
+  };
   
   const getActionText = (order: Order) => {
     if (order.status === 'Programada') return "Visita de nuevo";
@@ -284,13 +322,17 @@ export default function MyAgendaPage() {
                           onSelect={(day) => { if(day) { setSelectedDate(day); setViewMode('day'); } }}
                           locale={es}
                           modifiers={{ highlighted: highlightedDays }}
-                          modifiersClassNames={{ highlighted: 'day-highlighted' }}
                           className="p-0"
                           classNames={{
                               day_selected: "bg-primary text-primary-foreground hover:bg-primary/90 focus:bg-primary/90",
                               day_today: "bg-accent text-accent-foreground",
                           }}
                        />
+                        <div className="flex items-center flex-wrap space-x-4 text-xs text-muted-foreground mt-4 p-2">
+                            <div className="flex items-center gap-1.5"><Footprints className="h-4 w-4 text-blue-500"/> Visita</div>
+                            <div className="flex items-center gap-1.5"><ClipboardList className="h-4 w-4 text-green-500"/> Tarea</div>
+                            <div className="flex items-center gap-1.5"><PartyPopper className="h-4 w-4 text-purple-500"/> Evento</div>
+                        </div>
                   </CardContent>
               </Card>
           </div>

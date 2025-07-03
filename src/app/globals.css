@@ -44,6 +44,9 @@ body {
     --brand-turquoise-hsl: 177 100% 35%;
     --brand-terracotta-hsl: 45 100% 58%;
     --brand-yellow-hsl: 45 95% 58%; /* Updated */
+    --brand-purple-hsl: 262 83% 58%;
+    --brand-blue-hsl: 217 91% 60%;
+
 
     --sidebar-background: 220 15% 15%;
     --sidebar-foreground: 30 20% 85%;
@@ -287,23 +290,15 @@ body {
 
 /* Calendar Dot Modifiers */
 .rdp-day_selected {
-  --dot-commercial: transparent !important;
-  --dot-event: transparent !important;
-  --dot-admin: transparent !important;
+  background-image: none !important;
 }
 
-.day-commercial-dot {
-  --dot-commercial: radial-gradient(circle 3px at 50% 50%, hsl(var(--primary)) 100%, transparent 0);
-}
-.day-event-dot {
-  --dot-event: radial-gradient(circle 3px at 50% 50%, hsl(262.1 83.3% 57.8%) 100%, transparent 0);
-}
-.day-admin-dot {
-  --dot-admin: radial-gradient(circle 3px at 50% 50%, hsl(217.2 91.2% 59.8%) 100%, transparent 0);
-}
+.rdp-day_modifier_commercial { --dot-1: radial-gradient(circle 3px at 50% 50%, hsl(var(--brand-yellow-hsl))); }
+.rdp-day_modifier_event { --dot-2: radial-gradient(circle 3px at 50% 50%, hsl(var(--brand-purple-hsl))); }
+.rdp-day_modifier_admin { --dot-3: radial-gradient(circle 3px at 50% 50%, hsl(var(--brand-blue-hsl))); }
 
 .rdp-day {
-  background-image: var(--dot-commercial, transparent), var(--dot-event, transparent), var(--dot-admin, transparent);
-  background-repeat: no-repeat, no-repeat, no-repeat;
-  background-position: 25% 85%, 50% 85%, 75% 85%;
+  background-repeat: no-repeat;
+  background-position: 20% 85%, 50% 85%, 80% 85%;
+  background-image: var(--dot-1, transparent), var(--dot-2, transparent), var(--dot-3, transparent);
 }

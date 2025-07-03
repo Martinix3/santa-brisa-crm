@@ -52,15 +52,15 @@ type ViewMode = 'day' | 'week' | 'month';
 // --- HELPER FUNCTIONS ---
 const getAgendaItemIcon = (item: AgendaItem) => {
   if (item.type === 'evento') {
-    return <PartyPopper className="h-4 w-4 text-purple-500 flex-shrink-0" />;
+    return <PartyPopper className="h-4 w-4 text-brand-purple flex-shrink-0" />;
   }
   if (item.type === 'tarea_comercial') {
-    return <ClipboardList className="h-4 w-4 text-yellow-500 flex-shrink-0" />;
+    return <ClipboardList className="h-4 w-4 text-brand-yellow flex-shrink-0" />;
   }
   if (item.type === 'tarea_administrativa') {
-    return <Briefcase className="h-4 w-4 text-blue-500 flex-shrink-0" />;
+    return <Briefcase className="h-4 w-4 text-brand-blue flex-shrink-0" />;
   }
-  return <ClipboardList className="h-4 w-4 text-yellow-500 flex-shrink-0" />;
+  return <ClipboardList className="h-4 w-4 text-brand-yellow flex-shrink-0" />;
 };
 
 const getInteractionType = (interaction: Order): string => {
@@ -583,20 +583,13 @@ export default function MyAgendaPage() {
                             admin: adminTaskDays
                           }}
                           className="p-0"
-                          classNames={{
-                              day_modifier_commercial: 'day-commercial-dot',
-                              day_modifier_event: 'day-event-dot',
-                              day_modifier_admin: 'day-admin-dot',
-                              day_selected: "bg-black text-white hover:bg-black/90 focus:bg-black/90",
-                              day_today: "bg-accent text-accent-foreground",
-                          }}
                        />
                         <Separator className="my-2"/>
                         <div className="p-2 space-y-3">
                             <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-yellow-500"/> Tarea Comercial</span>
-                                <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-purple-500"/> Evento</span>
-                                <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-500"/> Tarea Admin.</span>
+                                <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-yellow"/> Tarea Comercial</span>
+                                <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-purple"/> Evento</span>
+                                <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-blue"/> Tarea Admin.</span>
                             </div>
                             <Button onClick={handleOpenNewEntryDialog} className="w-full">
                                 <PlusCircle className="mr-2 h-4 w-4" />

@@ -1,3 +1,4 @@
+
 import type {Config} from 'tailwindcss';
 
 export default {
@@ -68,6 +69,8 @@ export default {
         'brand-turquoise': 'hsl(var(--brand-turquoise-hsl))',
         'brand-terracotta': 'hsl(var(--brand-terracotta-hsl))',
         'brand-yellow': 'hsl(var(--brand-yellow-hsl))',
+        'brand-purple': 'hsl(var(--brand-purple-hsl))',
+        'brand-blue': 'hsl(var(--brand-blue-hsl))',
       },
       borderRadius: {
         lg: 'var(--radius)',

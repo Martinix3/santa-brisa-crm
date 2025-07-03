@@ -3,8 +3,13 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Send, Loader2 } from 'lucide-react';
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
+import type { useOrderWizard } from '@/hooks/use-order-form-wizard';
 
-export const StepVerify = ({ form, client, handleBack, isSubmitting, availableMaterials, teamMember, userRole }) => {
+type WizardHookReturn = ReturnType<typeof useOrderWizard>;
+
+interface StepVerifyProps extends Pick<WizardHookReturn, 'form' | 'client' | 'handleBack' | 'isSubmitting' | 'availableMaterials' | 'teamMember' | 'userRole' | 'onSubmit'> {}
+
+export const StepVerify: React.FC<StepVerifyProps> = ({ form, client, handleBack, isSubmitting, availableMaterials, teamMember, userRole, onSubmit }) => {
   const formValuesWatched = form.watch();
   const outcomeWatched = formValuesWatched.outcome;
   
@@ -73,7 +78,7 @@ export const StepVerify = ({ form, client, handleBack, isSubmitting, availableMa
       </CardContent>
         <CardFooter className="flex justify-between">
           <Button type="button" variant="ghost" onClick={handleBack} disabled={isSubmitting}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
-          <Button type="submit" disabled={!canSubmit}>
+          <Button type="button" disabled={!canSubmit} onClick={form.handleSubmit(onSubmit)}>
               {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Guardando...</> : <><Send className="mr-2 h-4 w-4"/> Confirmar y Guardar</>}
           </Button>
       </CardFooter>

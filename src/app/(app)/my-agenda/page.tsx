@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { format, isSameDay, parseISO, startOfDay, isValid, startOfWeek, endOfWeek, endOfMonth, isWithinInterval, addDays } from "date-fns";
+import { format, isSameDay, parseISO, startOfDay, endOfDay, isValid, startOfWeek, endOfWeek, endOfMonth, isWithinInterval, addDays, startOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
 import { Calendar as CalendarIcon, ClipboardList, PartyPopper, Loader2, Filter, ChevronLeft, ChevronRight, Info, User, Send, Briefcase, Footprints, AlertTriangle, PlusCircle } from "lucide-react";
 
@@ -52,11 +52,10 @@ const getAgendaItemIcon = (item: AgendaItem) => {
     return <PartyPopper className="h-4 w-4 text-purple-500 flex-shrink-0" />;
   }
   const order = item.rawItem as Order;
-  if (order.taskCategory === 'General') {
-    return <Briefcase className="h-4 w-4 text-blue-500 flex-shrink-0" />;
+  if (order.status === 'Programada') {
+    return <Footprints className="h-4 w-4 text-blue-500 flex-shrink-0" />;
   }
-  // Default to commercial task
-  return <ClipboardList className="h-4 w-4 text-primary flex-shrink-0" />;
+  return <ClipboardList className="h-4 w-4 text-green-500 flex-shrink-0" />;
 };
 
 const getInteractionType = (interaction: Order): string => {
@@ -239,6 +238,13 @@ export default function MyAgendaPage() {
 
       return { interval: { start: intervalStart, end: intervalEnd }, itemsForView: items };
   }, [selectedDate, viewMode, filteredItemsForHighlight]);
+  
+   const itemsForDayView = React.useMemo(() => {
+        if (viewMode !== 'day') {
+            return [];
+        }
+        return filteredItemsForHighlight.filter(item => isSameDay(item.date, selectedDate));
+    }, [selectedDate, viewMode, filteredItemsForHighlight]);
 
   const itemsGroupedByDay = React.useMemo(() => {
       const grouped = new Map<string, AgendaItem[]>();
@@ -507,28 +513,23 @@ export default function MyAgendaPage() {
                   <CardContent className="flex-grow overflow-y-auto pr-3">
                       {isLoading ? (
                           <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-                      ) : itemsGroupedByDay.length > 0 ? (
+                      ) : itemsForDayView.length > 0 ? (
                         <div className="space-y-4">
-                            {itemsGroupedByDay.map(([day, items]) => (
-                                <div key={day}>
-                                    <h3 className="text-sm font-semibold mb-2 text-muted-foreground">{format(parseISO(day), "EEEE, dd 'de' MMMM", { locale: es })}</h3>
-                                    {items.map(item => (
-                                        <SheetTrigger asChild key={item.id}>
-                                        <button className="w-full text-left" onClick={() => handleItemClick(item)}>
-                                            <Card className="hover:bg-secondary/50 transition-colors shadow-sm mb-2">
-                                                <CardContent className="p-3 flex items-start gap-3">
-                                                    {getAgendaItemIcon(item)}
-                                                    <div className="flex-grow">
-                                                        <h4 className="font-semibold text-base">{item.title}</h4>
-                                                        <p className="text-sm text-muted-foreground">{item.description}</p>
-                                                    </div>
-                                                    {item.type === 'tarea_comercial' && <StatusBadge type="order" status={(item.rawItem as Order).status}/>}
-                                                </CardContent>
-                                            </Card>
-                                        </button>
-                                        </SheetTrigger>
-                                    ))}
-                                </div>
+                            {itemsForDayView.map(item => (
+                                <SheetTrigger asChild key={item.id}>
+                                <button className="w-full text-left" onClick={() => handleItemClick(item)}>
+                                    <Card className="hover:bg-secondary/50 transition-colors shadow-sm">
+                                        <CardContent className="p-3 flex items-start gap-3">
+                                            {getAgendaItemIcon(item)}
+                                            <div className="flex-grow">
+                                                <h4 className="font-semibold text-base">{item.title}</h4>
+                                                <p className="text-sm text-muted-foreground">{item.description}</p>
+                                            </div>
+                                            {item.type === 'tarea_comercial' && <StatusBadge type="order" status={(item.rawItem as Order).status}/>}
+                                        </CardContent>
+                                    </Card>
+                                </button>
+                                </SheetTrigger>
                             ))}
                         </div>
                       ) : (
@@ -547,8 +548,8 @@ export default function MyAgendaPage() {
                 <SheetTitle className="flex items-center gap-2">{getAgendaItemIcon(selectedItem)} {selectedItem.title}</SheetTitle>
                 <SheetDescription>
                     {selectedItem.description}
+                    <div className="font-medium text-foreground mt-2">{format(selectedItem.date, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: es })}</div>
                 </SheetDescription>
-                <div className="font-medium text-foreground mt-2">{format(selectedItem.date, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: es })}</div>
             </SheetHeader>
             <div className="py-4 space-y-4">
                 {selectedItem.type === 'tarea_comercial' && (

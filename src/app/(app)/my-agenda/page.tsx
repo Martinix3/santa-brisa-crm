@@ -2,9 +2,9 @@
 "use client";
 
 import * as React from "react";
-import { format, isSameDay, parseISO, startOfDay, endOfDay, isValid, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, isWithinInterval } from "date-fns";
+import { format, isSameDay, parseISO, startOfDay, isValid, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, isWithinInterval, endOfDay } from "date-fns";
 import { es } from "date-fns/locale";
-import { Calendar as CalendarIcon, ClipboardList, PartyPopper, Loader2, Filter, ChevronLeft, ChevronRight, Info, User, Send, CalendarDays, Footprints } from "lucide-react";
+import { Calendar as CalendarIcon, ClipboardList, PartyPopper, Loader2, Filter, ChevronLeft, ChevronRight, Info, User, Send, Footprints } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -322,6 +322,12 @@ export default function MyAgendaPage() {
                           onSelect={(day) => { if(day) { setSelectedDate(day); setViewMode('day'); } }}
                           locale={es}
                           modifiers={{ highlighted: highlightedDays }}
+                          modifiersStyles={{
+                            highlighted: { 
+                                backgroundColor: 'hsl(var(--primary))', 
+                                color: 'hsl(var(--primary-foreground))' 
+                            }
+                          }}
                           className="p-0"
                           classNames={{
                               day_selected: "bg-primary text-primary-foreground hover:bg-primary/90 focus:bg-primary/90",

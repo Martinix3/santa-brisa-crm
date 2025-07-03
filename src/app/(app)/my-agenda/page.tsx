@@ -2,9 +2,9 @@
 "use client";
 
 import * as React from "react";
-import { format, isSameDay, parseISO, startOfDay, isValid, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, isWithinInterval, endOfDay } from "date-fns";
+import { format, isSameDay, parseISO, startOfDay, isValid, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, isWithinInterval } from "date-fns";
 import { es } from "date-fns/locale";
-import { Calendar as CalendarIcon, ClipboardList, PartyPopper, Loader2, Filter, ChevronLeft, ChevronRight, Info, User, Send, Footprints } from "lucide-react";
+import { Calendar as CalendarIcon, ClipboardList, PartyPopper, Loader2, Filter, ChevronLeft, ChevronRight, Info, User, Send, Briefcase } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -15,10 +15,11 @@ import { useToast } from "@/hooks/use-toast";
 import { getOrdersFS } from "@/services/order-service";
 import { getEventsFS } from "@/services/event-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
-import type { Order, CrmEvent, TeamMember, UserRole } from "@/types";
+import type { Order, CrmEvent, TeamMember, UserRole, OrderStatus } from "@/types";
 import StatusBadge from "@/components/app/status-badge";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
 
 // --- TYPE DEFINITIONS ---
 type AgendaItemType = 'tarea_comercial' | 'evento';
@@ -41,12 +42,17 @@ type ViewMode = 'day' | 'week' | 'month';
 // --- HELPER FUNCTIONS ---
 const getAgendaItemIcon = (item: AgendaItem) => {
   switch(item.type) {
-    case 'tarea_comercial': return <ClipboardList className="h-4 w-4 text-green-500 flex-shrink-0" />;
+    case 'tarea_comercial': return <ClipboardList className="h-4 w-4 text-primary flex-shrink-0" />;
     case 'evento': return <PartyPopper className="h-4 w-4 text-purple-500 flex-shrink-0" />;
     default: return <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />;
   }
 };
 
+const getInteractionType = (interaction: Order): string => {
+    if (interaction.status === 'Programada') return "Visita Programada";
+    if (interaction.status === 'Seguimiento') return `Seguimiento: ${interaction.nextActionType || 'N/D'}`;
+    return "Tarea Desconocida";
+}
 
 // --- MAIN COMPONENT ---
 export default function MyAgendaPage() {
@@ -56,15 +62,16 @@ export default function MyAgendaPage() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [allAgendaItems, setAllAgendaItems] = React.useState<AgendaItem[]>([]);
   const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([]);
+  const [selectedItem, setSelectedItem] = React.useState<AgendaItem | null>(null);
 
   // State for filters and selection
   const [selectedDate, setSelectedDate] = React.useState<Date>(new Date());
   const [userFilter, setUserFilter] = React.useState<string>('all');
   const [typeFilter, setTypeFilter] = React.useState<TypeFilter>('all');
-  const [viewMode, setViewMode] = React.useState<ViewMode>('day');
+  const [viewMode, setViewMode] = React.useState<ViewMode>('week');
   
   const isAdmin = userRole === 'Admin';
-
+  
   React.useEffect(() => {
     async function loadAgendaData() {
       setIsLoading(true);
@@ -82,7 +89,7 @@ export default function MyAgendaPage() {
                 date: parseISO((o.status === 'Programada' ? o.visitDate : o.nextActionDate)!),
                 type: 'tarea_comercial',
                 title: `Interacción con ${o.clientName}`,
-                description: o.status === 'Programada' ? 'Visita programada' : (o.nextActionType || 'Realizar seguimiento'),
+                description: getInteractionType(o),
                 rawItem: o,
             }));
         
@@ -109,7 +116,7 @@ export default function MyAgendaPage() {
     }
     loadAgendaData();
   }, [dataSignature, toast]);
-
+  
   const teamMembersMap = React.useMemo(() => new Map(teamMembers.map(m => [m.id, m])), [teamMembers]);
   
   const filteredItemsForHighlight = React.useMemo(() => {
@@ -160,12 +167,24 @@ export default function MyAgendaPage() {
   }, [allAgendaItems, typeFilter, userFilter, isAdmin, teamMember, teamMembers]);
 
 
-  const highlightedDays = React.useMemo(() => {
-    const dates = new Set<number>();
+  const { commercialTaskDays, eventDays } = React.useMemo(() => {
+    const commercial = new Set<number>();
+    const event = new Set<number>();
+
     filteredItemsForHighlight.forEach(item => {
-      dates.add(startOfDay(item.date).getTime());
+        const date = startOfDay(item.date);
+        date.setHours(12); // Normalize date to prevent TZ issues
+        if (item.type === 'tarea_comercial') {
+            commercial.add(date.getTime());
+        } else if (item.type === 'evento') {
+            event.add(date.getTime());
+        }
     });
-    return Array.from(dates).map(time => new Date(time));
+
+    return {
+        commercialTaskDays: Array.from(commercial).map(time => new Date(time)),
+        eventDays: Array.from(event).map(time => new Date(time)),
+    };
   }, [filteredItemsForHighlight]);
 
   const { interval, itemsForView } = React.useMemo(() => {
@@ -201,6 +220,7 @@ export default function MyAgendaPage() {
   }, [itemsForView]);
 
   const handleDateChange = (direction: 'prev' | 'next') => {
+    const newDate = new Date(selectedDate);
     if (viewMode === 'day') {
         const sortedUniqueDays = Array.from(
             new Set(filteredItemsForHighlight.map(item => startOfDay(item.date).getTime()))
@@ -210,32 +230,24 @@ export default function MyAgendaPage() {
 
         if (direction === 'next') {
             const nextDay = sortedUniqueDays.find(day => day > currentDayStart);
-            if (nextDay) {
-                setSelectedDate(new Date(nextDay));
-            } else {
-                const newDate = new Date(selectedDate);
-                newDate.setDate(newDate.getDate() + 1);
-                setSelectedDate(newDate);
-            }
+            setSelectedDate(nextDay ? new Date(nextDay) : new Date(newDate.setDate(newDate.getDate() + 1)));
         } else { // prev
             const prevDay = sortedUniqueDays.reverse().find(day => day < currentDayStart);
-             if (prevDay) {
-                setSelectedDate(new Date(prevDay));
-            } else {
-                const newDate = new Date(selectedDate);
-                newDate.setDate(newDate.getDate() - 1);
-                setSelectedDate(newDate);
-            }
+            setSelectedDate(prevDay ? new Date(prevDay) : new Date(newDate.setDate(newDate.getDate() - 1)));
         }
     } else {
-        const newDate = new Date(selectedDate);
         if (viewMode === 'week') newDate.setDate(newDate.getDate() + (direction === 'next' ? 7 : -7));
         if (viewMode === 'month') newDate.setMonth(newDate.getMonth() + (direction === 'next' ? 1 : -1));
         setSelectedDate(newDate);
     }
   };
   
+   const handleItemClick = (item: AgendaItem) => {
+    setSelectedItem(item);
+  };
+  
   return (
+    <Sheet open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
     <div className="flex flex-col h-full space-y-6">
        <header>
         <h1 className="text-3xl font-headline font-semibold flex items-center gap-2">
@@ -243,8 +255,9 @@ export default function MyAgendaPage() {
             Agenda del Equipo
         </h1>
         <div className="flex items-center flex-wrap space-x-4 text-xs text-muted-foreground mt-2 p-2">
-            <div className="flex items-center gap-1.5"><ClipboardList className="h-4 w-4 text-green-500"/> Tarea Comercial</div>
+            <div className="flex items-center gap-1.5"><ClipboardList className="h-4 w-4 text-primary"/> Tarea Comercial</div>
             <div className="flex items-center gap-1.5"><PartyPopper className="h-4 w-4 text-purple-500"/> Evento</div>
+            <div className="flex items-center gap-1.5 opacity-50"><Briefcase className="h-4 w-4 text-blue-500"/> Tarea Admin. (Próx.)</div>
         </div>
        </header>
 
@@ -301,16 +314,17 @@ export default function MyAgendaPage() {
                           selected={selectedDate}
                           onSelect={(day) => { if(day) { setSelectedDate(day); setViewMode('day'); } }}
                           locale={es}
-                          modifiers={{ highlighted: highlightedDays }}
+                          modifiers={{ 
+                            commercial: commercialTaskDays,
+                            event: eventDays
+                          }}
                           modifiersStyles={{
-                            highlighted: { 
-                                backgroundColor: 'hsl(var(--primary))', 
-                                color: 'hsl(var(--primary-foreground))' 
-                            }
+                            commercial: { backgroundColor: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' },
+                            event: { backgroundColor: 'hsl(262.1 83.3% 57.8%)', color: 'hsl(var(--primary-foreground))' }
                           }}
                           className="p-0"
                           classNames={{
-                              day_selected: "bg-primary text-primary-foreground hover:bg-primary/90 focus:bg-primary/90",
+                              day_selected: "bg-black text-white hover:bg-black/90 focus:bg-black/90",
                               day_today: "bg-accent text-accent-foreground",
                           }}
                        />
@@ -334,33 +348,23 @@ export default function MyAgendaPage() {
                           <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
                       ) : itemsForView.length > 0 ? (
                         <div className="space-y-4">
-                            {itemsForView.map(item => {
-                                const order = item.type === 'tarea_comercial' ? item.rawItem as Order : null;
-                                const event = item.type === 'evento' ? item.rawItem as CrmEvent : null;
-                                const originalOrderDate = order?.originatingTaskId ? allAgendaItems.find(i => i.id === order.originatingTaskId)?.date : null;
-
-                                return (
-                                <div key={item.id} className="p-3 border rounded-lg shadow-sm bg-background hover:bg-secondary/50 transition-colors">
-                                  <div className="flex justify-between items-start">
-                                    <h4 className="font-semibold text-base flex items-center gap-2">{getAgendaItemIcon(item)} {item.title}</h4>
-                                    {order && <StatusBadge type="order" status={order.status}/>}
-                                    {event && <StatusBadge type="event" status={event.status}/>}
-                                  </div>
-                                  <div className="text-sm text-muted-foreground mt-2 space-y-1 pl-6">
-                                      <p className="flex items-center gap-2"><Info className="h-4 w-4"/> Acción: {item.description}</p>
-                                      {order && <p className="flex items-center gap-2"><User className="h-4 w-4"/> Responsable(s): {order.salesRep}{order.clavadistaId ? `, ${teamMembersMap.get(order.clavadistaId)?.name || 'Clavadista'}` : ''}</p>}
-                                      {event && event.assignedTeamMemberIds.length > 0 && <p className="flex items-center gap-2"><User className="h-4 w-4"/> Asignados: {event.assignedTeamMemberIds.map(id => teamMembersMap.get(id)?.name).filter(Boolean).join(', ')}</p>}
-                                  </div>
-                                  {(order || event) && (
-                                    <Button asChild size="sm" className="w-full mt-3 bg-primary hover:bg-primary/90">
-                                      <Link href={order ? `/order-form?originatingTaskId=${item.id}` : `/events?viewEventId=${item.id}`}>
-                                        <Send className="mr-2 h-4 w-4"/> {order ? "Registrar Resultado" : "Ver Detalles del Evento"}
-                                      </Link>
-                                    </Button>
-                                  )}
-                                </div>
+                            {itemsForView.map(item => (
+                                <SheetTrigger asChild key={item.id}>
+                                <button className="w-full text-left" onClick={() => handleItemClick(item)}>
+                                    <Card className="hover:bg-secondary/50 transition-colors shadow-sm">
+                                        <CardContent className="p-3 flex items-start gap-3">
+                                            {getAgendaItemIcon(item)}
+                                            <div className="flex-grow">
+                                                <h4 className="font-semibold text-base">{item.title}</h4>
+                                                <p className="text-sm text-muted-foreground">{item.description}</p>
+                                            </div>
+                                            {item.type === 'tarea_comercial' && <StatusBadge type="order" status={(item.rawItem as Order).status}/>}
+                                        </CardContent>
+                                    </Card>
+                                </button>
+                                </SheetTrigger>
                               )
-                            })}
+                            )}
                         </div>
                       ) : (
                           <div className="flex items-center justify-center h-full text-muted-foreground text-center">
@@ -371,6 +375,42 @@ export default function MyAgendaPage() {
               </Card>
           </div>
        </div>
+
+       {selectedItem && (
+         <SheetContent>
+            <SheetHeader>
+                <SheetTitle className="flex items-center gap-2">{getAgendaItemIcon(selectedItem)} {selectedItem.title}</SheetTitle>
+                <SheetDescription>
+                    {selectedItem.description}
+                    <p className="font-medium text-foreground mt-2">{format(selectedItem.date, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: es })}</p>
+                </SheetDescription>
+            </SheetHeader>
+            <div className="py-4 space-y-4">
+                {selectedItem.type === 'tarea_comercial' && (
+                  <Button asChild className="w-full">
+                    <Link href={`/order-form?originatingTaskId=${selectedItem.id}`}><Send className="mr-2 h-4 w-4"/>Registrar Resultado</Link>
+                  </Button>
+                )}
+                 {selectedItem.type === 'evento' && (
+                  <Button asChild className="w-full">
+                    <Link href={`/events?viewEventId=${selectedItem.id}`}><Info className="mr-2 h-4 w-4"/>Ver Detalles del Evento</Link>
+                  </Button>
+                )}
+                {selectedItem.type === 'tarea_comercial' && (
+                    <div className="text-sm space-y-2">
+                        <p><strong>Responsable:</strong> {(selectedItem.rawItem as Order).salesRep}</p>
+                        {(selectedItem.rawItem as Order).clavadistaId && <p><strong>Clavadista:</strong> {teamMembersMap.get((selectedItem.rawItem as Order).clavadistaId!)?.name || 'N/D'}</p>}
+                    </div>
+                )}
+                 {selectedItem.type === 'evento' && (
+                     <div className="text-sm space-y-2">
+                        <p><strong>Responsables:</strong> {(selectedItem.rawItem as CrmEvent).assignedTeamMemberIds.map(id => teamMembersMap.get(id)?.name).filter(Boolean).join(', ')}</p>
+                     </div>
+                 )}
+            </div>
+         </SheetContent>
+        )}
     </div>
+    </Sheet>
   );
 }

@@ -230,6 +230,7 @@ export function useOrderWizard() {
   };
   
   const onSubmit = async (values: OrderFormValues) => {
+    console.log('🚀 onSubmit disparado', values);
     setIsSubmitting(true);
     if (!teamMember || !userRole) {
         toast({ title: "Error de autenticación", description: "No se pudo identificar al usuario. Por favor, recargue la página.", variant: "destructive" });
@@ -314,7 +315,7 @@ export function useOrderWizard() {
             else if (values.outcome === 'follow-up') status = 'Seguimiento';
             else if (values.outcome === 'failed') status = 'Fallido';
 
-            const orderData = {
+            const orderData: Record<string, any> = {
                 clientName: client!.nombre, accountId: currentAccountId,
                 visitDate: isVisitLikeInteraction ? Timestamp.fromDate(new Date()) : null,
                 createdAt: Timestamp.fromDate(new Date()), lastUpdated: Timestamp.fromDate(new Date()),
@@ -338,6 +339,13 @@ export function useOrderWizard() {
                 failureReasonType: values.outcome === 'failed' ? (values.failureReasonType || null) : null,
                 failureReasonCustom: values.outcome === 'failed' && values.failureReasonType === 'Otro (especificar)' ? (values.failureReasonCustom || null) : null,
             };
+            
+            // Clean up undefined fields before sending to Firestore
+            for (const key in orderData) {
+                if (orderData[key] === undefined) {
+                    orderData[key] = null;
+                }
+            }
 
             transaction.set(newOrderRef, orderData);
             
@@ -379,5 +387,3 @@ export function useOrderWizard() {
     materialFields, appendMaterial, removeMaterial, userRole, teamMember
   };
 }
-
-    

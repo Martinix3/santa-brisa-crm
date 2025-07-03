@@ -149,21 +149,29 @@ export const updateAccountFS = async (id: string, data: Partial<AccountFormValue
 export const deleteAccountFS = async (id: string): Promise<void> => {
   const batch = writeBatch(db);
 
-  // 1. Get the account to be deleted to retrieve its name and other identifiers.
   const accountDocRef = doc(db, ACCOUNTS_COLLECTION, id);
   const accountSnap = await getDoc(accountDocRef);
-  if (!accountSnap.exists()) {
-      console.warn(`Account ${id} does not exist. Cannot delete.`);
-      return;
+
+  let accountNameToMatch: string;
+
+  if (accountSnap.exists()) {
+    // Case 1: A real account document exists.
+    console.log(`Deleting real account with ID: ${id}`);
+    const accountData = accountSnap.data();
+    accountNameToMatch = accountData.nombre?.trim().toLowerCase();
+    
+    // Add the account document itself to the batch.
+    batch.delete(accountDocRef);
+  } else {
+    // Case 2: No account document found. Assume ID is a normalized name for a virtual account.
+    console.log(`Deleting virtual account represented by name: "${id}"`);
+    accountNameToMatch = id.trim().toLowerCase();
   }
-  const accountData = accountSnap.data();
-  const accountNameToMatch = accountData.nombre?.trim().toLowerCase();
 
-  // 2. Delete the account document itself.
-  batch.delete(accountDocRef);
-
-  // 3. Fetch ALL orders to perform a robust, case-insensitive filter in memory.
-  // This is more reliable than a case-sensitive Firestore query if data consistency is not guaranteed.
+  // Fetch all orders that could possibly be related.
+  // This is necessary because we need to match by both accountId and name.
+  // We can't do an OR query in Firestore easily (accountId == id OR clientName == name),
+  // so fetching all and filtering in memory is the most robust way given inconsistent data.
   const ordersCol = collection(db, ORDERS_COLLECTION);
   const allOrdersSnapshot = await getDocs(ordersCol);
   
@@ -172,7 +180,8 @@ export const deleteAccountFS = async (id: string): Promise<void> => {
       const orderData = orderDoc.data();
       const clientNameInOrder = orderData.clientName?.trim().toLowerCase();
 
-      // Check for a match by accountId OR by case-insensitive name.
+      // Delete if accountId matches (for real accounts) OR if the name matches.
+      // The name match is crucial for both real and virtual accounts.
       if (orderData.accountId === id || (accountNameToMatch && clientNameInOrder === accountNameToMatch)) {
           batch.delete(orderDoc.ref);
           deletedOrdersCount++;
@@ -180,13 +189,11 @@ export const deleteAccountFS = async (id: string): Promise<void> => {
   });
 
   try {
-      // 4. Commit all deletions atomically.
       await batch.commit();
-      console.log(`Account ${id} ('${accountData.nombre}') and ${deletedOrdersCount} related orders deleted successfully.`);
+      console.log(`Deletion complete. Account/group '${accountNameToMatch}' and ${deletedOrdersCount} related interactions deleted.`);
   } catch (error) {
-      console.error(`Error during batched deletion for account ${id}:`, error);
-      // Re-throw the error to be handled by the calling component (e.g., to show a toast).
-      throw error;
+      console.error(`Error during batched deletion for account/group '${accountNameToMatch}':`, error);
+      throw error; // Re-throw to be handled by the UI
   }
 };
 

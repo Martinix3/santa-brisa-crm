@@ -13,9 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { getOrdersFS, addScheduledTaskFS } from "@/services/order-service";
-import { getEventsFS } from "@/services/event-service";
+import { getEventsFS, addEventFS } from "@/services/event-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
-import type { Order, CrmEvent, TeamMember, UserRole, OrderStatus, FollowUpResultFormValues, NewScheduledTaskData } from "@/types";
+import type { Order, CrmEvent, TeamMember, UserRole, OrderStatus, FollowUpResultFormValues, NewScheduledTaskData, EventFormValues } from "@/types";
 import StatusBadge from "@/components/app/status-badge";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -24,6 +24,9 @@ import { db } from "@/lib/firebase";
 import { runTransaction, doc, collection, Timestamp } from "firebase/firestore";
 import FollowUpResultDialog from "@/components/app/follow-up-result-dialog";
 import NewTaskDialog from "@/components/app/new-task-dialog";
+import NewEntryTypeDialog, { type EntryType } from "@/components/app/new-entry-type-dialog";
+import EventDialog from "@/components/app/event-dialog";
+
 
 // --- TYPE DEFINITIONS ---
 type AgendaItemType = 'tarea_comercial' | 'evento';
@@ -45,11 +48,15 @@ type ViewMode = 'day' | 'week' | 'month';
 
 // --- HELPER FUNCTIONS ---
 const getAgendaItemIcon = (item: AgendaItem) => {
-  switch(item.type) {
-    case 'tarea_comercial': return <ClipboardList className="h-4 w-4 text-yellow-500 flex-shrink-0" />;
-    case 'evento': return <PartyPopper className="h-4 w-4 text-purple-500 flex-shrink-0" />;
-    default: return <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />;
+  if (item.type === 'evento') {
+    return <PartyPopper className="h-4 w-4 text-purple-500 flex-shrink-0" />;
   }
+  const order = item.rawItem as Order;
+  if (order.taskCategory === 'General') {
+    return <Briefcase className="h-4 w-4 text-blue-500 flex-shrink-0" />;
+  }
+  // Default to commercial task
+  return <ClipboardList className="h-4 w-4 text-primary flex-shrink-0" />;
 };
 
 const getInteractionType = (interaction: Order): string => {
@@ -74,12 +81,20 @@ export default function MyAgendaPage() {
   const [typeFilter, setTypeFilter] = React.useState<TypeFilter>('all');
   const [viewMode, setViewMode] = React.useState<ViewMode>('week');
   
+  // Dialog states
   const [isFollowUpDialogOpen, setIsFollowUpDialogOpen] = React.useState(false);
   const [currentTask, setCurrentTask] = React.useState<Order | null>(null);
   
   const [isNewTaskDialogOpen, setIsNewTaskDialogOpen] = React.useState(false);
   const [newTaskDate, setNewTaskDate] = React.useState<Date | undefined>();
+  const [newTaskCategory, setNewTaskCategory] = React.useState<'Commercial' | 'General'>('Commercial');
   
+  const [isEntryTypeDialogOpen, setIsEntryTypeDialogOpen] = React.useState(false);
+  
+  const [isEventDialogOpen, setIsEventDialogOpen] = React.useState(false);
+  const [eventToEdit, setEventToEdit] = React.useState<CrmEvent | null>(null);
+
+
   const isAdmin = userRole === 'Admin';
   
   React.useEffect(() => {
@@ -176,16 +191,21 @@ export default function MyAgendaPage() {
     return userFilteredItems;
   }, [allAgendaItems, typeFilter, userFilter, isAdmin, teamMember, teamMembers]);
 
-
-  const { commercialTaskDays, eventDays } = React.useMemo(() => {
+ const { commercialTaskDays, eventDays, adminTaskDays } = React.useMemo(() => {
     const commercial = new Set<number>();
     const event = new Set<number>();
+    const admin = new Set<number>();
 
     filteredItemsForHighlight.forEach(item => {
         const date = startOfDay(item.date);
         date.setHours(12); // Normalize date to prevent TZ issues
         if (item.type === 'tarea_comercial') {
-            commercial.add(date.getTime());
+            const order = item.rawItem as Order;
+            if (order.taskCategory === 'General') {
+                admin.add(date.getTime());
+            } else {
+                commercial.add(date.getTime());
+            }
         } else if (item.type === 'evento') {
             event.add(date.getTime());
         }
@@ -194,6 +214,7 @@ export default function MyAgendaPage() {
     return {
         commercialTaskDays: Array.from(commercial).map(time => new Date(time)),
         eventDays: Array.from(event).map(time => new Date(time)),
+        adminTaskDays: Array.from(admin).map(time => new Date(time)),
     };
   }, [filteredItemsForHighlight]);
 
@@ -291,6 +312,7 @@ export default function MyAgendaPage() {
                 clientStatus: "existing",
                 originatingTaskId: originalTask.id,
                 notes: data.notes || null,
+                taskCategory: 'Commercial',
             };
 
             if (data.outcome === "successful") {
@@ -329,7 +351,21 @@ export default function MyAgendaPage() {
   const handleDayClick = (day: Date, modifiers: any) => {
     if (modifiers.disabled) return;
     setNewTaskDate(day);
-    setIsNewTaskDialogOpen(true);
+    setIsEntryTypeDialogOpen(true);
+  };
+
+  const handleEntryTypeSelect = (type: EntryType) => {
+    setIsEntryTypeDialogOpen(false);
+    if (type === 'commercial_task') {
+        setNewTaskCategory('Commercial');
+        setIsNewTaskDialogOpen(true);
+    } else if (type === 'admin_task') {
+        setNewTaskCategory('General');
+        setIsNewTaskDialogOpen(true);
+    } else if (type === 'event') {
+        setEventToEdit(null);
+        setIsEventDialogOpen(true);
+    }
   };
   
   const handleSaveNewTask = async (data: NewScheduledTaskData) => {
@@ -347,6 +383,23 @@ export default function MyAgendaPage() {
     }
   };
 
+  const handleSaveEvent = async (data: EventFormValues, eventId?: string) => {
+    if (!isAdmin && !eventId) return; 
+    try {
+      if (eventId) {
+        // Update logic would go here, currently not used from this page
+      } else {
+        await addEventFS(data);
+        toast({ title: "¡Evento Añadido!", description: `El evento "${data.name}" ha sido añadido.` });
+      }
+      refreshDataSignature();
+      setIsEventDialogOpen(false);
+      setEventToEdit(null);
+    } catch (error) {
+        console.error("Error saving event:", error);
+        toast({ title: "Error al Guardar", description: "No se pudo guardar el evento.", variant: "destructive"});
+    }
+  };
 
   return (
     <Sheet open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
@@ -357,9 +410,9 @@ export default function MyAgendaPage() {
             Agenda del Equipo
         </h1>
         <div className="flex items-center flex-wrap space-x-4 text-xs text-muted-foreground mt-2 p-2">
-            <div className="flex items-center gap-1.5"><ClipboardList className="h-4 w-4 text-yellow-500"/> Tarea Comercial</div>
+            <div className="flex items-center gap-1.5"><ClipboardList className="h-4 w-4 text-primary"/> Tarea Comercial</div>
             <div className="flex items-center gap-1.5"><PartyPopper className="h-4 w-4 text-purple-500"/> Evento</div>
-            <div className="flex items-center gap-1.5 opacity-50"><Briefcase className="h-4 w-4 text-blue-500"/> Tarea Admin. (Próx.)</div>
+            <div className="flex items-center gap-1.5"><Briefcase className="h-4 w-4 text-blue-500"/> Tarea Admin.</div>
         </div>
        </header>
 
@@ -408,7 +461,7 @@ export default function MyAgendaPage() {
               <Card>
                   <CardHeader>
                       <CardTitle>Calendario de Actividades</CardTitle>
-                      <CardDescription>Navega o haz clic en un día para añadir una nueva tarea.</CardDescription>
+                      <CardDescription>Navega o haz clic en un día para añadir una nueva entrada.</CardDescription>
                   </CardHeader>
                   <CardContent className="p-2">
                       <Calendar
@@ -419,11 +472,13 @@ export default function MyAgendaPage() {
                           locale={es}
                           modifiers={{ 
                             commercial: commercialTaskDays,
-                            event: eventDays
+                            event: eventDays,
+                            admin: adminTaskDays
                           }}
                           modifiersStyles={{
                             commercial: { backgroundColor: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' },
-                            event: { backgroundColor: 'hsl(262.1 83.3% 57.8%)', color: 'hsl(var(--primary-foreground))' }
+                            event: { backgroundColor: 'hsl(262.1 83.3% 57.8%)', color: 'hsl(var(--primary-foreground))' },
+                            admin: { backgroundColor: 'hsl(217.2 91.2% 59.8%)', color: 'hsl(var(--primary-foreground))' }
                           }}
                           className="p-0"
                           classNames={{
@@ -449,25 +504,29 @@ export default function MyAgendaPage() {
                   <CardContent className="flex-grow overflow-y-auto pr-3">
                       {isLoading ? (
                           <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-                      ) : itemsForView.length > 0 ? (
+                      ) : itemsGroupedByDay.length > 0 ? (
                         <div className="space-y-4">
-                            {itemsForView.map(item => (
-                                <SheetTrigger asChild key={item.id}>
-                                <button className="w-full text-left" onClick={() => handleItemClick(item)}>
-                                    <Card className="hover:bg-secondary/50 transition-colors shadow-sm">
-                                        <CardContent className="p-3 flex items-start gap-3">
-                                            {getAgendaItemIcon(item)}
-                                            <div className="flex-grow">
-                                                <h4 className="font-semibold text-base">{item.title}</h4>
-                                                <p className="text-sm text-muted-foreground">{item.description}</p>
-                                            </div>
-                                            {item.type === 'tarea_comercial' && <StatusBadge type="order" status={(item.rawItem as Order).status}/>}
-                                        </CardContent>
-                                    </Card>
-                                </button>
-                                </SheetTrigger>
-                              )
-                            )}
+                            {itemsGroupedByDay.map(([day, items]) => (
+                                <div key={day}>
+                                    <h3 className="text-sm font-semibold mb-2 text-muted-foreground">{format(parseISO(day), "EEEE, dd 'de' MMMM", { locale: es })}</h3>
+                                    {items.map(item => (
+                                        <SheetTrigger asChild key={item.id}>
+                                        <button className="w-full text-left" onClick={() => handleItemClick(item)}>
+                                            <Card className="hover:bg-secondary/50 transition-colors shadow-sm mb-2">
+                                                <CardContent className="p-3 flex items-start gap-3">
+                                                    {getAgendaItemIcon(item)}
+                                                    <div className="flex-grow">
+                                                        <h4 className="font-semibold text-base">{item.title}</h4>
+                                                        <p className="text-sm text-muted-foreground">{item.description}</p>
+                                                    </div>
+                                                    {item.type === 'tarea_comercial' && <StatusBadge type="order" status={(item.rawItem as Order).status}/>}
+                                                </CardContent>
+                                            </Card>
+                                        </button>
+                                        </SheetTrigger>
+                                    ))}
+                                </div>
+                            ))}
                         </div>
                       ) : (
                           <div className="flex items-center justify-center h-full text-muted-foreground text-center">
@@ -528,9 +587,27 @@ export default function MyAgendaPage() {
         onOpenChange={setIsNewTaskDialogOpen}
         selectedDate={newTaskDate}
         onSave={handleSaveNewTask}
+        taskCategory={newTaskCategory}
       />
+      <NewEntryTypeDialog
+        isOpen={isEntryTypeDialogOpen}
+        onOpenChange={setIsEntryTypeDialogOpen}
+        onSelectType={handleEntryTypeSelect}
+        selectedDate={newTaskDate}
+      />
+       {isAdmin && (
+        <EventDialog
+            event={eventToEdit}
+            isOpen={isEventDialogOpen}
+            onOpenChange={(open) => {
+            setIsEventDialogOpen(open);
+            if (!open) setEventToEdit(null);
+            }}
+            onSave={handleSaveEvent}
+            isReadOnly={!!eventToEdit}
+            allTeamMembers={teamMembers}
+        />
+        )}
     </Sheet>
   );
 }
-
-    

@@ -201,6 +201,19 @@ export interface CrmEvent {
   updatedAt: string; 
 }
 
+export interface EventFormValues {
+    name: string;
+    type: CrmEventType;
+    status: CrmEventStatus;
+    startDate: Date;
+    endDate?: Date;
+    description?: string;
+    location?: string;
+    assignedTeamMemberIds: string[];
+    assignedMaterials: AssignedPromotionalMaterial[];
+    notes?: string;
+}
+
 export interface TeamMemberFormValues {
   name: string;
   email: string; 
@@ -263,11 +276,11 @@ export interface PurchaseFormValues {
   items: {
     materialId: string;
     description: string;
-    quantity: number;
-    unitPrice: number;
+    quantity: number | null;
+    unitPrice: number | null;
     batchNumber?: string;
   }[];
-  shippingCost?: number;
+  shippingCost?: number | null;
   taxRate: number;
   notes?: string;
   invoiceFile?: File | null;
@@ -448,6 +461,7 @@ export interface NewScheduledTaskData {
   notes: string;
   assignedToId?: string;
   visitDate: Date;
+  taskCategory: 'Commercial' | 'General';
 }
 
     

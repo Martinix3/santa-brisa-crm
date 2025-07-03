@@ -42,14 +42,21 @@ interface NewTaskDialogProps {
   onOpenChange: (open: boolean) => void;
   onSave: (data: NewScheduledTaskData) => Promise<void>;
   selectedDate: Date | undefined;
+  taskCategory: 'Commercial' | 'General';
 }
 
-export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDate }: NewTaskDialogProps) {
+export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDate, taskCategory }: NewTaskDialogProps) {
   const { userRole, teamMember } = useAuth();
   const [isSaving, setIsSaving] = React.useState(false);
   const [accounts, setAccounts] = React.useState<Account[]>([]);
   const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
+  
+  const title = taskCategory === 'Commercial' ? 'Añadir Nueva Tarea Comercial' : 'Añadir Tarea Administrativa';
+  const description = taskCategory === 'Commercial' 
+      ? `Programando una nueva visita o tarea de seguimiento para el ${selectedDate ? format(selectedDate, "dd 'de' MMMM 'de' yyyy", { locale: es }) : ''}.`
+      : `Programando una nueva tarea interna/administrativa para el ${selectedDate ? format(selectedDate, "dd 'de' MMMM 'de' yyyy", { locale: es }) : ''}.`;
+
 
   const form = useForm<NewTaskFormValues>({
     resolver: zodResolver(newTaskFormSchema),
@@ -61,7 +68,7 @@ export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDa
       setIsLoading(true);
       try {
         const [fetchedAccounts, fetchedMembers] = await Promise.all([
-          getAccountsFS(),
+          taskCategory === 'Commercial' ? getAccountsFS() : Promise.resolve([]),
           userRole === 'Admin' ? getTeamMembersFS(['SalesRep', 'Clavadista', 'Admin']) : Promise.resolve([]),
         ]);
         setAccounts(fetchedAccounts);
@@ -73,7 +80,7 @@ export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDa
       }
     }
     loadData();
-  }, [isOpen, userRole]);
+  }, [isOpen, userRole, taskCategory]);
 
   React.useEffect(() => {
     if (selectedDate) {
@@ -90,7 +97,7 @@ export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDa
 
   const onSubmit = async (data: NewTaskFormValues) => {
     setIsSaving(true);
-    await onSave(data);
+    await onSave({ ...data, taskCategory });
     setIsSaving(false);
   };
   
@@ -100,52 +107,56 @@ export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDa
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Añadir Nueva Tarea en Agenda</DialogTitle>
-          {selectedDate && <DialogDescription>Programando una nueva tarea para el {format(selectedDate, "dd 'de' MMMM 'de' yyyy", { locale: es })}.</DialogDescription>}
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         {isLoading ? (
           <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>
         ) : (
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField control={form.control} name="clientSelectionMode" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Cliente</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
-                    <SelectContent>
-                      <SelectItem value="existing">Cliente Existente</SelectItem>
-                      <SelectItem value="new">Cliente Nuevo</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </FormItem>
-              )} />
-              {clientMode === 'existing' ? (
-                 <FormField control={form.control} name="accountId" render={({ field }) => (
-                   <FormItem>
-                     <FormLabel>Seleccionar Cuenta</FormLabel>
-                     <Select onValueChange={field.onChange} value={field.value}>
-                       <FormControl><SelectTrigger><SelectValue placeholder="Busca y selecciona una cuenta..." /></SelectTrigger></FormControl>
-                       <SelectContent>
-                         {accounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.nombre}</SelectItem>)}
-                       </SelectContent>
-                     </Select>
-                     <FormMessage />
-                   </FormItem>
-                 )} />
-              ) : (
-                <FormField control={form.control} name="newClientName" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nombre del Nuevo Cliente</FormLabel>
-                    <FormControl><Input placeholder="Ej: Café del Puerto" {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
+              {taskCategory === 'Commercial' && (
+                <>
+                  <FormField control={form.control} name="clientSelectionMode" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Cliente</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
+                        <SelectContent>
+                          <SelectItem value="existing">Cliente Existente</SelectItem>
+                          <SelectItem value="new">Cliente Nuevo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+                  )} />
+                  {clientMode === 'existing' ? (
+                     <FormField control={form.control} name="accountId" render={({ field }) => (
+                       <FormItem>
+                         <FormLabel>Seleccionar Cuenta</FormLabel>
+                         <Select onValueChange={field.onChange} value={field.value}>
+                           <FormControl><SelectTrigger><SelectValue placeholder="Busca y selecciona una cuenta..." /></SelectTrigger></FormControl>
+                           <SelectContent>
+                             {accounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.nombre}</SelectItem>)}
+                           </SelectContent>
+                         </Select>
+                         <FormMessage />
+                       </FormItem>
+                     )} />
+                  ) : (
+                    <FormField control={form.control} name="newClientName" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nombre del Nuevo Cliente</FormLabel>
+                        <FormControl><Input placeholder="Ej: Café del Puerto" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  )}
+                </>
               )}
                <FormField control={form.control} name="notes" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Objetivo / Notas de la Visita</FormLabel>
-                  <FormControl><Textarea placeholder="Ej: Presentar nuevo producto, cerrar acuerdo..." {...field} /></FormControl>
+                  <FormLabel>Objetivo / Notas de la Tarea</FormLabel>
+                  <FormControl><Textarea placeholder={taskCategory === 'Commercial' ? "Ej: Presentar nuevo producto..." : "Ej: Preparar informe trimestral..."} {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -176,5 +187,3 @@ export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDa
     </Dialog>
   );
 }
-
-    

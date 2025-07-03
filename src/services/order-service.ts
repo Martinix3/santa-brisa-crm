@@ -184,7 +184,7 @@ export const addScheduledTaskFS = async (data: NewScheduledTaskData, creator: Te
   }
   
   const orderData = {
-    clientName: clientName!,
+    clientName: clientName || 'Tarea Administrativa',
     accountId: accountId || null,
     visitDate: Timestamp.fromDate(data.visitDate),
     createdAt: Timestamp.fromDate(new Date()),
@@ -192,8 +192,8 @@ export const addScheduledTaskFS = async (data: NewScheduledTaskData, creator: Te
     salesRep: assignedTo.name,
     status: 'Programada' as OrderStatus,
     notes: data.notes,
-    clientStatus: data.clientSelectionMode === 'new' ? 'new' : 'existing',
-    taskCategory: 'Commercial',
+    clientStatus: data.clientSelectionMode === 'new' ? 'new' : (data.accountId ? 'existing' : null),
+    taskCategory: data.taskCategory || 'Commercial',
     isCompleted: false,
   };
   

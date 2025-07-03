@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -11,11 +10,11 @@ import type { useOrderWizard } from "@/hooks/use-order-form-wizard";
 type WizardHookReturn = ReturnType<typeof useOrderWizard>;
 type StepVerifyProps  = Pick<
   WizardHookReturn,
-  "form" | "client" | "handleBack" | "availableMaterials" | "teamMember" | "userRole"
+  "form" | "client" | "handleBack" | "isSubmitting" | "availableMaterials" | "teamMember" | "userRole"
 >;
 
 export const StepVerify: React.FC<StepVerifyProps> = ({
-  form, client, handleBack, availableMaterials, teamMember, userRole
+  form, client, handleBack, isSubmitting, availableMaterials, teamMember, userRole
 }) => {
   const v          = form.watch();
   const isSuccess  = v.outcome === "successful";
@@ -24,7 +23,7 @@ export const StepVerify: React.FC<StepVerifyProps> = ({
   const subtotal   = (v.numberOfUnits || 0) * (v.unitPrice || 0);
   const total      = subtotal * 1.21;
   
-  const canSubmit = !form.formState.isSubmitting && !!teamMember && !!userRole;
+  const canSubmit = !isSubmitting && !!teamMember && !!userRole;
 
   return (
     <>
@@ -76,15 +75,15 @@ export const StepVerify: React.FC<StepVerifyProps> = ({
         </Card>
 
         {/* DATOS NUEVA CUENTA */}
-        {client?.id === "new" && isSuccess && (
+        {v.isNewClient && (
           <Card>
             <CardHeader><CardTitle className="text-lg">Datos de la Nueva Cuenta</CardTitle></CardHeader>
             <CardContent className="space-y-2 text-sm">
-              <p><strong>Nombre Fiscal:</strong> {v.nombreFiscal}</p>
-              <p><strong>CIF:</strong> {v.cif}</p>
-              <p><strong>Dirección Fiscal:</strong> {`${v.direccionFiscal_street}, ${v.direccionFiscal_city}`}</p>
+              <p><strong>Nombre Fiscal:</strong> {v.nombreFiscal || 'No especificado'}</p>
+              <p><strong>CIF:</strong> {v.cif || 'No especificado'}</p>
+              <p><strong>Dirección Fiscal:</strong> {v.direccionFiscal_street ? `${v.direccionFiscal_street}, ${v.direccionFiscal_city}` : 'No especificada'}</p>
               <p><strong>Dirección Entrega:</strong>{" "}
-                {v.sameAsBilling ? "(Misma que facturación)" : `${v.direccionEntrega_street}, ${v.direccionEntrega_city}`}
+                {v.sameAsBilling ? "(Misma que facturación)" : (v.direccionEntrega_street ? `${v.direccionEntrega_street}, ${v.direccionEntrega_city}` : 'No especificada')}
               </p>
             </CardContent>
           </Card>
@@ -92,12 +91,11 @@ export const StepVerify: React.FC<StepVerifyProps> = ({
       </CardContent>
 
       <CardFooter className="flex justify-between">
-        <Button type="button" variant="ghost" onClick={handleBack} disabled={form.formState.isSubmitting}>
+        <Button type="button" variant="ghost" onClick={handleBack} disabled={isSubmitting}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Volver
         </Button>
-
         <Button type="submit" disabled={!canSubmit}>
-          {form.formState.isSubmitting
+          {isSubmitting
             ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando…</>)
             : (<><Send className="mr-2 h-4 w-4" /> Confirmar y Guardar</>)}
         </Button>

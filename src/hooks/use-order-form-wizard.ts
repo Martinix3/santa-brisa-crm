@@ -55,7 +55,7 @@ export function useOrderWizard() {
     resolver: zodResolver(orderFormSchema),
     mode: "onBlur",
     defaultValues: {
-      userRole: null, // Initialized as null, will be updated by useEffect
+      userRole: null,
       isNewClient: false,
       outcome: undefined,
       clavadistaId: NO_CLAVADISTA_VALUE,
@@ -226,29 +226,26 @@ export function useOrderWizard() {
   };
 
   const onFormError = (errors: any) => {
-    console.error("Validation Errors:", errors);
     let errorMessages: string[] = [];
-
-    // If RHF doesn't populate the errors object, we'll build a helpful message manually.
+    const values = form.getValues();
+    
+    // Manual check if RHF error object is empty, which can happen in complex forms.
     if (Object.keys(errors).length === 0) {
-        const values = form.getValues();
         const commonErrors = [];
         if (values.outcome === 'successful') {
             if (!values.numberOfUnits || values.numberOfUnits <= 0) commonErrors.push('Unidades');
             if (!values.unitPrice || values.unitPrice <= 0) commonErrors.push('Precio Unitario');
             if (!values.paymentMethod) commonErrors.push('Forma de Pago');
-             if (values.isNewClient && (!values.nombreFiscal || !values.cif || !values.direccionFiscal_street)) {
-                commonErrors.push('Datos Fiscales/Dirección');
+            if (values.isNewClient) {
+              if (!values.nombreFiscal?.trim()) commonErrors.push('Nombre Fiscal');
+              if (!values.cif?.trim()) commonErrors.push('CIF');
+              if (!values.direccionFiscal_street?.trim()) commonErrors.push('Dirección Fiscal');
             }
         }
-        if (values.outcome === 'follow-up' && !values.nextActionType) {
-            commonErrors.push('Próxima Acción');
-        }
-        if (values.outcome === 'failed' && !values.failureReasonType) {
-            commonErrors.push('Motivo del Fallo');
-        }
+        if (values.outcome === 'follow-up' && !values.nextActionType) commonErrors.push('Próxima Acción');
+        if (values.outcome === 'failed' && !values.failureReasonType) commonErrors.push('Motivo del Fallo');
         if (values.userRole === 'Clavadista' && values.outcome === 'follow-up' && !values.clavadistaSelectedSalesRepId) {
-            commonErrors.push('Asignación de Comercial (obligatorio para Clavadista)');
+            commonErrors.push('Asignación de Comercial');
         }
 
         if (commonErrors.length > 0) {
@@ -257,8 +254,13 @@ export function useOrderWizard() {
             errorMessages.push('Hay campos requeridos sin completar. Por favor, revisa el formulario.');
         }
     } else {
-        // Default behavior if errors object is populated
-        errorMessages = Object.values(errors).map((error: any) => error.message);
+        errorMessages = Object.entries(errors).map(([fieldName, error]: [string, any]) => {
+            let message = `Campo '${fieldName}'`;
+            if (typeof error === 'object' && error !== null && 'message' in error) {
+                message += `: ${error.message}`;
+            }
+            return message;
+        });
     }
     
     toast({
@@ -421,5 +423,3 @@ export function useOrderWizard() {
     materialFields, appendMaterial, removeMaterial, userRole, teamMember
   };
 }
-
-    

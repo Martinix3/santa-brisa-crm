@@ -51,7 +51,6 @@ export const StepDetails: React.FC<StepDetailsProps> = ({
   const failureReasonTypeWatched = useWatch({ control: form.control, name: 'failureReasonType' });
   const watchedMaterials = useWatch({ control: form.control, name: 'assignedMaterials' });
 
-  // New watches for this change
   const isNewClient = useWatch({ control: form.control, name: 'isNewClient' });
   const watchSameAsBilling = useWatch({ control: form.control, name: 'sameAsBilling' });
 

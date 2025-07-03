@@ -89,6 +89,13 @@ export const orderFormSchema = baseOrderFormSchema.superRefine((data, ctx) => {
         if (!data.direccionFiscal_city?.trim()) ctx.addIssue({ path: ["direccionFiscal_city"], message: "Ciudad es obligatoria." });
         if (!data.direccionFiscal_province?.trim()) ctx.addIssue({ path: ["direccionFiscal_province"], message: "Provincia es obligatoria." });
         if (!data.direccionFiscal_postalCode?.trim()) ctx.addIssue({ path: ["direccionFiscal_postalCode"], message: "Código postal es obligatorio." });
+
+        if (!data.sameAsBilling) {
+          if (!data.direccionEntrega_street?.trim()) ctx.addIssue({ path: ["direccionEntrega_street"], message: "Calle de entrega es obligatoria." });
+          if (!data.direccionEntrega_city?.trim()) ctx.addIssue({ path: ["direccionEntrega_city"], message: "Ciudad de entrega es obligatoria." });
+          if (!data.direccionEntrega_province?.trim()) ctx.addIssue({ path: ["direccionEntrega_province"], message: "Provincia de entrega es obligatoria." });
+          if (!data.direccionEntrega_postalCode?.trim()) ctx.addIssue({ path: ["direccionEntrega_postalCode"], message: "Código postal de entrega es obligatorio." });
+        }
     }
 
     if (data.outcome === 'follow-up') {

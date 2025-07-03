@@ -420,4 +420,20 @@ export interface AccountFormValues {
   salesRepId?: string;
 }
 
-export type Step = "client" | "outcome" | "details" | "new_client_data" | "verify";
+export type InteractionType = 'Visita' | 'Llamada' | 'Mail' | 'Otro';
+export type InteractionResult = 'Programada' | 'Requiere seguimiento' | 'Pedido Exitoso' | 'Fallida';
+
+export interface Interaction {
+  id: string;
+  accountId: string;
+  tipo: InteractionType;
+  resultado: InteractionResult;
+  fecha_prevista: string;
+  fecha_real?: string;
+  importe?: number;
+  promoItems?: {id: string, qty: number}[];
+  createdBy: string;
+  createdAt: string;
+}
+
+export type Step = "client" | "outcome" | "details" | "verify";

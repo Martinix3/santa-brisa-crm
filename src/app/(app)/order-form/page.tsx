@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -72,6 +71,7 @@ export default function OrderFormWizardPage() {
               form={form}
               client={client}
               handleBack={handleBack}
+              isSubmitting={form.formState.isSubmitting}
               availableMaterials={availableMaterials}
               teamMember={teamMember}
               userRole={userRole}

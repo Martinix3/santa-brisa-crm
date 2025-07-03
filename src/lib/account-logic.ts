@@ -47,13 +47,22 @@ export async function calculateAccountStatus(
     account: Pick<Account, 'createdAt'>
 ): Promise<AccountStatus> {
     
-    // Priority 1: Check for open tasks ('Programada' or 'Seguimiento').
-    const priorityOpenTask = getPriorityOpenTask(ordersForAccount);
-    if (priorityOpenTask) {
-        return priorityOpenTask.status as AccountStatus; 
+    // Priority 1: Check for successful sales. This always takes precedence.
+    const successfulOrders = ordersForAccount.filter(o => VALID_SALE_STATUSES.includes(o.status));
+    if (successfulOrders.length >= 2) {
+        return 'Repetición';
+    }
+    if (successfulOrders.length === 1) {
+        return 'Pedido';
     }
 
-    // --- If no open tasks, analyze the most recent closed interaction ---
+    // Priority 2: If no sales, check for open tasks ('Programada' or 'Seguimiento').
+    const priorityOpenTask = getPriorityOpenTask(ordersForAccount);
+    if (priorityOpenTask) {
+        return priorityOpenTask.status as AccountStatus; // Will be 'Programada' or 'Seguimiento'
+    }
+
+    // Priority 3: If no sales and no open tasks, analyze the most recent closed interaction.
     const closedInteractions = ordersForAccount
         .filter(o => o.status !== 'Programada' && o.status !== 'Seguimiento')
         .sort((a, b) => {
@@ -65,27 +74,17 @@ export async function calculateAccountStatus(
         });
 
     const lastClosedInteraction = closedInteractions[0];
-
-    // Priority 2: Last closed interaction was a failure.
     if (lastClosedInteraction && lastClosedInteraction.status === 'Fallido') {
         return 'Fallido';
     }
-
-    // Priority 3: Has successful orders.
-    const successfulOrders = ordersForAccount.filter(o => VALID_SALE_STATUSES.includes(o.status));
-    if (successfulOrders.length >= 2) {
-        return 'Repetición';
-    }
-    if (successfulOrders.length === 1) {
-        return 'Pedido'; // Using "Pedido" for the first successful order as per new enum
-    }
     
-    // Priority 4: If there are any past interactions, it needs follow up.
+    // Default for new-ish accounts with no history, or only 'Completado' tasks without a sale/failure.
+    // If there are any interactions at all, but none of the above match, it's a 'Seguimiento' case.
     if (ordersForAccount.length > 0) {
         return 'Seguimiento';
     }
-    
-    // Default for new-ish accounts with no history
+
+    // If an account exists but has NO interactions at all, it's also a 'Seguimiento' case by default.
     return 'Seguimiento';
 }
 

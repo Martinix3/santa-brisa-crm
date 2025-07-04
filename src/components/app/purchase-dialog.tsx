@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -143,7 +142,7 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
     const currentSubtotal = watchedItems.reduce((sum, item) => sum + (item.quantity || 0) * (item.unitPrice || 0), 0) || 0;
     const shipping = watchedShippingCost || 0;
     const subtotalWithShipping = currentSubtotal + shipping;
-    const taxRate = data.taxRate !== undefined ? data.taxRate : 21;
+    const taxRate = watchedTaxRate !== undefined ? watchedTaxRate : 21;
     const currentTaxAmount = subtotalWithShipping * (taxRate / 100);
     const currentTotalAmount = subtotalWithShipping + currentTaxAmount;
     return { subtotal: currentSubtotal, taxAmount: currentTaxAmount, totalAmount: currentTotalAmount };

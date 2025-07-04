@@ -1,3 +1,4 @@
+
 import {genkit} from 'genkit';
 import {vertexAI} from '@genkit-ai/vertexai';
 
@@ -6,6 +7,6 @@ import {vertexAI} from '@genkit-ai/vertexai';
 // billing and credits, avoiding free-tier limitations.
 export const ai = genkit({
   plugins: [
-    vertexAI(),
+    vertexAI({ location: 'us-central1' }),
   ],
 });

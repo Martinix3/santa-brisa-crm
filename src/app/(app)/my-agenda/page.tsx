@@ -570,12 +570,12 @@ export default function MyAgendaPage() {
               <Card>
                    <CardHeader className="flex flex-row items-center justify-between gap-4 pb-4">
                         <CardTitle>Calendario</CardTitle>
-                        <Button onClick={handleOpenNewEntryDialog} size="sm">
-                            <PlusCircle className="mr-2 h-4 w-4" />
-                            Añadir Entrada
+                        <Button onClick={handleOpenNewEntryDialog} size="icon" className="rounded-full h-8 w-8">
+                            <PlusCircle className="h-4 w-4" />
+                            <span className="sr-only">Añadir Entrada</span>
                         </Button>
                     </CardHeader>
-                  <CardContent className="p-2">
+                  <CardContent className="p-2 flex justify-center">
                       <Calendar
                           mode="single"
                           selected={selectedDate}
@@ -583,22 +583,22 @@ export default function MyAgendaPage() {
                           locale={es}
                           modifiers={modifiers}
                           components={{ DayContent: DayDots }}
-                          modifiersClassNames={{
-                            [MODIFIER_NAMES.commercial]: 'rdp-day_commercial',
-                            [MODIFIER_NAMES.event]: 'rdp-day_event',
-                            [MODIFIER_NAMES.admin]: 'rdp-day_admin',
+                          classNames={{
+                            today: "bg-muted/50"
                           }}
                           className="p-0"
                        />
-                        <Separator className="my-2"/>
-                        <div className="p-2 space-y-3">
-                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  </CardContent>
+                  <CardFooter className="flex-col items-start p-4 pt-0">
+                        <Separator className="mb-2"/>
+                        <div className="space-y-2 text-xs text-muted-foreground w-full">
+                            <div className="flex items-center justify-between">
                                 <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-yellow"/> Tarea Comercial</span>
                                 <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-purple"/> Evento</span>
                                 <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-blue"/> Tarea Admin.</span>
                             </div>
                         </div>
-                  </CardContent>
+                   </CardFooter>
               </Card>
           </div>
           

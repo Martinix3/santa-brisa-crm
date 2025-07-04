@@ -5,7 +5,7 @@ import { db } from '@/lib/firebase';
 import { collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, runTransaction, where, limit } from "firebase/firestore";
 import type { ProductionRun, ProductionRunFormValues, InventoryItem, BomLine, StockTxn } from '@/types';
 import { format } from 'date-fns';
-import { fromFirestoreBomLine } from './bom-service';
+import { fromFirestoreBomLine } from './utils/firestore-converters';
 import { addStockTxnFSTransactional } from './stock-txn-service';
 import { addProductCostSnapshotFSTransactional } from './product-cost-snapshot-service';
 

@@ -5,7 +5,7 @@ import { db } from '@/lib/firebase';
 import { collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, runTransaction, where, limit } from "firebase/firestore";
 import type { ProductionRun, ProductionRunFormValues, InventoryItem, BomLine, StockTxn } from '@/types';
 import { format } from 'date-fns';
-import { fromFirestoreBomLine } from './bom-service';
+import { fromFirestoreBomLine } from './utils/firestore-converters';
 import { addStockTxnFSTransactional } from './stock-txn-service';
 import { addProductCostSnapshotFSTransactional } from './product-cost-snapshot-service';
 
@@ -67,26 +67,40 @@ export const deleteProductionRunFS = async (id: string): Promise<void> => {
 
 
 export const closeProductionRunFS = async (runId: string, qtyProduced: number) => {
-    return runTransaction(db, async (transaction) => {
-        // 1. Get Production Run & BOM
-        const runRef = doc(db, PRODUCTION_RUNS_COLLECTION, runId);
-        const runDoc = await transaction.get(runRef);
-        if (!runDoc.exists() || (runDoc.data().status !== 'En Progreso' && runDoc.data().status !== 'Borrador')) {
-            throw new Error("La orden de producción no existe o no está en un estado válido para finalizarla.");
-        }
-        const runData = runDoc.data() as ProductionRun;
-        
-        const bomLinesQuery = query(collection(db, BOM_LINES_COLLECTION), where('productSku', '==', runData.productSku));
-        const bomLinesSnapshot = await transaction.get(bomLinesQuery);
-        const bomLines = bomLinesSnapshot.docs.map(fromFirestoreBomLine);
+    // 1. Get Production Run & BOM outside the transaction
+    const runRef = doc(db, PRODUCTION_RUNS_COLLECTION, runId);
+    const runDoc = await getDoc(runRef);
+    if (!runDoc.exists() || (runDoc.data().status !== 'En Progreso' && runDoc.data().status !== 'Borrador')) {
+        throw new Error("La orden de producción no existe o no está en un estado válido para finalizarla.");
+    }
+    const runData = runDoc.data() as ProductionRun;
+    
+    const bomLinesQuery = query(collection(db, BOM_LINES_COLLECTION), where('productSku', '==', runData.productSku));
+    const bomLinesSnapshot = await getDocs(bomLinesQuery);
+    const bomLines = bomLinesSnapshot.docs.map(fromFirestoreBomLine);
+    
+    if (bomLines.length === 0) throw new Error(`No se encontró una receta (BOM) para el producto con SKU ${runData.productSku}`);
 
-        if (bomLines.length === 0) throw new Error(`No se encontró una receta (BOM) para el producto con SKU ${runData.productSku}`);
+    // Get finished good ref outside transaction
+    const finishedGoodQuery = query(collection(db, INVENTORY_ITEMS_COLLECTION), where('sku', '==', runData.productSku), limit(1));
+    const finishedGoodSnapshot = await getDocs(finishedGoodQuery);
+    if (finishedGoodSnapshot.empty) {
+        throw new Error(`El producto a fabricar con SKU ${runData.productSku} no se encuentra en el inventario.`);
+    }
+    const finishedGoodRef = finishedGoodSnapshot.docs[0].ref;
+
+    return runTransaction(db, async (transaction) => {
+        // Re-read runDoc inside transaction for consistency check
+        const freshRunDoc = await transaction.get(runRef);
+        if (!freshRunDoc.exists() || freshRunDoc.data().status !== runData.status) {
+             throw new Error("El estado de la orden de producción ha cambiado. Por favor, inténtelo de nuevo.");
+        }
 
         // 2. Process Component Consumption
         let totalConsumedCost = 0;
         for (const line of bomLines) {
             const componentRef = doc(db, INVENTORY_ITEMS_COLLECTION, line.componentId);
-            const componentDoc = await transaction.get(componentRef);
+            const componentDoc = await transaction.get(componentRef); // Read inside transaction
             if (!componentDoc.exists()) throw new Error(`El componente con ID ${line.componentId} no fue encontrado.`);
             
             const componentData = componentDoc.data() as InventoryItem;
@@ -118,27 +132,24 @@ export const closeProductionRunFS = async (runId: string, qtyProduced: number) =
         }
 
         // 3. Process Finished Good Production
-        const finishedGoodQuery = query(collection(db, INVENTORY_ITEMS_COLLECTION), where('sku', '==', runData.productSku), limit(1));
-        const finishedGoodSnapshot = await transaction.get(finishedGoodQuery);
-        if (finishedGoodSnapshot.empty) {
-            throw new Error(`El producto a fabricar con SKU ${runData.productSku} no se encuentra en el inventario.`);
+        const freshFinishedGoodDoc = await transaction.get(finishedGoodRef); 
+        if (!freshFinishedGoodDoc.exists()) {
+             throw new Error(`El producto a fabricar con SKU ${runData.productSku} no se encuentra en el inventario (fallo en transacción).`);
         }
-        const finishedGoodDoc = finishedGoodSnapshot.docs[0];
-        const finishedGoodRef = finishedGoodDoc.ref;
-        const finishedGoodData = finishedGoodDoc.data() as InventoryItem;
+        const finishedGoodData = freshFinishedGoodDoc.data() as InventoryItem;
         const newFinishedStock = (finishedGoodData.stock || 0) + qtyProduced;
         const newUnitCost = qtyProduced > 0 ? totalConsumedCost / qtyProduced : 0;
 
         transaction.update(finishedGoodRef, {
             stock: newFinishedStock,
             latestPurchase: {
-                ...finishedGoodData.latestPurchase,
+                ...(finishedGoodData.latestPurchase || {}),
                 calculatedUnitCost: newUnitCost,
                 purchaseDate: format(new Date(), 'yyyy-MM-dd'),
             }
         });
         await addStockTxnFSTransactional(transaction, {
-            inventoryItemId: finishedGoodDoc.id,
+            inventoryItemId: finishedGoodRef.id,
             qtyDelta: qtyProduced,
             newStock: newFinishedStock,
             unitCost: newUnitCost,
@@ -157,7 +168,7 @@ export const closeProductionRunFS = async (runId: string, qtyProduced: number) =
         });
 
         await addProductCostSnapshotFSTransactional(transaction, {
-            inventoryItemId: finishedGoodDoc.id,
+            inventoryItemId: finishedGoodRef.id,
             unitCost: newUnitCost,
             productionRunId: runId
         });

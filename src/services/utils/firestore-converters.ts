@@ -1,7 +1,7 @@
 
 import { Timestamp, type DocumentSnapshot } from "firebase/firestore";
 import { format, parseISO, isValid } from "date-fns";
-import type { Purchase, PurchaseFormValues, PurchaseFirestorePayload, Supplier, SupplierFormValues } from '@/types';
+import type { Purchase, PurchaseFormValues, PurchaseFirestorePayload, Supplier, SupplierFormValues, BomLine } from '@/types';
 
 // --- PURCHASE CONVERTERS ---
 
@@ -51,6 +51,7 @@ export const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: bo
 
   const firestoreData: PurchaseFirestorePayload = {
     supplier: data.supplier!,
+    supplierId: supplierId || null,
     costCenterIds: data.costCenterIds || [],
     currency: data.currency || 'EUR',
     orderDate: data.orderDate instanceof Date && isValid(data.orderDate) ? Timestamp.fromDate(data.orderDate) : Timestamp.fromDate(new Date()),
@@ -73,7 +74,6 @@ export const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: bo
     invoiceUrl: data.invoiceUrl || null,
     invoiceContentType: data.invoiceContentType || null,
     storagePath: data.storagePath || null,
-    supplierId: supplierId || null,
     updatedAt: Timestamp.fromDate(new Date()),
   };
   
@@ -139,4 +139,22 @@ export const toFirestoreSupplier = (data: Partial<SupplierFormValues>, isNew: bo
   firestoreData.updatedAt = Timestamp.fromDate(new Date());
   
   return firestoreData;
+};
+
+// --- BOM LINE CONVERTER ---
+
+export const fromFirestoreBomLine = (snapshot: DocumentSnapshot): BomLine => {
+  const data = snapshot.data();
+  if (!data) throw new Error("BOM Line data is undefined.");
+  return {
+    id: snapshot.id,
+    productSku: data.productSku,
+    componentId: data.componentId,
+    componentName: data.componentName,
+    componentSku: data.componentSku,
+    quantity: data.quantity,
+    uom: data.uom,
+    createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : undefined,
+    updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : undefined,
+  };
 };

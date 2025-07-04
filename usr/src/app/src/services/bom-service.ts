@@ -3,28 +3,12 @@
 
 import { db } from '../lib/firebase';
 import {
-  collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, where, type Transaction, writeBatch
+  collection, query, getDocs, doc as firestoreDoc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, where, type Transaction, writeBatch
 } from "firebase/firestore";
 import type { BomLine, UoM } from '@/types';
-import { format } from 'date-fns';
+import { fromFirestoreBomLine } from './utils/firestore-converters';
 
 const BOM_LINES_COLLECTION = 'bomLines';
-
-export const fromFirestoreBomLine = (snapshot: any): BomLine => {
-  const data = snapshot.data();
-  if (!data) throw new Error("BOM Line data is undefined.");
-  return {
-    id: snapshot.id,
-    productSku: data.productSku,
-    componentId: data.componentId,
-    componentName: data.componentName,
-    componentSku: data.componentSku,
-    quantity: data.quantity,
-    uom: data.uom,
-    createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : undefined,
-    updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : undefined,
-  };
-};
 
 interface BomComponentValues {
   componentId: string;
@@ -34,19 +18,19 @@ interface BomComponentValues {
   uom: UoM;
 }
 
-export const saveRecipeFS = async (productSku: string, components: BomComponentValues[]): Promise<void> => {
+export async function saveRecipeFS(productSku: string, components: BomComponentValues[]): Promise<void> {
   const batch = writeBatch(db);
 
   // 1. Find and queue deletion of all existing lines for this product
   const q = query(collection(db, BOM_LINES_COLLECTION), where('productSku', '==', productSku));
   const snapshot = await getDocs(q);
-  snapshot.forEach(doc => {
-    batch.delete(doc.ref);
+  snapshot.forEach(docToDelete => {
+    batch.delete(docToDelete.ref);
   });
 
   // 2. Queue creation of all the new lines
   components.forEach(component => {
-    const newDocRef = doc(collection(db, BOM_LINES_COLLECTION));
+    const newDocRef = firestoreDoc(collection(db, BOM_LINES_COLLECTION));
     const dataToAdd = {
       productSku: productSku,
       componentId: component.componentId,
@@ -64,18 +48,18 @@ export const saveRecipeFS = async (productSku: string, components: BomComponentV
   await batch.commit();
 };
 
-export const deleteRecipeFS = async (productSku: string): Promise<void> => {
+export async function deleteRecipeFS(productSku: string): Promise<void> {
   const batch = writeBatch(db);
   const q = query(collection(db, BOM_LINES_COLLECTION), where('productSku', '==', productSku));
   const snapshot = await getDocs(q);
-  snapshot.forEach(doc => {
-    batch.delete(doc.ref);
+  snapshot.forEach(docToDelete => {
+    batch.delete(docToDelete.ref);
   });
   await batch.commit();
 }
 
 
-export const getBomLinesFS = async (productSku?: string): Promise<BomLine[]> => {
+export async function getBomLinesFS(productSku?: string): Promise<BomLine[]> {
   const q = productSku 
     ? query(collection(db, BOM_LINES_COLLECTION), where('productSku', '==', productSku))
     : query(collection(db, BOM_LINES_COLLECTION), orderBy('productSku'));

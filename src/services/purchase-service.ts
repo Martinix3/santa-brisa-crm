@@ -168,7 +168,20 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
                     const materialInfo = materialDocsToUpdate.get(item.materialId);
                     if (materialInfo && materialInfo.doc.exists()) {
                         const currentStock = materialInfo.doc.data().stock || 0;
-                        transaction.update(materialInfo.ref, { stock: currentStock + item.quantity });
+                        const newStock = currentStock + item.quantity;
+                        
+                        const newLatestPurchase = {
+                            quantityPurchased: item.quantity,
+                            totalPurchaseCost: (item.quantity || 0) * (item.unitPrice || 0),
+                            purchaseDate: format(firestoreData.orderDate.toDate(), "yyyy-MM-dd"),
+                            calculatedUnitCost: item.unitPrice,
+                            notes: firestoreData.notes || `Compra ${purchaseId}`,
+                        };
+
+                        transaction.update(materialInfo.ref, { 
+                            stock: newStock,
+                            latestPurchase: newLatestPurchase
+                        });
                     }
                 }
             }
@@ -181,13 +194,11 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
     });
 };
 
-
 export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormValues>): Promise<void> => {
     let dataToSave = { ...data };
 
     if (data.invoiceDataUri) {
         console.log(`Uploading new invoice for existing purchase ID: ${id}`);
-        // Handle deletion of old file if it exists, outside transaction for robustness
         if(data.storagePath) {
              try {
                 const adminBucket = await getAdminBucket();
@@ -215,25 +226,30 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
         
         const oldStatusWasReceived = oldData.status === 'Factura Recibida';
         const newStatusIsReceived = data.status === 'Factura Recibida';
+
         const stockDeltas = new Map<string, number>();
+        const materialIdsInvolved = new Set<string>();
+
+        (oldData.items || []).forEach(item => item.materialId && materialIdsInvolved.add(item.materialId));
+        (data.items || []).forEach(item => item.materialId && materialIdsInvolved.add(item.materialId));
 
         if (oldStatusWasReceived) {
-            for (const oldItem of oldData.items) {
+            (oldData.items || []).forEach(oldItem => {
                 if (oldItem.materialId && oldItem.quantity) {
                     stockDeltas.set(oldItem.materialId, (stockDeltas.get(oldItem.materialId) || 0) - oldItem.quantity);
                 }
-            }
+            });
         }
-        if (newStatusIsReceived && data.items) {
-            for (const newItem of data.items) {
+        if (newStatusIsReceived) {
+            (data.items || []).forEach(newItem => {
                 if (newItem.materialId && newItem.quantity) {
                     stockDeltas.set(newItem.materialId, (stockDeltas.get(newItem.materialId) || 0) + newItem.quantity);
                 }
-            }
+            });
         }
         
         const materialDocsToUpdate = new Map<string, { ref: DocumentReference; doc: DocumentSnapshot }>();
-        for (const materialId of stockDeltas.keys()) {
+        for (const materialId of materialIdsInvolved) {
             const materialDocRef = doc(db, 'inventoryItems', materialId);
             const materialDoc = await transaction.get(materialDocRef);
             materialDocsToUpdate.set(materialId, { ref: materialDocRef, doc: materialDoc });
@@ -245,8 +261,8 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
         
         if (newStatusIsReceived) {
             firestoreData.batchesSeeded = true;
-        } else {
-            firestoreData.batchesSeeded = false;
+        } else if (oldStatusWasReceived && !newStatusIsReceived) {
+            firestoreData.batchesSeeden = false;
         }
         
         for (const [materialId, delta] of stockDeltas.entries()) {
@@ -261,11 +277,28 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
             }
         }
         
+        if (newStatusIsReceived) {
+             for(const item of data.items || []) {
+                if (item.materialId) {
+                     const materialInfo = materialDocsToUpdate.get(item.materialId);
+                     if(materialInfo && materialInfo.doc.exists()) {
+                        const newLatestPurchase = {
+                            quantityPurchased: item.quantity,
+                            totalPurchaseCost: (item.quantity || 0) * (item.unitPrice || 0),
+                            purchaseDate: format(firestoreData.orderDate.toDate(), "yyyy-MM-dd"),
+                            calculatedUnitCost: item.unitPrice,
+                            notes: firestoreData.notes || `Compra ${id}`,
+                        };
+                        transaction.update(materialInfo.ref, { latestPurchase: newLatestPurchase });
+                     }
+                }
+             }
+        }
+        
         transaction.update(purchaseDocRef, firestoreData);
         console.log(`Purchase document ${id} updated.`);
     });
 };
-
 
 export const deletePurchaseFS = async (id: string): Promise<void> => {
   console.log(`Attempting to delete purchase document with ID: ${id}`);
@@ -327,4 +360,3 @@ export const initializeMockPurchasesInFirestore = async (mockData: Purchase[]) =
         console.log('Mock purchases initialized in Firestore.');
     }
 };
-

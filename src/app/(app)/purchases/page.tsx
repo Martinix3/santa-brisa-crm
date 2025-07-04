@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import type { Purchase, PurchaseStatus, UserRole, InventoryItem, PurchaseCategory, Currency } from "@/types";
+import type { Purchase, PurchaseStatus, UserRole, InventoryItem, PurchaseCategory, Currency, Category } from "@/types";
 import { purchaseStatusList, purchaseCategoryList } from "@/lib/data";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, MoreHorizontal, Filter, ChevronDown, Edit, Trash2, Receipt, Loader2, UploadCloud, Download, TestTube2 } from "lucide-react";
@@ -24,13 +24,14 @@ import Link from "next/link";
 import InvoiceUploadDialog from "@/components/app/invoice-upload-dialog";
 import { getInventoryItemsFS } from "@/services/inventory-item-service";
 import { testUpload } from "@/services/test-upload-service";
-import { initializeMockCategoriesInFirestore } from "@/services/category-service";
+import { initializeMockCategoriesInFirestore, getCategoriesFS } from "@/services/category-service";
 
 export default function PurchasesPage() {
   const { toast } = useToast();
   const { userRole, dataSignature, refreshDataSignature } = useAuth();
   const [purchases, setPurchases] = React.useState<Purchase[]>([]);
   const [materials, setMaterials] = React.useState<InventoryItem[]>([]);
+  const [purchaseCategories, setPurchaseCategories] = React.useState<Category[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [editingPurchase, setEditingPurchase] = React.useState<Purchase | null>(null);
   const [isPurchaseDialogOpen, setIsPurchaseDialogOpen] = React.useState(false);
@@ -52,15 +53,16 @@ export default function PurchasesPage() {
     async function loadInitialData() {
         setIsLoading(true);
         try {
-            // Seed categories if needed before fetching other data
             await initializeMockCategoriesInFirestore();
             
-            const [fetchedPurchases, fetchedMaterials] = await Promise.all([
+            const [fetchedPurchases, fetchedMaterials, fetchedCategories] = await Promise.all([
               getPurchasesFS(),
-              getInventoryItemsFS()
+              getInventoryItemsFS(),
+              getCategoriesFS('cost'),
             ]);
             setPurchases(fetchedPurchases);
             setMaterials(fetchedMaterials);
+            setPurchaseCategories(fetchedCategories);
         } catch (error) {
             console.error("Failed to load purchases:", error);
             toast({ title: "Error", description: "No se pudieron cargar las órdenes de compra.", variant: "destructive" });
@@ -74,6 +76,8 @@ export default function PurchasesPage() {
         setIsLoading(false);
     }
   }, [toast, isAdmin, dataSignature]);
+  
+  const categoriesMap = React.useMemo(() => new Map(purchaseCategories.map(c => [c.id, c.name])), [purchaseCategories]);
 
   const handleAddNewPurchase = () => {
     if (!isAdmin) return;
@@ -202,7 +206,7 @@ export default function PurchasesPage() {
        (purchase.items && purchase.items.some(item => item.description.toLowerCase().includes(searchTerm.toLowerCase()))))
     )
     .filter(purchase => statusFilter === "Todos" || purchase.status === statusFilter)
-    .filter(purchase => categoryFilter === "Todas" || purchase.categoryId === categoryFilter);
+    .filter(purchase => categoryFilter === "Todas" || (categoriesMap.get(purchase.categoryId) || '') === categoryFilter);
 
   if (!isAdmin) {
     return (
@@ -324,7 +328,7 @@ export default function PurchasesPage() {
                           purchase.supplier
                         )}
                       </TableCell>
-                      <TableCell>{purchase.categoryId}</TableCell>
+                      <TableCell>{categoriesMap.get(purchase.categoryId) || purchase.categoryId}</TableCell>
                       <TableCell>{format(parseISO(purchase.orderDate), "dd/MM/yy", { locale: es })}</TableCell>
                       <TableCell className="text-right">
                         <FormattedNumericValue value={purchase.totalAmount} options={{ style: 'currency', currency: purchase.currency }} />

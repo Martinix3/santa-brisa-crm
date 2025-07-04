@@ -1,11 +1,12 @@
 import {genkit} from 'genkit';
-import {googleAI} from '@genkit-ai/googleai';
+import {vertexAI} from '@genkit-ai/vertexai';
 
 // In a managed environment, Genkit would typically use Application Default Credentials.
-// To resolve the current authentication issue, we are explicitly using the provided API key.
+// This configuration points to the Vertex AI service, which will use the project's
+// billing and credits, avoiding free-tier limitations.
 export const ai = genkit({
   plugins: [
-    googleAI({apiKey: process.env.GEMINI_API_KEY}),
+    vertexAI({project: 'santa-brisa-crm', location: 'us-central1'}),
   ],
-  model: 'googleai/gemini-1.5-flash-latest',
+  model: 'gemini-1.5-flash',
 });

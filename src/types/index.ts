@@ -1,5 +1,7 @@
 
 
+import { Timestamp } from "firebase/firestore";
+
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
 
 export interface Kpi {
@@ -321,13 +323,13 @@ export type Currency = "EUR" | "USD" | "MXN";
 
 export interface PurchaseItem {
   materialId: string;
-  description: string;
+  description?: string;
   quantity: number;
   unitPrice: number;
   batchNumber?: string;
   destSku?: string;
   total: number;
-  uom: UoM;
+  uom?: UoM;
   landedUnitCost?: number;
 }
 
@@ -335,8 +337,8 @@ export interface Purchase {
   id: string;
   supplier: string;
   supplierId?: string;
-  categoryId: string; // Replaces 'category' string
-  costCenterIds?: string[]; // Extension
+  categoryId: string;
+  costCenterIds?: string[];
   items: PurchaseItem[];
   currency: Currency;
   subtotal: number;
@@ -344,7 +346,7 @@ export interface Purchase {
   taxRate: number;
   shippingCost?: number;
   totalAmount: number;
-  orderDate: string; // YYYY-MM-DD
+  orderDate: string;
   status: PurchaseStatus;
   invoiceUrl?: string; 
   invoiceContentType?: string;
@@ -439,7 +441,7 @@ export type Step = "client" | "outcome" | "details" | "verify";
 
 export interface PurchaseFormValues {
   supplier: string;
-  supplierCif?: string; // Para creación automática
+  supplierCif?: string;
   supplierAddress_street?: string;
   supplierAddress_number?: string;
   supplierAddress_city?: string;
@@ -449,8 +451,8 @@ export interface PurchaseFormValues {
 
   orderDate: Date;
   status: PurchaseStatus;
-  categoryId: string; // Changed from category
-  costCenterIds?: string[]; // New
+  categoryId: string;
+  costCenterIds?: string[];
   currency: Currency;
   items: {
     materialId: string;
@@ -468,6 +470,37 @@ export interface PurchaseFormValues {
   invoiceContentType?: string;
   storagePath?: string;
 }
+
+export interface PurchaseFirestorePayload {
+  supplier: string;
+  supplierId: string | null;
+  categoryId: string;
+  costCenterIds: string[];
+  currency: Currency;
+  orderDate: Timestamp;
+  status: PurchaseStatus;
+  items: {
+    materialId: string;
+    description?: string;
+    quantity: number;
+    unitPrice: number;
+    batchNumber: string | null;
+    total: number;
+  }[];
+  subtotal: number;
+  tax: number;
+  taxRate: number;
+  shippingCost: number;
+  totalAmount: number;
+  notes: string | null;
+  invoiceUrl: string | null;
+  invoiceContentType: string | null;
+  storagePath: string | null;
+  createdAt?: Timestamp;
+  updatedAt: Timestamp;
+  batchesSeeded?: boolean;
+}
+
 
 export interface TeamMemberFormValues {
   name: string;

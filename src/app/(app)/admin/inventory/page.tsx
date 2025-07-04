@@ -19,6 +19,9 @@ import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getInventoryItemsFS, addInventoryItemFS, updateInventoryItemFS, deleteInventoryItemFS } from "@/services/inventory-item-service";
 import { useCategories } from "@/contexts/categories-context";
+import CategoryDialog from "@/components/app/category-dialog";
+import type { CategoryFormValues } from "@/components/app/category-dialog";
+import { addCategoryFS } from "@/services/category-service";
 
 
 export default function InventoryPage() {
@@ -32,6 +35,7 @@ export default function InventoryPage() {
   const [editingItem, setEditingItem] = React.useState<InventoryItem | null>(null);
   const [isItemDialogOpen, setIsItemDialogOpen] = React.useState(false);
   const [itemToDelete, setItemToDelete] = React.useState<InventoryItem | null>(null);
+  const [isCategoryDialogOpen, setIsCategoryDialogOpen] = React.useState(false);
   
   const [searchTerm, setSearchTerm] = React.useState("");
   const [categoryFilter, setCategoryFilter] = React.useState<string | "Todos">("Todos");
@@ -113,6 +117,18 @@ export default function InventoryPage() {
         setItemToDelete(null);
     }
   };
+  
+  const handleSaveCategory = async (data: CategoryFormValues) => {
+    if (!isAdmin) return;
+    try {
+        await addCategoryFS(data);
+        refreshDataSignature(); // This will now trigger the categories context to reload
+        toast({ title: "Categoría Creada", description: `La categoría "${data.name}" ha sido creada.` });
+        setIsCategoryDialogOpen(false);
+    } catch (error: any) {
+        toast({ title: "Error al Crear Categoría", description: error.message, variant: "destructive" });
+    }
+  };
 
   const filteredItems = items
     .filter(item =>
@@ -169,12 +185,17 @@ export default function InventoryPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
-                <DropdownMenuCheckboxItem key="Todos" onSelect={() => setCategoryFilter("Todos")}>Todas</DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem key="Todos" onSelect={() => setCategoryFilter("Todos")} checked={categoryFilter === "Todos"}>Todas</DropdownMenuCheckboxItem>
                 {inventoryCategories.map(cat => (
-                   <DropdownMenuCheckboxItem key={cat.id} onSelect={() => setCategoryFilter(cat.id)}>
+                   <DropdownMenuCheckboxItem key={cat.id} onSelect={() => setCategoryFilter(cat.id)} checked={categoryFilter === cat.id}>
                     {cat.name}
                   </DropdownMenuCheckboxItem>
                 ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => setIsCategoryDialogOpen(true)}>
+                    <PlusCircle className="mr-2 h-4 w-4"/>
+                    Crear Nueva Categoría
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -298,6 +319,13 @@ export default function InventoryPage() {
           inventoryCategories={inventoryCategories}
         />
       )}
+      
+      <CategoryDialog
+        isOpen={isCategoryDialogOpen}
+        onOpenChange={setIsCategoryDialogOpen}
+        onSave={handleSaveCategory}
+        categoryKind="inventory"
+      />
     </div>
   );
 }

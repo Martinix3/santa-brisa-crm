@@ -24,6 +24,9 @@ import Link from "next/link";
 import InvoiceUploadDialog from "@/components/app/invoice-upload-dialog";
 import { testUpload } from "@/services/test-upload-service";
 import { useCategories } from "@/contexts/categories-context";
+import CategoryDialog from "@/components/app/category-dialog";
+import type { CategoryFormValues } from "@/components/app/category-dialog";
+import { addCategoryFS } from "@/services/category-service";
 
 
 export default function PurchasesPage() {
@@ -40,6 +43,7 @@ export default function PurchasesPage() {
   const [prefilledData, setPrefilledData] = React.useState<Partial<PurchaseFormValues> | null>(null);
   const [prefilledFile, setPrefilledFile] = React.useState<File | null>(null);
   const [isInvoiceUploadOpen, setIsInvoiceUploadOpen] = React.useState(false);
+  const [isCategoryDialogOpen, setIsCategoryDialogOpen] = React.useState(false);
   
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<PurchaseStatus | "Todos">("Todos");
@@ -143,6 +147,18 @@ export default function PurchasesPage() {
     } finally {
       setIsLoadingPurchases(false);
       setPurchaseToDelete(null);
+    }
+  };
+  
+  const handleSaveCategory = async (data: CategoryFormValues) => {
+    if (!isAdmin) return;
+    try {
+        await addCategoryFS(data);
+        refreshDataSignature();
+        toast({ title: "Categoría Creada", description: `La categoría "${data.name}" ha sido creada.` });
+        setIsCategoryDialogOpen(false);
+    } catch (error: any) {
+        toast({ title: "Error al Crear Categoría", description: error.message, variant: "destructive" });
     }
   };
 
@@ -286,6 +302,11 @@ export default function PurchasesPage() {
                 {costCategories.map(cat => (
                   <DropdownMenuCheckboxItem key={cat.id} onSelect={() => setCategoryFilter(cat.id)} checked={categoryFilter === cat.id}>{cat.name}</DropdownMenuCheckboxItem>
                 ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => setIsCategoryDialogOpen(true)}>
+                    <PlusCircle className="mr-2 h-4 w-4"/>
+                    Crear Nueva Categoría
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -416,6 +437,13 @@ export default function PurchasesPage() {
         isOpen={isInvoiceUploadOpen}
         onOpenChange={setIsInvoiceUploadOpen}
         onDataExtracted={handleDataFromInvoice}
+      />
+      
+      <CategoryDialog
+        isOpen={isCategoryDialogOpen}
+        onOpenChange={setIsCategoryDialogOpen}
+        onSave={handleSaveCategory}
+        categoryKind="cost"
       />
     </div>
   );

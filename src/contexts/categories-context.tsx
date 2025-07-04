@@ -4,6 +4,7 @@
 import React, { createContext, useState, useEffect, useContext, useMemo } from 'react';
 import { getCategoriesFS } from '@/services/category-service';
 import type { Category } from '@/types';
+import { useAuth } from './auth-context';
 
 interface CategoriesContextType {
     allCategories: Category[];
@@ -24,13 +25,15 @@ export const CategoriesContext = createContext<CategoriesContextType>({
 export function CategoriesProvider({ children }: { children: React.ReactNode }) {
   const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { dataSignature } = useAuth();
 
   useEffect(() => {
+    setIsLoading(true);
     getCategoriesFS()
       .then(setAllCategories)
       .catch(console.error)
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [dataSignature]);
 
   const value = useMemo(() => {
     const categoriesMap = new Map(allCategories.map(c => [c.id, c.name]));

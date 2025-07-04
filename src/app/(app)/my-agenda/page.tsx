@@ -121,15 +121,16 @@ function DragOverlayItem({ item }: { item: AgendaItem | null }) {
   if (!item) return null;
   
   // Clone icon to override its color for the overlay
-  const icon = React.cloneElement(getAgendaItemIcon(item), { className: "h-5 w-5 text-primary-foreground flex-shrink-0" });
+  const icon = React.cloneElement(getAgendaItemIcon(item), { className: "h-5 w-5 text-primary-foreground" });
 
   return (
-    <div className="flex items-center gap-2 rounded-lg bg-primary/95 text-primary-foreground p-2 text-sm shadow-xl backdrop-blur-sm">
+    // A small, circular element that follows the cursor
+    <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary/80 shadow-xl backdrop-blur-sm">
       {icon}
-      <span className="font-semibold">{item.title}</span>
     </div>
   );
 }
+
 
 
 // --- MAIN COMPONENT ---
@@ -536,17 +537,14 @@ export default function MyAgendaPage() {
     setActiveAgendaItem(null);
     const { active, over } = event;
 
-    if (!over || !active.id || active.id === over.id) {
-        return;
-    }
+    if (!over || !active.id) return;
     
     const activeItem = allAgendaItems.find(i => i.id === active.id);
-    if (!activeItem) {
-        return;
-    }
+    if (!activeItem) return;
 
     // Case 1: Drop on a calendar day
     if (typeof over.id === 'string' && over.id.startsWith('drop-')) {
+        if (active.id === over.id) return; // Dropped on itself, do nothing
         const newDateStr = over.id.replace('drop-', '');
         const newDate = parseISO(newDateStr);
         
@@ -571,7 +569,7 @@ export default function MyAgendaPage() {
         }
     } 
     // Case 2: Drop on another item to reorder
-    else {
+    else if (active.id !== over.id) {
         const overItem = allAgendaItems.find(i => i.id === over.id);
 
         if (overItem && isSameDay(activeItem.date, overItem.date)) {

@@ -33,11 +33,11 @@ const ProcessInvoiceOutputSchema = z.object({
   orderDate: z.string().describe("The issue date of the invoice in YYYY-MM-DD format."),
   items: z.array(z.object({
     description: z.string().describe("The description of the item or service."),
-    quantity: z.number().optional().describe("The quantity of the item. If not specified, it will be considered as 1."),
+    quantity: z.number().default(1).describe("The quantity of the item. Defaults to 1 if not specified."),
     unitPrice: z.number().describe("The price per unit of the item, without tax."),
   })).describe("A list of all items from the invoice."),
-  shippingCost: z.number().optional().describe("The shipping cost, if specified separately."),
-  taxRate: z.number().optional().describe("The tax rate as a percentage (e.g., 21 for 21%). If multiple rates, provide the most common one."),
+  shippingCost: z.number().default(0).describe("The shipping cost, if specified separately. Defaults to 0 if not present."),
+  taxRate: z.number().default(0).describe("The tax rate as a percentage (e.g., 21 for 21%). If multiple rates, provide the most common one. Defaults to 0 if not specified."),
   notes: z.string().optional().describe("Any relevant notes or invoice numbers found."),
 });
 type ProcessInvoiceOutput = z.infer<typeof ProcessInvoiceOutputSchema>;
@@ -51,7 +51,7 @@ const prompt = ai.definePrompt({
   name: 'invoiceProcessingPrompt',
   input: {schema: ProcessInvoiceInputSchema},
   output: {schema: ProcessInvoiceOutputSchema},
-  model: 'gemini-1.5-flash',
+  model: 'gemini-1.5-flash-latest',
   prompt: `You are an expert accounting assistant. Your task is to extract structured information from an invoice file with the highest possible accuracy, especially with numbers.
 
 Analyze the provided invoice image or PDF and extract the following details. Be extremely precise.

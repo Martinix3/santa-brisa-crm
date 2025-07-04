@@ -123,7 +123,7 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
   const form = useForm<PurchaseFormValues>({
     resolver: zodResolver(purchaseFormSchema),
     defaultValues: {
-      supplier: "", orderDate: new Date(), status: "Borrador", categoryId: "", costCenterIds: [],
+      supplier: "", orderDate: new Date(), status: "Factura Recibida", categoryId: "", costCenterIds: [],
       currency: "EUR",
       items: [{ materialId: "", description: "", quantity: 1, unitPrice: null, batchNumber: "" }],
       shippingCost: 0, taxRate: 21, notes: "", invoiceUrl: "", storagePath: "", invoiceFile: null,
@@ -139,7 +139,7 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
   const watchedInvoiceUrl = form.watch("invoiceUrl");
   const watchedInvoiceContentType = form.watch("invoiceContentType");
 
-  const { subtotal, taxAmount, totalAmount } = React.useMemo(() => {
+  const { subtotal, tax, totalAmount } = React.useMemo(() => {
     const currentSubtotal = watchedItems.reduce((sum, item) => sum + (item.quantity || 0) * (item.unitPrice || 0), 0) || 0;
     const shipping = watchedShippingCost || 0;
     const subtotalWithShipping = currentSubtotal + shipping;
@@ -210,7 +210,7 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
     const initialValues: Partial<PurchaseFormValues> = {
       supplier: source?.supplier || "",
       orderDate: source?.orderDate ? (typeof source.orderDate === 'string' ? parseISO(source.orderDate) : source.orderDate) : new Date(),
-      status: source?.status || "Borrador",
+      status: source?.status || "Factura Recibida",
       categoryId: (source as Purchase)?.categoryId || "",
       costCenterIds: (source as Purchase)?.costCenterIds || [],
       currency: (source as Purchase)?.currency || "EUR",
@@ -419,7 +419,7 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
                     <div className="flex justify-between text-lg font-bold"><span>TOTAL:</span><FormattedNumericValue value={totalAmount} options={{ style: 'currency', currency: watchedCurrency }} /></div>
                   </div>
 
-                  <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un estado" /></SelectTrigger></FormControl><SelectContent>{purchaseStatusList.map(s => (<SelectItem key={s} value={s}>{s}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un estado" /></SelectTrigger></FormControl><SelectContent>{purchaseStatusList.map(s => (<SelectItem key={s} value={s}>{s}</SelectItem>))}</SelectContent></Select><FormDescription className="text-xs">El estado 'Factura Recibida' actualiza el stock del inventario.</FormDescription><FormMessage /></FormItem>)} />
                   <FormField control={form.control} name="notes" render={({ field }) => (<FormItem><FormLabel>Notas (Opcional)</FormLabel><FormControl><Textarea placeholder="Cualquier información adicional, n.º de proforma, etc." {...field} value={field.value ?? ''} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
                   
                   {watchedInvoiceUrl && (<div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-sm flex items-center justify-between gap-3"><div className="flex items-center gap-2"><FileCheck2 className="h-5 w-5 text-blue-600 flex-shrink-0" /><div><p className="font-semibold text-blue-800">Factura Adjunta</p><p className="text-xs text-blue-600">El archivo se ha subido al sistema.</p></div></div><Button variant="outline" size="sm" asChild><Link href={watchedInvoiceUrl} target="_blank" rel="noopener noreferrer"><Link2 className="mr-2 h-4 w-4" /> Ver Archivo</Link></Button></div>)}

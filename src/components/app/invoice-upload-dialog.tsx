@@ -94,7 +94,7 @@ export default function InvoiceUploadDialog({ isOpen, onOpenChange, onDataExtrac
             shippingCost: extractedData.shippingCost,
             taxRate: extractedData.taxRate,
             notes: extractedData.notes,
-            status: "Borrador",
+            status: "Factura Recibida",
             invoiceFile: saveInvoiceFile ? file : undefined,
         };
       

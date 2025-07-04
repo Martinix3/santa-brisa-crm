@@ -186,7 +186,7 @@ export const initializeMockPromotionalMaterialsInFirestore = async (mockMaterial
     const snapshot = await getDocs(query(materialsCol, orderBy('name', 'asc')));
     if (snapshot.empty && mockMaterialsData.length > 0) {
         for (const material of mockMaterialsData) {
-            const { id, stock, categoryId, ...materialData } = material; 
+            const { id, stock, categoryId, ...materialData } = material;
             
             const formValues: PromotionalMaterialFormValues = {
                 name: material.name,

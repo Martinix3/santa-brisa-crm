@@ -10,7 +10,6 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { promotionalMaterialTypeList } from '@/lib/data';
 
 const MatchMaterialInputSchema = z.object({
   itemName: z.string().describe("The name of the item from an invoice (e.g., 'CUBITERAS METAL GRANDE')."),
@@ -29,7 +28,7 @@ const MatchMaterialOutputSchema = z.object({
   matchType: z.enum(['perfect', 'suggested', 'none']).describe("The type of match found: 'perfect' for a confident match, 'suggested' for a likely but not certain match, and 'none' if no suitable match is found."),
   matchedMaterialId: z.string().optional().describe("The ID of the matched material from the existing list, if a match was found."),
   suggestedName: z.string().optional().describe("If no match is found, a cleaned-up, suggested name for creating a new material based on the invoice item name."),
-  suggestedType: z.enum(promotionalMaterialTypeList as [string, ...string[]]).optional().describe("If no match is found, the most likely category for the new material."),
+  suggestedType: z.string().optional().describe("If no match is found, the most likely category for the new material."),
 });
 export type MatchMaterialOutput = z.infer<typeof MatchMaterialOutputSchema>;
 

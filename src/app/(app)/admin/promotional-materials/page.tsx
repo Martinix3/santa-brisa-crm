@@ -8,48 +8,51 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { promotionalMaterialTypeList } from "@/lib/data"; 
-import type { PromotionalMaterial, PromotionalMaterialType, UserRole, LatestPurchaseInfo } from "@/types";
+import type { PromotionalMaterial, UserRole, LatestPurchaseInfo, Category } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { PlusCircle, Edit, Trash2, MoreHorizontal, PackagePlus, Filter, ChevronDown, AlertTriangle, CalendarDays, Loader2, Archive } from "lucide-react";
+import { PlusCircle, Edit, Trash2, MoreHorizontal, Filter, ChevronDown, AlertTriangle, CalendarDays, Loader2, Archive } from "lucide-react";
 import PromotionalMaterialDialog, { type PromotionalMaterialFormValues } from "@/components/app/promotional-material-dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { getPromotionalMaterialsFS, addPromotionalMaterialFS, updatePromotionalMaterialFS, deletePromotionalMaterialFS, initializeMockPromotionalMaterialsInFirestore } from "@/services/promotional-material-service";
-import { mockPromotionalMaterials as initialMockMaterialsForSeeding } from "@/lib/data"; 
+import { getPromotionalMaterialsFS, addPromotionalMaterialFS, updatePromotionalMaterialFS, deletePromotionalMaterialFS } from "@/services/promotional-material-service";
+import { getCategoriesFS } from "@/services/category-service";
 
 
 export default function PromotionalMaterialsPage() {
   const { toast } = useToast();
   const { userRole, dataSignature, refreshDataSignature } = useAuth();
   const [materials, setMaterials] = React.useState<PromotionalMaterial[]>([]);
+  const [inventoryCategories, setInventoryCategories] = React.useState<Category[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [editingMaterial, setEditingMaterial] = React.useState<PromotionalMaterial | null>(null);
   const [isMaterialDialogOpen, setIsMaterialDialogOpen] = React.useState(false);
   const [materialToDelete, setMaterialToDelete] = React.useState<PromotionalMaterial | null>(null);
   
   const [searchTerm, setSearchTerm] = React.useState("");
-  const [typeFilter, setTypeFilter] = React.useState<PromotionalMaterialType | "Todos">("Todos");
+  const [categoryFilter, setCategoryFilter] = React.useState<string | "Todos">("Todos");
 
   const isAdmin = userRole === 'Admin';
 
   React.useEffect(() => {
-    async function loadMaterials() {
+    async function loadData() {
       setIsLoading(true);
       try {
-        await initializeMockPromotionalMaterialsInFirestore(initialMockMaterialsForSeeding); 
-        const firestoreMaterials = await getPromotionalMaterialsFS();
+        const [firestoreMaterials, categories] = await Promise.all([
+            getPromotionalMaterialsFS(),
+            getCategoriesFS('inventory'),
+        ]);
         setMaterials(firestoreMaterials);
+        setInventoryCategories(categories);
       } catch (error) {
         console.error("Error fetching promotional materials:", error);
-        toast({ title: "Error al Cargar Materiales", description: "No se pudieron cargar los materiales desde Firestore.", variant: "destructive" });
+        toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar los materiales o categorías.", variant: "destructive" });
       } finally {
         setIsLoading(false);
       }
     }
-    loadMaterials();
+    loadData();
   }, [toast, dataSignature]);
 
 
@@ -78,8 +81,7 @@ export default function PromotionalMaterialsPage() {
         await addPromotionalMaterialFS(data);
         successMessage = `El material "${data.name}" ha sido añadido.`;
       }
-      const updatedMaterials = await getPromotionalMaterialsFS();
-      setMaterials(updatedMaterials);
+      refreshDataSignature();
       toast({ title: "¡Operación Exitosa!", description: successMessage });
     } catch (error) {
         console.error("Error saving promotional material:", error);
@@ -101,7 +103,7 @@ export default function PromotionalMaterialsPage() {
     setIsLoading(true);
     try {
       await deletePromotionalMaterialFS(materialToDelete.id);
-      setMaterials(prev => prev.filter(mat => mat.id !== materialToDelete.id));
+      refreshDataSignature();
       toast({ title: "¡Material Eliminado!", description: `El material "${materialToDelete.name}" ha sido eliminado.`, variant: "destructive" });
     } catch (error) {
         console.error("Error deleting promotional material:", error);
@@ -112,7 +114,7 @@ export default function PromotionalMaterialsPage() {
     }
   };
 
-  const uniqueMaterialTypesForFilter = ["Todos", ...promotionalMaterialTypeList] as (PromotionalMaterialType | "Todos")[];
+  const categoriesMap = React.useMemo(() => new Map(inventoryCategories.map(c => [c.id, c.name])), [inventoryCategories]);
 
   const filteredMaterials = materials
     .filter(material =>
@@ -121,7 +123,7 @@ export default function PromotionalMaterialsPage() {
       (material.sku && material.sku.toLowerCase().includes(searchTerm.toLowerCase()))
       )
     )
-    .filter(material => typeFilter === "Todos" || material.type === typeFilter);
+    .filter(material => categoryFilter === "Todos" || material.categoryId === categoryFilter);
 
   if (!isAdmin) {
     return (
@@ -165,13 +167,14 @@ export default function PromotionalMaterialsPage() {
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="w-full sm:w-auto">
                   <Filter className="mr-2 h-4 w-4" />
-                  Tipo: {typeFilter} <ChevronDown className="ml-2 h-4 w-4" />
+                  Categoría: {categoryFilter === "Todos" ? "Todas" : (categoriesMap.get(categoryFilter) || '...') } <ChevronDown className="ml-2 h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
-                {uniqueMaterialTypesForFilter.map(type => (
-                   <DropdownMenuItem key={type} onSelect={() => setTypeFilter(type)}>
-                    {type}
+                <DropdownMenuItem key="Todos" onSelect={() => setCategoryFilter("Todos")}>Todas</DropdownMenuItem>
+                {inventoryCategories.map(cat => (
+                   <DropdownMenuItem key={cat.id} onSelect={() => setCategoryFilter(cat.id)}>
+                    {cat.name}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
@@ -189,7 +192,7 @@ export default function PromotionalMaterialsPage() {
                 <TableRow>
                   <TableHead className="w-[25%]">Nombre del Material</TableHead>
                   <TableHead className="w-[15%]">SKU/Lote</TableHead>
-                  <TableHead className="w-[15%]">Tipo</TableHead>
+                  <TableHead className="w-[15%]">Categoría</TableHead>
                   <TableHead className="text-right w-[10%]">Stock Disp.</TableHead>
                   <TableHead className="text-right w-[10%]">Coste Unit. (€)</TableHead>
                   <TableHead className="text-center w-[10%]">Última Compra</TableHead>
@@ -201,7 +204,7 @@ export default function PromotionalMaterialsPage() {
                   <TableRow key={material.id}>
                     <TableCell className="font-medium">{material.name}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{material.sku || 'N/A'}</TableCell>
-                    <TableCell>{material.type}</TableCell>
+                    <TableCell>{categoriesMap.get(material.categoryId) || 'N/D'}</TableCell>
                     <TableCell className="text-right font-bold">
                        <FormattedNumericValue value={material.stock} />
                     </TableCell>

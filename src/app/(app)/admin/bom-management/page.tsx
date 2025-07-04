@@ -63,14 +63,25 @@ export default function BomManagementPage() {
 
       if (data.isNewProduct && data.newProductName && data.newProductSku) {
         let finishedGoodsCategoryId = '';
+        const targetCategoryName = "producto terminado";
+
         for (const [id, name] of categoriesMap.entries()) {
-          if (name === 'Producto Terminado') {
+          // Normalize both names for a robust comparison
+          if (name.trim().toLowerCase() === targetCategoryName) {
             finishedGoodsCategoryId = id;
             break;
           }
         }
+        
         if (!finishedGoodsCategoryId) {
-          throw new Error("No se encontró la categoría 'Producto Terminado'. Por favor, créala en la configuración de categorías.");
+          toast({
+            title: "Error de Configuración",
+            description: "No se encontró la categoría 'Producto Terminado'. Por favor, créala o revisa su nombre en la configuración de categorías.",
+            variant: "destructive",
+            duration: 9000,
+          });
+          setIsLoading(false);
+          return;
         }
         
         await addInventoryItemFS({

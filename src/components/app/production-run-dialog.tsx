@@ -24,19 +24,16 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import type { ProductionRun, InventoryItem } from "@/types";
-import { Loader2 } from "lucide-react";
+import { Loader2, Sparkles, CheckCircle } from "lucide-react";
 import { useCategories } from "@/contexts/categories-context";
+import { useToast } from "@/hooks/use-toast";
+import { matchMaterial } from "@/ai/flows/material-matching-flow";
+import { Label } from "@/components/ui/label";
 
 const productionRunFormSchema = z.object({
-  productSku: z.string().min(1, "Debe seleccionar el producto a fabricar."),
+  productSearchTerm: z.string().optional(),
+  productSku: z.string().min(1, "Debe buscar y asociar un producto a fabricar."),
   productName: z.string(), // This will be set automatically
   qtyPlanned: z.coerce.number().min(1, "La cantidad debe ser al menos 1."),
 });
@@ -53,21 +50,54 @@ interface ProductionRunDialogProps {
 
 export default function ProductionRunDialog({ productionRun, isOpen, onOpenChange, onSave, inventoryItems }: ProductionRunDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
+  const [isSearching, setIsSearching] = React.useState(false);
   const { categoriesMap } = useCategories();
+  const { toast } = useToast();
   
   const form = useForm<ProductionRunFormValues>({
     resolver: zodResolver(productionRunFormSchema),
     defaultValues: {
       productSku: "",
       productName: "",
+      productSearchTerm: "",
       qtyPlanned: 1,
     },
   });
 
-  const handleProductSelectChange = (sku: string) => {
-    const selectedItem = inventoryItems.find(item => item.sku === sku);
-    form.setValue("productSku", sku);
-    form.setValue("productName", selectedItem?.name || "");
+  const handleProductSearch = async () => {
+      const searchTerm = form.getValues("productSearchTerm");
+      if (!searchTerm) return;
+      
+      setIsSearching(true);
+      try {
+          const finishedGoods = inventoryItems.filter(i => categoriesMap.get(i.categoryId)?.name === "Producto Terminado");
+          if (finishedGoods.length === 0) {
+              toast({ title: "Sin Productos Terminados", description: "No hay productos en la categoría 'Producto Terminado' para buscar.", variant: "destructive" });
+              return;
+          }
+
+          const result = await matchMaterial({
+              itemName: searchTerm,
+              existingMaterials: finishedGoods.map(m => ({ id: m.id, name: m.name, description: m.description, categoryId: m.categoryId }))
+          });
+          
+          if (result.matchType === 'perfect' || result.matchType === 'suggested') {
+              const matchedItem = finishedGoods.find(item => item.id === result.matchedMaterialId);
+              if (matchedItem && matchedItem.sku) {
+                  form.setValue("productSku", matchedItem.sku, { shouldValidate: true });
+                  form.setValue("productName", matchedItem.name, { shouldValidate: true });
+                  form.setValue("productSearchTerm", matchedItem.name); // Update search term to matched name
+                  toast({ title: "Producto Encontrado", description: `Se ha seleccionado "${matchedItem.name}".`});
+              }
+          } else {
+              toast({ title: "Sin Coincidencia Clara", description: "No se encontró un producto terminado que coincida con la búsqueda.", variant: "default" });
+          }
+      } catch (error) {
+          console.error("Error during product search:", error);
+          toast({ title: "Error de IA", description: "La búsqueda inteligente falló.", variant: "destructive"});
+      } finally {
+          setIsSearching(false);
+      }
   };
 
   React.useEffect(() => {
@@ -76,10 +106,11 @@ export default function ProductionRunDialog({ productionRun, isOpen, onOpenChang
         form.reset({
             productSku: productionRun.productSku,
             productName: productionRun.productName,
+            productSearchTerm: productionRun.productName,
             qtyPlanned: productionRun.qtyPlanned,
         });
       } else {
-        form.reset({ productSku: "", productName: "", qtyPlanned: 1 });
+        form.reset({ productSku: "", productName: "", productSearchTerm: "", qtyPlanned: 1 });
       }
     }
   }, [productionRun, isOpen, form]);
@@ -90,7 +121,7 @@ export default function ProductionRunDialog({ productionRun, isOpen, onOpenChang
     setIsSaving(false);
   };
   
-  const finishedGoods = inventoryItems.filter(i => categoriesMap.get(i.categoryId)?.name === "Producto Terminado");
+  const isProductSelected = !!form.watch("productSku");
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -103,24 +134,52 @@ export default function ProductionRunDialog({ productionRun, isOpen, onOpenChang
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
-            <FormField
-              control={form.control} name="productSku"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Producto a Fabricar (SKU)</FormLabel>
-                  <Select onValueChange={handleProductSelectChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar producto..." /></SelectTrigger></FormControl>
-                    <SelectContent>{finishedGoods.map(item => (<SelectItem key={item.id} value={item.sku!}>{item.name} ({item.sku})</SelectItem>))}</SelectContent>
-                  </Select><FormMessage />
-                </FormItem>
+            <fieldset disabled={isSaving}>
+              <div className="space-y-2">
+                  <Label>Producto a Fabricar</Label>
+                  <div className="flex items-end gap-2">
+                      <FormField
+                          control={form.control}
+                          name="productSearchTerm"
+                          render={({ field }) => (
+                              <FormItem className="flex-grow">
+                                  <FormControl>
+                                      <Input placeholder="Buscar producto terminado..." {...field} disabled={isProductSelected || isSearching} />
+                                  </FormControl>
+                                  <FormMessage />
+                              </FormItem>
+                          )}
+                      />
+                      <Button type="button" variant="outline" size="sm" onClick={handleProductSearch} disabled={isSearching || isProductSelected}>
+                          {isSearching ? <Loader2 className="h-4 w-4 animate-spin"/> : <Sparkles className="h-4 w-4"/>} 
+                          Buscar
+                      </Button>
+                  </div>
+              </div>
+              
+              {isProductSelected && (
+                  <div className="p-3 border rounded-md bg-green-50 text-green-800 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-5 w-5"/>
+                        <p className="font-medium">{form.getValues("productName")}</p>
+                      </div>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => {
+                          form.setValue("productSku", "");
+                          form.setValue("productName", "");
+                          form.setValue("productSearchTerm", "");
+                      }}>Cambiar</Button>
+                  </div>
               )}
-            />
-            <FormField
-                control={form.control} name="qtyPlanned"
-                render={({ field }) => (<FormItem><FormLabel>Cantidad Planificada</FormLabel><FormControl><Input type="number" step="1" {...field} /></FormControl><FormMessage /></FormItem>)}
-            />
+               <FormMessage>{form.formState.errors.productSku?.message}</FormMessage>
+
+              <FormField
+                  control={form.control} name="qtyPlanned"
+                  render={({ field }) => (<FormItem><FormLabel>Cantidad Planificada</FormLabel><FormControl><Input type="number" step="1" {...field} /></FormControl><FormMessage /></FormItem>)}
+              />
+            </fieldset>
             <DialogFooter className="pt-4">
               <DialogClose asChild><Button type="button" variant="outline">Cancelar</Button></DialogClose>
-              <Button type="submit" disabled={isSaving}>
+              <Button type="submit" disabled={isSaving || isSearching}>
                 {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</> : "Guardar Orden"}
               </Button>
             </DialogFooter>

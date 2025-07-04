@@ -39,17 +39,20 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Checkbox } from "@/components/ui/checkbox";
 import { matchMaterial } from "@/ai/flows/material-matching-flow";
 import { useToast } from "@/hooks/use-toast";
+import { Label } from "@/components/ui/label";
 
 const uomList: UoM[] = ['unit', 'kg', 'g', 'l', 'ml'];
 
 const bomComponentSchema = z.object({
-  materialId: z.string().optional(),
+  materialId: z.string().min(1, "Componente no asociado. Usa la búsqueda inteligente."),
   description: z.string().min(3, "La descripción del componente es obligatoria."),
   quantity: z.coerce.number().min(0.000001, "La cantidad debe ser un número positivo."),
   uom: z.enum(uomList as [UoM, ...UoM[]]).default('unit'),
 });
 
-const getBomRecipeSchema = (inventoryItems: InventoryItem[]) => z.object({
+const normalizeString = (s: string) => s.trim().toUpperCase();
+
+const getBomRecipeSchema = (inventoryItems: InventoryItem[], currentRecipeSku?: string) => z.object({
   isNewProduct: z.boolean().default(false),
   productSku: z.string().optional(),
   newProductName: z.string().optional(),
@@ -62,11 +65,11 @@ const getBomRecipeSchema = (inventoryItems: InventoryItem[]) => z.object({
     if (!data.newProductName || data.newProductName.length < 3) {
       ctx.addIssue({ path: ["newProductName"], message: "El nombre es obligatorio (mín. 3 caracteres)." });
     }
-    const normalizedNewSku = data.newProductSku?.trim().toLowerCase();
+    const normalizedNewSku = data.newProductSku ? normalizeString(data.newProductSku) : "";
     if (!normalizedNewSku || normalizedNewSku.length < 3) {
       ctx.addIssue({ path: ["newProductSku"], message: "El SKU es obligatorio (mín. 3 caracteres)." });
     } else {
-      const skuExists = inventoryItems.some(item => item.sku && item.sku.trim().toLowerCase() === normalizedNewSku);
+      const skuExists = inventoryItems.some(item => item.sku && normalizeString(item.sku) === normalizedNewSku);
       if (skuExists) {
         ctx.addIssue({ path: ["newProductSku"], message: "Este SKU ya existe en el inventario." });
       }
@@ -79,10 +82,10 @@ const getBomRecipeSchema = (inventoryItems: InventoryItem[]) => z.object({
 
   // Check for recursion
   if (finalProductSku) {
-    const normalizedProductSku = finalProductSku.trim().toLowerCase();
+    const normalizedProductSku = normalizeString(finalProductSku);
     data.components.forEach((component, index) => {
         const componentItem = inventoryItems.find(item => item.id === component.materialId);
-        if (componentItem && componentItem.sku && componentItem.sku.trim().toLowerCase() === normalizedProductSku) {
+        if (componentItem && componentItem.sku && normalizeString(componentItem.sku) === normalizedProductSku) {
             ctx.addIssue({
                 path: [`components.${index}.description`],
                 message: "Un producto no puede ser componente de sí mismo.",
@@ -90,16 +93,6 @@ const getBomRecipeSchema = (inventoryItems: InventoryItem[]) => z.object({
         }
     });
   }
-
-  // Check if all components are matched
-  data.components.forEach((component, index) => {
-    if (!component.materialId) {
-        ctx.addIssue({
-            path: [`components.${index}.description`],
-            message: "Componente no asociado. Usa la búsqueda inteligente.",
-        });
-    }
-  });
 
 });
 
@@ -117,10 +110,12 @@ interface BomDialogProps {
 
 export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDelete, inventoryItems }: BomDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
-  const [matchingStatus, setMatchingStatus] = React.useState<Record<number, 'idle' | 'matching' | 'matched' | 'failed'>>({});
+  const [isAdding, setIsAdding] = React.useState(false);
+  const [newComponentDesc, setNewComponentDesc] = React.useState("");
+
   const { toast } = useToast();
   
-  const bomRecipeSchema = React.useMemo(() => getBomRecipeSchema(inventoryItems), [inventoryItems]);
+  const bomRecipeSchema = React.useMemo(() => getBomRecipeSchema(inventoryItems, recipe?.productSku), [inventoryItems, recipe?.productSku]);
 
   const form = useForm<BomRecipeFormValues>({
     resolver: zodResolver(bomRecipeSchema),
@@ -143,7 +138,7 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
   React.useEffect(() => {
     const subscription = form.watch((value, { name, type }) => {
       if (name === 'isNewProduct' && type === 'change') {
-        if (!value.isNewProduct) {
+        if (value.isNewProduct === false) {
           form.setValue('newProductName', '');
           form.setValue('newProductSku', '');
         } else {
@@ -155,9 +150,27 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
     return () => subscription.unsubscribe();
   }, [form]);
 
+  const { allCategories, isLoading: isLoadingCategories } = useCategories();
+  
+  const componentMaterials = React.useMemo(() => {
+    if (isLoadingCategories) return [];
+    
+    const targetCategoryNames = ['materia prima (cogs)', 'material de embalaje (cogs)'];
+    
+    const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+    
+    const normalizedTargetNames = targetCategoryNames.map(normalize);
+    
+    const targetCategoryIds = allCategories
+      .filter(c => c.kind === 'cost' && c.isConsumable)
+      .map(c => c.id);
+
+    return inventoryItems.filter(i => i.categoryId && targetCategoryIds.includes(i.categoryId));
+
+  }, [inventoryItems, allCategories, isLoadingCategories]);
+
   React.useEffect(() => {
     if (isOpen) {
-      setMatchingStatus({});
       if (recipe) {
         const componentsFromRecipe = recipe.lines.map(line => {
             const material = inventoryItems.find(item => item.id === line.componentId);
@@ -181,41 +194,38 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
     }
   }, [recipe, isOpen, form, inventoryItems]);
 
-  const handleSmartMatch = async (index: number) => {
-    const description = form.getValues(`components.${index}.description`);
-    if (!description || inventoryItems.length === 0) return;
-
-    setMatchingStatus(prev => ({ ...prev, [index]: 'matching' }));
+  const handleAddViaAI = async () => {
+    if (!newComponentDesc || componentMaterials.length === 0) return;
+    setIsAdding(true);
     
     try {
         const result = await matchMaterial({
-            itemName: description,
-            existingMaterials: inventoryItems.map(m => ({
-                id: m.id,
-                name: m.name,
-                description: m.description,
-                categoryId: m.categoryId,
+            itemName: newComponentDesc,
+            existingMaterials: componentMaterials.map(m => ({
+                id: m.id, name: m.name, description: m.description, categoryId: m.categoryId,
             }))
         });
 
         if (result.matchType === 'perfect' || result.matchType === 'suggested') {
             const matchedMaterial = inventoryItems.find(m => m.id === result.matchedMaterialId);
             if (matchedMaterial) {
-                form.setValue(`components.${index}.materialId`, matchedMaterial.id);
-                form.setValue(`components.${index}.uom`, matchedMaterial.uom || 'unit');
-                form.setValue(`components.${index}.description`, matchedMaterial.name);
-                setMatchingStatus(prev => ({ ...prev, [index]: 'matched' }));
-                toast({ title: "Componente Encontrado", description: `"${matchedMaterial.name}" ha sido asociado.` });
+                append({
+                    materialId: matchedMaterial.id,
+                    description: matchedMaterial.name,
+                    quantity: 1,
+                    uom: matchedMaterial.uom || 'unit',
+                });
+                toast({ title: "Componente Añadido", description: `"${matchedMaterial.name}" se ha añadido a la receta.` });
+                setNewComponentDesc("");
             }
         } else {
-            setMatchingStatus(prev => ({ ...prev, [index]: 'failed' }));
-            toast({ title: "Sin Coincidencia Clara", description: "No se encontró un componente exacto. Revisa la descripción.", variant: "default" });
+            toast({ title: "Sin Coincidencia Clara", description: "No se encontró un componente exacto. Revisa la descripción o añádelo primero al inventario.", variant: "default" });
         }
-
     } catch (error) {
         console.error("Smart match failed:", error);
-        setMatchingStatus(prev => ({ ...prev, [index]: 'failed' }));
         toast({ title: "Error de IA", description: "No se pudo realizar la búsqueda inteligente.", variant: "destructive" });
+    } finally {
+        setIsAdding(false);
     }
   }
 
@@ -226,8 +236,6 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
     setIsSaving(false);
   };
   
-  const { allCategories } = useCategories();
-
   const finishedGoods = React.useMemo(() => {
       const normalize = (s: string) => s.trim().toLowerCase();
       const finishedGoodCategory = allCategories.find(c => normalize(c.name) === 'producto terminado');
@@ -249,7 +257,7 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
-            <fieldset disabled={isSaving} className="space-y-4">
+            <fieldset disabled={isSaving || isAdding} className="space-y-4">
               {!isEditing && (
                 <FormField
                   control={form.control}
@@ -281,27 +289,42 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
               )}
               
               <h4 className="font-medium">Componentes de la Receta</h4>
-              <ScrollArea className="h-64 border rounded-md p-2">
-                  <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-end gap-2">
+                  <div className="flex-grow">
+                      <Label htmlFor="new-component-desc" className="text-xs font-medium">Descripción del componente a añadir</Label>
+                      <Input 
+                        id="new-component-desc"
+                        placeholder="Ej: Botella de vidrio 750ml, Etiqueta frontal..."
+                        value={newComponentDesc}
+                        onChange={(e) => setNewComponentDesc(e.target.value)}
+                        onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleAddViaAI(); } }}
+                      />
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={handleAddViaAI} disabled={isAdding || !newComponentDesc}>
+                    {isAdding ? <Loader2 className="h-4 w-4 animate-spin"/> : <Sparkles className="h-4 w-4"/>} 
+                    Añadir con IA
+                  </Button>
+                </div>
+              </div>
+
+              <ScrollArea className="h-48 border rounded-md p-2">
+                  <div className="space-y-3">
                   {fields.map((field, index) => (
-                      <div key={field.id} className="flex flex-col gap-3 p-3 border rounded-md bg-secondary/30">
-                          <div className="flex items-end gap-2">
-                              <FormField control={form.control} name={`components.${index}.description`} render={({ field }) => (<FormItem className="flex-grow"><FormLabel className="text-xs">Descripción Componente</FormLabel><FormControl><Input placeholder="Ej: Botella de vidrio 750ml" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                              <Button type="button" variant="outline" size="sm" onClick={() => handleSmartMatch(index)} disabled={matchingStatus[index] === 'matching'}>{matchingStatus[index] === 'matching' ? <Loader2 className="h-4 w-4 animate-spin"/> : <Sparkles className="h-4 w-4"/>} Buscar</Button>
+                      <div key={field.id} className="flex items-end gap-2 p-3 border rounded-md bg-secondary/30">
+                          <div className="flex-grow space-y-2">
+                              <p className="font-medium text-sm flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-600"/>{field.description}</p>
                           </div>
-                          <div className="flex items-end gap-2">
-                              <FormField control={form.control} name={`components.${index}.quantity`} render={({ field }) => (<FormItem className="w-28"><FormLabel className="text-xs">Cantidad</FormLabel><FormControl><Input type="number" step="any" placeholder="Cant." {...field} /></FormControl><FormMessage /></FormItem>)} />
-                              <FormField control={form.control} name={`components.${index}.uom`} render={({ field }) => (<FormItem className="w-24"><FormLabel className="text-xs">UoM</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Unidad"/></SelectTrigger></FormControl><SelectContent>{uomList.map(u => (<SelectItem key={u} value={u}>{u}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                              <div className="flex-grow text-right pr-2">
-                                {form.getValues(`components.${index}.materialId`) && matchingStatus[index] !== 'matching' && (<div className="flex items-center justify-end gap-1 text-green-600 text-xs"><CheckCircle className="h-4 w-4"/> Asociado</div>)}
-                              </div>
-                              <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>
-                          </div>
+                          <FormField control={form.control} name={`components.${index}.quantity`} render={({ field }) => (<FormItem className="w-28"><FormLabel className="text-xs">Cantidad</FormLabel><FormControl><Input type="number" step="any" placeholder="Cant." {...field} /></FormControl><FormMessage /></FormItem>)} />
+                          <FormField control={form.control} name={`components.${index}.uom`} render={({ field }) => (<FormItem className="w-24"><FormLabel className="text-xs">UoM</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Unidad"/></SelectTrigger></FormControl><SelectContent>{uomList.map(u => (<SelectItem key={u} value={u}>{u}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                          <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>
                       </div>
                   ))}
-                  <Button type="button" variant="outline" size="sm" onClick={() => append({ description: '', quantity: 1, uom: 'unit' })}><PlusCircle className="mr-2 h-4 w-4" />Añadir Componente</Button>
-                  <FormMessage className="p-2">{form.formState.errors.components?.root?.message}</FormMessage>
+                  {fields.length === 0 && (
+                     <div className="text-center text-sm text-muted-foreground p-4">Añade componentes usando la búsqueda con IA.</div>
+                  )}
                   </div>
+                   <FormMessage className="p-2">{form.formState.errors.components?.root?.message}</FormMessage>
               </ScrollArea>
             </fieldset>
 
@@ -329,7 +352,7 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
               </div>
               <div className="flex gap-2">
                 <DialogClose asChild><Button type="button" variant="outline" disabled={isSaving}>Cancelar</Button></DialogClose>
-                <Button type="submit" disabled={isSaving}>
+                <Button type="submit" disabled={isSaving || isAdding}>
                   {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</> : "Guardar Receta"}
                 </Button>
               </div>
@@ -340,3 +363,4 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
     </Dialog>
   );
 }
+

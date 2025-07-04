@@ -13,10 +13,13 @@ export const fromFirestorePurchase = (docSnap: DocumentSnapshot): Purchase => {
     id: docSnap.id,
     supplier: data.supplier || '',
     supplierId: data.supplierId || undefined,
-    categoryId: data.categoryId,
     costCenterIds: data.costCenterIds || [],
     currency: data.currency || 'EUR',
-    items: data.items?.map((item: any) => ({ ...item, batchNumber: item.batchNumber || undefined })) || [],
+    items: data.items?.map((item: any) => ({ 
+        ...item, 
+        batchNumber: item.batchNumber || undefined,
+        categoryId: item.categoryId,
+    })) || [],
     subtotal: data.subtotal || 0,
     tax: data.tax || 0,
     taxRate: data.taxRate ?? 21,
@@ -44,7 +47,6 @@ export const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: bo
 
   const firestoreData: PurchaseFirestorePayload = {
     supplier: data.supplier!,
-    categoryId: data.categoryId!,
     costCenterIds: data.costCenterIds || [],
     currency: data.currency || 'EUR',
     orderDate: data.orderDate instanceof Date && isValid(data.orderDate) ? Timestamp.fromDate(data.orderDate) : Timestamp.fromDate(new Date()),
@@ -55,7 +57,8 @@ export const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: bo
         quantity: item.quantity || 0, 
         unitPrice: item.unitPrice || 0,
         batchNumber: item.batchNumber || null,
-        total: (item.quantity || 0) * (item.unitPrice || 0) 
+        total: (item.quantity || 0) * (item.unitPrice || 0),
+        categoryId: item.categoryId,
     })) || [],
     subtotal,
     tax,

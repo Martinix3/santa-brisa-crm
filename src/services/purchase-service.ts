@@ -34,20 +34,36 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
     }
 
     return await runTransaction(db, async (transaction) => {
-        // --- Gather all reads ---
+        // --- Phase 1: Reads and resolution of new items ---
         const supplierId = await findOrCreateSupplier(data, transaction);
         if (!supplierId) {
             throw new Error("Failed to process supplier. Supplier name might be empty.");
         }
         
-        const materialIds = dataToSave.items?.map(item => item.materialId).filter(Boolean) || [];
-        const materialRefs = materialIds.map(id => doc(db, INVENTORY_ITEMS_COLLECTION, id));
-        const materialDocs = await Promise.all(materialRefs.map(ref => transaction.get(ref)));
-        const materialDocsMap = new Map(materialDocs.map(d => [d.id, d]));
+        const resolvedItems = await Promise.all(dataToSave.items.map(async (item) => {
+            if (item.materialId) {
+                return item;
+            }
+            // Item without materialId -> create a new inventory item
+            const newMaterialRef = doc(collection(db, INVENTORY_ITEMS_COLLECTION));
+            const newMaterialData = {
+                name: item.description,
+                description: `Creado desde compra a ${dataToSave.supplier}`,
+                categoryId: item.categoryId,
+                stock: 0, // Stock will be updated later by updateStockForPurchase
+                uom: 'unit',
+                createdAt: Timestamp.now(),
+                updatedAt: Timestamp.now(),
+            };
+            transaction.set(newMaterialRef, newMaterialData);
+            return { ...item, materialId: newMaterialRef.id };
+        }));
 
+        const finalData = { ...dataToSave, items: resolvedItems };
+        
         // --- All writes happen after this point ---
-        const firestoreData = toFirestorePurchase(dataToSave, true, supplierId);
-        await updateStockForPurchase(transaction, null, firestoreData, materialDocsMap);
+        const firestoreData = toFirestorePurchase(finalData, true, supplierId);
+        await updateStockForPurchase(transaction, null, firestoreData);
         
         transaction.set(newDocRef, firestoreData);
         return purchaseId;
@@ -66,7 +82,7 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
     }
 
     await runTransaction(db, async (transaction) => {
-        // --- All reads happen first ---
+        // --- Read Phase ---
         const existingPurchaseDoc = await transaction.get(purchaseDocRef);
         if (!existingPurchaseDoc.exists()) {
             throw new Error("Purchase not found");
@@ -75,17 +91,30 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
         
         const supplierId = await findOrCreateSupplier(data, transaction) || oldData.supplierId;
         
-        const allMaterialIds = new Set<string>();
-        (oldData.items || []).forEach(item => item.materialId && allMaterialIds.add(item.materialId));
-        (dataToSave.items || []).forEach(item => item.materialId && allMaterialIds.add(item.materialId));
-        
-        const materialRefs = Array.from(allMaterialIds).map(id => doc(db, INVENTORY_ITEMS_COLLECTION, id));
-        const materialDocs = await Promise.all(materialRefs.map(ref => transaction.get(ref)));
-        const materialDocsMap = new Map(materialDocs.map(d => [d.id, d]));
+        // --- Resolution of new items (if any) ---
+         const resolvedItems = await Promise.all((dataToSave.items || []).map(async (item) => {
+            if (item.materialId) {
+                return item;
+            }
+            const newMaterialRef = doc(collection(db, INVENTORY_ITEMS_COLLECTION));
+            const newMaterialData = {
+                name: item.description,
+                description: `Creado desde compra a ${dataToSave.supplier || oldData.supplier}`,
+                categoryId: item.categoryId,
+                stock: 0,
+                uom: 'unit',
+                createdAt: Timestamp.now(),
+                updatedAt: Timestamp.now(),
+            };
+            transaction.set(newMaterialRef, newMaterialData);
+            return { ...item, materialId: newMaterialRef.id };
+        }));
 
-        // --- All writes happen after this point ---
-        const firestoreData = toFirestorePurchase(dataToSave as PurchaseFormValues, false, supplierId);
-        await updateStockForPurchase(transaction, oldData, firestoreData, materialDocsMap);
+        const finalData = { ...dataToSave, items: resolvedItems };
+
+        // --- Write Phase ---
+        const firestoreData = toFirestorePurchase(finalData as PurchaseFormValues, false, supplierId);
+        await updateStockForPurchase(transaction, oldData, firestoreData);
         
         transaction.update(purchaseDocRef, firestoreData);
     });
@@ -103,13 +132,8 @@ export const deletePurchaseFS = async (id: string): Promise<void> => {
       }
       const data = fromFirestorePurchase(docSnap);
 
-      const materialIds = data.items?.map(item => item.materialId).filter(Boolean) || [];
-      const materialRefs = materialIds.map(id => doc(db, INVENTORY_ITEMS_COLLECTION, id));
-      const materialDocs = await Promise.all(materialRefs.map(ref => transaction.get(ref)));
-      const materialDocsMap = new Map(materialDocs.map(d => [d.id, d]));
-
       // --- Write Phase ---
-      await updateStockForPurchase(transaction, data, null, materialDocsMap);
+      await updateStockForPurchase(transaction, data, null);
       
       transaction.delete(purchaseDocRef);
   });

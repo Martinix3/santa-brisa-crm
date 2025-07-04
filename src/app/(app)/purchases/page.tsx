@@ -88,10 +88,10 @@ export default function PurchasesPage() {
     setIsPurchaseDialogOpen(true);
   };
 
-  const handleDataFromInvoice = (extractedData: Partial<PurchaseFormValues>, file: File, shouldSaveFile: boolean) => {
+  const handleDataFromInvoice = (extractedData: Partial<PurchaseFormValues>, file: File, saveFile: boolean) => {
     setEditingPurchase(null);
     setPrefilledData(extractedData);
-    setPrefilledFile(shouldSaveFile ? file : null);
+    setPrefilledFile(saveFile ? file : null);
     setIsInvoiceUploadOpen(false);
     setIsPurchaseDialogOpen(true);
   };
@@ -197,7 +197,7 @@ export default function PurchasesPage() {
        (purchase.items && purchase.items.some(item => item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()))))
     )
     .filter(purchase => statusFilter === "Todos" || purchase.status === statusFilter)
-    .filter(purchase => categoryFilter === "Todas" || purchase.categoryId === categoryFilter);
+    .filter(purchase => categoryFilter === "Todas" || purchase.items.some(item => item.categoryId === categoryFilter));
 
   if (!isAdmin) {
     return (
@@ -319,7 +319,7 @@ export default function PurchasesPage() {
                           purchase.supplier
                         )}
                       </TableCell>
-                      <TableCell>{categoriesMap.get(purchase.categoryId) || 'N/D'}</TableCell>
+                      <TableCell>{categoriesMap.get(purchase.items[0]?.categoryId) || 'N/D'}</TableCell>
                       <TableCell>{format(parseISO(purchase.orderDate), "dd/MM/yy", { locale: es })}</TableCell>
                       <TableCell className="text-right">
                         <FormattedNumericValue value={purchase.totalAmount} options={{ style: 'currency', currency: purchase.currency }} />

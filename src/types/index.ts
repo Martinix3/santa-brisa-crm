@@ -333,13 +333,13 @@ export interface PurchaseItem {
   total: number;
   uom?: UoM;
   landedUnitCost?: number;
+  categoryId: string;
 }
 
 export interface Purchase {
   id: string;
   supplier: string;
   supplierId?: string;
-  categoryId: string;
   costCenterIds?: string[];
   items: PurchaseItem[];
   currency: Currency;
@@ -453,7 +453,6 @@ export interface PurchaseFormValues {
 
   orderDate: Date;
   status: PurchaseStatus;
-  categoryId: string;
   costCenterIds?: string[];
   currency: Currency;
   items: {
@@ -462,6 +461,7 @@ export interface PurchaseFormValues {
     quantity: number | null;
     unitPrice: number | null;
     batchNumber?: string;
+    categoryId: string;
   }[];
   shippingCost?: number | null;
   taxRate: number;
@@ -476,7 +476,6 @@ export interface PurchaseFormValues {
 export interface PurchaseFirestorePayload {
   supplier: string;
   supplierId: string | null;
-  categoryId: string;
   costCenterIds: string[];
   currency: Currency;
   orderDate: Timestamp;
@@ -488,6 +487,7 @@ export interface PurchaseFirestorePayload {
     unitPrice: number;
     batchNumber: string | null;
     total: number;
+    categoryId: string;
   }[];
   subtotal: number;
   tax: number;

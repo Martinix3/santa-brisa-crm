@@ -1,7 +1,7 @@
 
 import { Timestamp, type DocumentSnapshot } from "firebase/firestore";
 import { format, parseISO, isValid } from "date-fns";
-import type { Purchase, PurchaseFormValues, PurchaseFirestorePayload, Supplier, SupplierFormValues, BomLine } from '@/types';
+import type { Purchase, PurchaseFormValues, PurchaseFirestorePayload, Supplier, SupplierFormValues, BomLine, ProductionRun } from '@/types';
 
 // --- PURCHASE CONVERTERS ---
 
@@ -154,6 +154,27 @@ export const fromFirestoreBomLine = (snapshot: DocumentSnapshot): BomLine => {
     componentSku: data.componentSku,
     quantity: data.quantity,
     uom: data.uom,
+    createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : undefined,
+    updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : undefined,
+  };
+};
+
+// --- PRODUCTION RUN CONVERTER ---
+export const fromFirestoreProductionRun = (snapshot: DocumentSnapshot): ProductionRun => {
+  const data = snapshot.data();
+  if (!data) throw new Error("Production run data is undefined.");
+  return {
+    id: snapshot.id,
+    productSku: data.productSku,
+    productName: data.productName,
+    batchNumber: data.batchNumber,
+    qtyPlanned: data.qtyPlanned,
+    qtyProduced: data.qtyProduced,
+    status: data.status,
+    startDate: data.startDate instanceof Timestamp ? format(data.startDate.toDate(), "yyyy-MM-dd") : new Date().toISOString(),
+    endDate: data.endDate instanceof Timestamp ? format(data.endDate.toDate(), "yyyy-MM-dd") : undefined,
+    unitCost: data.unitCost,
+    consumedComponents: data.consumedComponents || [],
     createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : undefined,
     updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : undefined,
   };

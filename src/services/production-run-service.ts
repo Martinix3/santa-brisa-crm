@@ -3,9 +3,9 @@
 
 import { db } from '@/lib/firebase';
 import { collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, runTransaction, where, limit, type DocumentSnapshot } from "firebase/firestore";
-import type { ProductionRun, ProductionRunFormValues, InventoryItem, BomLine, StockTxn } from '@/types';
+import type { ProductionRun, ProductionRunFormValues, InventoryItem, BomLine } from '@/types';
 import { format } from 'date-fns';
-import { fromFirestoreBomLine } from './utils/firestore-converters';
+import { fromFirestoreBomLine, fromFirestoreProductionRun } from './utils/firestore-converters';
 import { addStockTxnFSTransactional } from './stock-txn-service';
 import { addProductCostSnapshotFSTransactional } from './product-cost-snapshot-service';
 
@@ -14,39 +14,23 @@ const PRODUCTION_RUNS_COLLECTION = 'productionRuns';
 const INVENTORY_ITEMS_COLLECTION = 'inventoryItems';
 const BOM_LINES_COLLECTION = 'bomLines';
 
-const fromFirestore = (snapshot: any): ProductionRun => {
-  const data = snapshot.data();
-  if (!data) throw new Error("Production run data is undefined.");
-  return {
-    id: snapshot.id,
-    productSku: data.productSku,
-    productName: data.productName,
-    qtyPlanned: data.qtyPlanned,
-    qtyProduced: data.qtyProduced,
-    status: data.status,
-    startDate: data.startDate instanceof Timestamp ? format(data.startDate.toDate(), "yyyy-MM-dd") : new Date().toISOString(),
-    endDate: data.endDate instanceof Timestamp ? format(data.endDate.toDate(), "yyyy-MM-dd") : undefined,
-    unitCost: data.unitCost,
-    createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : undefined,
-    updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : undefined,
-  };
-};
-
 const toFirestore = (data: ProductionRunFormValues, isNew: boolean): any => {
-  const firestoreData = { ...data };
+  const firestoreData: Partial<ProductionRun> & { productSearchTerm?: string } = { ...data };
+  delete firestoreData.productSearchTerm;
   if (isNew) {
-    firestoreData.createdAt = Timestamp.now();
+    firestoreData.createdAt = format(new Date(), "yyyy-MM-dd");
     firestoreData.status = 'Borrador';
-    firestoreData.startDate = Timestamp.now();
+    firestoreData.startDate = format(new Date(), "yyyy-MM-dd");
+    firestoreData.batchNumber = `PROD-${format(new Date(), 'yyyyMMddHHmmss')}`;
   }
-  firestoreData.updatedAt = Timestamp.now();
+  firestoreData.updatedAt = format(new Date(), "yyyy-MM-dd");
   return firestoreData;
 };
 
 export const getProductionRunsFS = async (): Promise<ProductionRun[]> => {
   const q = query(collection(db, PRODUCTION_RUNS_COLLECTION), orderBy('startDate', 'desc'));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(fromFirestore);
+  return snapshot.docs.map(fromFirestoreProductionRun);
 };
 
 export const addProductionRunFS = async (data: ProductionRunFormValues): Promise<string> => {
@@ -102,17 +86,18 @@ export const closeProductionRunFS = async (runId: string, qtyProduced: number) =
         const finishedGoodData = freshFinishedGoodDoc.data() as InventoryItem;
 
         const componentDocs = new Map<string, DocumentSnapshot>();
-        for (const line of bomLines) {
-            const componentRef = doc(db, INVENTORY_ITEMS_COLLECTION, line.componentId);
-            const componentDoc = await transaction.get(componentRef);
-            if (!componentDoc.exists()) throw new Error(`El componente con ID ${line.componentId} no fue encontrado.`);
-            componentDocs.set(line.componentId, componentDoc);
+        const componentRefs = bomLines.map(line => doc(db, INVENTORY_ITEMS_COLLECTION, line.componentId));
+        for(const ref of componentRefs) {
+            const componentDoc = await transaction.get(ref);
+            if (!componentDoc.exists()) throw new Error(`El componente con ID ${ref.id} no fue encontrado.`);
+            componentDocs.set(ref.id, componentDoc);
         }
 
         // --- STAGE 2: LOGIC & PREPARING WRITES ---
         let totalConsumedCost = 0;
         const componentUpdates: { ref: any, data: any }[] = [];
         const stockTxnWrites: Promise<void>[] = [];
+        const consumedComponentsSnapshot = [];
 
         for (const line of bomLines) {
             const componentDoc = componentDocs.get(line.componentId)!;
@@ -131,6 +116,14 @@ export const closeProductionRunFS = async (runId: string, qtyProduced: number) =
                 console.warn(`El componente ${componentData.name} no tiene un coste definido. No se añadirá al coste total de producción.`);
             }
             totalConsumedCost += unitCost * consumedQty;
+            
+            consumedComponentsSnapshot.push({
+                componentId: line.componentId,
+                componentName: componentData.name,
+                componentSku: componentData.sku,
+                consumedBatchNumber: componentData.latestPurchase?.batchNumber || 'N/A',
+                quantity: consumedQty,
+            });
             
             stockTxnWrites.push(addStockTxnFSTransactional(transaction, { 
                 inventoryItemId: line.componentId,
@@ -186,6 +179,7 @@ export const closeProductionRunFS = async (runId: string, qtyProduced: number) =
             qtyProduced: qtyProduced,
             unitCost: newUnitCost,
             endDate: Timestamp.now(),
+            consumedComponents: consumedComponentsSnapshot
         });
 
         return { success: true, newUnitCost: newUnitCost };

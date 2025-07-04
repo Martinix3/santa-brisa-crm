@@ -107,12 +107,20 @@ export interface ProductionRun {
     id: string;
     productSku: string; // The SKU being produced
     productName?: string;
+    batchNumber: string;
     qtyPlanned: number;
     qtyProduced?: number;
     status: ProductionRunStatus;
     startDate: string; // ISO
     endDate?: string; // ISO
     unitCost?: number; // Snapshot of cost at completion
+    consumedComponents?: {
+      componentId: string;
+      componentName: string;
+      componentSku?: string;
+      consumedBatchNumber?: string;
+      quantity: number;
+    }[];
     createdAt?: string;
     updatedAt?: string;
 }
@@ -389,6 +397,7 @@ export interface DirectSaleItem {
   quantity: number;
   netUnitPrice: number; 
   total: number;
+  batchNumber?: string;
 }
 
 export interface DirectSale {

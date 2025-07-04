@@ -31,5 +31,6 @@ function getFirebaseAdminApp(): App {
  */
 export const getAdminBucket = async (): Promise<Bucket> => {
     const app = getFirebaseAdminApp();
-    return getStorage(app).bucket();
+    // Explicitly pass the bucket name to the bucket() function to ensure correctness.
+    return getStorage(app).bucket(BUCKET_NAME);
 }

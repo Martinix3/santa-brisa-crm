@@ -530,12 +530,6 @@ export default function MyAgendaPage() {
                 Agenda del Equipo
             </h1>
         </div>
-        <div className="flex-shrink-0">
-          <Button onClick={handleOpenNewEntryDialog} className="w-full sm:w-auto">
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Añadir Entrada
-          </Button>
-        </div>
       </header>
        
        <Card>
@@ -568,20 +562,19 @@ export default function MyAgendaPage() {
                     </SelectContent>
                  </Select>
              </div>
-             <div className="flex-1 min-w-[180px]">
-                 <p className="text-sm font-medium mb-1">Vista</p>
-                 <div className="flex items-center gap-1 rounded-md bg-muted p-1">
-                     <Button variant={viewMode === 'day' ? 'primary' : 'ghost'} className="flex-1" onClick={() => setViewMode('day')}>Día</Button>
-                     <Button variant={viewMode === 'week' ? 'primary' : 'ghost'} className="flex-1" onClick={() => setViewMode('week')}>Semana</Button>
-                     <Button variant={viewMode === 'month' ? 'primary' : 'ghost'} className="flex-1" onClick={() => setViewMode('month')}>Mes</Button>
-                 </div>
-             </div>
          </CardContent>
        </Card>
 
        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-grow">
           <div className="lg:col-span-1">
               <Card>
+                   <CardHeader className="flex flex-row items-center justify-between pb-4">
+                        <CardTitle className="text-lg font-semibold">Calendario</CardTitle>
+                        <Button onClick={handleOpenNewEntryDialog} size="sm">
+                            <PlusCircle className="mr-2 h-4 w-4" />
+                            Añadir Entrada
+                        </Button>
+                    </CardHeader>
                   <CardContent className="p-2">
                       <Calendar
                           mode="single"
@@ -590,6 +583,11 @@ export default function MyAgendaPage() {
                           locale={es}
                           modifiers={modifiers}
                           components={{ DayContent: DayDots }}
+                          modifiersClassNames={{
+                            [MODIFIER_NAMES.commercial]: 'rdp-day_commercial',
+                            [MODIFIER_NAMES.event]: 'rdp-day_event',
+                            [MODIFIER_NAMES.admin]: 'rdp-day_admin',
+                          }}
                           className="p-0"
                        />
                         <Separator className="my-2"/>
@@ -607,11 +605,18 @@ export default function MyAgendaPage() {
           <div className="lg:col-span-2">
               <Card className="h-full flex flex-col">
                   <CardHeader>
-                      <div className="flex justify-between items-center">
+                      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                         <CardTitle>Actividades para {viewMode === 'day' ? format(selectedDate, 'dd MMMM, yyyy', {locale: es}) : `${format(interval.start, 'dd MMM', {locale: es})} - ${format(interval.end, 'dd MMM, yyyy', {locale: es})}`}</CardTitle>
-                        <div className="flex gap-2">
-                            <Button variant="outline" size="icon" onClick={() => handleDateChange('prev')}><ChevronLeft className="h-4 w-4"/></Button>
-                            <Button variant="outline" size="icon" onClick={() => handleDateChange('next')}><ChevronRight className="h-4 w-4"/></Button>
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-1 rounded-md bg-muted p-1">
+                                <Button variant={viewMode === 'day' ? 'primary' : 'ghost'} className="flex-1" onClick={() => setViewMode('day')}>Día</Button>
+                                <Button variant={viewMode === 'week' ? 'primary' : 'ghost'} className="flex-1" onClick={() => setViewMode('week')}>Semana</Button>
+                                <Button variant={viewMode === 'month' ? 'primary' : 'ghost'} className="flex-1" onClick={() => setViewMode('month')}>Mes</Button>
+                            </div>
+                            <div className="flex gap-2">
+                                <Button variant="outline" size="icon" onClick={() => handleDateChange('prev')}><ChevronLeft className="h-4 w-4"/></Button>
+                                <Button variant="outline" size="icon" onClick={() => handleDateChange('next')}><ChevronRight className="h-4 w-4"/></Button>
+                            </div>
                         </div>
                       </div>
                   </CardHeader>

@@ -141,12 +141,14 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
   );
   
   const components = React.useMemo(() => {
-    const costCategoryIds = allCategories
-      .filter(c => c.kind === 'cost')
+    const targetCategoryNames = ['materia prima (cogs)', 'material de embalaje (cogs)'];
+    
+    const targetCategoryIds = allCategories
+      .filter(c => targetCategoryNames.includes(c.name.toLowerCase()))
       .map(c => c.id);
     
     return inventoryItems.filter(
-      i => i.sku && i.categoryId && costCategoryIds.includes(i.categoryId)
+      i => i.sku && i.categoryId && targetCategoryIds.includes(i.categoryId)
     );
   }, [inventoryItems, allCategories]);
 

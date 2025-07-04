@@ -1,10 +1,9 @@
-
 'use server';
 
 import { initializeApp, getApps, App, applicationDefault, getApp } from 'firebase-admin/app';
 import { getStorage, Bucket } from 'firebase-admin/storage';
 
-const BUCKET_NAME = 'santa-brisa-crm.appspot.com'; // Corrected to the actual GCS bucket name
+const BUCKET_NAME = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ?? 'santa-brisa-crm.firebasestorage.app';
 const ADMIN_APP_NAME = 'firebase-admin-app-santabrisa'; // Unique name for the app
 
 /**

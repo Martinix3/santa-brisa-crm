@@ -28,6 +28,8 @@ import NewEntryTypeDialog, { type EntryType } from "@/components/app/new-entry-t
 import EventDialog from "@/components/app/event-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
+import { DayDots } from "@/components/app/DayDots";
+import { MODIFIER_NAMES } from "@/lib/agenda-colors";
 
 
 // --- TYPE DEFINITIONS ---
@@ -511,6 +513,12 @@ export default function MyAgendaPage() {
     }
   };
 
+  const modifiers = {
+    [MODIFIER_NAMES.commercial]: commercialTaskDays,
+    [MODIFIER_NAMES.event]: eventDays,
+    [MODIFIER_NAMES.admin]: adminTaskDays,
+  };
+
   return (
     <>
     <Sheet open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
@@ -580,16 +588,8 @@ export default function MyAgendaPage() {
                           selected={selectedDate}
                           onSelect={(day) => { if(day) { setSelectedDate(day); setViewMode('day'); } }}
                           locale={es}
-                          modifiers={{ 
-                            commercial: commercialTaskDays,
-                            event: eventDays,
-                            admin: adminTaskDays
-                          }}
-                          modifiersClassNames={{
-                            commercial: 'rdp-day_commercial',
-                            event: 'rdp-day_event',
-                            admin: 'rdp-day_admin',
-                          }}
+                          modifiers={modifiers}
+                          components={{ DayContent: DayDots }}
                           className="p-0"
                        />
                         <Separator className="my-2"/>

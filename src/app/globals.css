@@ -287,36 +287,3 @@ body {
     font-weight: bold !important;
   }
 }
-
-/* ----------  Calendar dots  ---------- */
-.rdp-day {
-  position:relative;
-  overflow:visible !important;
-}
-
-.rdp-day::after{
-  content:'';
-  position:absolute;
-  left:0; right:0; bottom:4px;
-  height:5px;
-  z-index:2;
-  pointer-events:none;
-
-  background-repeat:no-repeat;
-  background-position:30% 0, 50% 0, 70% 0;
-  background-size:5px 5px;
-  background-image:
-    var(--dot-commercial, transparent),
-    var(--dot-event, transparent),
-    var(--dot-admin, transparent);
-}
-
-/* Cada modificador rellena SU variable */
-.rdp-day_commercial{ --dot-commercial:radial-gradient(circle,hsl(var(--brand-yellow-hsl)) 50%,transparent 55%); }
-.rdp-day_event     { --dot-event:     radial-gradient(circle,hsl(var(--brand-purple-hsl)) 50%,transparent 55%); }
-.rdp-day_admin     { --dot-admin:     radial-gradient(circle,hsl(var(--brand-blue-hsl))   50%,transparent 55%); }
-
-/* Fallback si el modificador va al <td> en lugar de al <button> */
-td.rdp-day_commercial > .rdp-day { --dot-commercial:radial-gradient(circle,hsl(var(--brand-yellow-hsl)) 50%,transparent 55%); }
-td.rdp-day_event      > .rdp-day { --dot-event:     radial-gradient(circle,hsl(var(--brand-purple-hsl)) 50%,transparent 55%); }
-td.rdp-day_admin      > .rdp-day { --dot-admin:     radial-gradient(circle,hsl(var(--brand-blue-hsl))   50%,transparent 55%); }

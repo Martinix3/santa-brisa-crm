@@ -24,7 +24,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 interface InvoiceUploadDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onDataExtracted: (data: Partial<PurchaseFormValues>, file: File) => void;
+  onDataExtracted: (data: Partial<PurchaseFormValues>, file: File, shouldSaveFile: boolean) => void;
 }
 
 const MimeTypeMap: Record<string, string> = {
@@ -103,7 +103,7 @@ export default function InvoiceUploadDialog({ isOpen, onOpenChange, onDataExtrac
             description: "La información de la factura se ha cargado en el formulario. Por favor, revísala.",
         });
 
-        onDataExtracted(purchaseFormData, file);
+        onDataExtracted(purchaseFormData, file, saveInvoiceFile);
 
     } catch (processError: any) {
         console.error("Error processing invoice with AI:", processError);

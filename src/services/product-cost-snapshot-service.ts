@@ -2,7 +2,7 @@
 'use server';
 
 import { db } from '@/lib/firebase';
-import { collection, addDoc, Timestamp, type Transaction } from "firebase/firestore";
+import { collection, doc, Timestamp, type Transaction } from "firebase/firestore";
 import type { ProductCostSnapshot } from '@/types';
 
 const SNAPSHOTS_COLLECTION = 'productCostSnapshots';

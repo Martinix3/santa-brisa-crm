@@ -123,7 +123,7 @@ function DragOverlayIcon({ item }: { item: AgendaItem | null }) {
   const icon = React.cloneElement(getAgendaItemIcon(item), { className: "h-5 w-5 text-primary-foreground" });
 
   return (
-    <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary/80 shadow-xl backdrop-blur-sm">
+    <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary/80 shadow-xl backdrop-blur-sm -translate-x-1/2 -translate-y-1/2">
       {icon}
     </div>
   );

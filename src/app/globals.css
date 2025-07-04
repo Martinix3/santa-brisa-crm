@@ -288,31 +288,31 @@ body {
   }
 }
 
-/* Calendar Dot Modifiers */
-.rdp-button {
-  position: relative !important;
+
+/* Calendar Dot Modifiers - Correct Implementation */
+.rdp-day {
   overflow: visible !important;
+  position: relative;
 }
 
-.rdp-button::after {
+.rdp-day::after {
   content: '';
   position: absolute;
-  display: block;
-  bottom: 4px;
   left: 0;
-  width: 100%;
+  right: 0;
+  bottom: 4px;
   height: 5px;
   pointer-events: none;
+
   background-repeat: no-repeat;
   background-position: 30% 0, 50% 0, 70% 0;
-  background-size: 5px 5px, 5px 5px, 5px 5px;
+  background-size: 5px 5px;
   background-image: 
     var(--dot-commercial, transparent), 
     var(--dot-event, transparent), 
     var(--dot-admin, transparent);
 }
 
-/* When a modifier class is on the parent cell, set the corresponding CSS variable for the dot */
 .rdp-day_commercial {
   --dot-commercial: radial-gradient(circle, hsl(var(--brand-yellow-hsl)) 50%, transparent 55%);
 }

@@ -63,7 +63,7 @@ const getBomRecipeSchema = (inventoryItems: InventoryItem[]) => z.object({
     if (!normalizedNewSku || normalizedNewSku.length < 3) {
       ctx.addIssue({ path: ["newProductSku"], message: "El SKU es obligatorio (mín. 3 caracteres)." });
     } else {
-      const skuExists = inventoryItems.some(item => item.sku?.trim().toLowerCase() === normalizedNewSku);
+      const skuExists = inventoryItems.some(item => item.sku && item.sku.trim().toLowerCase() === normalizedNewSku);
       if (skuExists) {
         ctx.addIssue({ path: ["newProductSku"], message: "Este SKU ya existe en el inventario." });
       }
@@ -173,19 +173,12 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
   );
   
   const components = React.useMemo(() => {
-    const normalize = (s: string) =>
-      s.normalize('NFD')
-       .replace(/[\u0300-\u036f]/g, '') // Remove accents
-       .replace(/\s\s+/g, ' ') // Replace multiple spaces with one
-       .trim()
-       .toLowerCase();
-
-    const targetCategoryNames = ['materia prima (cogs)', 'material de embalaje (cogs)'];
-
+    // Correctly filter for categories that are both 'cost' and 'consumable'
     const targetCategoryIds = allCategories
-      .filter(c => targetCategoryNames.includes(normalize(c.name)))
+      .filter(c => c.kind === 'cost' && c.isConsumable === true)
       .map(c => c.id);
     
+    // Filter inventory items that belong to those categories
     return inventoryItems.filter(
       i => i.sku && i.categoryId && targetCategoryIds.includes(i.categoryId)
     );

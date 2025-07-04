@@ -1,3 +1,4 @@
+
 import { Timestamp } from "firebase/firestore";
 
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
@@ -326,13 +327,13 @@ export type PurchaseCategory = 'Materia Prima (COGS)' | 'Material de Embalaje (C
 export type Currency = "EUR" | "USD" | "MXN";
 
 export interface PurchaseItem {
-  materialId: string;
+  materialId?: string | null;
   description: string;
-  quantity: number;
-  unitPrice: number;
+  quantity: number | null;
+  unitPrice: number | null;
   batchNumber?: string;
   destSku?: string;
-  total: number;
+  total?: number;
   uom?: UoM;
   landedUnitCost?: number;
   categoryId: string;
@@ -483,7 +484,7 @@ export interface PurchaseFirestorePayload {
   orderDate: Timestamp;
   status: PurchaseStatus;
   items: {
-    materialId: string;
+    materialId: string | null;
     description?: string;
     quantity: number;
     unitPrice: number;

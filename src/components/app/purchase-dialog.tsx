@@ -192,7 +192,8 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
             }
             const result = await matchMaterial({ itemName: item.description || "", existingMaterials: availableMaterials });
             if (result.matchType === 'perfect' || result.matchType === 'suggested') {
-                return { ...item, materialId: result.matchedMaterialId!, categoryId: result.suggestedCategoryId || item.categoryId };
+                const matchedMaterial = availableMaterials.find(m => m.id === result.matchedMaterialId);
+                return { ...item, materialId: result.matchedMaterialId!, categoryId: matchedMaterial?.categoryId || item.categoryId };
             }
             return item;
         }));

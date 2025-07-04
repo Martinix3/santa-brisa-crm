@@ -1,83 +1,72 @@
-
 // To run this script: npx tsx src/scripts/migrate-categories.ts
 // IMPORTANT: This is a one-time script. Backup your Firestore data before running.
 
 import { db } from '../lib/firebase';
-import { collection, getDocs, writeBatch, query, doc, orderBy } from 'firebase/firestore';
-import type { CategoryKind } from '../types';
+import { collection, getDocs, writeBatch, query, where, limit, updateDoc } from 'firebase/firestore';
 
+const INVENTORY_COLLECTION = 'inventoryItems';
 const CATEGORIES_COLLECTION = 'categories';
-const PURCHASES_COLLECTION = 'purchases';
-const MATERIALS_COLLECTION = 'promotionalMaterials';
+
+// Helper function to find a category by name, ignoring case and extra spaces.
+async function findCategoryByName(name: string) {
+    const categoriesRef = collection(db, CATEGORIES_COLLECTION);
+    const snapshot = await getDocs(categoriesRef);
+    const normalizedName = name.trim().toLowerCase();
+    
+    for (const doc of snapshot.docs) {
+        const categoryData = doc.data();
+        if (categoryData.name && categoryData.name.trim().toLowerCase() === normalizedName) {
+            return { id: doc.id, ...categoryData };
+        }
+    }
+    return null;
+}
 
 async function migrate() {
-    console.log("Starting category migration script...");
-    const batch = writeBatch(db);
+    console.log("Starting script to assign categories to uncategorized inventory items...");
 
-    const categoriesMap = new Map<string, { id: string, kind: CategoryKind, name: string }>();
+    // Find the ID for "Materia Prima (COGS)". This is a safer default.
+    const defaultCategory = await findCategoryByName("Materia Prima (COGS)");
 
-    // Step 1: Read unique categories from Purchases
-    console.log("Reading from Purchases...");
-    const purchasesQuery = query(collection(db, PURCHASES_COLLECTION), orderBy('__name__'));
-    const purchasesSnapshot = await getDocs(purchasesQuery);
-    purchasesSnapshot.forEach(doc => {
-        const categoryName = doc.data().category;
-        if (categoryName && !categoriesMap.has(categoryName)) {
-            categoriesMap.set(categoryName, { id: '', kind: 'cost', name: categoryName });
-        }
-    });
-
-    // Step 2: Read unique types from Promotional Materials
-    console.log("Reading from Promotional Materials...");
-    const materialsQuery = query(collection(db, MATERIALS_COLLECTION), orderBy('__name__'));
-    const materialsSnapshot = await getDocs(materialsQuery);
-    materialsSnapshot.forEach(doc => {
-        const typeName = doc.data().type;
-        if (typeName && !categoriesMap.has(typeName)) {
-            categoriesMap.set(typeName, { id: '', kind: 'inventory', name: typeName });
-        }
-    });
-
-    // Step 3: Create new category documents
-    console.log(`Found ${categoriesMap.size} unique categories to create.`);
-    for (const [name, categoryData] of categoriesMap.entries()) {
-        const newCategoryRef = doc(collection(db, CATEGORIES_COLLECTION));
-        categoryData.id = newCategoryRef.id;
-        batch.set(newCategoryRef, {
-            name: categoryData.name,
-            kind: categoryData.kind,
-            isConsumable: true, // Default to true, adjust manually if needed
-        });
-        console.log(`  - Queued creation for category: ${name} (ID: ${newCategoryRef.id})`);
+    if (!defaultCategory) {
+        console.error("CRITICAL ERROR: Default category 'Materia Prima (COGS)' not found.");
+        console.error("Please ensure this category exists in your 'categories' collection before running the script.");
+        return;
     }
 
-    // Step 4: Update existing documents with categoryId
-    console.log("Updating Purchases with new category IDs...");
-    purchasesSnapshot.forEach(doc => {
-        const categoryName = doc.data().category;
-        if (categoryName && categoriesMap.has(categoryName)) {
-            const categoryId = categoriesMap.get(categoryName)!.id;
-            batch.update(doc.ref, { categoryId: categoryId, category: null }); // Set categoryId and nullify old field
+    console.log(`Found default category: ${defaultCategory.name} (ID: ${defaultCategory.id})`);
+
+    const batch = writeBatch(db);
+    let updatedCount = 0;
+
+    // Query for all inventory items that DO NOT have a categoryId or it is null/empty.
+    const inventoryQuery = query(collection(db, INVENTORY_COLLECTION));
+    const inventorySnapshot = await getDocs(inventoryQuery);
+
+    console.log(`Found ${inventorySnapshot.size} total inventory items. Checking for uncategorized items...`);
+    
+    inventorySnapshot.forEach(doc => {
+        const data = doc.data();
+        if (!data.categoryId) {
+            console.log(`  - Updating item: "${data.name}" (ID: ${doc.id}) with default category.`);
+            batch.update(doc.ref, { categoryId: defaultCategory.id });
+            updatedCount++;
         }
     });
 
-    console.log("Updating Promotional Materials with new category IDs...");
-    materialsSnapshot.forEach(doc => {
-        const typeName = doc.data().type;
-        if (typeName && categoriesMap.has(typeName)) {
-            const categoryId = categoriesMap.get(typeName)!.id;
-            batch.update(doc.ref, { categoryId: categoryId, type: null }); // Set categoryId and nullify old field
-        }
-    });
+    if (updatedCount === 0) {
+        console.log("No uncategorized items found. Migration is not needed.");
+        return;
+    }
 
     try {
         await batch.commit();
-        console.log("Migration successful! Batch committed.");
+        console.log(`Migration successful! ${updatedCount} inventory items were updated.`);
     } catch (error) {
         console.error("Error committing batch:", error);
     }
-
-    // process.exit(0); This line can be problematic in some environments
 }
 
-migrate();
+migrate().catch(error => {
+    console.error("An unexpected error occurred during migration:", error);
+});

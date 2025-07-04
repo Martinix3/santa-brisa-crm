@@ -5,11 +5,11 @@ import { db } from '@/lib/firebase';
 import {
   collection, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, runTransaction, type DocumentReference, getDoc, query, where, getDocs, type DocumentSnapshot, limit
 } from "firebase/firestore";
-import type { Purchase, PurchaseFormValues, PurchaseFirestorePayload, InventoryItem } from '@/types';
+import type { Purchase, PurchaseFormValues, PurchaseFirestorePayload, InventoryItem, Supplier } from '@/types';
 import { fromFirestorePurchase, toFirestorePurchase, toFirestoreSupplier } from './utils/firestore-converters';
 import { uploadInvoice } from './storage-service';
 import { updateStockForPurchase } from './stock-service';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { getCategoriesFS } from './category-service';
 
 const PURCHASES_COLLECTION = 'purchases';
@@ -201,7 +201,7 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
 
         newItemsToWrite.forEach((ref, index) => {
             const item = resolvedItems[index];
-            const purchaseDate = dataToSave.orderDate ? dataToSave.orderDate : parseISO(oldData.orderDate);
+            const purchaseDate = dataToSave.orderDate || new Date();
             const newMaterialData = createNewMaterialData(item, dataToSave.supplier || oldData.supplier, purchaseDate);
             transaction.set(ref, newMaterialData);
         });

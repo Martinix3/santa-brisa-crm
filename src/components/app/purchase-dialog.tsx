@@ -139,7 +139,7 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
   const watchedInvoiceUrl = form.watch("invoiceUrl");
   const watchedInvoiceContentType = form.watch("invoiceContentType");
 
-  const { subtotal, tax, totalAmount } = React.useMemo(() => {
+  const { subtotal, taxAmount, totalAmount } = React.useMemo(() => {
     const currentSubtotal = watchedItems.reduce((sum, item) => sum + (item.quantity || 0) * (item.unitPrice || 0), 0) || 0;
     const shipping = watchedShippingCost || 0;
     const subtotalWithShipping = currentSubtotal + shipping;

@@ -84,8 +84,8 @@ export default function BomDialog({ bomLine, isOpen, onOpenChange, onSave, inven
   };
   
   const { categoriesMap } = useCategories();
-  const finishedGoods = inventoryItems.filter(i => categoriesMap.get(i.categoryId)?.name === "Producto Terminado");
-  const components = inventoryItems.filter(i => categoriesMap.get(i.categoryId)?.name !== "Producto Terminado");
+  const finishedGoods = inventoryItems.filter(i => categoriesMap.get(i.categoryId)?.name === "Producto Terminado" && i.sku);
+  const components = inventoryItems.filter(i => categoriesMap.get(i.categoryId)?.name !== "Producto Terminado" && i.sku);
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>

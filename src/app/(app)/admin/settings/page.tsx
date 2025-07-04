@@ -4,7 +4,7 @@
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Users, Goal, Target, Settings, Archive } from "lucide-react"; 
+import { Users, Goal, Target, Settings, Archive, PackageCheck } from "lucide-react"; 
 import { useAuth } from "@/contexts/auth-context";
 import { AlertTriangle } from "lucide-react";
 
@@ -30,8 +30,14 @@ const adminSections = [
    {
     title: "Gestión de Inventario",
     description: "Gestionar el catálogo de artículos inventariables y su stock.",
-    href: "/admin/inventory",
+    href: "/admin/promotional-materials", // The path remains the same but the purpose changes
     icon: Archive,
+  },
+  {
+    title: "Gestión de Muestras",
+    description: "Aprobar, rechazar y seguir las solicitudes de muestras de producto.",
+    href: "/admin/sample-management",
+    icon: PackageCheck,
   },
 ];
 

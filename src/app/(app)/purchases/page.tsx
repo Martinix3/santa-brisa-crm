@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import type { Purchase, PurchaseStatus, UserRole, PromotionalMaterial, PurchaseCategory, Currency } from "@/types";
+import type { Purchase, PurchaseStatus, UserRole, InventoryItem, PurchaseCategory, Currency } from "@/types";
 import { purchaseStatusList, purchaseCategoryList } from "@/lib/data";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, MoreHorizontal, Filter, ChevronDown, Edit, Trash2, Receipt, Loader2, UploadCloud, Download, TestTube2 } from "lucide-react";
@@ -22,7 +22,7 @@ import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { addPurchaseFS, updatePurchaseFS, deletePurchaseFS, getPurchasesFS } from "@/services/purchase-service";
 import Link from "next/link";
 import InvoiceUploadDialog from "@/components/app/invoice-upload-dialog";
-import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
+import { getInventoryItemsFS } from "@/services/inventory-item-service";
 import { testUpload } from "@/services/test-upload-service";
 import { initializeMockCategoriesInFirestore } from "@/services/category-service";
 
@@ -30,7 +30,7 @@ export default function PurchasesPage() {
   const { toast } = useToast();
   const { userRole, dataSignature, refreshDataSignature } = useAuth();
   const [purchases, setPurchases] = React.useState<Purchase[]>([]);
-  const [materials, setMaterials] = React.useState<PromotionalMaterial[]>([]);
+  const [materials, setMaterials] = React.useState<InventoryItem[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [editingPurchase, setEditingPurchase] = React.useState<Purchase | null>(null);
   const [isPurchaseDialogOpen, setIsPurchaseDialogOpen] = React.useState(false);
@@ -57,7 +57,7 @@ export default function PurchasesPage() {
             
             const [fetchedPurchases, fetchedMaterials] = await Promise.all([
               getPurchasesFS(),
-              getPromotionalMaterialsFS()
+              getInventoryItemsFS()
             ]);
             setPurchases(fetchedPurchases);
             setMaterials(fetchedMaterials);
@@ -202,7 +202,7 @@ export default function PurchasesPage() {
        (purchase.items && purchase.items.some(item => item.description.toLowerCase().includes(searchTerm.toLowerCase()))))
     )
     .filter(purchase => statusFilter === "Todos" || purchase.status === statusFilter)
-    .filter(purchase => categoryFilter === "Todas" || purchase.category === categoryFilter);
+    .filter(purchase => categoryFilter === "Todas" || purchase.categoryId === categoryFilter);
 
   if (!isAdmin) {
     return (
@@ -324,7 +324,7 @@ export default function PurchasesPage() {
                           purchase.supplier
                         )}
                       </TableCell>
-                      <TableCell>{purchase.category}</TableCell>
+                      <TableCell>{purchase.categoryId}</TableCell>
                       <TableCell>{format(parseISO(purchase.orderDate), "dd/MM/yy", { locale: es })}</TableCell>
                       <TableCell className="text-right">
                         <FormattedNumericValue value={purchase.totalAmount} options={{ style: 'currency', currency: purchase.currency }} />

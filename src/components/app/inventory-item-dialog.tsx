@@ -37,7 +37,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import type { InventoryItem, Category, InventoryItemFormValues } from "@/types";
 import { Loader2, Calendar as CalendarIcon } from "lucide-react";
-import { Separator } from "@/components/ui/separator";
+import { Separator } from "../ui/separator";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid, subDays, isEqual } from "date-fns";
 import { es } from 'date-fns/locale';

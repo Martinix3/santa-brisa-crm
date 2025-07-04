@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { Purchase, PurchaseFormValues as PurchaseFormValuesType, PurchaseStatus, PromotionalMaterial, Currency, Category, CostCenter } from "@/types";
+import type { Purchase, PurchaseFormValues as PurchaseFormValuesType, PurchaseStatus, InventoryItem, Currency, Category, CostCenter, InventoryItemFormValues } from "@/types";
 import { purchaseStatusList } from "@/lib/data";
 import { Loader2, Calendar as CalendarIcon, DollarSign, PlusCircle, Trash2, FileCheck2, Link2, Sparkles, HelpCircle, Briefcase, Building } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -44,7 +44,7 @@ import { es } from 'date-fns/locale';
 import { Separator } from "../ui/separator";
 import FormattedNumericValue from "../lib/formatted-numeric-value";
 import Link from 'next/link';
-import { getPromotionalMaterialsFS, addPromotionalMaterialFS } from "@/services/promotional-material-service";
+import { getInventoryItemsFS, addInventoryItemFS } from "@/services/inventory-item-service";
 import { getCategoriesFS } from "@/services/category-service";
 import { getCostCentersFS } from "@/services/costcenter-service";
 import { useToast } from "@/hooks/use-toast";
@@ -111,7 +111,7 @@ async function fileToDataUri(file: File): Promise<string> {
 
 export default function PurchaseDialog({ purchase, prefilledData, prefilledFile, isOpen, onOpenChange, onSave, isReadOnly = false }: PurchaseDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
-  const [availableMaterials, setAvailableMaterials] = React.useState<PromotionalMaterial[]>([]);
+  const [availableMaterials, setAvailableMaterials] = React.useState<InventoryItem[]>([]);
   const [availableCategories, setAvailableCategories] = React.useState<Category[]>([]);
   const [availableCostCenters, setAvailableCostCenters] = React.useState<CostCenter[]>([]);
   const [isLoadingDropdowns, setIsLoadingDropdowns] = React.useState(true);
@@ -143,7 +143,8 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
     const currentSubtotal = watchedItems.reduce((sum, item) => sum + (item.quantity || 0) * (item.unitPrice || 0), 0) || 0;
     const shipping = watchedShippingCost || 0;
     const subtotalWithShipping = currentSubtotal + shipping;
-    const currentTaxAmount = subtotalWithShipping * (watchedTaxRate / 100);
+    const taxRate = data.taxRate !== undefined ? data.taxRate : 21;
+    const currentTaxAmount = subtotalWithShipping * (taxRate / 100);
     const currentTotalAmount = subtotalWithShipping + currentTaxAmount;
     return { subtotal: currentSubtotal, taxAmount: currentTaxAmount, totalAmount: currentTotalAmount };
   }, [watchedItems, watchedShippingCost, watchedTaxRate]);
@@ -152,7 +153,7 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
     setIsLoadingDropdowns(true);
     try {
         const [materials, categories, costCenters] = await Promise.all([
-            getPromotionalMaterialsFS(),
+            getInventoryItemsFS(),
             getCategoriesFS('cost'),
             getCostCentersFS()
         ]);
@@ -278,17 +279,33 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
     setIsSaving(true);
     try {
         const result = await matchMaterial({ itemName, existingMaterials: availableMaterials });
-        const newMaterialData = { name: result.suggestedName || itemName, type: result.suggestedType || 'Otro' };
-        // This flow needs updating to use categoryId from the new master list
-        // For now, it's a simplification. A more complex flow would ask for category.
-        toast({ title: "Función no implementada", description: "La creación de materiales desde aquí se implementará en una fase futura.", variant: "default" });
 
+        if (result.matchType === 'none' && result.suggestedName && result.suggestedCategoryId) {
+            const newMaterialData: InventoryItemFormValues = {
+                name: result.suggestedName,
+                categoryId: result.suggestedCategoryId,
+                description: `Creado automáticamente desde factura para: ${itemName}`,
+            };
+            const newMaterialId = await addInventoryItemFS(newMaterialData);
+            
+            await fetchDropdownData();
+
+            form.setValue(`items.${index}.materialId`, newMaterialId, { shouldDirty: true });
+
+            toast({ title: "Nuevo artículo creado", description: `"${result.suggestedName}" ha sido añadido al inventario y seleccionado.` });
+        } else if(result.matchedMaterialId) {
+            toast({ title: "Sugerencia Encontrada", description: `Se encontró un artículo similar. Por favor, selecciónelo manualmente.`, variant: "default" });
+        } else {
+            toast({ title: "No se pudo crear", description: `La IA no pudo sugerir una categoría para "${itemName}". Intente crearlo manualmente.`, variant: "destructive" });
+        }
     } catch (error) {
-        toast({ title: "Error", description: "No se pudo crear el nuevo material.", variant: "destructive" });
+        console.error("Error creating new material from dialog:", error);
+        toast({ title: "Error", description: "No se pudo crear el nuevo artículo.", variant: "destructive" });
     } finally {
         setIsSaving(false);
     }
   };
+
 
   const onSubmit = async (data: PurchaseFormValues) => {
     if (isReadOnly) return;

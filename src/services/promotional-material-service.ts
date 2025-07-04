@@ -1,7 +1,5 @@
-
+// This file is deprecated and has been replaced by src/services/inventory-item-service.ts
+// It can be safely deleted once all dependencies are removed.
 'use server';
-
-// This file is obsolete and has been replaced by inventory-item-service.ts.
-// It is kept temporarily to avoid build errors during transition. It can be deleted later.
-
-export const placeholder = () => {};
+// The async empty function is a placeholder to prevent build errors related to Server Actions.
+export const placeholder = async () => {};

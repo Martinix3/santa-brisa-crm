@@ -211,7 +211,7 @@ export interface LatestPurchaseInfo {
   notes?: string; 
 }
 
-export interface PromotionalMaterial {
+export interface InventoryItem {
   id: string;
   name: string;
   description?: string;
@@ -522,7 +522,7 @@ export interface SupplierFormValues {
   notes?: string;
 }
 
-export interface PromotionalMaterialFormValues {
+export interface InventoryItemFormValues {
   name: string;
   description?: string;
   categoryId: string;

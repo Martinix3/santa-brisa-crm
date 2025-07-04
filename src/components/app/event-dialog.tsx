@@ -37,15 +37,15 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { CrmEvent, CrmEventType, CrmEventStatus, TeamMember, PromotionalMaterial } from "@/types"; // Added PromotionalMaterial
-import { crmEventTypeList, crmEventStatusList } from "@/lib/data"; // mockPromotionalMaterials removed
-import { Loader2, Calendar as CalendarIcon, PlusCircle, Trash2, Package } from "lucide-react"; // Removed Euro
+import type { CrmEvent, CrmEventType, CrmEventStatus, TeamMember, InventoryItem, AssignedPromotionalMaterial } from "@/types";
+import { crmEventTypeList, crmEventStatusList } from "@/lib/data";
+import { Loader2, Calendar as CalendarIcon, PlusCircle, Trash2, Package } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid, subDays, isEqual } from "date-fns";
 import { es } from 'date-fns/locale';
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-import { getPromotionalMaterialsFS } from "@/services/promotional-material-service"; // Service to fetch materials
+import { getInventoryItemsFS } from "@/services/inventory-item-service";
 import { useToast } from "@/hooks/use-toast";
 
 const assignedMaterialSchema = z.object({
@@ -88,7 +88,7 @@ interface EventDialogProps {
 
 export default function EventDialog({ event, isOpen, onOpenChange, onSave, isReadOnly = false, allTeamMembers }: EventDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
-  const [availableMaterials, setAvailableMaterials] = React.useState<PromotionalMaterial[]>([]);
+  const [availableMaterials, setAvailableMaterials] = React.useState<InventoryItem[]>([]);
   const [isLoadingMaterials, setIsLoadingMaterials] = React.useState(false);
   const { toast } = useToast();
   
@@ -117,11 +117,11 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
       if (isOpen) {
         setIsLoadingMaterials(true);
         try {
-          const materialsFromFS = await getPromotionalMaterialsFS();
+          const materialsFromFS = await getInventoryItemsFS();
           setAvailableMaterials(materialsFromFS);
         } catch (error) {
-          console.error("Error loading promotional materials for event dialog:", error);
-          toast({ title: "Error Materiales", description: "No se pudieron cargar los materiales promocionales.", variant: "destructive"});
+          console.error("Error loading inventory items for event dialog:", error);
+          toast({ title: "Error Materiales", description: "No se pudieron cargar los artículos de inventario.", variant: "destructive"});
         } finally {
           setIsLoadingMaterials(false);
         }

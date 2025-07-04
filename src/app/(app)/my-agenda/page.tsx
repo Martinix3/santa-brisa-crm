@@ -117,6 +117,20 @@ function SortableAgendaItem({ item, handleItemClick }: { item: AgendaItem; handl
   );
 }
 
+function DragOverlayItem({ item }: { item: AgendaItem | null }) {
+  if (!item) return null;
+  
+  // Clone icon to override its color for the overlay
+  const icon = React.cloneElement(getAgendaItemIcon(item), { className: "h-5 w-5 text-primary-foreground flex-shrink-0" });
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg bg-primary/95 text-primary-foreground p-2 text-sm shadow-xl backdrop-blur-sm">
+      {icon}
+      <span className="font-semibold">{item.title}</span>
+    </div>
+  );
+}
+
 
 // --- MAIN COMPONENT ---
 export default function MyAgendaPage() {
@@ -596,8 +610,8 @@ export default function MyAgendaPage() {
 
     return (
         <div ref={setNodeRef} className={cn(
-            "h-full w-full transition-transform duration-150", 
-            isOver && "scale-125 bg-primary/20 rounded-md z-10"
+            "h-full w-full transition-all duration-150", 
+            isOver && "scale-110 bg-primary/20 rounded-md z-10"
         )}>
             <DayDots {...props} />
         </div>
@@ -610,17 +624,6 @@ export default function MyAgendaPage() {
     admin: adminTaskDays,
   };
   
-  const dragOverlayModifiers = [
-    (args: {transform: {x: number, y: number, scaleX: number, scaleY: number}}) => {
-      const { transform } = args;
-      // Lift the item slightly above the cursor to see the drop target underneath
-      return {
-        ...transform,
-        y: transform.y - 15,
-      };
-    }
-  ];
-
   return (
     <>
     <Sheet open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
@@ -777,8 +780,8 @@ export default function MyAgendaPage() {
           </div>
         </div>
 
-        <DragOverlay modifiers={dragOverlayModifiers}>
-            {activeAgendaItem ? <AgendaItemCard item={activeAgendaItem} /> : null}
+        <DragOverlay>
+            {activeAgendaItem ? <DragOverlayItem item={activeAgendaItem} /> : null}
         </DragOverlay>
       </DndContext>
 

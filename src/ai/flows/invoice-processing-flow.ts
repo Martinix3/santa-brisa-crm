@@ -9,7 +9,6 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {vertexAI} from '@genkit-ai/vertexai';
 import {z} from 'genkit';
 
 const ProcessInvoiceInputSchema = z.object({
@@ -50,7 +49,6 @@ export async function processInvoice(input: ProcessInvoiceInput): Promise<Proces
 
 const prompt = ai.definePrompt({
   name: 'invoiceProcessingPrompt',
-  model: vertexAI.model('gemini-1.5-flash'),
   input: {schema: ProcessInvoiceInputSchema},
   output: {schema: ProcessInvoiceOutputSchema},
   prompt: `You are an expert accounting assistant. Your task is to extract structured information from an invoice file with the highest possible accuracy, especially with numbers.

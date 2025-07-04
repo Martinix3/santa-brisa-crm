@@ -1,11 +1,12 @@
 
 import {genkit} from 'genkit';
-import {vertexAI} from '@genkit-ai/vertexai';
+import {googleAI, gemini15Flash} from '@genkit-ai/googleai';
 
-// Configure a Genkit instance to use the Vertex AI plugin.
-// This will use Application Default Credentials for authentication.
+// Configure a Genkit instance to use the Google AI plugin.
+// It will automatically use the GOOGLE_API_KEY from the .env file.
 export const ai = genkit({
   plugins: [
-    vertexAI({ location: 'us-central1' }),
+    googleAI(),
   ],
+  model: gemini15Flash, // Set default model
 });

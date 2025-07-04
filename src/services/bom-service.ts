@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 
 const BOM_LINES_COLLECTION = 'bomLines';
 
-const fromFirestore = (snapshot: any): BomLine => {
+export const fromFirestoreBomLine = (snapshot: any): BomLine => {
   const data = snapshot.data();
   if (!data) throw new Error("BOM Line data is undefined.");
   return {
@@ -40,8 +40,8 @@ export const saveRecipeFS = async (productSku: string, components: BomComponentV
   // 1. Find and queue deletion of all existing lines for this product
   const q = query(collection(db, BOM_LINES_COLLECTION), where('productSku', '==', productSku));
   const snapshot = await getDocs(q);
-  snapshot.forEach(doc => {
-    batch.delete(doc.ref);
+  snapshot.forEach(docToDelete => { // Renamed 'doc' to 'docToDelete'
+    batch.delete(docToDelete.ref);
   });
 
   // 2. Queue creation of all the new lines
@@ -68,8 +68,8 @@ export const deleteRecipeFS = async (productSku: string): Promise<void> => {
   const batch = writeBatch(db);
   const q = query(collection(db, BOM_LINES_COLLECTION), where('productSku', '==', productSku));
   const snapshot = await getDocs(q);
-  snapshot.forEach(doc => {
-    batch.delete(doc.ref);
+  snapshot.forEach(docToDelete => { // Renamed 'doc' to 'docToDelete'
+    batch.delete(docToDelete.ref);
   });
   await batch.commit();
 }
@@ -80,11 +80,5 @@ export const getBomLinesFS = async (productSku?: string): Promise<BomLine[]> => 
     ? query(collection(db, BOM_LINES_COLLECTION), where('productSku', '==', productSku))
     : query(collection(db, BOM_LINES_COLLECTION), orderBy('productSku'));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(fromFirestore);
-};
-
-export const getBomLinesFSTransactional = async (transaction: Transaction, productSku: string): Promise<BomLine[]> => {
-    const q = query(collection(db, BOM_LINES_COLLECTION), where('productSku', '==', productSku));
-    const snapshot = await transaction.get(q);
-    return snapshot.docs.map(docSnap => fromFirestore(docSnap));
+  return snapshot.docs.map(fromFirestoreBomLine);
 };

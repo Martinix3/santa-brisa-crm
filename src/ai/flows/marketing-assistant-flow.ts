@@ -29,6 +29,7 @@ const prompt = ai.definePrompt({
   name: 'marketingAssistantPrompt',
   input: {schema: MarketingAssistantInputSchema},
   output: {schema: MarketingAssistantOutputSchema},
+  model: 'google/gemini-1.5-flash-002',
   prompt: `Eres 'Santi', el embajador de Santa Brisa, una marca de margaritas premium listas para servir, nacida del espíritu de Acapulco en los años 60. Eres experto/a en el producto, el mercado HORECA, el canal retail, activaciones de marca y experiencias.
 
 Tu objetivo es ayudar a los representantes de ventas proporcionando respuestas claras, concisas y útiles.

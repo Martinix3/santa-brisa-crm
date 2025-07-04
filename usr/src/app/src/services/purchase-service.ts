@@ -9,7 +9,7 @@ import type { Purchase, PurchaseFormValues, PurchaseFirestorePayload, InventoryI
 import { fromFirestorePurchase, toFirestorePurchase } from './utils/firestore-converters';
 import { uploadInvoice } from './storage-service';
 import { updateStockForPurchase } from './stock-service';
-import { toFirestoreSupplier } from './supplier-service';
+import { toFirestoreSupplier } from './utils/firestore-converters';
 
 const PURCHASES_COLLECTION = 'purchases';
 const INVENTORY_ITEMS_COLLECTION = 'inventoryItems';
@@ -25,8 +25,8 @@ export const getPurchasesFS = async (): Promise<Purchase[]> => {
 
 export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> => {
     let dataToSave = { ...data };
-    const newDocRef = doc(collection(db, PURCHASES_COLLECTION));
-    const purchaseId = newDocRef.id;
+    const newPurchaseDocRef = doc(collection(db, PURCHASES_COLLECTION));
+    const purchaseId = newPurchaseDocRef.id;
 
     if (data.invoiceDataUri) {
         const { downloadUrl, storagePath, contentType } = await uploadInvoice(data.invoiceDataUri, purchaseId);
@@ -46,81 +46,71 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
 
     return await runTransaction(db, async (transaction) => {
         // --- STAGE 1: ALL READS ---
-        let supplierId: string;
-        let supplierRef: DocumentReference;
-        let isNewSupplier = false;
-        
-        if (existingSupplierDoc) {
-            supplierRef = doc(db, SUPPLIERS_COLLECTION, existingSupplierDoc.id);
-            const supplierSnap = await transaction.get(supplierRef);
-            if (!supplierSnap.exists()) {
-                supplierRef = doc(collection(db, SUPPLIERS_COLLECTION));
-                isNewSupplier = true;
-            }
-            supplierId = supplierRef.id;
-        } else {
-            supplierRef = doc(collection(db, SUPPLIERS_COLLECTION));
-            isNewSupplier = true;
-            supplierId = supplierRef.id;
-        }
-
         const materialDocsMap = new Map<string, DocumentSnapshot>();
         const materialIdsToRead = dataToSave.items.map(item => item.materialId).filter((id): id is string => !!id && id !== NEW_ITEM_SENTINEL);
         if (materialIdsToRead.length > 0) {
             const uniqueIds = [...new Set(materialIdsToRead)];
             const materialRefs = uniqueIds.map(id => doc(db, INVENTORY_ITEMS_COLLECTION, id));
-            const materialSnaps = await transaction.getAll(...materialRefs);
-            materialSnaps.forEach(snap => {
+            for (const ref of materialRefs) {
+                const snap = await transaction.get(ref);
                 if (snap.exists()) {
                     materialDocsMap.set(snap.id, snap);
                 }
-            });
+            }
         }
         
         // ---- ALL READS ARE NOW COMPLETE ----
 
-        // --- STAGE 2: ALL WRITES ---
+        // --- STAGE 2: LOGIC & PREPARING WRITES ---
+        let supplierId: string;
+        let supplierRef: DocumentReference;
+        const isNewSupplier = !existingSupplierDoc;
+        
+        if (existingSupplierDoc) {
+            supplierId = existingSupplierDoc.id;
+            supplierRef = existingSupplierDoc.ref;
+        } else {
+            supplierRef = doc(collection(db, SUPPLIERS_COLLECTION));
+            supplierId = supplierRef.id;
+        }
+        
+        const newItemsToWrite = new Map<number, DocumentReference>();
+        const resolvedItems = dataToSave.items.map((item, index) => {
+            if (item.materialId && item.materialId !== NEW_ITEM_SENTINEL) {
+                return { ...item, materialId: item.materialId! };
+            }
+            const newMaterialRef = doc(collection(db, INVENTORY_ITEMS_COLLECTION));
+            newItemsToWrite.set(index, newMaterialRef);
+            return { ...item, materialId: newMaterialRef.id };
+        });
+
+        const finalData = { ...dataToSave, items: resolvedItems };
+        const firestoreData = toFirestorePurchase(finalData, true, supplierId);
+
+        // --- STAGE 3: ALL WRITES ---
         if (isNewSupplier) {
              const newSupplierData = toFirestoreSupplier({
                 name: supplierName,
                 cif: data.supplierCif,
                 address_street: data.supplierAddress_street,
-                address_number: data.supplierAddress_number,
-                address_city: data.supplierAddress_city,
-                address_province: data.supplierAddress_province,
-                address_postalCode: data.supplierAddress_postalCode,
-                address_country: data.supplierAddress_country
             }, true);
             transaction.set(supplierRef, newSupplierData);
-        } else if (existingSupplierDoc) {
-            const supplierData = existingSupplierDoc.data();
-            if (!supplierData.cif && data.supplierCif) {
-                transaction.update(supplierRef, { cif: data.supplierCif });
-            }
         }
         
-        const resolvedItems = await Promise.all(dataToSave.items.map(async (item) => {
-            if (item.materialId && item.materialId !== NEW_ITEM_SENTINEL) return item;
-            const newMaterialRef = doc(collection(db, INVENTORY_ITEMS_COLLECTION));
+        newItemsToWrite.forEach((ref, index) => {
+            const item = resolvedItems[index];
             const newMaterialData = {
                 name: item.description,
                 description: `Creado desde compra a ${dataToSave.supplier}`,
-                categoryId: item.categoryId,
-                stock: 0,
-                uom: 'unit',
-                createdAt: Timestamp.now(),
-                updatedAt: Timestamp.now(),
+                categoryId: item.categoryId, stock: 0, uom: 'unit',
+                createdAt: Timestamp.now(), updatedAt: Timestamp.now(),
             };
-            transaction.set(newMaterialRef, newMaterialData);
-            return { ...item, materialId: newMaterialRef.id };
-        }));
-
-        const finalData = { ...dataToSave, items: resolvedItems };
-        const firestoreData = toFirestorePurchase(finalData, true, supplierId);
+            transaction.set(ref, newMaterialData);
+        });
         
         await updateStockForPurchase(transaction, null, firestoreData, materialDocsMap);
+        transaction.set(newPurchaseDocRef, firestoreData);
         
-        transaction.set(newDocRef, firestoreData);
         return purchaseId;
     });
 };
@@ -153,19 +143,13 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
 
         let supplierId: string;
         let supplierRef: DocumentReference;
-        let isNewSupplier = false;
+        const isNewSupplier = !existingSupplierDoc;
         
         if (existingSupplierDoc) {
-            supplierRef = doc(db, SUPPLIERS_COLLECTION, existingSupplierDoc.id);
-             const supplierSnap = await transaction.get(supplierRef);
-            if (!supplierSnap.exists()) {
-                 supplierRef = doc(collection(db, SUPPLIERS_COLLECTION));
-                 isNewSupplier = true;
-            }
-            supplierId = supplierRef.id;
+            supplierId = existingSupplierDoc.id;
+            supplierRef = existingSupplierDoc.ref;
         } else {
             supplierRef = doc(collection(db, SUPPLIERS_COLLECTION));
-            isNewSupplier = true;
             supplierId = supplierRef.id;
         }
 
@@ -176,27 +160,18 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
         const materialDocsMap = new Map<string, DocumentSnapshot>();
         if (materialIdsInvolved.length > 0) {
             const materialRefs = materialIdsInvolved.map(id => doc(db, INVENTORY_ITEMS_COLLECTION, id));
-            const materialSnaps = await transaction.getAll(...materialRefs);
-            materialSnaps.forEach(snap => {
+            for (const ref of materialRefs) {
+                const snap = await transaction.get(ref);
                 if (snap.exists()) {
                     materialDocsMap.set(snap.id, snap);
                 }
-            });
+            }
         }
         // ---- ALL READS ARE NOW COMPLETE ----
         
-        // --- STAGE 2: ALL WRITES ---
-        if (isNewSupplier) {
-             const newSupplierData = toFirestoreSupplier({
-                name: supplierName,
-                cif: data.supplierCif,
-                address_street: data.supplierAddress_street,
-            }, true);
-            transaction.set(supplierRef, newSupplierData);
-        }
-
-        const resolvedItems = await Promise.all((dataToSave.items || []).map(async (item) => {
-            if (item.materialId && item.materialId !== NEW_ITEM_SENTINEL) return item;
+        // --- STAGE 2: LOGIC & PREPARING WRITES ---
+        const resolvedItems = (dataToSave.items || []).map((item, index) => {
+            if (item.materialId && item.materialId !== NEW_ITEM_SENTINEL) return { ...item, materialId: item.materialId! };
             const newMaterialRef = doc(collection(db, INVENTORY_ITEMS_COLLECTION));
             const newMaterialData = {
                 name: item.description,
@@ -206,7 +181,13 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
             };
             transaction.set(newMaterialRef, newMaterialData);
             return { ...item, materialId: newMaterialRef.id };
-        }));
+        });
+
+        // --- STAGE 3: ALL WRITES ---
+        if (isNewSupplier) {
+            const newSupplierData = toFirestoreSupplier({ name: supplierName, cif: data.supplierCif }, true);
+            transaction.set(supplierRef, newSupplierData);
+        }
 
         const finalData = { ...dataToSave, items: resolvedItems };
         const firestoreData = toFirestorePurchase(finalData as PurchaseFormValues, false, supplierId);
@@ -233,10 +214,12 @@ export const deletePurchaseFS = async (id: string): Promise<void> => {
       const materialDocsMap = new Map<string, DocumentSnapshot>();
       if(materialIds.length > 0) {
         const materialRefs = materialIds.map(id => doc(db, INVENTORY_ITEMS_COLLECTION, id));
-        const materialSnaps = await transaction.getAll(...materialRefs);
-        materialSnaps.forEach(snap => {
-            if (snap.exists()) materialDocsMap.set(snap.id, snap);
-        });
+        for (const ref of materialRefs) {
+            const snap = await transaction.get(ref);
+            if (snap.exists()) {
+                materialDocsMap.set(snap.id, snap);
+            }
+        }
       }
       
       // --- STAGE 2: WRITES ---

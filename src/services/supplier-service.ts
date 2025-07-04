@@ -1,13 +1,12 @@
 
-
 'use server';
 
 import { db } from '@/lib/firebase';
 import {
-  collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, type Transaction
+  collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, type DocumentSnapshot
 } from "firebase/firestore";
-import type { Supplier, SupplierFormValues, PurchaseFormValues } from '@/types';
-import { format, parseISO } from 'date-fns';
+import type { Supplier, SupplierFormValues } from '@/types';
+import { format } from 'date-fns';
 
 const SUPPLIERS_COLLECTION = 'suppliers';
 
@@ -28,7 +27,7 @@ const fromFirestoreSupplier = (docSnap: DocumentSnapshot): Supplier => {
   };
 };
 
-const toFirestoreSupplier = (data: Partial<SupplierFormValues>, isNew: boolean): any => {
+export const toFirestoreSupplier = (data: Partial<SupplierFormValues>, isNew: boolean): any => {
   const firestoreData: { [key: string]: any } = {
     name: data.name,
     cif: data.cif || null,
@@ -63,72 +62,6 @@ const toFirestoreSupplier = (data: Partial<SupplierFormValues>, isNew: boolean):
   
   return firestoreData;
 };
-
-
-export const findOrCreateSupplier = async (data: Partial<PurchaseFormValues>, transaction: Transaction): Promise<string | undefined> => {
-    const supplierName = data.supplier?.trim();
-    if (!supplierName) {
-        console.warn('findOrCreateSupplier called with an empty supplier name. Aborting.');
-        return undefined;
-    }
-    console.info(`Finding or creating supplier: "${supplierName}"`);
-    const suppliersCol = collection(db, SUPPLIERS_COLLECTION);
-    const supplierCif = data.supplierCif?.trim();
-
-    if (supplierCif) {
-        const cifQuery = query(suppliersCol, where("cif", "==", supplierCif));
-        const cifSnapshot = await getDocs(cifQuery); // Cannot use transaction.get() on a query
-        if (!cifSnapshot.empty) {
-            const supplierDoc = cifSnapshot.docs[0];
-            console.log(`Found supplier by CIF. ID: ${supplierDoc.id}`);
-            return supplierDoc.id;
-        }
-    }
-
-    const nameQuery = query(suppliersCol, where("name", "==", supplierName));
-    const nameSnapshot = await getDocs(nameQuery);
-    if (!nameSnapshot.empty) {
-        const supplierDoc = nameSnapshot.docs[0];
-        console.log(`Found supplier by name. ID: ${supplierDoc.id}`);
-        const supplierData = supplierDoc.data();
-        const updatePayload: { [key: string]: any } = {};
-        if (!supplierData.cif && supplierCif) {
-            updatePayload.cif = supplierCif;
-        }
-        if (!supplierData.address && data.supplierAddress_street) {
-             updatePayload.address = {
-                street: data.supplierAddress_street || null, number: data.supplierAddress_number || null,
-                city: data.supplierAddress_city || null, province: data.supplierAddress_province || null,
-                postalCode: data.supplierAddress_postalCode || null, country: data.supplierAddress_country || "España",
-            };
-        }
-        if (Object.keys(updatePayload).length > 0) {
-            console.log(`Enriching existing supplier ${supplierDoc.id} with new data.`);
-            transaction.update(supplierDoc.ref, updatePayload);
-        }
-        return supplierDoc.id;
-    }
-
-    console.log(`No existing supplier found. Creating new one for: "${supplierName}"`);
-    const newSupplierRef = doc(collection(db, SUPPLIERS_COLLECTION));
-    const newSupplierData = {
-        name: supplierName,
-        cif: supplierCif || null,
-        address: (data.supplierAddress_street || data.supplierAddress_city) ? {
-            street: data.supplierAddress_street || null, number: data.supplierAddress_number || null,
-            city: data.supplierAddress_city || null, province: data.supplierAddress_province || null,
-            postalCode: data.supplierAddress_postalCode || null, country: data.supplierAddress_country || "España",
-        } : null,
-        contactName: null, contactEmail: null, contactPhone: null,
-        notes: "Creado automáticamente desde una compra.",
-        createdAt: Timestamp.fromDate(new Date()),
-        updatedAt: Timestamp.fromDate(new Date()),
-    };
-    transaction.set(newSupplierRef, newSupplierData);
-    console.log(`New supplier queued for creation with ID: ${newSupplierRef.id}`);
-    return newSupplierRef.id;
-};
-
 
 export const getSuppliersFS = async (): Promise<Supplier[]> => {
   const suppliersCol = collection(db, SUPPLIERS_COLLECTION);

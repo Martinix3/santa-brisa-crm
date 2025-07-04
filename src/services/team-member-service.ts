@@ -59,13 +59,20 @@ export const getTeamMembersFS = async (roles?: UserRole[]): Promise<TeamMember[]
   const membersCol = collection(db, TEAM_MEMBERS_COLLECTION);
   let q;
   if (roles && roles.length > 0) {
-    q = query(membersCol, where('role', 'in', roles), orderBy('name', 'asc'));
+    q = query(membersCol, where('role', 'in', roles));
   } else {
     q = query(membersCol, orderBy('name', 'asc'));
   }
   
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(docSnap => fromFirestoreTeamMember(docSnap));
+  const members = snapshot.docs.map(docSnap => fromFirestoreTeamMember(docSnap));
+
+  // Sort manually if we didn't order by name in the query to avoid composite indexes
+  if (roles && roles.length > 0) {
+    members.sort((a, b) => a.name.localeCompare(b.name));
+  }
+  
+  return members;
 };
 
 export const getTeamMemberByIdFS = async (id: string): Promise<TeamMember | null> => {

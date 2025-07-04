@@ -18,7 +18,7 @@ const Logo: React.FC<LogoProps> = ({ size = 100, className }) => (
     aria-label="Logotipo de Santa Brisa CRM"
   >
     <Image
-      src="https://firebasestorage.googleapis.com/v0/b/santa-brisa-crm.appspot.com/o/logo%20santa%20brisa_sinfondo.png?alt=media&token=069a6659-7bed-4332-ac4d-5cddf1d31e29"
+      src="https://firebasestorage.googleapis.com/v0/b/santa-brisa-crm.firebasestorage.app/o/logo%20santa%20brisa_sinfondo.png?alt=media&token=069a6659-7bed-4332-ac4d-5cddf1d31e29"
       alt="Santa Brisa Logo"
       width={size - 8}
       height={size - 8}

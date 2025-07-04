@@ -53,6 +53,8 @@ const getBomRecipeSchema = (inventoryItems: InventoryItem[]) => z.object({
   newProductSku: z.string().optional(),
   components: z.array(bomComponentSchema).min(1, "Debe añadir al menos un componente."),
 }).superRefine((data, ctx) => {
+  const finalProductSku = data.isNewProduct ? data.newProductSku : data.productSku;
+
   if (data.isNewProduct) {
     if (!data.newProductName || data.newProductName.length < 3) {
       ctx.addIssue({ path: ["newProductName"], message: "El nombre es obligatorio (mín. 3 caracteres)." });
@@ -60,7 +62,8 @@ const getBomRecipeSchema = (inventoryItems: InventoryItem[]) => z.object({
     if (!data.newProductSku || data.newProductSku.length < 3) {
       ctx.addIssue({ path: ["newProductSku"], message: "El SKU es obligatorio (mín. 3 caracteres)." });
     } else {
-      const skuExists = inventoryItems.some(item => item.sku?.toLowerCase() === data.newProductSku?.toLowerCase());
+      const normalizedNewSku = data.newProductSku.trim().toLowerCase();
+      const skuExists = inventoryItems.some(item => item.sku?.trim().toLowerCase() === normalizedNewSku);
       if (skuExists) {
         ctx.addIssue({ path: ["newProductSku"], message: "Este SKU ya existe en el inventario." });
       }
@@ -69,6 +72,19 @@ const getBomRecipeSchema = (inventoryItems: InventoryItem[]) => z.object({
     if (!data.productSku) {
       ctx.addIssue({ path: ["productSku"], message: "Debe seleccionar un producto existente." });
     }
+  }
+
+  // Check for recursion
+  if (finalProductSku) {
+    const normalizedProductSku = finalProductSku.trim().toLowerCase();
+    data.components.forEach((component, index) => {
+      if (component.componentSku.trim().toLowerCase() === normalizedProductSku) {
+        ctx.addIssue({
+          path: [`components.${index}.componentSku`],
+          message: "Un producto no puede ser componente de sí mismo.",
+        });
+      }
+    });
   }
 });
 
@@ -106,6 +122,21 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
   });
 
   const isNewProduct = form.watch("isNewProduct");
+  
+  // Effect to clean up fields when toggling 'isNewProduct'
+  React.useEffect(() => {
+    const subscription = form.watch((value, { name, type }) => {
+      if (name === 'isNewProduct' && type === 'change') {
+        if (!value.isNewProduct) {
+          form.setValue('newProductName', '');
+          form.setValue('newProductSku', '');
+        } else {
+          form.setValue('productSku', undefined);
+        }
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [form]);
 
   React.useEffect(() => {
     if (isOpen) {
@@ -166,58 +197,60 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
-            {!isEditing && (
-              <FormField
-                control={form.control}
-                name="isNewProduct"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center space-x-2 space-y-0 rounded-md border p-3 shadow-sm">
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                    <div className="space-y-1 leading-none">
-                      <FormLabel>Crear un nuevo producto terminado</FormLabel>
-                      <FormMessage />
-                    </div>
-                  </FormItem>
-                )}
-              />
-            )}
+            <fieldset disabled={isSaving} className="space-y-4">
+              {!isEditing && (
+                <FormField
+                  control={form.control}
+                  name="isNewProduct"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-2 space-y-0 rounded-md border p-3 shadow-sm">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>Crear un nuevo producto terminado</FormLabel>
+                        <FormMessage />
+                      </div>
+                    </FormItem>
+                  )}
+                />
+              )}
 
-            {isNewProduct && !isEditing ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField control={form.control} name="newProductName" render={({ field }) => ( <FormItem><FormLabel>Nombre Nuevo Producto</FormLabel><FormControl><Input placeholder="Ej: Santa Brisa 200ml" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="newProductSku" render={({ field }) => ( <FormItem><FormLabel>SKU Nuevo Producto</FormLabel><FormControl><Input placeholder="Ej: SB-200ML" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-              </div>
-            ) : (
-              <FormField control={form.control} name="productSku" render={({ field }) => ( <FormItem><FormLabel>Producto a Fabricar</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isEditing}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar producto terminado..." /></SelectTrigger></FormControl><SelectContent>{finishedGoods.map(item => (<SelectItem key={item.id} value={item.sku!}>{item.name} ({item.sku})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
-            )}
-            
-            <h4 className="font-medium">Componentes de la Receta</h4>
-            <ScrollArea className="h-64 border rounded-md p-2">
-                <div className="space-y-4">
-                {fields.map((field, index) => (
-                    <div key={field.id} className="flex items-end gap-2 p-3 border rounded-md bg-secondary/30">
-                        <FormField control={form.control} name={`components.${index}.componentSku`} render={({ field }) => (<FormItem className="flex-grow"><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar componente..." /></SelectTrigger></FormControl><SelectContent>{components.map(item => (<SelectItem key={item.id} value={item.sku!}>{item.name} ({item.sku})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name={`components.${index}.quantity`} render={({ field }) => (<FormItem className="w-28"><FormControl><Input type="number" step="any" placeholder="Cant." {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name={`components.${index}.uom`} render={({ field }) => (<FormItem className="w-24"><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{uomList.map(u => (<SelectItem key={u} value={u}>{u}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                        <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>
-                    </div>
-                ))}
-                 <Button type="button" variant="outline" size="sm" onClick={() => append({ componentSku: "", quantity: 1, uom: 'unit' })}><PlusCircle className="mr-2 h-4 w-4" />Añadir Componente</Button>
+              {isNewProduct && !isEditing ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField control={form.control} name="newProductName" render={({ field }) => ( <FormItem><FormLabel>Nombre Nuevo Producto</FormLabel><FormControl><Input placeholder="Ej: Santa Brisa 200ml" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                  <FormField control={form.control} name="newProductSku" render={({ field }) => ( <FormItem><FormLabel>SKU Nuevo Producto</FormLabel><FormControl><Input placeholder="Ej: SB-200ML" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                 </div>
-            </ScrollArea>
-             <FormMessage>{form.formState.errors.components?.root?.message}</FormMessage>
+              ) : (
+                <FormField control={form.control} name="productSku" render={({ field }) => ( <FormItem><FormLabel>Producto a Fabricar</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isEditing}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar producto terminado..." /></SelectTrigger></FormControl><SelectContent>{finishedGoods.map(item => (<SelectItem key={item.id} value={item.sku!}>{item.name} ({item.sku})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+              )}
+              
+              <h4 className="font-medium">Componentes de la Receta</h4>
+              <ScrollArea className="h-64 border rounded-md p-2">
+                  <div className="space-y-4">
+                  {fields.map((field, index) => (
+                      <div key={field.id} className="flex items-end gap-2 p-3 border rounded-md bg-secondary/30">
+                          <FormField control={form.control} name={`components.${index}.componentSku`} render={({ field }) => (<FormItem className="flex-grow"><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar componente..." /></SelectTrigger></FormControl><SelectContent>{components.map(item => (<SelectItem key={item.id} value={item.sku!}>{item.name} ({item.sku})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                          <FormField control={form.control} name={`components.${index}.quantity`} render={({ field }) => (<FormItem className="w-28"><FormControl><Input type="number" step="any" placeholder="Cant." {...field} /></FormControl><FormMessage /></FormItem>)} />
+                          <FormField control={form.control} name={`components.${index}.uom`} render={({ field }) => (<FormItem className="w-24"><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="UoM"/></SelectTrigger></FormControl><SelectContent>{uomList.map(u => (<SelectItem key={u} value={u}>{u}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                          <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>
+                      </div>
+                  ))}
+                  <Button type="button" variant="outline" size="sm" onClick={() => append({ componentSku: "", quantity: 1, uom: 'unit' })}><PlusCircle className="mr-2 h-4 w-4" />Añadir Componente</Button>
+                  <FormMessage>{form.formState.errors.components?.root?.message}</FormMessage>
+                  </div>
+              </ScrollArea>
+            </fieldset>
 
             <DialogFooter className="pt-4 flex justify-between w-full">
               <div>
                 {isEditing && (
                    <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button type="button" variant="destructive">Eliminar Receta</Button>
+                        <Button type="button" variant="destructive" disabled={isSaving}>Eliminar Receta</Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
@@ -235,7 +268,7 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
                 )}
               </div>
               <div className="flex gap-2">
-                <DialogClose asChild><Button type="button" variant="outline">Cancelar</Button></DialogClose>
+                <DialogClose asChild><Button type="button" variant="outline" disabled={isSaving}>Cancelar</Button></DialogClose>
                 <Button type="submit" disabled={isSaving}>
                   {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Guardando...</> : "Guardar Receta"}
                 </Button>

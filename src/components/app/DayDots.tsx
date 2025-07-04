@@ -5,11 +5,14 @@ import { cn } from '@/lib/utils';
 export function DayDots({ date, activeModifiers }: DayContentProps) {
   const dots: string[] = [];
 
-  Object.values(MODIFIER_NAMES).forEach((modifier) => {
-    if (activeModifiers[modifier]) {
-      dots.push(COLOR_MAP[modifier]);
-    }
-  });
+  if (activeModifiers) {
+    Object.values(MODIFIER_NAMES).forEach((modifier) => {
+      if (activeModifiers[modifier]) {
+        dots.push(COLOR_MAP[modifier]);
+      }
+    });
+  }
+
 
   return (
     <div className="relative flex h-full w-full items-center justify-center">

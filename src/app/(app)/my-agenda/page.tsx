@@ -33,6 +33,7 @@ import NewEntryTypeDialog, { type EntryType } from "@/components/app/new-entry-t
 import EventDialog from "@/components/app/event-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
+import type { DayContentProps } from "react-day-picker";
 import { DayDots } from "@/components/app/DayDots";
 
 
@@ -670,7 +671,7 @@ export default function MyAgendaPage() {
                               onSelect={(day) => { if(day) { setSelectedDate(day); setViewMode('day'); } }}
                               locale={es}
                               modifiers={modifiers}
-                              components={{ Day: DroppableDay }}
+                              components={{ DayContent: DroppableDay }}
                               classNames={{
                                 today: "bg-muted/50",
                                 selected:

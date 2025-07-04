@@ -6,14 +6,19 @@ import { format, isSameDay, parseISO, startOfDay, endOfDay, isValid, startOfWeek
 import { es } from "date-fns/locale";
 import { Calendar as CalendarIcon, ClipboardList, PartyPopper, Loader2, Filter, ChevronLeft, ChevronRight, Info, User, Send, Briefcase, Footprints, AlertTriangle, PlusCircle, Trash2, Edit } from "lucide-react";
 
+// DND Kit Imports
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragStartEvent, type DragEndEvent, DragOverlay } from '@dnd-kit/core';
+import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
-import { getOrdersFS, addScheduledTaskFS, deleteOrderFS, updateScheduledTaskFS } from "@/services/order-service";
-import { getEventsFS, addEventFS, deleteEventFS, updateEventFS } from "@/services/event-service";
+import { getOrdersFS, addScheduledTaskFS, deleteOrderFS, updateScheduledTaskFS, reorderTasksBatchFS } from "@/services/order-service";
+import { getEventsFS, addEventFS, deleteEventFS, updateEventFS, reorderEventsBatchFS } from "@/services/event-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import type { Order, CrmEvent, TeamMember, UserRole, OrderStatus, FollowUpResultFormValues, NewScheduledTaskData, EventFormValues } from "@/types";
 import StatusBadge from "@/components/app/status-badge";
@@ -42,6 +47,7 @@ interface AgendaItemBase {
   title: string;
   description?: string;
   rawItem: Order | CrmEvent;
+  orderIndex: number;
 }
 interface AgendaTareaComercialItem extends AgendaItemBase { type: 'tarea_comercial'; rawItem: Order; }
 interface AgendaTareaAdministrativaItem extends AgendaItemBase { type: 'tarea_administrativa'; rawItem: Order; }
@@ -71,6 +77,46 @@ const getInteractionType = (interaction: Order): string => {
     if (interaction.status === 'Seguimiento') return `Seguimiento: ${interaction.nextActionType || 'N/D'}`;
     return "Tarea Comercial";
 }
+
+
+// --- DND COMPONENTS ---
+function AgendaItemCard({ item }: { item: AgendaItem }) {
+  return (
+    <Card className="shadow-sm w-full">
+      <CardContent className="p-3 flex items-start gap-3">
+        {getAgendaItemIcon(item)}
+        <div className="flex-grow">
+          <h4 className="font-semibold text-base">{item.title}</h4>
+          <p className="text-sm text-muted-foreground">{item.description}</p>
+        </div>
+        {(item.type === 'tarea_comercial' || item.type === 'tarea_administrativa') && <StatusBadge type="order" status={(item.rawItem as Order).status}/>}
+        {item.type === 'evento' && <StatusBadge type="event" status={(item.rawItem as CrmEvent).status}/>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SortableAgendaItem({ item, handleItemClick }: { item: AgendaItem; handleItemClick: (item: AgendaItem) => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({id: item.id});
+  
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    cursor: isDragging ? 'grabbing' : 'grab',
+  };
+  
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <SheetTrigger asChild>
+        <button className="w-full text-left" onClick={() => handleItemClick(item)}>
+          <AgendaItemCard item={item} />
+        </button>
+      </SheetTrigger>
+    </div>
+  );
+}
+
 
 // --- MAIN COMPONENT ---
 export default function MyAgendaPage() {
@@ -104,6 +150,15 @@ export default function MyAgendaPage() {
 
   const [itemToDelete, setItemToDelete] = React.useState<AgendaItem | null>(null);
 
+  // DND State
+  const [activeAgendaItem, setActiveAgendaItem] = React.useState<AgendaItem | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
 
   const isAdmin = userRole === 'Admin';
   
@@ -126,6 +181,7 @@ export default function MyAgendaPage() {
                 title: o.clientName,
                 description: getInteractionType(o),
                 rawItem: o,
+                orderIndex: o.orderIndex ?? 0,
             }));
         
         const eventItems: AgendaItem[] = events
@@ -137,6 +193,7 @@ export default function MyAgendaPage() {
                 title: e.name,
                 description: e.type,
                 rawItem: e,
+                orderIndex: e.orderIndex ?? 0,
             }));
         
         setAllAgendaItems([...tareaItems, ...eventItems]);
@@ -242,13 +299,15 @@ export default function MyAgendaPage() {
           .filter(item => {
             return isWithinInterval(item.date, { start: intervalStart, end: intervalEnd });
           })
-          .sort((a,b) => a.date.getTime() - b.date.getTime());
+          .sort((a,b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0));
 
       return { interval: { start: intervalStart, end: intervalEnd }, itemsForView: items };
   }, [selectedDate, viewMode, filteredItemsForHighlight]);
   
    const itemsForDayView = React.useMemo(() => {
-        return filteredItemsForHighlight.filter(item => isSameDay(item.date, selectedDate));
+        return filteredItemsForHighlight
+          .filter(item => isSameDay(item.date, selectedDate))
+          .sort((a,b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0));
     }, [selectedDate, filteredItemsForHighlight]);
 
   const itemsGroupedByDay = React.useMemo(() => {
@@ -312,6 +371,7 @@ export default function MyAgendaPage() {
                 originatingTaskId: originalTask.id,
                 notes: data.notes || null,
                 taskCategory: 'Commercial',
+                orderIndex: 0
             };
 
             if (data.outcome === "successful") {
@@ -449,29 +509,35 @@ export default function MyAgendaPage() {
         setSelectedItem(null);
       }
   }
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    const item = allAgendaItems.find(i => i.id === active.id);
+    if(item) {
+        setActiveAgendaItem(item);
+    }
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveAgendaItem(null);
+    const {active, over} = event;
+
+    if (over && active.id !== over.id) {
+        // This is for phase 3, for now we do nothing.
+    }
+  };
   
   const renderViewContent = () => {
     if (viewMode === 'day') {
-      return itemsForDayView.length > 0 ? (
-        <div className="space-y-4">
-            {itemsForDayView.map(item => (
-                <SheetTrigger asChild key={item.id}>
-                <button className="w-full text-left" onClick={() => handleItemClick(item)}>
-                    <Card className="hover:bg-secondary/50 transition-colors shadow-sm">
-                        <CardContent className="p-3 flex items-start gap-3">
-                            {getAgendaItemIcon(item)}
-                            <div className="flex-grow">
-                                <h4 className="font-semibold text-base">{item.title}</h4>
-                                <p className="text-sm text-muted-foreground">{item.description}</p>
-                            </div>
-                            {(item.type === 'tarea_comercial' || item.type === 'tarea_administrativa') && <StatusBadge type="order" status={(item.rawItem as Order).status}/>}
-                            {item.type === 'evento' && <StatusBadge type="event" status={(item.rawItem as CrmEvent).status}/>}
-                        </CardContent>
-                    </Card>
-                </button>
-                </SheetTrigger>
-            ))}
-        </div>
+      const dayItems = itemsForDayView;
+      return dayItems.length > 0 ? (
+        <SortableContext items={dayItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-4">
+                {dayItems.map(item => (
+                    <SortableAgendaItem key={item.id} item={item} handleItemClick={handleItemClick} />
+                ))}
+            </div>
+        </SortableContext>
       ) : (
           <div className="flex items-center justify-center h-full text-muted-foreground text-center">
               <p>No hay actividades programadas con los filtros seleccionados.</p>
@@ -483,25 +549,13 @@ export default function MyAgendaPage() {
                 {itemsGroupedByDay.map(([day, items]) => (
                     <div key={day}>
                         <h3 className="font-semibold mb-2">{format(parseISO(day), "EEEE dd 'de' MMMM", { locale: es })}</h3>
-                        <div className="space-y-3">
-                            {items.map(item => (
-                                <SheetTrigger asChild key={item.id}>
-                                <button className="w-full text-left" onClick={() => handleItemClick(item)}>
-                                    <Card className="hover:bg-secondary/50 transition-colors shadow-sm">
-                                        <CardContent className="p-3 flex items-start gap-3">
-                                            {getAgendaItemIcon(item)}
-                                            <div className="flex-grow">
-                                                <h4 className="font-semibold text-base">{item.title}</h4>
-                                                <p className="text-sm text-muted-foreground">{item.description}</p>
-                                            </div>
-                                            {(item.type === 'tarea_comercial' || item.type === 'tarea_administrativa') && <StatusBadge type="order" status={(item.rawItem as Order).status}/>}
-                                            {item.type === 'evento' && <StatusBadge type="event" status={(item.rawItem as CrmEvent).status}/>}
-                                        </CardContent>
-                                    </Card>
-                                </button>
-                                </SheetTrigger>
-                            ))}
-                        </div>
+                        <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                            <div className="space-y-3">
+                                {items.map(item => (
+                                    <SortableAgendaItem key={item.id} item={item} handleItemClick={handleItemClick} />
+                                ))}
+                            </div>
+                        </SortableContext>
                     </div>
                 ))}
             </div>
@@ -522,119 +576,133 @@ export default function MyAgendaPage() {
   return (
     <>
     <Sheet open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
-    <div className="flex flex-col h-full space-y-6">
-       <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-            <CalendarIcon className="h-8 w-8 text-primary"/>
-            <h1 className="text-3xl font-headline font-semibold">
-                Agenda del Equipo
-            </h1>
-        </div>
-      </header>
-       
-       <Card>
-         <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Filter className="h-5 w-5 text-muted-foreground"/>Filtros de Agenda</CardTitle>
-            <CardDescription>Utiliza los filtros para personalizar la vista de tu agenda.</CardDescription>
-         </CardHeader>
-         <CardContent className="flex flex-col sm:flex-row gap-4">
-             {isAdmin && (
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="flex flex-col h-full space-y-6">
+          <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+                <CalendarIcon className="h-8 w-8 text-primary"/>
+                <h1 className="text-3xl font-headline font-semibold">
+                    Agenda del Equipo
+                </h1>
+            </div>
+          </header>
+          
+          <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Filter className="h-5 w-5 text-muted-foreground"/>Filtros de Agenda</CardTitle>
+                <CardDescription>Utiliza los filtros para personalizar la vista de tu agenda.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col sm:flex-row gap-4">
+                {isAdmin && (
+                    <div className="flex-1 min-w-[180px]">
+                        <p className="text-sm font-medium mb-1">Comercial / Clavadista</p>
+                        <Select value={userFilter} onValueChange={setUserFilter}>
+                            <SelectTrigger><SelectValue placeholder="Filtrar por usuario..." /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Todos</SelectItem>
+                                {teamMembers.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                )}
                 <div className="flex-1 min-w-[180px]">
-                    <p className="text-sm font-medium mb-1">Comercial / Clavadista</p>
-                    <Select value={userFilter} onValueChange={setUserFilter}>
-                        <SelectTrigger><SelectValue placeholder="Filtrar por usuario..." /></SelectTrigger>
+                    <p className="text-sm font-medium mb-1">Tipo de Entrada</p>
+                    <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as TypeFilter)}>
+                        <SelectTrigger><SelectValue placeholder="Filtrar por tipo..." /></SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">Todos</SelectItem>
-                            {teamMembers.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+                            <SelectItem value="all">Todo</SelectItem>
+                            <SelectItem value="tareas_comerciales">Tareas Comerciales</SelectItem>
+                            <SelectItem value="tareas_administrativas">Tareas Administrativas</SelectItem>
+                            <SelectItem value="eventos">Eventos</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
-             )}
-             <div className="flex-1 min-w-[180px]">
-                 <p className="text-sm font-medium mb-1">Tipo de Entrada</p>
-                 <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as TypeFilter)}>
-                    <SelectTrigger><SelectValue placeholder="Filtrar por tipo..." /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Todo</SelectItem>
-                        <SelectItem value="tareas_comerciales">Tareas Comerciales</SelectItem>
-                        <SelectItem value="tareas_administrativas">Tareas Administrativas</SelectItem>
-                        <SelectItem value="eventos">Eventos</SelectItem>
-                    </SelectContent>
-                 </Select>
-             </div>
-         </CardContent>
-       </Card>
+            </CardContent>
+          </Card>
 
-       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-grow">
-          <div className="lg:col-span-1">
-              <Card>
-                   <CardHeader className="flex flex-row items-center justify-between gap-4 pb-4">
-                        <CardTitle>Calendario</CardTitle>
-                        <Button onClick={handleOpenNewEntryDialog} size="icon" className="rounded-full h-8 w-8">
-                            <PlusCircle className="h-4 w-4" />
-                            <span className="sr-only">Añadir Entrada</span>
-                        </Button>
-                    </CardHeader>
-                  <CardContent className="p-2 flex justify-center">
-                      <Calendar
-                          mode="single"
-                          selected={selectedDate}
-                          onSelect={(day) => { if(day) { setSelectedDate(day); setViewMode('day'); } }}
-                          locale={es}
-                          modifiers={modifiers}
-                          components={{ DayContent: DayDots }}
-                          classNames={{
-                            today: "bg-muted/50"
-                          }}
-                          className="p-0"
-                       />
-                  </CardContent>
-                  <CardFooter className="flex-col items-start p-4 pt-0">
-                        <Separator className="mb-2"/>
-                        <div className="space-y-2 text-xs text-muted-foreground w-full">
-                            <div className="flex items-center justify-between">
-                                <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-yellow"/> Tarea Comercial</span>
-                                <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-purple"/> Evento</span>
-                                <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-blue"/> Tarea Admin.</span>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-grow">
+              <div className="lg:col-span-1">
+                  <Card>
+                      <CardHeader className="flex flex-row items-center justify-between gap-4 pb-4">
+                            <CardTitle>Calendario</CardTitle>
+                            <Button onClick={handleOpenNewEntryDialog} size="icon" className="rounded-full h-8 w-8">
+                                <PlusCircle className="h-4 w-4" />
+                                <span className="sr-only">Añadir Entrada</span>
+                            </Button>
+                        </CardHeader>
+                      <CardContent className="p-2 flex justify-center">
+                          <Calendar
+                              mode="single"
+                              selected={selectedDate}
+                              onSelect={(day) => { if(day) { setSelectedDate(day); setViewMode('day'); } }}
+                              locale={es}
+                              modifiers={modifiers}
+                              components={{ DayContent: DayDots }}
+                              classNames={{
+                                today: "bg-muted/50",
+                                selected:
+                                    "bg-primary text-primary-foreground hover:bg-primary/90 focus:bg-primary focus:text-primary-foreground",
+                              }}
+                              className="p-0"
+                          />
+                      </CardContent>
+                      <CardFooter className="flex-col items-start p-4 pt-0">
+                            <Separator className="mb-2"/>
+                            <div className="space-y-2 text-xs text-muted-foreground w-full">
+                                <div className="flex items-center justify-between">
+                                    <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-yellow"/> Tarea Comercial</span>
+                                    <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-purple"/> Evento</span>
+                                    <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-blue"/> Tarea Admin.</span>
+                                </div>
                             </div>
-                        </div>
-                   </CardFooter>
-              </Card>
+                      </CardFooter>
+                  </Card>
+              </div>
+              
+              <div className="lg:col-span-2">
+                  <Card className="h-full flex flex-col">
+                      <CardHeader>
+                          <div className="flex flex-wrap items-center justify-between gap-4">
+                            <CardTitle className="text-lg font-semibold">
+                                Actividades para {viewMode === 'day' ? format(selectedDate, 'dd MMMM, yyyy', {locale: es}) : `${format(interval.start, 'dd MMM', {locale: es})} - ${format(interval.end, 'dd MMM, yyyy', {locale: es})}`}
+                            </CardTitle>
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-1 rounded-md bg-muted p-1">
+                                    <Button variant={viewMode === 'day' ? 'primary' : 'ghost'} className="h-8 px-3" onClick={() => setViewMode('day')}>Día</Button>
+                                    <Button variant={viewMode === 'week' ? 'primary' : 'ghost'} className="h-8 px-3" onClick={() => setViewMode('week')}>Semana</Button>
+                                    <Button variant={viewMode === 'month' ? 'primary' : 'ghost'} className="h-8 px-3" onClick={() => setViewMode('month')}>Mes</Button>
+                                </div>
+                                <div className="flex gap-2">
+                                    <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => handleDateChange('prev')}><ChevronLeft className="h-4 w-4"/></Button>
+                                    <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => handleDateChange('next')}><ChevronRight className="h-4 w-4"/></Button>
+                                </div>
+                            </div>
+                          </div>
+                      </CardHeader>
+                      <CardContent className="flex-grow overflow-y-auto pr-3">
+                          {isLoading ? (
+                              <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+                          ) : (
+                            renderViewContent()
+                          )}
+                      </CardContent>
+                  </Card>
+              </div>
           </div>
-          
-          <div className="lg:col-span-2">
-              <Card className="h-full flex flex-col">
-                  <CardHeader>
-                      <div className="flex flex-wrap items-center justify-between gap-4">
-                        <CardTitle className="text-lg font-semibold">
-                            Actividades para {viewMode === 'day' ? format(selectedDate, 'dd MMMM, yyyy', {locale: es}) : `${format(interval.start, 'dd MMM', {locale: es})} - ${format(interval.end, 'dd MMM, yyyy', {locale: es})}`}
-                        </CardTitle>
-                        <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-1 rounded-md bg-muted p-1">
-                                <Button variant={viewMode === 'day' ? 'primary' : 'ghost'} className="flex-1" onClick={() => setViewMode('day')}>Día</Button>
-                                <Button variant={viewMode === 'week' ? 'primary' : 'ghost'} className="flex-1" onClick={() => setViewMode('week')}>Semana</Button>
-                                <Button variant={viewMode === 'month' ? 'primary' : 'ghost'} className="flex-1" onClick={() => setViewMode('month')}>Mes</Button>
-                            </div>
-                            <div className="flex gap-2">
-                                <Button variant="outline" size="icon" onClick={() => handleDateChange('prev')}><ChevronLeft className="h-4 w-4"/></Button>
-                                <Button variant="outline" size="icon" onClick={() => handleDateChange('next')}><ChevronRight className="h-4 w-4"/></Button>
-                            </div>
-                        </div>
-                      </div>
-                  </CardHeader>
-                  <CardContent className="flex-grow overflow-y-auto pr-3">
-                      {isLoading ? (
-                          <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-                      ) : (
-                        renderViewContent()
-                      )}
-                  </CardContent>
-              </Card>
-          </div>
-       </div>
+        </div>
 
-       {selectedItem && (
-         <SheetContent>
+        <DragOverlay>
+            {activeAgendaItem ? <AgendaItemCard item={activeAgendaItem} /> : null}
+        </DragOverlay>
+      </DndContext>
+
+      {selectedItem && (
+        <SheetContent>
             <SheetHeader>
                 <SheetTitle className="flex items-center gap-2">{getAgendaItemIcon(selectedItem)} {selectedItem.title}</SheetTitle>
                 <SheetDescription>{selectedItem.description}</SheetDescription>
@@ -646,7 +714,7 @@ export default function MyAgendaPage() {
                       <Send className="mr-2 h-4 w-4"/>Registrar Resultado
                   </Button>
                 )}
-                 {selectedItem.type === 'evento' && (
+                {selectedItem.type === 'evento' && (
                   <Button asChild className="w-full">
                     <Link href={`/events?viewEventId=${selectedItem.id}`}><Info className="mr-2 h-4 w-4"/>Ver Detalles del Evento</Link>
                   </Button>
@@ -657,11 +725,11 @@ export default function MyAgendaPage() {
                         {(selectedItem.rawItem as Order).clavadistaId && <p><strong>Clavadista:</strong> {teamMembersMap.get((selectedItem.rawItem as Order).clavadistaId!)?.name || 'N/D'}</p>}
                     </div>
                 )}
-                 {selectedItem.type === 'evento' && (
-                     <div className="text-sm space-y-2">
+                {selectedItem.type === 'evento' && (
+                    <div className="text-sm space-y-2">
                         <p><strong>Responsables:</strong> {(selectedItem.rawItem as CrmEvent).assignedTeamMemberIds.map(id => teamMembersMap.get(id)?.name).filter(Boolean).join(', ')}</p>
-                     </div>
-                 )}
+                    </div>
+                )}
             </div>
             {(isAdmin || (userRole === 'SalesRep' && (selectedItem.rawItem as Order).salesRep === teamMember?.name)) && (
                 <>
@@ -672,9 +740,9 @@ export default function MyAgendaPage() {
                 </div>
                 </>
             )}
-         </SheetContent>
-        )}
-    </div>
+        </SheetContent>
+      )}
+    </Sheet>
     
     <AlertDialog open={!!itemToDelete} onOpenChange={(open) => !open && setItemToDelete(null)}>
         <AlertDialogContent>
@@ -730,7 +798,6 @@ export default function MyAgendaPage() {
             allTeamMembers={teamMembers}
         />
         )}
-    </Sheet>
     </>
   );
 }

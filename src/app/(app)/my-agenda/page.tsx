@@ -594,7 +594,10 @@ export default function MyAgendaPage() {
     });
 
     return (
-        <div ref={setNodeRef} className={cn("h-full w-full", isOver && "bg-primary/20 rounded-md")}>
+        <div ref={setNodeRef} className={cn(
+            "h-full w-full transition-transform duration-150", 
+            isOver && "scale-125 bg-primary/20 rounded-md z-10"
+        )}>
             <DayDots {...props} />
         </div>
     );

@@ -59,10 +59,10 @@ const getBomRecipeSchema = (inventoryItems: InventoryItem[]) => z.object({
     if (!data.newProductName || data.newProductName.length < 3) {
       ctx.addIssue({ path: ["newProductName"], message: "El nombre es obligatorio (mín. 3 caracteres)." });
     }
-    if (!data.newProductSku || data.newProductSku.length < 3) {
+    const normalizedNewSku = data.newProductSku?.trim().toLowerCase();
+    if (!normalizedNewSku || normalizedNewSku.length < 3) {
       ctx.addIssue({ path: ["newProductSku"], message: "El SKU es obligatorio (mín. 3 caracteres)." });
     } else {
-      const normalizedNewSku = data.newProductSku.trim().toLowerCase();
       const skuExists = inventoryItems.some(item => item.sku?.trim().toLowerCase() === normalizedNewSku);
       if (skuExists) {
         ctx.addIssue({ path: ["newProductSku"], message: "Este SKU ya existe en el inventario." });
@@ -133,6 +133,7 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
         } else {
           form.setValue('productSku', undefined);
         }
+        form.clearErrors(["newProductName", "newProductSku", "productSku"]);
       }
     });
     return () => subscription.unsubscribe();
@@ -172,10 +173,17 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
   );
   
   const components = React.useMemo(() => {
+    const normalize = (s: string) =>
+      s.normalize('NFD')
+       .replace(/[\u0300-\u036f]/g, '') // Remove accents
+       .replace(/\s\s+/g, ' ') // Replace multiple spaces with one
+       .trim()
+       .toLowerCase();
+
     const targetCategoryNames = ['materia prima (cogs)', 'material de embalaje (cogs)'];
-    
+
     const targetCategoryIds = allCategories
-      .filter(c => targetCategoryNames.includes(c.name.toLowerCase()))
+      .filter(c => targetCategoryNames.includes(normalize(c.name)))
       .map(c => c.id);
     
     return inventoryItems.filter(
@@ -240,7 +248,7 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
                       </div>
                   ))}
                   <Button type="button" variant="outline" size="sm" onClick={() => append({ componentSku: "", quantity: 1, uom: 'unit' })}><PlusCircle className="mr-2 h-4 w-4" />Añadir Componente</Button>
-                  <FormMessage>{form.formState.errors.components?.root?.message}</FormMessage>
+                  <FormMessage className="p-2">{form.formState.errors.components?.root?.message}</FormMessage>
                   </div>
               </ScrollArea>
             </fieldset>

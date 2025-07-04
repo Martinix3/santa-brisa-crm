@@ -1,6 +1,4 @@
 
-'use server';
-
 import { initializeApp, getApps, App } from 'firebase-admin/app';
 import { getStorage, Bucket } from 'firebase-admin/storage';
 
@@ -9,10 +7,8 @@ const BUCKET_NAME = 'santa-brisa-crm.firebasestorage.app';
 
 /**
  * A memoized function to get the Firebase Admin App instance.
- * It initializes the app only if it hasn't been initialized yet.
- * We explicitly provide the storageBucket to ensure the Admin SDK
- * uses the correct bucket, especially in environments where auto-detection
- * might be ambiguous.
+ * It initializes the app only if it hasn't been initialized yet,
+ * explicitly setting the storage bucket.
  * @returns The initialized Firebase Admin App instance.
  */
 function getFirebaseAdminApp(): App {
@@ -20,20 +16,24 @@ function getFirebaseAdminApp(): App {
   if (existingApp) {
     return existingApp;
   }
-
+  
   // Initialize with the correct storageBucket. Service account credentials
   // will be auto-detected in a managed Google Cloud environment.
+  console.log(`Initializing Firebase Admin App "${ADMIN_APP_NAME}" with bucket: ${BUCKET_NAME}`);
   return initializeApp({
     storageBucket: BUCKET_NAME,
   }, ADMIN_APP_NAME);
 }
 
 /**
- * Gets the admin storage bucket instance from the app configured with the correct bucket name.
- * @returns A promise that resolves to the Firebase Admin Storage Bucket instance.
+ * Gets the admin storage bucket instance.
+ * This function is robust and ensures the correct bucket is used.
+ * @returns The Firebase Admin Storage Bucket instance.
  */
-export const getAdminBucket = async (): Promise<Bucket> => {
+export function getAdminBucket(): Bucket {
     const app = getFirebaseAdminApp();
-    // Explicitly get the bucket by name to ensure correctness.
-    return getStorage(app).bucket(BUCKET_NAME);
+    // The bucket() call without arguments will use the one defined in initializeApp.
+    const bucket = getStorage(app).bucket();
+    console.log(`Bucket active: ${bucket.name}`); // For debugging
+    return bucket;
 }

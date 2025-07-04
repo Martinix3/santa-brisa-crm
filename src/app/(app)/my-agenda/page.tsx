@@ -549,6 +549,7 @@ export default function MyAgendaPage() {
                 await reorderTasksBatchFS(updates);
             }
             toast({ title: "Tarea Movida", description: `"${activeItem.title}" movida al ${format(newDate, 'dd/MM/yyyy')}.` });
+            refreshDataSignature();
         } catch (error) {
             console.error("Error moving task to new date:", error);
             toast({ title: "Error al Mover", description: "No se pudo actualizar la fecha.", variant: "destructive" });
@@ -608,6 +609,17 @@ export default function MyAgendaPage() {
     event: eventDays,
     admin: adminTaskDays,
   };
+  
+  const dragOverlayModifiers = [
+    (args: {transform: {x: number, y: number, scaleX: number, scaleY: number}}) => {
+      const { transform } = args;
+      // Lift the item slightly above the cursor to see the drop target underneath
+      return {
+        ...transform,
+        y: transform.y - 15,
+      };
+    }
+  ];
 
   return (
     <>
@@ -765,7 +777,7 @@ export default function MyAgendaPage() {
           </div>
         </div>
 
-        <DragOverlay>
+        <DragOverlay modifiers={dragOverlayModifiers}>
             {activeAgendaItem ? <AgendaItemCard item={activeAgendaItem} /> : null}
         </DragOverlay>
       </DndContext>

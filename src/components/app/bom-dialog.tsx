@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -165,7 +164,7 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
     setIsSaving(false);
   };
   
-  const { categoriesMap, allCategories } = useCategories();
+  const { categoriesMap } = useCategories();
 
   const finishedGoods = React.useMemo(() => 
     inventoryItems.filter(i => i.sku && categoriesMap.get(i.categoryId)?.name === "Producto Terminado"),
@@ -173,16 +172,17 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
   );
   
   const components = React.useMemo(() => {
-    // Correctly filter for categories that are both 'cost' and 'consumable'
-    const targetCategoryIds = allCategories
-      .filter(c => c.kind === 'cost' && c.isConsumable === true)
-      .map(c => c.id);
-    
+    // Hardcoded IDs for "Materia Prima (COGS)" and "Material de Embalaje (COGS)" as per user instruction.
+    const targetCategoryIds = [
+      'VheyLXsehOfEpBIly7FV',
+      'Hd03xfoTFug4PoTVhOKP',
+    ];
+      
     // Filter inventory items that belong to those categories
     return inventoryItems.filter(
       i => i.sku && i.categoryId && targetCategoryIds.includes(i.categoryId)
     );
-  }, [inventoryItems, allCategories]);
+  }, [inventoryItems]);
 
   
   const isEditing = !!recipe;
@@ -226,7 +226,7 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
                   <FormField control={form.control} name="newProductSku" render={({ field }) => ( <FormItem><FormLabel>SKU Nuevo Producto</FormLabel><FormControl><Input placeholder="Ej: SB-200ML" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                 </div>
               ) : (
-                <FormField control={form.control} name="productSku" render={({ field }) => ( <FormItem><FormLabel>Producto a Fabricar</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isEditing}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar producto terminado..." /></SelectTrigger></FormControl><SelectContent>{finishedGoods.map(item => (<SelectItem key={item.id} value={item.sku!}>{item.name} ({item.sku})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="productSku" render={({ field }) => ( <FormItem><FormLabel>Producto a Fabricar</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isEditing}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar producto terminado..." /></SelectTrigger></FormControl><SelectContent>{finishedGoods.map(item => (<SelectItem key={item.sku!} value={item.sku!}>{item.name} ({item.sku})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
               )}
               
               <h4 className="font-medium">Componentes de la Receta</h4>
@@ -234,7 +234,7 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
                   <div className="space-y-4">
                   {fields.map((field, index) => (
                       <div key={field.id} className="flex items-end gap-2 p-3 border rounded-md bg-secondary/30">
-                          <FormField control={form.control} name={`components.${index}.componentSku`} render={({ field }) => (<FormItem className="flex-grow"><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar componente..." /></SelectTrigger></FormControl><SelectContent>{components.map(item => (<SelectItem key={item.id} value={item.sku!}>{item.name} ({item.sku})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                          <FormField control={form.control} name={`components.${index}.componentSku`} render={({ field }) => (<FormItem className="flex-grow"><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar componente..." /></SelectTrigger></FormControl><SelectContent>{components.map(item => (<SelectItem key={item.sku!} value={item.sku!}>{item.name} ({item.sku})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                           <FormField control={form.control} name={`components.${index}.quantity`} render={({ field }) => (<FormItem className="w-28"><FormControl><Input type="number" step="any" placeholder="Cant." {...field} /></FormControl><FormMessage /></FormItem>)} />
                           <FormField control={form.control} name={`components.${index}.uom`} render={({ field }) => (<FormItem className="w-24"><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="UoM"/></SelectTrigger></FormControl><SelectContent>{uomList.map(u => (<SelectItem key={u} value={u}>{u}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                           <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>

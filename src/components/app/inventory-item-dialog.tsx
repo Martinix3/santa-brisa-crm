@@ -42,6 +42,7 @@ import { cn } from "@/lib/utils";
 import { format, parseISO, isValid, subDays, isEqual } from "date-fns";
 import { es } from 'date-fns/locale';
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
+import { useCategories } from "@/contexts/categories-context";
 
 
 const itemFormSchema = z.object({
@@ -75,12 +76,12 @@ interface InventoryItemDialogProps {
   onOpenChange: (open: boolean) => void;
   onSave: (data: InventoryItemFormValues, itemId?: string) => void;
   isReadOnly?: boolean;
-  inventoryCategories: Category[];
 }
 
-export default function InventoryItemDialog({ item, isOpen, onOpenChange, onSave, isReadOnly = false, inventoryCategories }: InventoryItemDialogProps) {
+export default function InventoryItemDialog({ item, isOpen, onOpenChange, onSave, isReadOnly = false }: InventoryItemDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   const [calculatedUnitCost, setCalculatedUnitCost] = React.useState<number | null>(null);
+  const { inventoryCategories, isLoading: isLoadingCategories } = useCategories();
   
   const form = useForm<InventoryItemFormValues>({
     resolver: zodResolver(itemFormSchema),
@@ -185,9 +186,9 @@ export default function InventoryItemDialog({ item, isOpen, onOpenChange, onSave
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Categoría de Inventario</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly || inventoryCategories.length === 0}>
+                    <Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly || isLoadingCategories}>
                       <FormControl>
-                        <SelectTrigger><SelectValue placeholder={inventoryCategories.length === 0 ? "Cargando..." : "Seleccione una categoría"} /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder={isLoadingCategories ? "Cargando..." : "Seleccione una categoría"} /></SelectTrigger>
                       </FormControl>
                       <SelectContent>
                         {inventoryCategories.map(cat => (

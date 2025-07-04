@@ -37,12 +37,12 @@ export interface TeamMember {
 
 // --- ERP DATA MODELS ---
 
-export type CategoryKind = 'inventory' | 'cost' | 'revenue' | 'production' | 'stock';
+export type CategoryKind = 'inventory' | 'cost';
 export interface Category {
   id: string;
   name: string;
   kind: CategoryKind;
-  isConsumable?: boolean;
+  isConsumable: boolean;
   parentId?: string;
   createdAt?: string;
   updatedAt?: string;

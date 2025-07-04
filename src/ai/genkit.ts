@@ -1,5 +1,5 @@
 import {genkit} from 'genkit';
-import {googleAI} from '@genkit-ai/googleai';
+import {googleAI, gemini15Flash} from '@genkit-ai/googleai';
 
 // In a managed environment, Genkit would typically use Application Default Credentials.
 // This configuration points to the Vertex AI service, which will use the project's
@@ -8,5 +8,5 @@ export const ai = genkit({
   plugins: [
     googleAI(),
   ],
-  model: 'google/gemini-1.5-flash-002',
+  model: gemini15Flash,
 });

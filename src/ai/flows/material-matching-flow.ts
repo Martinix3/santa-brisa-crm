@@ -41,7 +41,6 @@ const prompt = ai.definePrompt({
   name: 'materialMatchingPrompt',
   input: {schema: MatchMaterialInputSchema},
   output: {schema: MatchMaterialOutputSchema},
-  model: 'google/gemini-1.5-flash-002',
   prompt: `Eres un experto gestor de inventario y tu tarea es asociar un artículo de una factura de proveedor con un artículo existente en el sistema.
 
 Analiza el nombre del artículo de la factura: \`{{{itemName}}}\`.

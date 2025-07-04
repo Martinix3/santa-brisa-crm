@@ -107,20 +107,22 @@ function SortableAgendaItem({ item, handleItemClick }: { item: AgendaItem; handl
   };
   
   return (
-    <div ref={setNodeRef} style={style} {...attributes}>
-        <div 
-          role="button" 
-          tabIndex={0} 
-          onClick={() => handleItemClick(item)} 
-          onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleItemClick(item)} 
-          {...listeners}
-          className="cursor-grab active:cursor-grabbing"
-        >
-            <AgendaItemCard item={item} />
-        </div>
+    <div
+      ref={setNodeRef}
+      style={style}
+      role="button"
+      tabIndex={0}
+      onClick={() => handleItemClick(item)}
+      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleItemClick(item)}
+      className="cursor-grab active:cursor-grabbing"
+      {...attributes}
+      {...listeners}
+    >
+      <AgendaItemCard item={item} />
     </div>
   );
 }
+
 
 function DragOverlayIcon({ item, dragOverlayProps }: { item: AgendaItem | null, dragOverlayProps?: any }) {
   if (!item) return null;
@@ -546,11 +548,10 @@ export default function MyAgendaPage() {
     const { over } = event;
     const overId = over?.id?.toString();
     const isOverCalendar = overId?.startsWith('drop-');
-    const isOverAgendaList = overId === 'agenda-list-droppable';
     
     if (isOverCalendar) {
         if (overlayMode !== 'icon') setOverlayMode('icon');
-    } else if (isOverAgendaList) {
+    } else {
         if (overlayMode !== 'card') setOverlayMode('card');
     }
   };
@@ -595,20 +596,24 @@ export default function MyAgendaPage() {
         const overItem = allAgendaItems.find(i => i.id === over.id);
 
         if (overItem && isSameDay(activeItem.date, overItem.date)) {
-            const oldIndex = allAgendaItems.findIndex(i => i.id === active.id);
-            const newIndex = allAgendaItems.findIndex(i => i.id === over.id);
+            const dayItems = allAgendaItems.filter(i => isSameDay(i.date, activeItem.date));
+            const oldIndex = dayItems.findIndex(i => i.id === active.id);
+            const newIndex = dayItems.findIndex(i => i.id === over.id);
 
-            if (oldIndex !== newIndex) {
-                const newSortedItems = arrayMove(allAgendaItems, oldIndex, newIndex);
-                setAllAgendaItems(newSortedItems);
-
+            if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+                const newDayOrder = arrayMove(dayItems, oldIndex, newIndex);
+                
+                const otherDayItems = allAgendaItems.filter(i => !isSameDay(i.date, activeItem.date));
+                const reindexedNewDayOrder = newDayOrder.map((item, index) => ({...item, orderIndex: index}));
+                setAllAgendaItems([...otherDayItems, ...reindexedNewDayOrder]);
+                
                 try {
-                    const tasksToUpdate = newSortedItems
-                        .filter(item => (item.type === 'tarea_comercial' || item.type === 'tarea_administrativa') && isSameDay(item.date, activeItem.date))
+                    const tasksToUpdate = newDayOrder
+                        .filter(item => item.type !== 'evento')
                         .map((item, index) => ({ id: item.id, orderIndex: index }));
                     
-                    const eventsToUpdate = newSortedItems
-                        .filter(item => item.type === 'evento' && isSameDay(item.date, activeItem.date))
+                    const eventsToUpdate = newDayOrder
+                        .filter(item => item.type === 'evento')
                         .map((item, index) => ({ id: item.id, orderIndex: index }));
 
                     await Promise.all([
@@ -617,9 +622,6 @@ export default function MyAgendaPage() {
                     ]);
                     
                     toast({ title: "Agenda Reordenada", description: "El orden de las tareas del día se ha guardado." });
-                    
-                    // A refresh can be added here if optimistic updates prove unreliable
-                    // refreshDataSignature();
                 } catch (error) {
                     console.error("Error reordering items:", error);
                     toast({ title: "Error al Reordenar", description: "No se pudo guardar el nuevo orden.", variant: "destructive" });
@@ -643,18 +645,6 @@ export default function MyAgendaPage() {
         )}>
             <DayDots {...props} />
         </div>
-    );
-  };
-  
-  const AgendaListDroppable = ({ children }: { children: React.ReactNode }) => {
-    const { setNodeRef } = useDroppable({
-      id: 'agenda-list-droppable',
-    });
-  
-    return (
-      <div ref={setNodeRef} className="h-full">
-        {children}
-      </div>
     );
   };
 
@@ -777,7 +767,6 @@ export default function MyAgendaPage() {
                           </div>
                       </CardHeader>
                       <CardContent className="flex-grow overflow-y-auto pr-3">
-                        <AgendaListDroppable>
                           {isLoading ? (
                               <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
                           ) : (
@@ -816,14 +805,13 @@ export default function MyAgendaPage() {
                                     )
                                 )
                           )}
-                        </AgendaListDroppable>
                       </CardContent>
                   </Card>
               </div>
           </div>
         </div>
 
-        <DragOverlay dropAnimation={null}>
+        <DragOverlay dropAnimation={null} style={{ transition: 'none' }}>
             {activeAgendaItem ? (
                 overlayMode === 'card' ? (
                     <AgendaItemCard item={activeAgendaItem} />
@@ -936,3 +924,4 @@ export default function MyAgendaPage() {
 }
 
     
+

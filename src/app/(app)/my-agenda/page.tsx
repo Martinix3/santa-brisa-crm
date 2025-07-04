@@ -100,26 +100,34 @@ function SortableAgendaItem({
     opacity: isDragging ? 0.5 : 1,
   };
   
+  const handleCardClick = () => {
+    handleItemClick(item);
+  };
+  
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      handleCardClick();
+    }
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className="cursor-grab active:cursor-grabbing"
       {...attributes}
       {...listeners}
     >
       <Card 
-        className="shadow-sm w-full hover:shadow-md transition-shadow"
-        onClick={() => handleItemClick(item)} 
-        role="button" 
-        tabIndex={0} 
-        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleItemClick(item)}
+        className="shadow-sm w-full hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing"
       >
-        <CardContent className="p-3 flex items-center gap-3">
-          {getAgendaItemIcon(item)}
-          <div className="flex-grow">
-            <h4 className="font-semibold text-base">{item.title}</h4>
-            <p className="text-sm text-muted-foreground">{item.description}</p>
+        <CardContent className="p-3 flex items-center gap-3" >
+          <div onClick={handleCardClick} onKeyDown={handleKeyDown} role="button" tabIndex={0} className="flex-grow flex items-center gap-3 min-w-0">
+            {getAgendaItemIcon(item)}
+            <div className="flex-grow">
+              <h4 className="font-semibold text-base">{item.title}</h4>
+              <p className="text-sm text-muted-foreground">{item.description}</p>
+            </div>
           </div>
           <div className="flex flex-col items-end gap-1 ml-auto flex-shrink-0">
             {(item.type === 'tarea_comercial' || item.type === 'tarea_administrativa') && <StatusBadge type="order" status={(item.rawItem as Order).status}/>}
@@ -414,7 +422,7 @@ export default function MyAgendaPage() {
     try {
         await runTransaction(db, async (transaction) => {
             const originalTaskRef = doc(db, 'orders', originalTask.id);
-            transaction.update(originalTaskRef, { status: "Completado" as OrderStatus, lastUpdated: new Date() });
+            transaction.update(originalTaskRef, { status: "Completado" as OrderStatus, lastUpdated: Timestamp.fromDate(new Date()) });
             
             const newOrderRef = doc(collection(db, 'orders'));
             
@@ -430,8 +438,8 @@ export default function MyAgendaPage() {
             const newInteractionData: any = {
                 clientName: originalTask.clientName,
                 accountId: originalTask.accountId || null,
-                createdAt: new Date(),
-                lastUpdated: new Date(),
+                createdAt: Timestamp.fromDate(new Date()),
+                lastUpdated: Timestamp.fromDate(new Date()),
                 salesRep: salesRepName,
                 clavadistaId: originalTask.clavadistaId || null,
                 clientStatus: "existing",
@@ -865,7 +873,20 @@ export default function MyAgendaPage() {
           </div>
         </div>
 
-        <DragOverlay dropAnimation={null} wrapperElement="div" style={{ transition: 'none' }}>
+        <DragOverlay dropAnimation={{ duration: 250, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}
+           modifiers={overlayMode === 'icon' ? [{
+              name: 'center-in-viewport',
+              options: {},
+              fn: ({transform, activeNodeRect, draggingNodeRect}) => {
+                if (!activeNodeRect || !draggingNodeRect) return transform;
+                return {
+                  ...transform,
+                  x: transform.x - (draggingNodeRect.width / 2),
+                  y: transform.y - (draggingNodeRect.height / 2),
+                };
+              }
+            }] : []}
+        >
             {activeAgendaItem ? (
                 overlayMode === 'card' ? (
                    <Card className="shadow-lg">
@@ -986,5 +1007,6 @@ export default function MyAgendaPage() {
 }
 
     
+
 
 

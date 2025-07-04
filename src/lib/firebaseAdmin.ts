@@ -1,4 +1,7 @@
 
+
+'use server';
+
 import { initializeApp, getApps, App } from 'firebase-admin/app';
 import { getStorage, Bucket } from 'firebase-admin/storage';
 
@@ -7,8 +10,7 @@ const BUCKET_NAME = 'santa-brisa-crm.firebasestorage.app';
 
 /**
  * A memoized function to get the Firebase Admin App instance.
- * It initializes the app only if it hasn't been initialized yet,
- * explicitly setting the storage bucket.
+ * It initializes the app only if it hasn't been initialized yet.
  * @returns The initialized Firebase Admin App instance.
  */
 function getFirebaseAdminApp(): App {
@@ -17,12 +19,9 @@ function getFirebaseAdminApp(): App {
     return existingApp;
   }
   
-  // Initialize with the correct storageBucket. Service account credentials
-  // will be auto-detected in a managed Google Cloud environment.
-  console.log(`Initializing Firebase Admin App "${ADMIN_APP_NAME}" with bucket: ${BUCKET_NAME}`);
-  return initializeApp({
-    storageBucket: BUCKET_NAME,
-  }, ADMIN_APP_NAME);
+  // In a managed Google Cloud environment, initialize with an empty config
+  // to allow the SDK to auto-detect credentials and project settings.
+  return initializeApp({}, ADMIN_APP_NAME);
 }
 
 /**
@@ -32,8 +31,8 @@ function getFirebaseAdminApp(): App {
  */
 export function getAdminBucket(): Bucket {
     const app = getFirebaseAdminApp();
-    // The bucket() call without arguments will use the one defined in initializeApp.
-    const bucket = getStorage(app).bucket();
+    // Explicitly get the bucket by its correct name.
+    const bucket = getStorage(app).bucket(BUCKET_NAME);
     console.log(`Bucket active: ${bucket.name}`); // For debugging
     return bucket;
 }

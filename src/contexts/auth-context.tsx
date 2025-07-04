@@ -13,7 +13,7 @@ import {
 import { auth } from '@/lib/firebase';
 import type { TeamMember, UserRole, TeamMemberFormValues } from '@/types';
 import { useToast } from "@/hooks/use-toast";
-import { getTeamMemberByAuthUidFS, addTeamMemberFS, getTeamMemberByEmailFS, updateTeamMemberFS } from '@/services/team-member-service';
+import { getTeamMemberByAuthUidFS, addTeamMemberFS, getTeamMemberByEmailFS, updateTeamMemberFS, getTeamMembersFS } from '@/services/team-member-service';
 
 interface AuthContextType {
   user: FirebaseUser | null; 
@@ -57,7 +57,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (firebaseUser.email) {
                 const lowerCaseEmail = firebaseUser.email.toLowerCase();
                 console.log(`AuthContext: Attempting fallback to email: ${lowerCaseEmail}`);
-                const memberByEmail = await getTeamMemberByEmailFS(lowerCaseEmail);
+                let memberByEmail = await getTeamMemberByEmailFS(lowerCaseEmail);
+
+                if (!memberByEmail) {
+                    console.log(`AuthContext: Standard email search failed. Trying manual case-insensitive find.`);
+                    const allMembers = await getTeamMembersFS();
+                    const foundMember = allMembers.find(m => m.email.toLowerCase() === lowerCaseEmail);
+                    if (foundMember) {
+                        console.log(`AuthContext: Found user ${foundMember.email} via manual search. Proceeding with self-heal.`);
+                        memberByEmail = foundMember;
+                    }
+                }
+                
                 if (memberByEmail) {
                     console.log(`AuthContext: Profile found via email fallback for ${lowerCaseEmail}:`, JSON.stringify(memberByEmail));
                     setTeamMember(memberByEmail);

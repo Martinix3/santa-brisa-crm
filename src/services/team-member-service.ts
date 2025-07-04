@@ -34,7 +34,7 @@ const toFirestoreTeamMember = (data: TeamMemberFormValues, isNew: boolean): any 
   const firestoreData: { [key: string]: any } = {
     authUid: data.authUid,
     name: data.name,
-    email: data.email,
+    email: data.email.toLowerCase(),
     role: data.role,
     avatarUrl: data.avatarUrl || `https://placehold.co/100x100.png?text=${data.name.substring(0,2).toUpperCase()}`,
     monthlyTargetAccounts: data.role === 'SalesRep' ? (data.monthlyTargetAccounts || 0) : null,

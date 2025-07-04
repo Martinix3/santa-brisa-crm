@@ -30,7 +30,7 @@ const adminSections = [
    {
     title: "Gestión de Inventario",
     description: "Gestionar el catálogo de artículos inventariables y su stock.",
-    href: "/admin/promotional-materials", // The path remains the same but the purpose changes
+    href: "/admin/inventory",
     icon: Archive,
   },
   {

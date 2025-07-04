@@ -202,7 +202,6 @@ export type OrderStatus = 'Pendiente' | 'Confirmado' | 'Procesando' | 'Enviado' 
 export type ClientType = 'Distribuidor' | 'HORECA' | 'Retail' | 'Cliente Final';
 export type NextActionType = 'Llamar al responsable de compras' | 'Mandar información' | 'Visitar de nuevo' | 'Enviar muestra' | 'Esperar decisión' | 'Opción personalizada';
 export type FailureReasonType = 'No interesado' | 'Ya trabaja con otro proveedor' | 'Sin presupuesto' | 'Producto no encaja' | 'Otro (especificar)';
-export type PromotionalMaterialType = 'Merchandising Físico' | 'Material PLV' | 'Servicio de Personal' | 'Digital/Software';
 
 export interface LatestPurchaseInfo {
   quantityPurchased: number;
@@ -216,8 +215,7 @@ export interface PromotionalMaterial {
   id: string;
   name: string;
   description?: string;
-  type: PromotionalMaterialType;
-  categoryId?: string;
+  categoryId: string;
   latestPurchase?: LatestPurchaseInfo; 
   stock: number;
   sku?: string;
@@ -527,7 +525,7 @@ export interface SupplierFormValues {
 export interface PromotionalMaterialFormValues {
   name: string;
   description?: string;
-  type: PromotionalMaterialType; // This will become categoryId
+  categoryId: string;
   sku?: string;
   latestPurchaseQuantity?: number;
   latestPurchaseTotalCost?: number;

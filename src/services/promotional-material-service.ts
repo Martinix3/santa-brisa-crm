@@ -29,8 +29,8 @@ const fromFirestorePromotionalMaterial = (docSnap: DocumentSnapshot): Promotiona
   return {
     id: docSnap.id,
     name: data.name || '',
-    type: data.type || 'Otro',
     description: data.description || undefined,
+    categoryId: data.categoryId,
     latestPurchase: latestPurchase,
     stock: data.stock || 0,
     sku: data.sku || undefined,
@@ -40,7 +40,7 @@ const fromFirestorePromotionalMaterial = (docSnap: DocumentSnapshot): Promotiona
 const toFirestorePromotionalMaterial = (data: PromotionalMaterialFormValues, isNew: boolean): any => {
   const firestoreData: { [key: string]: any } = {
     name: data.name,
-    type: data.type,
+    categoryId: data.categoryId,
     description: data.description || null,
     sku: data.sku || null,
   };
@@ -186,11 +186,11 @@ export const initializeMockPromotionalMaterialsInFirestore = async (mockMaterial
     const snapshot = await getDocs(query(materialsCol, orderBy('name', 'asc')));
     if (snapshot.empty && mockMaterialsData.length > 0) {
         for (const material of mockMaterialsData) {
-            const { id, stock, ...materialData } = material; 
+            const { id, stock, categoryId, ...materialData } = material; 
             
             const formValues: PromotionalMaterialFormValues = {
                 name: material.name,
-                type: material.type,
+                categoryId: categoryId, // Mapped from old `type`
                 description: material.description,
                 sku: material.sku,
                 latestPurchaseQuantity: material.latestPurchase?.quantityPurchased,

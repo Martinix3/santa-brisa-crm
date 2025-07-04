@@ -1,9 +1,10 @@
 
 'use server';
 import { db } from '@/lib/firebase';
-import { collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, where, type DocumentSnapshot, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, where, type DocumentSnapshot, orderBy, Timestamp, limit, writeBatch } from 'firebase/firestore';
 import type { Category, CategoryKind } from '@/types';
 import { format } from 'date-fns';
+import { mockCategories } from '@/lib/data';
 
 const CATEGORIES_COLLECTION = 'categories';
 
@@ -14,7 +15,7 @@ const fromFirestoreCategory = (snapshot: DocumentSnapshot): Category => {
         id: snapshot.id,
         name: data.name,
         kind: data.kind,
-        isConsumable: !!data.isConsumable, // Force boolean
+        isConsumable: !!data.isConsumable,
         parentId: data.parentId || undefined,
         createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : undefined,
         updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : undefined,
@@ -79,4 +80,26 @@ export const updateCategoryFS = async (id: string, category: Partial<Omit<Catego
 export const deleteCategoryFS = async (id: string): Promise<void> => {
     const docRef = doc(db, CATEGORIES_COLLECTION, id);
     await deleteDoc(docRef);
+};
+
+export const initializeMockCategoriesInFirestore = async () => {
+    const categoriesCol = collection(db, CATEGORIES_COLLECTION);
+    const snapshot = await getDocs(query(categoriesCol, limit(1)));
+    if (snapshot.empty && mockCategories.length > 0) {
+        console.log('Categories collection is empty. Seeding...');
+        const batch = writeBatch(db);
+        mockCategories.forEach(category => {
+            const docRef = doc(categoriesCol);
+            const dataToSave = {
+                ...category,
+                createdAt: Timestamp.now(),
+                updatedAt: Timestamp.now()
+            };
+            batch.set(docRef, dataToSave);
+        });
+        await batch.commit();
+        console.log('Mock categories initialized in Firestore.');
+    } else {
+        console.log('Categories collection is not empty or no mock data provided. Skipping initialization.');
+    }
 };

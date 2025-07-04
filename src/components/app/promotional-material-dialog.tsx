@@ -35,22 +35,21 @@ import {
 } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import type { PromotionalMaterial, PromotionalMaterialType, PromotionalMaterialFormValues } from "@/types";
-import { promotionalMaterialTypeList } from "@/lib/data";
+import type { PromotionalMaterial, Category, PromotionalMaterialFormValues } from "@/types";
 import { Loader2, Calendar as CalendarIcon } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid, subDays, isEqual } from "date-fns";
 import { es } from 'date-fns/locale';
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
+import { getCategoriesFS } from "@/services/category-service";
+import { useToast } from "@/hooks/use-toast";
 
 
 const materialFormSchema = z.object({
   name: z.string().min(3, "El nombre del material debe tener al menos 3 caracteres."),
   description: z.string().optional(),
-  type: z.enum(promotionalMaterialTypeList as [PromotionalMaterialType, ...PromotionalMaterialType[]], {
-    required_error: "El tipo de material es obligatorio.",
-  }),
+  categoryId: z.string().min(1, "La categoría es obligatoria."),
   sku: z.string().optional(),
   latestPurchaseQuantity: z.coerce.number().min(1, "La cantidad comprada debe ser al menos 1.").optional(),
   latestPurchaseTotalCost: z.coerce.number().min(0.01, "El coste total debe ser positivo.").optional(),
@@ -82,13 +81,16 @@ interface PromotionalMaterialDialogProps {
 export default function PromotionalMaterialDialog({ material, isOpen, onOpenChange, onSave, isReadOnly = false }: PromotionalMaterialDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   const [calculatedUnitCost, setCalculatedUnitCost] = React.useState<number | null>(null);
+  const [inventoryCategories, setInventoryCategories] = React.useState<Category[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = React.useState(false);
+  const { toast } = useToast();
   
   const form = useForm<PromotionalMaterialFormValues>({
     resolver: zodResolver(materialFormSchema),
     defaultValues: {
       name: "",
       description: "",
-      type: undefined,
+      categoryId: undefined,
       sku: "",
       latestPurchaseQuantity: undefined,
       latestPurchaseTotalCost: undefined,
@@ -107,6 +109,24 @@ export default function PromotionalMaterialDialog({ material, isOpen, onOpenChan
       setCalculatedUnitCost(null);
     }
   }, [watchedQuantity, watchedTotalCost]);
+  
+  React.useEffect(() => {
+    async function loadCategories() {
+        if (isOpen) {
+            setIsLoadingCategories(true);
+            try {
+                const categories = await getCategoriesFS('inventory');
+                setInventoryCategories(categories);
+            } catch (error) {
+                console.error("Error loading inventory categories:", error);
+                toast({ title: "Error", description: "No se pudieron cargar las categorías de inventario.", variant: "destructive" });
+            } finally {
+                setIsLoadingCategories(false);
+            }
+        }
+    }
+    loadCategories();
+  }, [isOpen, toast]);
 
   React.useEffect(() => {
     if (isOpen) {
@@ -114,7 +134,7 @@ export default function PromotionalMaterialDialog({ material, isOpen, onOpenChan
         form.reset({
           name: material.name,
           description: material.description || "",
-          type: material.type,
+          categoryId: material.categoryId,
           sku: material.sku || "",
           latestPurchaseQuantity: material.latestPurchase?.quantityPurchased,
           latestPurchaseTotalCost: material.latestPurchase?.totalPurchaseCost,
@@ -130,7 +150,7 @@ export default function PromotionalMaterialDialog({ material, isOpen, onOpenChan
         form.reset({
           name: "",
           description: "",
-          type: undefined,
+          categoryId: undefined,
           sku: "",
           latestPurchaseQuantity: undefined,
           latestPurchaseTotalCost: undefined,
@@ -178,17 +198,17 @@ export default function PromotionalMaterialDialog({ material, isOpen, onOpenChan
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                <FormField
                 control={form.control}
-                name="type"
+                name="categoryId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Tipo de Material</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}>
+                    <FormLabel>Categoría de Inventario</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly || isLoadingCategories}>
                       <FormControl>
-                        <SelectTrigger><SelectValue placeholder="Seleccione un tipo" /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder={isLoadingCategories ? "Cargando..." : "Seleccione una categoría"} /></SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {promotionalMaterialTypeList.map(type => (
-                          <SelectItem key={type} value={type}>{type}</SelectItem>
+                        {inventoryCategories.map(cat => (
+                          <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

@@ -24,6 +24,7 @@ import Link from "next/link";
 import InvoiceUploadDialog from "@/components/app/invoice-upload-dialog";
 import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
 import { testUpload } from "@/services/test-upload-service";
+import { initializeMockCategoriesInFirestore } from "@/services/category-service";
 
 export default function PurchasesPage() {
   const { toast } = useToast();
@@ -51,6 +52,9 @@ export default function PurchasesPage() {
     async function loadInitialData() {
         setIsLoading(true);
         try {
+            // Seed categories if needed before fetching other data
+            await initializeMockCategoriesInFirestore();
+            
             const [fetchedPurchases, fetchedMaterials] = await Promise.all([
               getPurchasesFS(),
               getPromotionalMaterialsFS()

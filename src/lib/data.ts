@@ -1,6 +1,6 @@
 
 
-import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType, AccountType, AccountStatus, NextActionType, FailureReasonType, CrmEvent, CrmEventType, CrmEventStatus, PromotionalMaterial, PromotionalMaterialType, CanalOrigenColocacion, Purchase, PurchaseStatus, PaymentMethod, SampleRequestStatus, SampleRequestPurpose, DirectSaleStatus, PurchaseCategory, DirectSaleChannel, PotencialType, InteractionType, InteractionResult } from '@/types';
+import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType, AccountType, AccountStatus, NextActionType, FailureReasonType, CrmEvent, CrmEventType, CrmEventStatus, PromotionalMaterial, CanalOrigenColocacion, Purchase, PurchaseStatus, PaymentMethod, SampleRequestStatus, SampleRequestPurpose, DirectSaleStatus, PurchaseCategory, DirectSaleChannel, PotencialType, InteractionType, InteractionResult, Category, CategoryKind } from '@/types';
 
 // Mock data is kept for potential future use or seeding, but is mostly replaced by Firestore services.
 export const mockKpis: Kpi[] = [];
@@ -10,6 +10,27 @@ export const mockAccounts: any[] = []; // Use `any` to avoid TS errors during tr
 export const mockCrmEvents: CrmEvent[] = [];
 export const mockPromotionalMaterials: PromotionalMaterial[] = [];
 export const mockPurchases: Purchase[] = [];
+
+// New: Default categories to seed the database if it's empty
+export const mockCategories: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>[] = [
+    // Cost Categories
+    { name: 'Materia Prima (COGS)', kind: 'cost', isConsumable: true },
+    { name: 'Material de Embalaje (COGS)', kind: 'cost', isConsumable: true },
+    { name: 'Material Promocional', kind: 'cost', isConsumable: false },
+    { name: 'Gastos de Eventos', kind: 'cost', isConsumable: false },
+    { name: 'Publicidad y Promoción', kind: 'cost', isConsumable: false },
+    { name: 'Gastos de Logística', kind: 'cost', isConsumable: false },
+    { name: 'Gastos Operativos', kind: 'cost', isConsumable: false },
+    { name: 'Otro Gasto', kind: 'cost', isConsumable: false },
+
+    // Inventory Categories (from old promotionalMaterialTypeList)
+    { name: 'Merchandising Físico', kind: 'inventory', isConsumable: true },
+    { name: 'Material PLV', kind: 'inventory', isConsumable: true },
+    { name: 'Servicio de Personal', kind: 'inventory', isConsumable: false },
+    { name: 'Digital/Software', kind: 'inventory', isConsumable: false },
+    { name: 'Otro Inventario', kind: 'inventory', isConsumable: true },
+];
+
 
 // New Enums from Spec
 export const potencialTypeList: PotencialType[] = ['alto', 'medio', 'bajo'];
@@ -35,7 +56,6 @@ export const mockMarketingResources: MarketingResourceCategory[] = [
 export const userRolesList: UserRole[] = ['Admin', 'SalesRep', 'Distributor', 'Clavadista'];
 export const accountTypeList: AccountType[] = ['HORECA', 'Distribuidor', 'Retail Minorista', 'Gran Superficie', 'Evento Especial', 'Cliente Final Directo', 'Importador', 'Otro'];
 export const accountStatusList: AccountStatus[] = ['Programada', 'Seguimiento', 'Pedido', 'Repetición', 'Fallido'];
-export const promotionalMaterialTypeList: PromotionalMaterialType[] = ['Merchandising Físico', 'Material PLV', 'Servicio de Personal', 'Digital/Software'];
 export const crmEventTypeList: CrmEventType[] = ['Activación en Tienda', 'Feria Comercial', 'Evento Corporativo', 'Degustación', 'Patrocinio', 'Activación', 'Otro'];
 export const crmEventStatusList: CrmEventStatus[] = ['Planificado', 'Confirmado', 'En Curso', 'Completado', 'Cancelado', 'Pospuesto'];
 export const purchaseStatusList: PurchaseStatus[] = ['Borrador', 'Proforma Recibida', 'Pagado', 'Pago a 30 días', 'Factura Recibida', 'Completado', 'Cancelado'];

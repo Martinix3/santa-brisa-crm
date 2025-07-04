@@ -87,7 +87,19 @@ export default function BomManagementPage() {
         throw new Error("SKU del producto no definido. No se puede guardar la receta.");
       }
       
-      await saveRecipeFS(finalProductSku, data.components);
+      const componentsToSave = data.components.map(c => {
+        const material = inventoryItems.find(item => item.id === c.materialId);
+        if (!material || !material.sku) {
+            throw new Error(`Componente "${c.description}" no está asociado correctamente. Vuelve a buscarlo.`);
+        }
+        return {
+            componentSku: material.sku,
+            quantity: c.quantity,
+            uom: c.uom,
+        };
+      });
+
+      await saveRecipeFS(finalProductSku, componentsToSave);
 
       toast({ title: "Receta Guardada", description: "La receta ha sido guardada correctamente." });
       await fetchBomData(); // Refresh data from server

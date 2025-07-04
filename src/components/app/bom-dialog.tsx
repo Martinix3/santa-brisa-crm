@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -31,18 +32,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { BomLine, InventoryItem, UoM } from "@/types";
-import { Loader2, PlusCircle, Trash2 } from "lucide-react";
+import { Loader2, PlusCircle, Trash2, Sparkles, CheckCircle } from "lucide-react";
 import { useCategories } from "@/contexts/categories-context";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { matchMaterial } from "@/ai/flows/material-matching-flow";
+import { useToast } from "@/hooks/use-toast";
 
 const uomList: UoM[] = ['unit', 'kg', 'g', 'l', 'ml'];
 
 const bomComponentSchema = z.object({
-  componentSku: z.string().min(1, "Debe seleccionar un componente."),
+  materialId: z.string().optional(),
+  description: z.string().min(3, "La descripción del componente es obligatoria."),
+  componentSku: z.string().optional(),
   quantity: z.coerce.number().min(0.000001, "La cantidad debe ser un número positivo."),
-  uom: z.enum(uomList as [UoM, ...UoM[]]),
+  uom: z.enum(uomList as [UoM, ...UoM[]]).default('unit'),
 });
 
 const getBomRecipeSchema = (inventoryItems: InventoryItem[]) => z.object({
@@ -77,14 +82,26 @@ const getBomRecipeSchema = (inventoryItems: InventoryItem[]) => z.object({
   if (finalProductSku) {
     const normalizedProductSku = finalProductSku.trim().toLowerCase();
     data.components.forEach((component, index) => {
-      if (component.componentSku.trim().toLowerCase() === normalizedProductSku) {
-        ctx.addIssue({
-          path: [`components.${index}.componentSku`],
-          message: "Un producto no puede ser componente de sí mismo.",
-        });
-      }
+        const componentItem = inventoryItems.find(item => item.id === component.materialId);
+        if (componentItem && componentItem.sku && componentItem.sku.trim().toLowerCase() === normalizedProductSku) {
+            ctx.addIssue({
+                path: [`components.${index}.description`],
+                message: "Un producto no puede ser componente de sí mismo.",
+            });
+        }
     });
   }
+
+  // Check if all components are matched
+  data.components.forEach((component, index) => {
+    if (!component.materialId) {
+        ctx.addIssue({
+            path: [`components.${index}.description`],
+            message: "Busca y asocia un componente del inventario.",
+        });
+    }
+  });
+
 });
 
 
@@ -101,6 +118,8 @@ interface BomDialogProps {
 
 export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDelete, inventoryItems }: BomDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
+  const [matchingStatus, setMatchingStatus] = React.useState<Record<number, 'idle' | 'matching' | 'matched' | 'failed'>>({});
+  const { toast } = useToast();
   
   const bomRecipeSchema = React.useMemo(() => getBomRecipeSchema(inventoryItems), [inventoryItems]);
 
@@ -122,7 +141,6 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
 
   const isNewProduct = form.watch("isNewProduct");
   
-  // Effect to clean up fields when toggling 'isNewProduct'
   React.useEffect(() => {
     const subscription = form.watch((value, { name, type }) => {
       if (name === 'isNewProduct' && type === 'change') {
@@ -140,23 +158,70 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
 
   React.useEffect(() => {
     if (isOpen) {
+      setMatchingStatus({});
       if (recipe) {
+        const componentsFromRecipe = recipe.lines.map(line => {
+            const material = inventoryItems.find(item => item.sku === line.componentSku);
+            return {
+                materialId: material?.id || '',
+                description: material?.name || `SKU: ${line.componentSku}`,
+                componentSku: line.componentSku,
+                quantity: line.quantity,
+                uom: line.uom,
+            };
+        });
         form.reset({
             isNewProduct: false,
             productSku: recipe.productSku,
             newProductName: "",
             newProductSku: "",
-            components: recipe.lines.map(line => ({
-                componentSku: line.componentSku,
-                quantity: line.quantity,
-                uom: line.uom,
-            })),
+            components: componentsFromRecipe,
         });
       } else {
         form.reset({ isNewProduct: false, productSku: "", newProductName: "", newProductSku: "", components: [] });
       }
     }
-  }, [recipe, isOpen, form]);
+  }, [recipe, isOpen, form, inventoryItems]);
+
+  const handleSmartMatch = async (index: number) => {
+    const description = form.getValues(`components.${index}.description`);
+    if (!description || inventoryItems.length === 0) return;
+
+    setMatchingStatus(prev => ({ ...prev, [index]: 'matching' }));
+    
+    try {
+        const result = await matchMaterial({
+            itemName: description,
+            existingMaterials: inventoryItems.map(m => ({
+                id: m.id,
+                name: m.name,
+                description: m.description,
+                categoryId: m.categoryId,
+            }))
+        });
+
+        if (result.matchType === 'perfect' || result.matchType === 'suggested') {
+            const matchedMaterial = inventoryItems.find(m => m.id === result.matchedMaterialId);
+            if (matchedMaterial) {
+                form.setValue(`components.${index}.materialId`, matchedMaterial.id);
+                form.setValue(`components.${index}.componentSku`, matchedMaterial.sku || '');
+                form.setValue(`components.${index}.uom`, matchedMaterial.uom || 'unit');
+                form.setValue(`components.${index}.description`, matchedMaterial.name);
+                setMatchingStatus(prev => ({ ...prev, [index]: 'matched' }));
+                toast({ title: "Componente Encontrado", description: `"${matchedMaterial.name}" ha sido asociado.` });
+            }
+        } else {
+            setMatchingStatus(prev => ({ ...prev, [index]: 'failed' }));
+            toast({ title: "Sin Coincidencia Clara", description: "No se encontró un componente exacto. Revisa la descripción.", variant: "default" });
+        }
+
+    } catch (error) {
+        console.error("Smart match failed:", error);
+        setMatchingStatus(prev => ({ ...prev, [index]: 'failed' }));
+        toast({ title: "Error de IA", description: "No se pudo realizar la búsqueda inteligente.", variant: "destructive" });
+    }
+  }
+
 
   const onSubmit = async (data: BomRecipeFormValues) => {
     setIsSaving(true);
@@ -170,20 +235,6 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
     inventoryItems.filter(i => i.sku && categoriesMap.get(i.categoryId)?.name === "Producto Terminado"),
     [inventoryItems, categoriesMap]
   );
-  
-  const components = React.useMemo(() => {
-    // Hardcoded IDs for "Materia Prima (COGS)" and "Material de Embalaje (COGS)" as per user instruction.
-    const targetCategoryIds = [
-      'VheyLXsehOfEpBIly7FV',
-      'Hd03xfoTFug4PoTVhOKP',
-    ];
-      
-    // Filter inventory items that belong to those categories
-    return inventoryItems.filter(
-      i => i.sku && i.categoryId && targetCategoryIds.includes(i.categoryId)
-    );
-  }, [inventoryItems]);
-
   
   const isEditing = !!recipe;
 
@@ -226,21 +277,29 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
                   <FormField control={form.control} name="newProductSku" render={({ field }) => ( <FormItem><FormLabel>SKU Nuevo Producto</FormLabel><FormControl><Input placeholder="Ej: SB-200ML" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                 </div>
               ) : (
-                <FormField control={form.control} name="productSku" render={({ field }) => ( <FormItem><FormLabel>Producto a Fabricar</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isEditing}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar producto terminado..." /></SelectTrigger></FormControl><SelectContent>{finishedGoods.map(item => (<SelectItem key={item.sku!} value={item.sku!}>{item.name} ({item.sku})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="productSku" render={({ field }) => ( <FormItem><FormLabel>Producto a Fabricar</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isEditing}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar producto terminado..." /></SelectTrigger></FormControl><SelectContent>{finishedGoods.map(item => (<SelectItem key={item.id} value={item.sku!}>{item.name} ({item.sku})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
               )}
               
               <h4 className="font-medium">Componentes de la Receta</h4>
               <ScrollArea className="h-64 border rounded-md p-2">
                   <div className="space-y-4">
                   {fields.map((field, index) => (
-                      <div key={field.id} className="flex items-end gap-2 p-3 border rounded-md bg-secondary/30">
-                          <FormField control={form.control} name={`components.${index}.componentSku`} render={({ field }) => (<FormItem className="flex-grow"><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar componente..." /></SelectTrigger></FormControl><SelectContent>{components.map(item => (<SelectItem key={item.sku!} value={item.sku!}>{item.name} ({item.sku})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                          <FormField control={form.control} name={`components.${index}.quantity`} render={({ field }) => (<FormItem className="w-28"><FormControl><Input type="number" step="any" placeholder="Cant." {...field} /></FormControl><FormMessage /></FormItem>)} />
-                          <FormField control={form.control} name={`components.${index}.uom`} render={({ field }) => (<FormItem className="w-24"><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="UoM"/></SelectTrigger></FormControl><SelectContent>{uomList.map(u => (<SelectItem key={u} value={u}>{u}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                          <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>
+                      <div key={field.id} className="flex flex-col gap-3 p-3 border rounded-md bg-secondary/30">
+                          <div className="flex items-end gap-2">
+                              <FormField control={form.control} name={`components.${index}.description`} render={({ field }) => (<FormItem className="flex-grow"><FormLabel className="text-xs">Descripción Componente</FormLabel><FormControl><Input placeholder="Ej: Botella de vidrio 750ml" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                              <Button type="button" variant="outline" size="sm" onClick={() => handleSmartMatch(index)} disabled={matchingStatus[index] === 'matching'}>{matchingStatus[index] === 'matching' ? <Loader2 className="h-4 w-4 animate-spin"/> : <Sparkles className="h-4 w-4"/>} Buscar</Button>
+                          </div>
+                          <div className="flex items-end gap-2">
+                              <FormField control={form.control} name={`components.${index}.quantity`} render={({ field }) => (<FormItem className="w-28"><FormLabel className="text-xs">Cantidad</FormLabel><FormControl><Input type="number" step="any" placeholder="Cant." {...field} /></FormControl><FormMessage /></FormItem>)} />
+                              <FormField control={form.control} name={`components.${index}.uom`} render={({ field }) => (<FormItem className="w-24"><FormLabel className="text-xs">UoM</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Unidad"/></SelectTrigger></FormControl><SelectContent>{uomList.map(u => (<SelectItem key={u} value={u}>{u}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                              <div className="flex-grow text-right pr-2">
+                                {form.getValues(`components.${index}.materialId`) && matchingStatus[index] !== 'matching' && (<div className="flex items-center justify-end gap-1 text-green-600 text-xs"><CheckCircle className="h-4 w-4"/> Asociado</div>)}
+                              </div>
+                              <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>
+                          </div>
                       </div>
                   ))}
-                  <Button type="button" variant="outline" size="sm" onClick={() => append({ componentSku: "", quantity: 1, uom: 'unit' })}><PlusCircle className="mr-2 h-4 w-4" />Añadir Componente</Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => append({ materialId: '', description: '', componentSku: '', quantity: 1, uom: 'unit' })}><PlusCircle className="mr-2 h-4 w-4" />Añadir Componente</Button>
                   <FormMessage className="p-2">{form.formState.errors.components?.root?.message}</FormMessage>
                   </div>
               </ScrollArea>

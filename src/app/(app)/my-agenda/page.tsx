@@ -107,12 +107,8 @@ function SortableAgendaItem({ item, handleItemClick }: { item: AgendaItem; handl
   };
   
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <SheetTrigger asChild>
-        <button className="w-full text-left" onClick={() => handleItemClick(item)}>
-          <AgendaItemCard item={item} />
-        </button>
-      </SheetTrigger>
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} onClick={() => handleItemClick(item)}>
+        <AgendaItemCard item={item} />
     </div>
   );
 }
@@ -123,7 +119,7 @@ function DragOverlayIcon({ item }: { item: AgendaItem | null }) {
   const icon = React.cloneElement(getAgendaItemIcon(item), { className: "h-5 w-5 text-primary-foreground" });
 
   return (
-    <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary/80 shadow-xl backdrop-blur-sm -translate-x-1/2 -translate-y-1/2">
+    <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary/80 shadow-xl" style={{ transform: "translate(-50%, -50%)" }}>
       {icon}
     </div>
   );
@@ -167,7 +163,11 @@ export default function MyAgendaPage() {
   const [activeAgendaItem, setActiveAgendaItem] = React.useState<AgendaItem | null>(null);
   const [overlayMode, setOverlayMode] = React.useState<'card' | 'icon'>('card');
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -539,11 +539,14 @@ export default function MyAgendaPage() {
     
     const overId = over.id.toString();
     
+    // If over a calendar day, switch to icon mode
     if (overId.startsWith('drop-')) {
         if (overlayMode !== 'icon') {
             setOverlayMode('icon');
         }
-    } else {
+    } 
+    // If over anything else (likely a task card), switch to card mode
+    else {
         if (overlayMode !== 'card') {
             setOverlayMode('card');
         }
@@ -559,6 +562,7 @@ export default function MyAgendaPage() {
     const activeItem = allAgendaItems.find(i => i.id === active.id);
     if (!activeItem) return;
 
+    // SCENARIO 1: Drop on a calendar day
     if (typeof over.id === 'string' && over.id.startsWith('drop-')) {
         if (active.id === over.id) return;
         const newDateStr = over.id.replace('drop-', '');
@@ -584,6 +588,7 @@ export default function MyAgendaPage() {
             setAllAgendaItems(originalItems);
         }
     } 
+    // SCENARIO 2: Reorder within a list
     else if (active.id !== over.id) {
         const overItem = allAgendaItems.find(i => i.id === over.id);
 
@@ -608,7 +613,7 @@ export default function MyAgendaPage() {
                 } catch (error) {
                     console.error("Error reordering tasks:", error);
                     toast({ title: "Error al Reordenar", description: "No se pudo guardar el nuevo orden.", variant: "destructive" });
-                    setAllAgendaItems(allAgendaItems);
+                    setAllAgendaItems(allAgendaItems); // Revert on error
                 }
             }
         }
@@ -630,10 +635,6 @@ export default function MyAgendaPage() {
         </div>
     );
   };
-  
-  const { setNodeRef: setTaskListNodeRef } = useDroppable({
-    id: 'task-list-droppable',
-  });
 
   const modifiers = {
     commercial: commercialTaskDays,
@@ -753,7 +754,7 @@ export default function MyAgendaPage() {
                             </div>
                           </div>
                       </CardHeader>
-                      <CardContent ref={setTaskListNodeRef} className="flex-grow overflow-y-auto pr-3">
+                      <CardContent className="flex-grow overflow-y-auto pr-3">
                           {isLoading ? (
                               <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
                           ) : (
@@ -909,3 +910,5 @@ export default function MyAgendaPage() {
     </>
   );
 }
+
+    

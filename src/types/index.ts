@@ -162,6 +162,7 @@ export interface Order {
   originatingTaskId?: string;
   taskCategory: 'Commercial' | 'General';
   isCompleted: boolean;
+  orderIndex?: number;
 }
 
 export type MarketingResourceType = 'Folleto' | 'Presentación' | 'Imagen' | 'Guía';
@@ -199,6 +200,7 @@ export interface CrmEvent {
   notes?: string;
   createdAt: string; 
   updatedAt: string; 
+  orderIndex?: number;
 }
 
 export interface EventFormValues {

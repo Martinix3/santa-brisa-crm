@@ -69,6 +69,7 @@ const fromFirestoreOrder = (docSnap: DocumentSnapshot): Order => {
     originatingTaskId: data.originatingTaskId || undefined,
     taskCategory: data.taskCategory || 'Commercial',
     isCompleted: data.isCompleted || false,
+    orderIndex: data.orderIndex,
   };
   return order;
 };
@@ -83,7 +84,7 @@ const toFirestoreOrder = (data: Partial<Order> & { visitDate?: Date | string, ne
     'clientType', 'numberOfUnits', 'unitPrice', 'clientStatus', 
     'notes', 'nextActionType', 'nextActionCustom', 'failureReasonType', 
     'failureReasonCustom', 'accountId', 'originatingTaskId',
-    'taskCategory', 'isCompleted'
+    'taskCategory', 'isCompleted', 'orderIndex'
   ];
 
   directOrderKeys.forEach(key => {
@@ -335,4 +336,36 @@ export const initializeMockOrdersInFirestore = async (mockOrdersData: Order[]) =
     }
 };
 
+export const updateTaskOrderAndDateFS = async (
+  taskId: string,
+  updates: { date?: Date; orderIndex?: number }
+): Promise<void> => {
+  const taskDocRef = doc(db, ORDERS_COLLECTION, taskId);
+  
+  const updatePayload: { [key: string]: any } = {
+    lastUpdated: Timestamp.fromDate(new Date()),
+  };
+
+  if (updates.date) {
+    const taskSnap = await getDoc(taskDocRef);
+    if (!taskSnap.exists()) {
+      throw new Error(`Task with ID ${taskId} not found.`);
+    }
+    const taskData = taskSnap.data();
+    if (taskData.status === 'Programada') {
+      updatePayload.visitDate = Timestamp.fromDate(updates.date);
+    } else if (taskData.status === 'Seguimiento') {
+      updatePayload.nextActionDate = Timestamp.fromDate(updates.date);
+    }
+  }
+  
+  if (updates.orderIndex !== undefined) {
+    updatePayload.orderIndex = updates.orderIndex;
+  }
+
+  if (Object.keys(updatePayload).length > 1) {
+    await updateDoc(taskDocRef, updatePayload);
+  }
+};
     
+

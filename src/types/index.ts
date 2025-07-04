@@ -1,5 +1,6 @@
 
 
+
 import { Timestamp } from "firebase/firestore";
 
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
@@ -212,6 +213,7 @@ export interface LatestPurchaseInfo {
   purchaseDate: string; 
   calculatedUnitCost: number;
   notes?: string; 
+  batchNumber?: string;
 }
 
 export interface InventoryItem {
@@ -570,6 +572,7 @@ export interface InventoryItemFormValues {
   latestPurchaseTotalCost?: number;
   latestPurchaseDate?: Date;
   latestPurchaseNotes?: string;
+  latestPurchaseBatchNumber?: string;
 }
 
 export interface AccountFormValues {

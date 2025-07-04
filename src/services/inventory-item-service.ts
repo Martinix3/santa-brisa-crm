@@ -22,6 +22,7 @@ const fromFirestoreInventoryItem = (docSnap: DocumentSnapshot): InventoryItem =>
       purchaseDate: data.latestPurchase.purchaseDate,
       calculatedUnitCost: data.latestPurchase.calculatedUnitCost || 0,
       notes: data.latestPurchase.notes,
+      batchNumber: data.latestPurchase.batchNumber || undefined,
     };
   }
 
@@ -54,6 +55,7 @@ const toFirestoreInventoryItem = (data: Partial<InventoryItemFormValues>, isNew:
       purchaseDate: format(data.latestPurchaseDate, "yyyy-MM-dd"),
       calculatedUnitCost: data.latestPurchaseTotalCost / data.latestPurchaseQuantity,
       notes: data.latestPurchaseNotes || null,
+      batchNumber: data.latestPurchaseBatchNumber || null,
     };
     if(isNew) {
       firestoreData.stock = data.latestPurchaseQuantity;

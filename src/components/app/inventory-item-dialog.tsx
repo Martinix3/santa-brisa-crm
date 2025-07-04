@@ -55,6 +55,7 @@ const itemFormSchema = z.object({
   latestPurchaseTotalCost: z.coerce.number().min(0.01, "El coste total debe ser positivo.").optional(),
   latestPurchaseDate: z.date().optional(),
   latestPurchaseNotes: z.string().optional(),
+  latestPurchaseBatchNumber: z.string().optional(),
 }).superRefine((data, ctx) => {
     if (data.latestPurchaseQuantity || data.latestPurchaseTotalCost || data.latestPurchaseDate) {
         if (data.latestPurchaseQuantity === undefined || data.latestPurchaseQuantity <= 0) {
@@ -96,6 +97,7 @@ export default function InventoryItemDialog({ item, isOpen, onOpenChange, onSave
       latestPurchaseTotalCost: undefined,
       latestPurchaseDate: undefined,
       latestPurchaseNotes: "",
+      latestPurchaseBatchNumber: "",
     },
   });
 
@@ -140,6 +142,7 @@ export default function InventoryItemDialog({ item, isOpen, onOpenChange, onSave
           latestPurchaseTotalCost: item.latestPurchase?.totalPurchaseCost,
           latestPurchaseDate: item.latestPurchase?.purchaseDate && isValid(parseISO(item.latestPurchase.purchaseDate)) ? parseISO(item.latestPurchase.purchaseDate) : undefined,
           latestPurchaseNotes: item.latestPurchase?.notes || "",
+          latestPurchaseBatchNumber: item.latestPurchase?.batchNumber || "",
         });
         if (item.latestPurchase) {
           setCalculatedUnitCost(item.latestPurchase.calculatedUnitCost);
@@ -156,6 +159,7 @@ export default function InventoryItemDialog({ item, isOpen, onOpenChange, onSave
           latestPurchaseTotalCost: undefined,
           latestPurchaseDate: new Date(), 
           latestPurchaseNotes: "",
+          latestPurchaseBatchNumber: "",
         });
         setCalculatedUnitCost(null);
       }
@@ -285,33 +289,48 @@ export default function InventoryItemDialog({ item, isOpen, onOpenChange, onSave
                 )}
               />
             </div>
-            <FormField
-              control={form.control}
-              name="latestPurchaseDate"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Fecha de esta Compra</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")} disabled={isReadOnly}>
-                            {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} 
-                          disabled={isReadOnly || ((date: Date) => date > new Date() || date < new Date("2000-01-01"))} 
-                          initialFocus 
-                          locale={es}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="latestPurchaseDate"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Fecha de esta Compra</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")} disabled={isReadOnly}>
+                              {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar mode="single" selected={field.value} onSelect={field.onChange} 
+                            disabled={isReadOnly || ((date: Date) => date > new Date() || date < new Date("2000-01-01"))} 
+                            initialFocus 
+                            locale={es}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+               <FormField
+                control={form.control}
+                name="latestPurchaseBatchNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nº de Lote de esta Compra</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ej: LT2024-42B" {...field} disabled={isReadOnly} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
              <FormField
               control={form.control}
               name="latestPurchaseNotes"

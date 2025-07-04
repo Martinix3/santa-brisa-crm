@@ -22,7 +22,6 @@ import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { addPurchaseFS, updatePurchaseFS, deletePurchaseFS, getPurchasesFS } from "@/services/purchase-service";
 import Link from "next/link";
 import InvoiceUploadDialog from "@/components/app/invoice-upload-dialog";
-import { getInventoryItemsFS } from "@/services/inventory-item-service";
 import { testUpload } from "@/services/test-upload-service";
 import { initializeMockCategoriesInFirestore, getCategoriesFS } from "@/services/category-service";
 
@@ -30,7 +29,6 @@ export default function PurchasesPage() {
   const { toast } = useToast();
   const { userRole, dataSignature, refreshDataSignature } = useAuth();
   const [purchases, setPurchases] = React.useState<Purchase[]>([]);
-  const [materials, setMaterials] = React.useState<InventoryItem[]>([]);
   const [purchaseCategories, setPurchaseCategories] = React.useState<Category[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [editingPurchase, setEditingPurchase] = React.useState<Purchase | null>(null);
@@ -55,13 +53,11 @@ export default function PurchasesPage() {
         try {
             await initializeMockCategoriesInFirestore();
             
-            const [fetchedPurchases, fetchedMaterials, fetchedCategories] = await Promise.all([
+            const [fetchedPurchases, fetchedCategories] = await Promise.all([
               getPurchasesFS(),
-              getInventoryItemsFS(),
               getCategoriesFS('cost'),
             ]);
             setPurchases(fetchedPurchases);
-            setMaterials(fetchedMaterials);
             setPurchaseCategories(fetchedCategories);
         } catch (error) {
             console.error("Failed to load purchases:", error);
@@ -98,7 +94,7 @@ export default function PurchasesPage() {
   const handleDataFromInvoice = (extractedData: Partial<PurchaseFormValues>, file: File) => {
     setEditingPurchase(null);
     setPrefilledData(extractedData);
-    setPrefilledFile(extractedData.invoiceFile ? file : null);
+    setPrefilledFile(saveInvoiceFile ? file : null);
     setIsInvoiceUploadOpen(false);
     setIsPurchaseDialogOpen(true);
   };
@@ -198,12 +194,10 @@ export default function PurchasesPage() {
     input.click();
   };
 
-  const materialsMap = React.useMemo(() => new Map(materials.map(m => [m.id, m])), [materials]);
-
   const filteredPurchases = purchases
     .filter(purchase =>
       (purchase.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       (purchase.items && purchase.items.some(item => item.description.toLowerCase().includes(searchTerm.toLowerCase()))))
+       (purchase.items && purchase.items.some(item => item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()))))
     )
     .filter(purchase => statusFilter === "Todos" || purchase.status === statusFilter)
     .filter(purchase => categoryFilter === "Todas" || (categoriesMap.get(purchase.categoryId) || '') === categoryFilter);

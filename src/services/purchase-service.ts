@@ -3,15 +3,16 @@
 
 import { db } from '@/lib/firebase';
 import {
-  collection, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, runTransaction, type DocumentReference, getDoc, query, where, getDocs
+  collection, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, runTransaction, type DocumentReference, getDoc, query, where, getDocs, type DocumentSnapshot
 } from "firebase/firestore";
-import type { Purchase, PurchaseFormValues, PurchaseFirestorePayload } from '@/types';
+import type { Purchase, PurchaseFormValues, PurchaseFirestorePayload, InventoryItem } from '@/types';
 import { fromFirestorePurchase, toFirestorePurchase } from './utils/firestore-converters';
 import { findOrCreateSupplier } from './supplier-service';
 import { uploadInvoice } from './storage-service';
 import { updateStockForPurchase } from './stock-service';
 
 const PURCHASES_COLLECTION = 'purchases';
+const INVENTORY_ITEMS_COLLECTION = 'inventoryItems';
 
 export const getPurchasesFS = async (): Promise<Purchase[]> => {
   const purchasesCol = collection(db, PURCHASES_COLLECTION);
@@ -33,15 +34,20 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
     }
 
     return await runTransaction(db, async (transaction) => {
-        // --- Read Phase ---
+        // --- Gather all reads ---
         const supplierId = await findOrCreateSupplier(data, transaction);
         if (!supplierId) {
             throw new Error("Failed to process supplier. Supplier name might be empty.");
         }
         
-        // --- Write Phase ---
+        const materialIds = dataToSave.items?.map(item => item.materialId).filter(Boolean) || [];
+        const materialRefs = materialIds.map(id => doc(db, INVENTORY_ITEMS_COLLECTION, id));
+        const materialDocs = await Promise.all(materialRefs.map(ref => transaction.get(ref)));
+        const materialDocsMap = new Map(materialDocs.map(d => [d.id, d]));
+
+        // --- All writes happen after this point ---
         const firestoreData = toFirestorePurchase(dataToSave, true, supplierId);
-        await updateStockForPurchase(transaction, null, firestoreData);
+        await updateStockForPurchase(transaction, null, firestoreData, materialDocsMap);
         
         transaction.set(newDocRef, firestoreData);
         return purchaseId;
@@ -52,11 +58,7 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
     let dataToSave = { ...data };
     const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);
 
-    // Handle invoice upload outside the transaction
-    if (data.invoiceDataUri) {
-        if(data.storagePath) {
-            console.warn(`An invoice already exists at ${data.storagePath}. It will be orphaned, not deleted.`);
-        }
+    if (data.invoiceDataUri && !data.storagePath) {
         const { downloadUrl, storagePath, contentType } = await uploadInvoice(data.invoiceDataUri, id);
         dataToSave.invoiceUrl = downloadUrl;
         dataToSave.storagePath = storagePath;
@@ -64,17 +66,26 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
     }
 
     await runTransaction(db, async (transaction) => {
-        // --- Read Phase ---
+        // --- All reads happen first ---
         const existingPurchaseDoc = await transaction.get(purchaseDocRef);
         if (!existingPurchaseDoc.exists()) {
             throw new Error("Purchase not found");
         }
         const oldData = fromFirestorePurchase(existingPurchaseDoc);
-        let supplierId = await findOrCreateSupplier(data, transaction) || oldData.supplierId;
         
-        // --- Write Phase ---
+        const supplierId = await findOrCreateSupplier(data, transaction) || oldData.supplierId;
+        
+        const allMaterialIds = new Set<string>();
+        (oldData.items || []).forEach(item => item.materialId && allMaterialIds.add(item.materialId));
+        (dataToSave.items || []).forEach(item => item.materialId && allMaterialIds.add(item.materialId));
+        
+        const materialRefs = Array.from(allMaterialIds).map(id => doc(db, INVENTORY_ITEMS_COLLECTION, id));
+        const materialDocs = await Promise.all(materialRefs.map(ref => transaction.get(ref)));
+        const materialDocsMap = new Map(materialDocs.map(d => [d.id, d]));
+
+        // --- All writes happen after this point ---
         const firestoreData = toFirestorePurchase(dataToSave as PurchaseFormValues, false, supplierId);
-        await updateStockForPurchase(transaction, oldData, firestoreData);
+        await updateStockForPurchase(transaction, oldData, firestoreData, materialDocsMap);
         
         transaction.update(purchaseDocRef, firestoreData);
     });
@@ -92,14 +103,14 @@ export const deletePurchaseFS = async (id: string): Promise<void> => {
       }
       const data = fromFirestorePurchase(docSnap);
 
-      // --- Write Phase ---
-      if (data.status === 'Factura Recibida') {
-        await updateStockForPurchase(transaction, data, null);
-      }
-      
-      // Note: File deletion from storage is not transactional and should be handled separately
-      // if required, possibly via a Cloud Function triggered on document deletion.
+      const materialIds = data.items?.map(item => item.materialId).filter(Boolean) || [];
+      const materialRefs = materialIds.map(id => doc(db, INVENTORY_ITEMS_COLLECTION, id));
+      const materialDocs = await Promise.all(materialRefs.map(ref => transaction.get(ref)));
+      const materialDocsMap = new Map(materialDocs.map(d => [d.id, d]));
 
+      // --- Write Phase ---
+      await updateStockForPurchase(transaction, data, null, materialDocsMap);
+      
       transaction.delete(purchaseDocRef);
   });
 };

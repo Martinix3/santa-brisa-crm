@@ -204,7 +204,11 @@ export default function InventoryPage() {
                 {filteredItems.length > 0 ? filteredItems.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{item.sku || 'N/A'}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                        {item.sku && <p>SKU: {item.sku}</p>}
+                        {item.latestPurchase?.batchNumber && <p>Lote: {item.latestPurchase.batchNumber}</p>}
+                        {!item.sku && !item.latestPurchase?.batchNumber && 'N/A'}
+                    </TableCell>
                     <TableCell>{categoriesMap.get(item.categoryId) || 'N/D'}</TableCell>
                     <TableCell className="text-right font-bold">
                        <FormattedNumericValue value={item.stock} />

@@ -2,7 +2,7 @@
 'use server';
 
 import { db } from '@/lib/firebase';
-import { doc, type Transaction } from "firebase/firestore";
+import { doc, type Transaction, type DocumentSnapshot } from "firebase/firestore";
 import type { Purchase, PurchaseFirestorePayload } from '@/types';
 import { format } from 'date-fns';
 
@@ -12,21 +12,18 @@ import { format } from 'date-fns';
  * @param transaction The Firestore transaction object.
  * @param oldPurchaseData The previous state of the purchase document, or null if it's a new purchase.
  * @param newPurchaseData The new state of the purchase document, or null if it's being deleted.
+ * @param materialDocsMap A pre-fetched map of material documents involved in the transaction.
  */
 export async function updateStockForPurchase(
     transaction: Transaction,
     oldPurchaseData: Purchase | null,
-    newPurchaseData: PurchaseFirestorePayload | null
+    newPurchaseData: PurchaseFirestorePayload | null,
+    materialDocsMap: Map<string, DocumentSnapshot>
 ) {
     const stockDeltas = new Map<string, number>();
-    const materialIdsInvolved = new Set<string>();
     const oldStatusWasReceived = oldPurchaseData?.status === 'Factura Recibida';
     const newStatusIsReceived = newPurchaseData?.status === 'Factura Recibida';
 
-    // Collect all unique material IDs from both old and new data
-    (oldPurchaseData?.items || []).forEach(item => item.materialId && materialIdsInvolved.add(item.materialId));
-    (newPurchaseData?.items || []).forEach(item => item.materialId && materialIdsInvolved.add(item.materialId));
-    
     // If the old purchase was 'received', we need to subtract its quantities to revert the stock.
     if (oldStatusWasReceived) {
         (oldPurchaseData!.items || []).forEach(oldItem => {
@@ -44,16 +41,6 @@ export async function updateStockForPurchase(
             }
         });
     }
-    
-    // If no stock changes are needed, we can exit early.
-    if (stockDeltas.size === 0 && !newStatusIsReceived) {
-        return;
-    }
-
-    // Pre-fetch all material documents involved in the transaction.
-    const materialRefs = Array.from(materialIdsInvolved).map(id => doc(db, 'inventoryItems', id));
-    const materialDocs = await Promise.all(materialRefs.map(ref => transaction.get(ref)));
-    const materialDocsMap = new Map(materialDocs.map(doc => [doc.id, doc]));
     
     // Apply stock changes
     for (const [materialId, delta] of stockDeltas.entries()) {
@@ -78,6 +65,7 @@ export async function updateStockForPurchase(
                         purchaseDate: format(newPurchaseData!.orderDate.toDate(), "yyyy-MM-dd"),
                         calculatedUnitCost: item.unitPrice,
                         notes: newPurchaseData!.notes || `Compra`,
+                        batchNumber: item.batchNumber || null,
                     };
                     transaction.update(materialInfo.ref, { latestPurchase: newLatestPurchase });
                 }

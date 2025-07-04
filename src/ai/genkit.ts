@@ -8,5 +8,5 @@ export const ai = genkit({
   plugins: [
     vertexAI({project: 'santa-brisa-crm', location: 'us-central1'}),
   ],
-  model: 'gemini-1.5-flash',
+  model: 'gemini-2.5-flash',
 });

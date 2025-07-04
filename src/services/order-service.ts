@@ -69,7 +69,7 @@ const fromFirestoreOrder = (docSnap: DocumentSnapshot): Order => {
     originatingTaskId: data.originatingTaskId || undefined,
     taskCategory: data.taskCategory || 'Commercial',
     isCompleted: data.isCompleted || false,
-    orderIndex: data.orderIndex,
+    orderIndex: data.orderIndex ?? 0,
   };
   return order;
 };
@@ -126,6 +126,7 @@ const toFirestoreOrder = (data: Partial<Order> & { visitDate?: Date | string, ne
   if (!firestoreData.products) firestoreData.products = [];
   if (!firestoreData.taskCategory) firestoreData.taskCategory = 'Commercial';
   if (firestoreData.isCompleted === undefined) firestoreData.isCompleted = false;
+  if (firestoreData.orderIndex === undefined) firestoreData.orderIndex = 0;
 
   return firestoreData;
 };

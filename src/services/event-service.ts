@@ -29,7 +29,7 @@ const fromFirestoreEvent = (docSnap: DocumentSnapshot): CrmEvent => {
     notes: data.notes || '',
     createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : (typeof data.createdAt === 'string' ? data.createdAt : format(new Date(), "yyyy-MM-dd")),
     updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : (typeof data.updatedAt === 'string' ? data.updatedAt : format(new Date(), "yyyy-MM-dd")),
-    orderIndex: data.orderIndex,
+    orderIndex: data.orderIndex ?? 0,
   };
 };
 
@@ -49,6 +49,7 @@ const toFirestoreEvent = (data: EventFormValues, isNew: boolean): any => {
 
   if (isNew) {
     firestoreData.createdAt = Timestamp.fromDate(new Date());
+    firestoreData.orderIndex = 0;
   }
   firestoreData.updatedAt = Timestamp.fromDate(new Date());
 

@@ -11,12 +11,12 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
-export const TraceabilityReportInputSchema = z.object({
+const TraceabilityReportInputSchema = z.object({
   batchNumber: z.string().describe('The batch number to trace. Can be for a finished good or a raw material.'),
 });
 export type TraceabilityReportInput = z.infer<typeof TraceabilityReportInputSchema>;
 
-export const TraceabilityReportOutputSchema = z.object({
+const TraceabilityReportOutputSchema = z.object({
   report: z.string().describe('The full traceability report in Markdown format.'),
 });
 export type TraceabilityReportOutput = z.infer<typeof TraceabilityReportOutputSchema>;

@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { db } from '@/lib/firebase';
@@ -6,7 +7,7 @@ import {
   collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, runTransaction,
   type DocumentSnapshot,
 } from "firebase/firestore";
-import type { InventoryItem, InventoryItemFormValues, LatestPurchaseInfo } from '@/types';
+import type { InventoryItem, InventoryItemFormValues, LatestPurchaseInfo, UoM } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 
 const INVENTORY_ITEMS_COLLECTION = 'inventoryItems';
@@ -34,6 +35,7 @@ const fromFirestoreInventoryItem = (docSnap: DocumentSnapshot): InventoryItem =>
     latestPurchase: latestPurchase,
     stock: data.stock || 0,
     sku: data.sku || undefined,
+    uom: data.uom || 'unit',
   };
 };
 
@@ -43,6 +45,7 @@ const toFirestoreInventoryItem = (data: InventoryItemFormValues, isNew: boolean)
     categoryId: data.categoryId,
     description: data.description || null,
     sku: data.sku || null,
+    uom: data.uom || 'unit',
   };
   
   if (isNew) {

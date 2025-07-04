@@ -60,12 +60,12 @@ export type UoM = 'unit' | 'kg' | 'g' | 'l' | 'ml';
 
 export interface ItemBatch {
   id: string;
-  sku: string;
   purchaseId?: string;
+  sku: string; // This will be the InventoryItem ID
   supplierBatchCode?: string;
   qtyInitial: number;
   uom: UoM;
-  unitCost: number;
+  unitCost: number; // This should be the landed cost
   expiryDate?: string; // YYYY-MM-DD
   createdAt: string; // ISO String
 }
@@ -219,6 +219,7 @@ export interface InventoryItem {
   latestPurchase?: LatestPurchaseInfo; 
   stock: number;
   sku?: string;
+  uom: UoM;
 }
 
 export interface AssignedPromotionalMaterial {
@@ -325,6 +326,8 @@ export interface PurchaseItem {
   batchNumber?: string;
   destSku?: string;
   total: number;
+  uom: UoM;
+  landedUnitCost?: number;
 }
 
 export interface Purchase {
@@ -527,6 +530,7 @@ export interface InventoryItemFormValues {
   description?: string;
   categoryId: string;
   sku?: string;
+  uom?: UoM;
   latestPurchaseQuantity?: number;
   latestPurchaseTotalCost?: number;
   latestPurchaseDate?: Date;

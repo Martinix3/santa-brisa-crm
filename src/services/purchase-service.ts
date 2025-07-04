@@ -10,7 +10,7 @@ import {
 } from "firebase/firestore";
 import type { Purchase, PurchaseFormValues, InventoryItem, LatestPurchaseInfo, PurchaseCategory, Currency } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
-import { updateInventoryItemStockFS } from './inventory-item-service';
+import { seedItemBatches } from './inventory-service'; // Import the new function
 
 const PURCHASES_COLLECTION = 'purchases';
 const SUPPLIERS_COLLECTION = 'suppliers';
@@ -184,7 +184,7 @@ export const getPurchasesFS = async (): Promise<Purchase[]> => {
 };
 
 export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> => {
-    try {
+    return await runTransaction(db, async (transaction) => {
         const supplierId = await findOrCreateSupplier(data);
         if (!supplierId) {
             throw new Error("Failed to process supplier. Supplier name might be empty.");
@@ -193,79 +193,74 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
         const purchasesCol = collection(db, PURCHASES_COLLECTION);
         const newDocRef = doc(purchasesCol);
         const purchaseId = newDocRef.id;
+        let dataToSave = { ...data };
 
         if (data.invoiceDataUri) {
             console.log(`Uploading invoice for new purchase ID: ${purchaseId}`);
             const { downloadUrl, storagePath, contentType } = await uploadInvoice(data.invoiceDataUri, purchaseId);
-            data.invoiceUrl = downloadUrl;
-            data.storagePath = storagePath;
-            data.invoiceContentType = contentType;
+            dataToSave.invoiceUrl = downloadUrl;
+            dataToSave.storagePath = storagePath;
+            dataToSave.invoiceContentType = contentType;
         }
 
-        const firestoreData = toFirestorePurchase(data, true, supplierId);
-        
-        await setDoc(newDocRef, firestoreData);
+        const firestoreData = toFirestorePurchase(dataToSave, true, supplierId);
+        transaction.set(newDocRef, firestoreData);
 
-        const completeStatuses = ['Completado', 'Factura Recibida', 'Pagado'];
-        if (completeStatuses.includes(data.status)) {
-            // This part will be updated in Phase 2 to trigger seedItemBatches
-            // For now, we keep the direct stock update for promotional materials
-            // const categoryDoc = await getCategoryById(data.categoryId)
-            // if (categoryDoc?.kind === 'inventory') {
-            //     // ... logic to be added in Phase 2
-            // }
+        if (dataToSave.status === 'Factura Recibida') {
+            console.log(`Purchase created with 'Factura Recibida'. Seeding item batches for ${purchaseId}.`);
+            await seedItemBatches(purchaseId, firestoreData, transaction);
         }
 
         console.log(`New purchase added with ID: ${purchaseId}`);
         return purchaseId;
-    } catch (error) {
-        console.error("Failed to add purchase:", error);
-        throw error;
-    }
+    });
 };
+
 
 export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormValues>): Promise<void> => {
-  try {
-    let supplierId: string | undefined;
-    const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);
-    const existingPurchaseDoc = await getDoc(purchaseDocRef);
-    if (!existingPurchaseDoc.exists()) throw new Error("Purchase not found");
-    const oldData = fromFirestorePurchase(existingPurchaseDoc);
+    await runTransaction(db, async (transaction) => {
+        const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);
+        const existingPurchaseDoc = await transaction.get(purchaseDocRef);
+        if (!existingPurchaseDoc.exists()) {
+            throw new Error("Purchase not found");
+        }
+        const oldData = fromFirestorePurchase(existingPurchaseDoc);
+        let dataToSave = { ...data };
+        let supplierId = oldData.supplierId;
 
-    if (data.supplier) {
-        supplierId = oldData.supplierId;
-        if (!supplierId) {
+        if (data.supplier && data.supplier !== oldData.supplier) {
             supplierId = await findOrCreateSupplier(data);
         }
-    }
 
-    if (data.invoiceDataUri) { 
-        console.log(`Uploading new invoice for existing purchase ID: ${id}`);
-        if (oldData.storagePath) {
-            try {
-              const adminBucket = await getAdminBucket();
-              await adminBucket.file(oldData.storagePath).delete();
-              console.log(`Old invoice file deleted: ${oldData.storagePath}`);
-            } catch (e) {
-              console.warn(`Could not delete old invoice file ${oldData.storagePath}, it may not exist or permissions are insufficient.`);
+        if (data.invoiceDataUri) { 
+            console.log(`Uploading new invoice for existing purchase ID: ${id}`);
+            if (oldData.storagePath) {
+                try {
+                    const adminBucket = await getAdminBucket();
+                    await adminBucket.file(oldData.storagePath).delete();
+                    console.log(`Old invoice file deleted: ${oldData.storagePath}`);
+                } catch (e) {
+                    console.warn(`Could not delete old invoice file ${oldData.storagePath}, it may not exist or permissions are insufficient.`);
+                }
             }
+            const { downloadUrl, storagePath, contentType } = await uploadInvoice(data.invoiceDataUri, id);
+            dataToSave.invoiceUrl = downloadUrl;
+            dataToSave.storagePath = storagePath;
+            dataToSave.invoiceContentType = contentType;
         }
-        const { downloadUrl, storagePath, contentType } = await uploadInvoice(data.invoiceDataUri, id);
-        data.invoiceUrl = downloadUrl;
-        data.storagePath = storagePath;
-        data.invoiceContentType = contentType;
-    }
 
-    const firestoreData = toFirestorePurchase(data as PurchaseFormValues, false, supplierId);
-    await updateDoc(purchaseDocRef, firestoreData);
-    
-    // Stock update logic will be moved to a trigger in Phase 2
-    console.log("Purchase document updated. Stock logic will be handled by triggers in later phases.");
-  } catch (error) {
-    console.error("Failed to update purchase:", error);
-    throw error;
-  }
+        const firestoreData = toFirestorePurchase(dataToSave as PurchaseFormValues, false, supplierId);
+        transaction.update(purchaseDocRef, firestoreData);
+        
+        if (data.status === 'Factura Recibida' && oldData.status !== 'Factura Recibida') {
+            console.log(`Purchase ${id} status changed to 'Factura Recibida'. Seeding item batches.`);
+            await seedItemBatches(id, firestoreData, transaction);
+        }
+
+        console.log(`Purchase document ${id} updated.`);
+    });
 };
+
 
 export const deletePurchaseFS = async (id: string): Promise<void> => {
   console.log(`Attempting to delete purchase document with ID: ${id}`);

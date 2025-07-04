@@ -23,19 +23,7 @@ export type TraceabilityReportOutput = z.infer<typeof TraceabilityReportOutputSc
 
 // Mock functions that simulate database queries.
 // In a real implementation, these would query Firestore.
-const findProductionRunByFinishedGoodBatch = ai.defineTool(
-  {
-    name: 'findProductionRunByFinishedGoodBatch',
-    description: 'Finds the production run details for a given finished good batch number.',
-    inputSchema: z.object({ batchNumber: z.string() }),
-    outputSchema: z.object({
-      id: z.string(),
-      date: z.string(),
-      productName: z.string(),
-      quantityProduced: z.number(),
-    }).nullable(),
-  },
-  async ({ batchNumber }) => {
+async function findProductionRunByFinishedGoodBatch(batchNumber: string) {
     if (batchNumber.startsWith('PROD-')) {
       return {
         id: 'run_12345',
@@ -45,21 +33,9 @@ const findProductionRunByFinishedGoodBatch = ai.defineTool(
       };
     }
     return null;
-  }
-);
+}
 
-const findComponentsForProductionRun = ai.defineTool(
-    {
-      name: 'findComponentsForProductionRun',
-      description: 'Finds the component batches used in a specific production run.',
-      inputSchema: z.object({ runId: z.string() }),
-      outputSchema: z.array(z.object({
-        name: z.string(),
-        batchNumber: z.string(),
-        quantity: z.number(),
-      })),
-    },
-    async ({ runId }) => {
+async function findComponentsForProductionRun(runId: string) {
       if (runId === 'run_12345') {
         return [
           { name: 'Tequila Blanco 100% Agave', batchNumber: 'TQ-JAL-2024-08-A', quantity: 850 },
@@ -68,21 +44,9 @@ const findComponentsForProductionRun = ai.defineTool(
         ];
       }
       return [];
-    }
-);
+}
 
-const findSalesForFinishedGoodBatch = ai.defineTool(
-    {
-      name: 'findSalesForFinishedGoodBatch',
-      description: 'Finds all customer sales that included a specific finished good batch.',
-      inputSchema: z.object({ batchNumber: z.string() }),
-      outputSchema: z.array(z.object({
-        customerName: z.string(),
-        invoiceNumber: z.string(),
-        quantitySold: z.number(),
-      })),
-    },
-    async ({ batchNumber }) => {
+async function findSalesForFinishedGoodBatch(batchNumber: string) {
       if (batchNumber.startsWith('PROD-')) {
         return [
           { customerName: 'Distribuidor Central', invoiceNumber: 'INV-2024-09-101', quantitySold: 2500 },
@@ -90,29 +54,69 @@ const findSalesForFinishedGoodBatch = ai.defineTool(
         ];
       }
       return [];
-    }
-);
+}
 
+const ReportDataSchema = z.object({
+  batchNumber: z.string(),
+  productionRun: z.object({
+      id: z.string(),
+      date: z.string(),
+      productName: z.string(),
+      quantityProduced: z.number(),
+    }).optional(),
+  components: z.array(z.object({
+      name: z.string(),
+      batchNumber: z.string(),
+      quantity: z.number(),
+    })).optional(),
+  sales: z.array(z.object({
+      customerName: z.string(),
+      invoiceNumber: z.string(),
+      quantitySold: z.number(),
+    })).optional(),
+});
 
-const prompt = ai.definePrompt({
-  name: 'traceabilityReportPrompt',
-  tools: [findProductionRunByFinishedGoodBatch, findComponentsForProductionRun, findSalesForFinishedGoodBatch],
-  input: { schema: TraceabilityReportInputSchema },
+const reportGenerationPrompt = ai.definePrompt({
+  name: 'reportGenerationPrompt',
+  input: { schema: ReportDataSchema },
+  output: { schema: TraceabilityReportOutputSchema },
   prompt: `You are a supply chain and traceability expert for Santa Brisa.
-Your task is to determine if the batch for the provided batch number is for a finished good or a raw material and generate a detailed traceability report using the provided tools.
+Your task is to generate a detailed traceability report in Markdown format using the data provided below.
 
-The batch number is: {{{batchNumber}}}
+Batch Number to Report On: {{{batchNumber}}}
 
-- If the batch number is for a **finished good** (e.g., starting with 'PROD-'), your report must have two sections:
-  1.  **Upward Traceability (Origen del Lote):**
-      - Use 'findProductionRunByFinishedGoodBatch' to get the production details.
-      - Then, use 'findComponentsForProductionRun' with the returned run ID to list all component batches (raw materials) used.
-  2.  **Downward Traceability (Destino del Lote):**
-      - Use 'findSalesForFinishedGoodBatch' to list all customer sales where this specific batch was shipped.
+{{#if productionRun}}
+## Traceability Report for Batch: {{{batchNumber}}}
 
-- If the user provides a batch number for a **raw material**, state that this functionality is under development.
+### Upward Traceability (Origen del Lote)
+- **Production Run ID:** {{{productionRun.id}}}
+- **Production Date:** {{{productionRun.date}}}
+- **Product:** {{{productionRun.productName}}}
+- **Quantity Produced:** {{{productionRun.quantityProduced}}}
 
-Present the final report clearly in **Markdown** format. Use bold headings and lists. Be concise but thorough.
+#### Componentes Utilizados
+{{#if components.length}}
+{{#each components}}
+- **{{name}}:** Lote \`{{batchNumber}}\` (Cantidad: {{quantity}})
+{{/each}}
+{{else}}
+- No se encontraron componentes para esta producción.
+{{/if}}
+
+### Downward Traceability (Destino del Lote)
+{{#if sales.length}}
+{{#each sales}}
+- **Vendido a:** {{customerName}} (Factura: {{invoiceNumber}}, Cantidad: {{quantitySold}})
+{{/each}}
+{{else}}
+- No se encontraron ventas para este lote.
+{{/if}}
+
+{{else}}
+## Traceability Report for Batch: {{{batchNumber}}}
+
+This batch number does not correspond to a finished good. Traceability for raw materials is currently under development.
+{{/if}}
 `,
 });
 
@@ -123,13 +127,33 @@ const traceabilityFlow = ai.defineFlow(
     outputSchema: TraceabilityReportOutputSchema,
   },
   async (input) => {
-    const response = await prompt(input);
+    // Orchestration Logic: Code controls the flow, AI just formats the final data.
+    const productionRun = await findProductionRunByFinishedGoodBatch(input.batchNumber);
 
-    if (!response) {
-      throw new Error("The AI failed to generate the traceability report.");
+    if (!productionRun) {
+        // If no production run, generate the "raw material" report.
+        const { output } = await reportGenerationPrompt({ batchNumber: input.batchNumber });
+        if (!output) throw new Error("AI failed to generate raw material report.");
+        return output;
     }
 
-    return { report: response.text };
+    // If production run exists, gather all related data.
+    const [components, sales] = await Promise.all([
+        findComponentsForProductionRun(productionRun.id),
+        findSalesForFinishedGoodBatch(input.batchNumber),
+    ]);
+    
+    const reportData = {
+        batchNumber: input.batchNumber,
+        productionRun,
+        components,
+        sales,
+    };
+    
+    // Pass the complete dataset to the AI for formatting.
+    const { output } = await reportGenerationPrompt(reportData);
+    if (!output) throw new Error("AI failed to format the final report.");
+    return output;
   }
 );
 

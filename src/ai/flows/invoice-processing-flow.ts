@@ -51,7 +51,7 @@ const prompt = ai.definePrompt({
   name: 'invoiceProcessingPrompt',
   input: {schema: ProcessInvoiceInputSchema},
   output: {schema: ProcessInvoiceOutputSchema},
-  model: 'gemini-1.5-flash-latest',
+  model: 'gemini-1.5-flash',
   prompt: `You are an expert accounting assistant. Your task is to extract structured information from an invoice file with the highest possible accuracy, especially with numbers.
 
 Analyze the provided invoice image or PDF and extract the following details. Be extremely precise.
@@ -72,7 +72,7 @@ Analyze the provided invoice image or PDF and extract the following details. Be 
 **Data to Extract:**
 - **Supplier Name**: Identify the vendor or company that issued the invoice.
 - **Supplier CIF/VAT ID**: Extract the supplier's tax identification number (CIF, NIF, VAT ID, etc.).
-- **Supplier Address**: Extract the supplier's full mailing address and break it down into structured fields: street, city, province, postal code, and country.
+- **Supplier Address**: Extract the supplier's full mailing address and break it down into structured fields: street, city, province, postalCode, and country.
 - **Invoice Date**: Find the issue date and format it as YYYY-MM-DD.
 - **Line Items**: For each item in the main table, provide its description, quantity, and unit price (before tax). If quantity is not specified for an item, assume it is 1. Remember your duty to calculate the unit price if the invoice shows a total line price.
 - **Shipping Cost**: If there is a separate charge for shipping, delivery, or "portes", extract that value. If not present, this should be 0 or omitted.

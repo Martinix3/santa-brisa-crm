@@ -42,10 +42,11 @@ export async function seedItemBatches(
     // Fetch the inventory item to get its UoM
     const inventoryItemRef = doc(db, INVENTORY_ITEMS_COLLECTION, item.materialId);
     const inventoryItemDoc = await transaction.get(inventoryItemRef);
-    if (!inventoryItemDoc.exists() || !inventoryItemDoc.data()?.uom) {
-        throw new Error(`Inventory item ${item.materialId} not found or is missing Unit of Measure (uom). Transaction will be rolled back.`);
+    if (!inventoryItemDoc.exists()) {
+        throw new Error(`Inventory item ${item.materialId} not found. Transaction will be rolled back.`);
     }
-    const itemUom = inventoryItemDoc.data()!.uom as UoM;
+    const itemData = inventoryItemDoc.data();
+    const itemUom = (itemData?.uom as UoM) || 'unit'; // Default to 'unit' if not present
 
     const itemTotal = item.quantity * item.unitPrice;
     const shippingProportion = subtotal > 0 ? (itemTotal / subtotal) : 0;

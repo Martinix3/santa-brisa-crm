@@ -95,14 +95,8 @@ export const updateInventoryItemFS = async (id: string, data: InventoryItemFormV
   const itemDocRef = doc(db, INVENTORY_ITEMS_COLLECTION, id);
   const firestoreData = toFirestoreInventoryItem(data, false);
   
-  const existingDoc = await getDoc(itemDocRef);
-  if (existingDoc.exists()) {
-    const oldData = fromFirestoreInventoryItem(existingDoc);
-    const oldPurchaseQty = oldData.latestPurchase?.quantityPurchased || 0;
-    const newPurchaseQty = data.latestPurchaseQuantity || 0;
-    firestoreData.stock = (oldData.stock - oldPurchaseQty) + newPurchaseQty;
-  }
-  
+  // The stock is managed by transactions (purchases, consumptions), not by editing the item's master data.
+  // The toFirestoreInventoryItem function already correctly avoids modifying the stock field on updates.
   await updateDoc(itemDocRef, firestoreData);
 };
 

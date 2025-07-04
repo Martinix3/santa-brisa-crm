@@ -4,7 +4,7 @@
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Users, Goal, Target, Settings, Archive, PackageCheck } from "lucide-react"; 
+import { Users, Goal, Target, Settings, Archive, PackageCheck, Wrench } from "lucide-react"; 
 import { useAuth } from "@/contexts/auth-context";
 import { AlertTriangle } from "lucide-react";
 
@@ -38,6 +38,12 @@ const adminSections = [
     description: "Aprobar, rechazar y seguir las solicitudes de muestras de producto.",
     href: "/admin/sample-management",
     icon: PackageCheck,
+  },
+   {
+    title: "Gestión de Recetas (BOM)",
+    description: "Definir los componentes y cantidades para fabricar productos.",
+    href: "/admin/bom-management",
+    icon: Wrench,
   },
 ];
 

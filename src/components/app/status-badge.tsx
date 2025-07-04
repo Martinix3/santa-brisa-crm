@@ -4,7 +4,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { OrderStatus, AccountStatus, CrmEventStatus, PurchaseStatus, SampleRequestStatus, DirectSaleStatus } from "@/types";
+import type { OrderStatus, AccountStatus, CrmEventStatus, PurchaseStatus, SampleRequestStatus, DirectSaleStatus, ProductionRunStatus } from "@/types";
 
 type StatusBadgeProps = 
   | { type: 'order'; status: OrderStatus; className?: string; }
@@ -12,7 +12,8 @@ type StatusBadgeProps =
   | { type: 'event'; status: CrmEventStatus; className?: string; }
   | { type: 'purchase'; status: PurchaseStatus; className?: string; }
   | { type: 'sampleRequest'; status: SampleRequestStatus; className?: string; }
-  | { type: 'directSale'; status: DirectSaleStatus; className?: string; };
+  | { type: 'directSale'; status: DirectSaleStatus; className?: string; }
+  | { type: 'production'; status: ProductionRunStatus; className?: string; };
 
 const getOrderBadgeColorClass = (status: OrderStatus): string => {
   switch (status) {
@@ -102,6 +103,16 @@ const getDirectSaleBadgeColorClass = (status: DirectSaleStatus): string => {
   }
 };
 
+const getProductionRunBadgeColorClass = (status: ProductionRunStatus): string => {
+  switch (status) {
+    case 'Finalizada': return 'bg-green-500 hover:bg-green-600 text-white';
+    case 'En Progreso': return 'bg-purple-500 hover:bg-purple-600 text-white';
+    case 'Borrador': return 'bg-gray-400 hover:bg-gray-500 text-white';
+    case 'Cancelada': return 'bg-red-500 hover:bg-red-600 text-white';
+    default: return 'bg-gray-400 hover:bg-gray-500 text-white';
+  }
+};
+
 export default function StatusBadge(props: StatusBadgeProps) {
   let badgeColorClass = "";
   let statusText: string = "";
@@ -123,6 +134,9 @@ export default function StatusBadge(props: StatusBadgeProps) {
     statusText = props.status;
   } else if (props.type === 'directSale') {
     badgeColorClass = getDirectSaleBadgeColorClass(props.status);
+    statusText = props.status;
+  } else if (props.type === 'production') {
+    badgeColorClass = getProductionRunBadgeColorClass(props.status);
     statusText = props.status;
   }
 

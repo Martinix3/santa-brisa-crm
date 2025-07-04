@@ -1,7 +1,3 @@
-
-
-
-
 import { Timestamp } from "firebase/firestore";
 
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
@@ -74,48 +70,59 @@ export interface ItemBatch {
   createdAt: string; // ISO String
 }
 
-export type StockTxnType = 'receive' | 'consume' | 'produce' | 'adjust' | 'waste' | 'sale';
-export type StockTxnRefCollection = 'purchases' | 'productionRuns' | 'directSales';
+export type StockTxnType = 'recepcion' | 'consumo' | 'produccion' | 'ajuste' | 'desperdicio' | 'venta';
+export type StockTxnRefCollection = 'purchases' | 'productionRuns' | 'directSales' | 'inventoryAdjustments';
 
 export interface StockTxn {
   id: string;
-  date: string; // ISO String
-  sku: string;
-  batchId?: string;
+  date: string; // ISO
+  inventoryItemId: string; // The item whose stock is changing
   qtyDelta: number; // Positive for additions, negative for subtractions
-  costDelta: number; // Positive for additions, negative for subtractions. Matches qtyDelta sign.
-  uom: UoM;
-  currency: Currency;
-  txnType: StockTxnType;
-  refCollection: StockTxnRefCollection;
-  refId: string;
-  costCenterIds?: string[];
-  createdAt: string; // ISO String
+  newStock: number; // The stock level AFTER the transaction
+  unitCost?: number; // Cost of the items moved
+  refCollection?: StockTxnRefCollection;
+  refId?: string; // The ID of the purchase, run, or sale
+  notes?: string;
+  createdAt?: string;
 }
+
 
 export interface BomLine {
-  id: string;
-  productSku: string;
-  componentSku: string;
-  quantity: number;
-  uom: UoM;
-  lossFactor?: number; // 0-1
-}
+    id: string;
+    productSku: string; // The SKU of the item being produced
+    componentSku: string; // The SKU of the component item
+    quantity: number; // How many units of component are needed for 1 unit of product
+    uom: UoM;
+    lossFactor?: number;
+    createdAt?: string;
+    updatedAt?: string;
+};
 
-export type ProductionRunStatus = 'draft' | 'in-progress' | 'finished' | 'cancelled';
+export type ProductionRunStatus = 'Borrador' | 'En Progreso' | 'Finalizada' | 'Cancelada';
 
 export interface ProductionRun {
-  id: string;
-  sku: string;
-  qtyPlanned: number;
-  qtyProduced?: number;
-  status: ProductionRunStatus;
-  startDate: string; // ISO String
-  endDate?: string; // ISO String
-  inputsCost?: number;
-  overheadCost?: number;
-  unitCost?: number; // Snapshot of cost at completion
+    id: string;
+    productSku: string; // The SKU being produced
+    productName?: string;
+    qtyPlanned: number;
+    qtyProduced?: number;
+    status: ProductionRunStatus;
+    startDate: string; // ISO
+    endDate?: string; // ISO
+    unitCost?: number; // Snapshot of cost at completion
+    createdAt?: string;
+    updatedAt?: string;
 }
+
+
+export interface ProductCostSnapshot {
+    id: string;
+    date: string; // ISO
+    inventoryItemId: string; // The finished product SKU
+    unitCost: number;
+    productionRunId: string;
+}
+
 
 export type CashTxnDirection = 'in' | 'out';
 
@@ -137,12 +144,6 @@ export interface FxRate {
     base: Currency;
     quote: Currency;
     rate: number;
-}
-
-export interface ProductCostSnapshot {
-    sku: string;
-    date: string; // YYYY-MM-DD
-    unitCost: number;
 }
 
 export type PaidStatus = 'Pendiente' | 'Pagado' | 'Cobrado' | 'Parcial';

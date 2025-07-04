@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button';
 import Logo from '@/components/icons/Logo';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2, Building2, ClipboardList, CalendarCheck, PartyPopper, ListChecks, Footprints, Briefcase, Target, Award, Sparkles, Receipt, PackageCheck, SendHorizonal, Truck, Archive } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Loader2, Building2, ClipboardList, CalendarCheck, PartyPopper, ListChecks, Footprints, Briefcase, Target, Award, Sparkles, Receipt, PackageCheck, SendHorizonal, Truck, Archive, Wrench, Cog } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -90,6 +90,14 @@ const navigationStructure: NavGroup[] = [
       { href: '/purchases', label: 'Gestión de Gastos', icon: Receipt, roles: ['Admin'] },
       { href: '/suppliers', label: 'Proveedores', icon: Truck, roles: ['Admin'] },
       { href: '/admin/inventory', label: 'Inventario', icon: Archive, roles: ['Admin'] },
+    ],
+  },
+  {
+    id: 'produccion',
+    label: 'Producción',
+    groupRoles: ['Admin'],
+    items: [
+      { href: '/production', label: 'Órdenes de Producción', icon: Cog, roles: ['Admin'] },
     ],
   },
   {
@@ -372,7 +380,7 @@ function AppNavigation({ navStructure, userRole, teamMember }: AppNavigationProp
 
   return (
     <>
-      {navStructure.map((group) => {
+      {navigationStructure.map((group) => {
         const userCanSeeGroupCategory = !group.groupRoles || group.groupRoles.includes(userRole);
         
         if (!userCanSeeGroupCategory) {

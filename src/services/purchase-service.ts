@@ -32,8 +32,10 @@ async function uploadInvoice(dataUri: string, purchaseId: string): Promise<{ dow
       contentType: contentType,
       resumable: false,
     });
+    // This URL format is for direct access via Google Cloud Storage, not a public URL.
+    // Access is controlled by IAM. For client-side access, a signed URL would be needed.
     const url = `https://storage.googleapis.com/${adminBucket.name}/${path}`;
-    console.log(`File uploaded to ${path}, public URL: ${url}`);
+    console.log(`File uploaded to ${path}, GCS URL: ${url}`);
     return { downloadUrl: url, storagePath: path, contentType: contentType };
   } catch (err: any) {
     console.error(`Error uploading to Firebase Storage at path ${path}:`, err);
@@ -115,6 +117,9 @@ const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean, 
   return firestoreData;
 };
 
+// Note for production: This function is not safe for concurrent execution.
+// A more robust solution would use a transaction with retries or a Cloud Function
+// to handle the find-or-create logic atomically.
 const findOrCreateSupplier = async (data: Partial<PurchaseFormValues>): Promise<string | undefined> => {
     if (!data.supplier || data.supplier.trim() === '') {
         console.warn('findOrCreateSupplier called with an empty supplier name. Aborting.');

@@ -38,7 +38,10 @@ function MultiSelect({ options, selected, onChange, className, disabled, ...prop
           role="combobox"
           aria-expanded={open}
           className={cn("w-full justify-between", selected.length > 0 ? "h-full" : "h-10")}
-          onClick={() => setOpen(!open)}
+          onClick={() => {
+            if (disabled) return;
+            setOpen(!open);
+          }}
           disabled={disabled}
         >
           <div className="flex gap-1 flex-wrap">
@@ -58,6 +61,7 @@ function MultiSelect({ options, selected, onChange, className, disabled, ...prop
                   >
                     {option.label}
                     <button
+                        aria-label={`Remove ${option.label} option`}
                         className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                         onKeyDown={(e) => {
                             if (e.key === "Enter") {

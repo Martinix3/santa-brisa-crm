@@ -3,7 +3,7 @@
 // IMPORTANT: This is a one-time script. Backup your Firestore data before running.
 
 import { db } from '../lib/firebase';
-import { collection, getDocs, writeBatch, query, doc } from 'firebase/firestore';
+import { collection, getDocs, writeBatch, query, doc, orderBy } from 'firebase/firestore';
 import type { CategoryKind } from '../types';
 
 const CATEGORIES_COLLECTION = 'categories';
@@ -18,7 +18,8 @@ async function migrate() {
 
     // Step 1: Read unique categories from Purchases
     console.log("Reading from Purchases...");
-    const purchasesSnapshot = await getDocs(collection(db, PURCHASES_COLLECTION));
+    const purchasesQuery = query(collection(db, PURCHASES_COLLECTION), orderBy('__name__'));
+    const purchasesSnapshot = await getDocs(purchasesQuery);
     purchasesSnapshot.forEach(doc => {
         const categoryName = doc.data().category;
         if (categoryName && !categoriesMap.has(categoryName)) {
@@ -28,7 +29,8 @@ async function migrate() {
 
     // Step 2: Read unique types from Promotional Materials
     console.log("Reading from Promotional Materials...");
-    const materialsSnapshot = await getDocs(collection(db, MATERIALS_COLLECTION));
+    const materialsQuery = query(collection(db, MATERIALS_COLLECTION), orderBy('__name__'));
+    const materialsSnapshot = await getDocs(materialsQuery);
     materialsSnapshot.forEach(doc => {
         const typeName = doc.data().type;
         if (typeName && !categoriesMap.has(typeName)) {

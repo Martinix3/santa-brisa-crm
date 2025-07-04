@@ -43,6 +43,8 @@ export interface Category {
   kind: CategoryKind;
   isConsumable?: boolean;
   parentId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CostCenter {
@@ -50,6 +52,8 @@ export interface CostCenter {
     name: string;
     type: 'Marketing' | 'Event' | 'COGS' | 'Incentive' | 'General';
     parentId?: string;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export type UoM = 'unit' | 'kg' | 'g' | 'l' | 'ml';
@@ -60,7 +64,6 @@ export interface ItemBatch {
   purchaseId?: string;
   supplierBatchCode?: string;
   qtyInitial: number;
-  qtyAvailable: number;
   uom: UoM;
   unitCost: number;
   expiryDate?: string; // YYYY-MM-DD
@@ -76,7 +79,7 @@ export interface StockTxn {
   sku: string;
   batchId?: string;
   qtyDelta: number; // Positive for additions, negative for subtractions
-  costDelta: number;
+  costDelta: number; // Positive for additions, negative for subtractions. Matches qtyDelta sign.
   uom: UoM;
   txnType: StockTxnType;
   refCollection: StockTxnRefCollection;

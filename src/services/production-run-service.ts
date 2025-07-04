@@ -2,7 +2,7 @@
 'use server';
 
 import { db } from '@/lib/firebase';
-import { collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, runTransaction, where } from "firebase/firestore";
+import { collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, runTransaction, where, limit } from "firebase/firestore";
 import type { ProductionRun, ProductionRunFormValues, InventoryItem, BomLine, StockTxn } from '@/types';
 import { format } from 'date-fns';
 import { getBomLinesFSTransactional } from './bom-service';
@@ -80,9 +80,9 @@ export const closeProductionRunFS = async (runId: string, qtyProduced: number) =
         // 2. Process Component Consumption
         let totalConsumedCost = 0;
         for (const line of bomLines) {
-            const componentRef = doc(db, INVENTORY_ITEMS_COLLECTION, line.componentSku);
+            const componentRef = doc(db, INVENTORY_ITEMS_COLLECTION, line.componentId);
             const componentDoc = await transaction.get(componentRef);
-            if (!componentDoc.exists()) throw new Error(`El componente con SKU ${line.componentSku} no fue encontrado.`);
+            if (!componentDoc.exists()) throw new Error(`El componente con ID ${line.componentId} no fue encontrado.`);
             
             const componentData = componentDoc.data() as InventoryItem;
             const consumedQty = line.quantity * qtyProduced;
@@ -101,7 +101,7 @@ export const closeProductionRunFS = async (runId: string, qtyProduced: number) =
             totalConsumedCost += unitCost * consumedQty;
             
             await addStockTxnFSTransactional(transaction, { 
-                inventoryItemId: line.componentSku,
+                inventoryItemId: line.componentId,
                 qtyDelta: -consumedQty,
                 newStock: newStock,
                 unitCost: unitCost,
@@ -113,9 +113,13 @@ export const closeProductionRunFS = async (runId: string, qtyProduced: number) =
         }
 
         // 3. Process Finished Good Production
-        const finishedGoodRef = doc(db, INVENTORY_ITEMS_COLLECTION, runData.productSku);
-        const finishedGoodDoc = await transaction.get(finishedGoodRef);
-        if (!finishedGoodDoc.exists()) throw new Error(`El producto a fabricar con SKU ${runData.productSku} no se encuentra en el inventario.`);
+        const finishedGoodQuery = query(collection(db, INVENTORY_ITEMS_COLLECTION), where('sku', '==', runData.productSku), limit(1));
+        const finishedGoodSnapshot = await transaction.get(finishedGoodQuery);
+        if (finishedGoodSnapshot.empty) {
+            throw new Error(`El producto a fabricar con SKU ${runData.productSku} no se encuentra en el inventario.`);
+        }
+        const finishedGoodDoc = finishedGoodSnapshot.docs[0];
+        const finishedGoodRef = finishedGoodDoc.ref;
         const finishedGoodData = finishedGoodDoc.data() as InventoryItem;
         const newFinishedStock = (finishedGoodData.stock || 0) + qtyProduced;
         const newUnitCost = qtyProduced > 0 ? totalConsumedCost / qtyProduced : 0;
@@ -129,7 +133,7 @@ export const closeProductionRunFS = async (runId: string, qtyProduced: number) =
             }
         });
         await addStockTxnFSTransactional(transaction, {
-            inventoryItemId: runData.productSku,
+            inventoryItemId: finishedGoodDoc.id,
             qtyDelta: qtyProduced,
             newStock: newFinishedStock,
             unitCost: newUnitCost,
@@ -148,7 +152,7 @@ export const closeProductionRunFS = async (runId: string, qtyProduced: number) =
         });
 
         await addProductCostSnapshotFSTransactional(transaction, {
-            inventoryItemId: runData.productSku,
+            inventoryItemId: finishedGoodDoc.id,
             unitCost: newUnitCost,
             productionRunId: runId
         });

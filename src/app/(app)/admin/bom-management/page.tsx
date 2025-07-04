@@ -115,21 +115,14 @@ export default function BomManagementPage() {
           setIsLoading(false);
           return;
         }
-        if (!material.sku) {
-          toast({
-            title: "Error en Componente",
-            description: `El componente de inventario "${material.name}" no tiene un SKU definido y no puede ser usado en una receta.`,
-            variant: "destructive",
-          });
-          setIsLoading(false);
-          return;
-        }
       }
       
       const componentsToSave = data.components.map(c => {
         const material = inventoryItems.find(item => item.id === c.materialId)!;
         return {
-            componentSku: material.sku!,
+            componentId: material.id,
+            componentName: material.name,
+            componentSku: material.sku,
             quantity: c.quantity,
             uom: c.uom,
         };
@@ -202,8 +195,8 @@ export default function BomManagementPage() {
                 <TableBody>
                   {lines.map(line => (
                     <TableRow key={line.id}>
-                      <TableCell className="font-medium">{getItemName(line.componentSku)}</TableCell>
-                      <TableCell>{line.componentSku}</TableCell>
+                      <TableCell className="font-medium">{line.componentName}</TableCell>
+                      <TableCell>{line.componentSku || 'N/A'}</TableCell>
                       <TableCell><FormattedNumericValue value={line.quantity} /></TableCell>
                       <TableCell>{line.uom}</TableCell>
                     </TableRow>

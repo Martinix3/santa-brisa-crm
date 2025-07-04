@@ -16,6 +16,8 @@ const fromFirestore = (snapshot: any): BomLine => {
   return {
     id: snapshot.id,
     productSku: data.productSku,
+    componentId: data.componentId,
+    componentName: data.componentName,
     componentSku: data.componentSku,
     quantity: data.quantity,
     uom: data.uom,
@@ -25,7 +27,9 @@ const fromFirestore = (snapshot: any): BomLine => {
 };
 
 interface BomComponentValues {
-  componentSku: string;
+  componentId: string;
+  componentName: string;
+  componentSku?: string;
   quantity: number;
   uom: UoM;
 }
@@ -45,7 +49,11 @@ export const saveRecipeFS = async (productSku: string, components: BomComponentV
     const newDocRef = doc(collection(db, BOM_LINES_COLLECTION));
     const dataToAdd = {
       productSku: productSku,
-      ...component,
+      componentId: component.componentId,
+      componentName: component.componentName,
+      componentSku: component.componentSku || null,
+      quantity: component.quantity,
+      uom: component.uom,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     };

@@ -45,7 +45,6 @@ const uomList: UoM[] = ['unit', 'kg', 'g', 'l', 'ml'];
 const bomComponentSchema = z.object({
   materialId: z.string().optional(),
   description: z.string().min(3, "La descripción del componente es obligatoria."),
-  componentSku: z.string().optional(),
   quantity: z.coerce.number().min(0.000001, "La cantidad debe ser un número positivo."),
   uom: z.enum(uomList as [UoM, ...UoM[]]).default('unit'),
 });
@@ -97,7 +96,7 @@ const getBomRecipeSchema = (inventoryItems: InventoryItem[]) => z.object({
     if (!component.materialId) {
         ctx.addIssue({
             path: [`components.${index}.description`],
-            message: "Busca y asocia un componente del inventario.",
+            message: "Componente no asociado. Usa la búsqueda inteligente.",
         });
     }
   });
@@ -161,11 +160,10 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
       setMatchingStatus({});
       if (recipe) {
         const componentsFromRecipe = recipe.lines.map(line => {
-            const material = inventoryItems.find(item => item.sku === line.componentSku);
+            const material = inventoryItems.find(item => item.id === line.componentId);
             return {
                 materialId: material?.id || '',
-                description: material?.name || `SKU: ${line.componentSku}`,
-                componentSku: line.componentSku,
+                description: material?.name || line.componentName || `ID: ${line.componentId}`,
                 quantity: line.quantity,
                 uom: line.uom,
             };
@@ -204,7 +202,6 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
             const matchedMaterial = inventoryItems.find(m => m.id === result.matchedMaterialId);
             if (matchedMaterial) {
                 form.setValue(`components.${index}.materialId`, matchedMaterial.id);
-                form.setValue(`components.${index}.componentSku`, matchedMaterial.sku || '');
                 form.setValue(`components.${index}.uom`, matchedMaterial.uom || 'unit');
                 form.setValue(`components.${index}.description`, matchedMaterial.name);
                 setMatchingStatus(prev => ({ ...prev, [index]: 'matched' }));
@@ -229,12 +226,15 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
     setIsSaving(false);
   };
   
-  const { categoriesMap } = useCategories();
+  const { allCategories } = useCategories();
 
-  const finishedGoods = React.useMemo(() => 
-    inventoryItems.filter(i => i.sku && categoriesMap.get(i.categoryId)?.name === "Producto Terminado"),
-    [inventoryItems, categoriesMap]
-  );
+  const finishedGoods = React.useMemo(() => {
+      const normalize = (s: string) => s.trim().toLowerCase();
+      const finishedGoodCategory = allCategories.find(c => normalize(c.name) === 'producto terminado');
+      if (!finishedGoodCategory) return [];
+      return inventoryItems.filter(i => i.sku && i.categoryId === finishedGoodCategory.id);
+  }, [inventoryItems, allCategories]);
+
   
   const isEditing = !!recipe;
 
@@ -299,7 +299,7 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
                           </div>
                       </div>
                   ))}
-                  <Button type="button" variant="outline" size="sm" onClick={() => append({ materialId: '', description: '', componentSku: '', quantity: 1, uom: 'unit' })}><PlusCircle className="mr-2 h-4 w-4" />Añadir Componente</Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => append({ description: '', quantity: 1, uom: 'unit' })}><PlusCircle className="mr-2 h-4 w-4" />Añadir Componente</Button>
                   <FormMessage className="p-2">{form.formState.errors.components?.root?.message}</FormMessage>
                   </div>
               </ScrollArea>

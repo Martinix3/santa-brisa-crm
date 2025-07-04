@@ -91,7 +91,9 @@ export interface StockTxn {
 export interface BomLine {
     id: string;
     productSku: string; // The SKU of the item being produced
-    componentSku: string; // The SKU of the component item
+    componentId: string; // The ID of the component item from inventory
+    componentName?: string; // Denormalized for easier display
+    componentSku?: string; // Denormalized for display
     quantity: number; // How many units of component are needed for 1 unit of product
     uom: UoM;
     lossFactor?: number;

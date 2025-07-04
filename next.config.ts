@@ -27,7 +27,7 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'firebasestorage.googleapis.com',
         port: '',
-        pathname: '/v0/b/santa-brisa-crm.appspot.com/o/**',
+        pathname: '/v0/b/santa-brisa-crm.firebasestorage.app/o/**',
       },
     ],
   },

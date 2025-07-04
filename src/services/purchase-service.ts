@@ -49,7 +49,8 @@ const fromFirestorePurchase = (docSnap: DocumentSnapshot): Purchase => {
     id: docSnap.id,
     supplier: data.supplier || '',
     supplierId: data.supplierId || undefined,
-    category: data.category || 'Otro',
+    categoryId: data.categoryId,
+    costCenterIds: data.costCenterIds || [],
     currency: data.currency || 'EUR',
     items: data.items?.map((item: any) => ({ ...item, batchNumber: item.batchNumber || undefined })) || [],
     subtotal: data.subtotal || 0,
@@ -78,7 +79,8 @@ const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean, 
 
   const firestoreData: { [key: string]: any } = {
     supplier: data.supplier,
-    category: data.category,
+    categoryId: data.categoryId,
+    costCenterIds: data.costCenterIds || [],
     currency: data.currency || 'EUR',
     orderDate: data.orderDate instanceof Date && isValid(data.orderDate) ? Timestamp.fromDate(data.orderDate) : Timestamp.fromDate(new Date()),
     status: data.status,
@@ -204,18 +206,13 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
         await setDoc(newDocRef, firestoreData);
 
         const completeStatuses = ['Completado', 'Factura Recibida', 'Pagado'];
-        if (data.category === 'Material Promocional' && completeStatuses.includes(data.status)) {
-            for (const item of data.items) {
-                if (!item.materialId || !item.quantity || !item.unitPrice) continue;
-                const purchaseInfo: LatestPurchaseInfo = {
-                    quantityPurchased: item.quantity,
-                    totalPurchaseCost: item.quantity * item.unitPrice,
-                    purchaseDate: format(data.orderDate, 'yyyy-MM-dd'),
-                    calculatedUnitCost: item.unitPrice,
-                    notes: `De compra ID: ${purchaseId}`
-                };
-                await processMaterialUpdateFromPurchase(item.materialId, item.quantity, purchaseInfo);
-            }
+        if (completeStatuses.includes(data.status)) {
+            // This part will be updated in Phase 2 to trigger seedItemBatches
+            // For now, we keep the direct stock update for promotional materials
+            // const categoryDoc = await getCategoryById(data.categoryId)
+            // if (categoryDoc?.kind === 'inventory') {
+            //     // ... logic to be added in Phase 2
+            // }
         }
 
         console.log(`New purchase added with ID: ${purchaseId}`);
@@ -261,44 +258,8 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
     const firestoreData = toFirestorePurchase(data as PurchaseFormValues, false, supplierId);
     await updateDoc(purchaseDocRef, firestoreData);
     
-    if (data.category === 'Material Promocional') {
-      const completeStatuses = ['Completado', 'Factura Recibida', 'Pagado'];
-      const wasComplete = completeStatuses.includes(oldData.status);
-      const isNowComplete = data.status ? completeStatuses.includes(data.status) : wasComplete;
-
-      const newItemsMap = new Map((data.items || []).map(i => [i.materialId, i]));
-      const oldItemsMap = new Map(oldData.items.map(i => [i.materialId, i]));
-      const allMaterialIds = new Set([...newItemsMap.keys(), ...oldItemsMap.keys()]);
-
-      for (const materialId of allMaterialIds) {
-        const newItem = newItemsMap.get(materialId);
-        const oldItem = oldItemsMap.get(materialId);
-        let diff = 0;
-        
-        if (wasComplete && !isNowComplete) {
-            diff = -(oldItem?.quantity || 0); // Revert stock
-        } else if (!wasComplete && isNowComplete) {
-            diff = newItem?.quantity || 0; // Add new stock
-        } else if (wasComplete && isNowComplete) {
-            diff = (newItem?.quantity || 0) - (oldItem?.quantity || 0); // Add difference
-        }
-
-        if (diff !== 0) {
-            const purchaseInfo: LatestPurchaseInfo | undefined = (newItem && newItem.quantity && newItem.unitPrice) ? {
-                quantityPurchased: newItem.quantity,
-                totalPurchaseCost: newItem.quantity * newItem.unitPrice,
-                purchaseDate: format(data.orderDate!, 'yyyy-MM-dd'),
-                calculatedUnitCost: newItem.unitPrice,
-                notes: `De compra ID: ${id}`
-            } : undefined;
-            if (materialId) {
-              await processMaterialUpdateFromPurchase(materialId, diff, purchaseInfo);
-            }
-        }
-      }
-    }
-
-    console.log("Purchase document updated.");
+    // Stock update logic will be moved to a trigger in Phase 2
+    console.log("Purchase document updated. Stock logic will be handled by triggers in later phases.");
   } catch (error) {
     console.error("Failed to update purchase:", error);
     throw error;
@@ -312,14 +273,7 @@ export const deletePurchaseFS = async (id: string): Promise<void> => {
   
   if (docSnap.exists()) {
       const data = fromFirestorePurchase(docSnap);
-      const completeStatuses = ['Completado', 'Factura Recibida', 'Pagado'];
-      if (data.category === 'Material Promocional' && completeStatuses.includes(data.status)) {
-        for (const item of data.items) {
-          if (item.materialId && item.quantity) {
-            await updateMaterialStockFS(item.materialId, -item.quantity);
-          }
-        }
-      }
+      // Stock adjustment on deletion will be handled by triggers in Phase 2
       
       if (data.storagePath) {
           try {

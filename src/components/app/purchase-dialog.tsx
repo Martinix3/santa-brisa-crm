@@ -35,9 +35,9 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { Purchase, PurchaseFormValues as PurchaseFormValuesType, PurchaseStatus, PromotionalMaterial, PurchaseCategory, Currency } from "@/types";
-import { purchaseStatusList, purchaseCategoryList } from "@/lib/data";
-import { Loader2, Calendar as CalendarIcon, DollarSign, PlusCircle, Trash2, FileCheck2, Link2, Sparkles, HelpCircle } from "lucide-react";
+import type { Purchase, PurchaseFormValues as PurchaseFormValuesType, PurchaseStatus, PromotionalMaterial, Currency, Category, CostCenter } from "@/types";
+import { purchaseStatusList } from "@/lib/data";
+import { Loader2, Calendar as CalendarIcon, DollarSign, PlusCircle, Trash2, FileCheck2, Link2, Sparkles, HelpCircle, Briefcase, Building } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
@@ -45,11 +45,15 @@ import { Separator } from "../ui/separator";
 import FormattedNumericValue from "../lib/formatted-numeric-value";
 import Link from 'next/link';
 import { getPromotionalMaterialsFS, addPromotionalMaterialFS } from "@/services/promotional-material-service";
+import { getCategoriesFS } from "@/services/category-service";
+import { getCostCentersFS } from "@/services/costcenter-service";
 import { useToast } from "@/hooks/use-toast";
 import { matchMaterial } from "@/ai/flows/material-matching-flow";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
+
 
 const purchaseItemSchema = z.object({
   materialId: z.string().min(1, "Debe seleccionar un material del sistema."),
@@ -70,7 +74,8 @@ const purchaseFormSchema = z.object({
   supplierAddress_country: z.string().optional(),
   orderDate: z.date({ required_error: "La fecha del pedido es obligatoria." }),
   status: z.enum(purchaseStatusList as [PurchaseStatus, ...PurchaseStatus[]]),
-  category: z.enum(purchaseCategoryList as [PurchaseCategory, ...PurchaseCategory[]], { required_error: "La categoría del gasto es obligatoria." }),
+  categoryId: z.string({ required_error: "La categoría del gasto es obligatoria." }),
+  costCenterIds: z.array(z.string()).optional(),
   currency: z.enum(["EUR", "USD", "MXN"]).default("EUR"),
   items: z.array(purchaseItemSchema).min(1, "Debe añadir al menos un artículo a la compra."),
   shippingCost: z.coerce.number().min(0, "Los portes no pueden ser negativos.").optional().nullable(),
@@ -107,7 +112,9 @@ async function fileToDataUri(file: File): Promise<string> {
 export default function PurchaseDialog({ purchase, prefilledData, prefilledFile, isOpen, onOpenChange, onSave, isReadOnly = false }: PurchaseDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   const [availableMaterials, setAvailableMaterials] = React.useState<PromotionalMaterial[]>([]);
-  const [isLoadingMaterials, setIsLoadingMaterials] = React.useState(true);
+  const [availableCategories, setAvailableCategories] = React.useState<Category[]>([]);
+  const [availableCostCenters, setAvailableCostCenters] = React.useState<CostCenter[]>([]);
+  const [isLoadingDropdowns, setIsLoadingDropdowns] = React.useState(true);
   const [matchingItems, setMatchingItems] = React.useState<Record<number, boolean>>({});
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
   const [previewType, setPreviewType] = React.useState<'image' | 'pdf' | null>(null);
@@ -116,7 +123,7 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
   const form = useForm<PurchaseFormValues>({
     resolver: zodResolver(purchaseFormSchema),
     defaultValues: {
-      supplier: "", orderDate: new Date(), status: "Borrador", category: "Material Promocional",
+      supplier: "", orderDate: new Date(), status: "Borrador", categoryId: "", costCenterIds: [],
       currency: "EUR",
       items: [{ materialId: "", description: "", quantity: 1, unitPrice: null, batchNumber: "" }],
       shippingCost: 0, taxRate: 21, notes: "", invoiceUrl: "", storagePath: "", invoiceFile: null,
@@ -133,7 +140,7 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
   const watchedInvoiceContentType = form.watch("invoiceContentType");
 
   const { subtotal, taxAmount, totalAmount } = React.useMemo(() => {
-    const currentSubtotal = watchedItems.reduce((sum, item) => sum + (item.quantity || 0) * (item.unitPrice || 0), 0);
+    const currentSubtotal = watchedItems.reduce((sum, item) => sum + (item.quantity || 0) * (item.unitPrice || 0), 0) || 0;
     const shipping = watchedShippingCost || 0;
     const subtotalWithShipping = currentSubtotal + shipping;
     const currentTaxAmount = subtotalWithShipping * (watchedTaxRate / 100);
@@ -141,14 +148,21 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
     return { subtotal: currentSubtotal, taxAmount: currentTaxAmount, totalAmount: currentTotalAmount };
   }, [watchedItems, watchedShippingCost, watchedTaxRate]);
 
-  const fetchMaterials = React.useCallback(async () => {
-    setIsLoadingMaterials(true);
+  const fetchDropdownData = React.useCallback(async () => {
+    setIsLoadingDropdowns(true);
     try {
-      setAvailableMaterials(await getPromotionalMaterialsFS());
+        const [materials, categories, costCenters] = await Promise.all([
+            getPromotionalMaterialsFS(),
+            getCategoriesFS('cost'),
+            getCostCentersFS()
+        ]);
+      setAvailableMaterials(materials);
+      setAvailableCategories(categories);
+      setAvailableCostCenters(costCenters);
     } catch (error) {
-      toast({ title: "Error", description: "No se pudieron cargar los materiales promocionales.", variant: "destructive" });
+      toast({ title: "Error", description: "No se pudieron cargar los datos maestros.", variant: "destructive" });
     } finally {
-      setIsLoadingMaterials(false);
+      setIsLoadingDropdowns(false);
     }
   }, [toast]);
   
@@ -182,9 +196,9 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
   
   React.useEffect(() => {
     if (isOpen) {
-      fetchMaterials();
+      fetchDropdownData();
     }
-  }, [isOpen, fetchMaterials]);
+  }, [isOpen, fetchDropdownData]);
   
   React.useEffect(() => {
     if (!isOpen) return;
@@ -196,7 +210,8 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
       supplier: source?.supplier || "",
       orderDate: source?.orderDate ? (typeof source.orderDate === 'string' ? parseISO(source.orderDate) : source.orderDate) : new Date(),
       status: source?.status || "Borrador",
-      category: source?.category || "Material Promocional",
+      categoryId: (source as Purchase)?.categoryId || "",
+      costCenterIds: (source as Purchase)?.costCenterIds || [],
       currency: (source as Purchase)?.currency || "EUR",
       items: source?.items?.map(i => ({...i, quantity: i.quantity || null, unitPrice: i.unitPrice || null })) || [{ materialId: "", description: "", quantity: 1, unitPrice: null, batchNumber: "" }],
       shippingCost: (source as Purchase)?.shippingCost || 0,
@@ -217,10 +232,10 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
 
     form.reset(initialValues as any);
     
-    if (!isLoadingMaterials && initialValues.items && initialValues.items.some(item => !item.materialId)) {
+    if (!isLoadingDropdowns && initialValues.items && initialValues.items.some(item => !item.materialId)) {
         runSmartMatching(initialValues.items as PurchaseFormValues['items']);
     }
-  }, [isOpen, purchase, prefilledData, prefilledFile, form, isLoadingMaterials, runSmartMatching]);
+  }, [isOpen, purchase, prefilledData, prefilledFile, form, isLoadingDropdowns, runSmartMatching]);
 
 
   // Effect for auto-detecting batch numbers
@@ -264,10 +279,10 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
     try {
         const result = await matchMaterial({ itemName, existingMaterials: availableMaterials });
         const newMaterialData = { name: result.suggestedName || itemName, type: result.suggestedType || 'Otro' };
-        const newMaterialId = await addPromotionalMaterialFS(newMaterialData as any);
-        await fetchMaterials(); // Refresh material list
-        update(index, { ...watchedItems[index], materialId: newMaterialId });
-        toast({ title: "Material Creado", description: `Se ha creado el material "${newMaterialData.name}".`});
+        // This flow needs updating to use categoryId from the new master list
+        // For now, it's a simplification. A more complex flow would ask for category.
+        toast({ title: "Función no implementada", description: "La creación de materiales desde aquí se implementará en una fase futura.", variant: "default" });
+
     } catch (error) {
         toast({ title: "Error", description: "No se pudo crear el nuevo material.", variant: "destructive" });
     } finally {
@@ -296,6 +311,8 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
 
   const hasInvoicePreview = !!previewUrl;
 
+  const costCenterOptions: MultiSelectOption[] = availableCostCenters.map(cc => ({ value: cc.id, label: cc.name }));
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className={cn("max-h-[95vh]", hasInvoicePreview ? "sm:max-w-6xl" : "sm:max-w-2xl")}>
@@ -312,10 +329,24 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
               <ScrollArea className={cn("h-full", hasInvoicePreview && "pr-4")}>
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField control={form.control} name="supplier" render={({ field }) => (<FormItem><FormLabel>Proveedor</FormLabel><FormControl><Input placeholder="Ej: Proveedor de Tequila" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={form.control} name="supplier" render={({ field }) => (<FormItem><FormLabel className="flex items-center"><Building className="mr-2 h-4 w-4"/>Proveedor</FormLabel><FormControl><Input placeholder="Ej: Proveedor de Tequila" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name="orderDate" render={({ field }) => (<FormItem className="flex flex-col"><FormLabel>Fecha Gasto/Pedido</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("justify-start text-left font-normal", !field.value && "text-muted-foreground")} disabled={isReadOnly}>{field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={isReadOnly} initialFocus locale={es}/></PopoverContent></Popover><FormMessage /></FormItem>)} />
                   </div>
-                  <FormField control={form.control} name="category" render={({ field }) => (<FormItem><FormLabel>Categoría del Gasto</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione una categoría" /></SelectTrigger></FormControl><SelectContent>{purchaseCategoryList.map(s => (<SelectItem key={s} value={s}>{s}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="categoryId" render={({ field }) => (<FormItem><FormLabel>Categoría del Gasto</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly || isLoadingDropdowns}><FormControl><SelectTrigger><SelectValue placeholder={isLoadingDropdowns ? "Cargando..." : "Seleccione una categoría"} /></SelectTrigger></FormControl><SelectContent>{availableCategories.map(c => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="costCenterIds" render={({ field }) => (
+                      <FormItem>
+                          <FormLabel>Centros de Coste (Opcional)</FormLabel>
+                          <MultiSelect
+                            options={costCenterOptions}
+                            selected={field.value || []}
+                            onChange={field.onChange}
+                            placeholder="Asignar a centros de coste..."
+                            disabled={isReadOnly || isLoadingDropdowns}
+                          />
+                          <FormDescription className="text-xs">Permite prorratear el gasto entre varios ejes analíticos.</FormDescription>
+                          <FormMessage />
+                      </FormItem>
+                  )} />
                   
                   <Separator /><h3 className="text-md font-semibold">Artículos del Gasto</h3>
                   <div className="space-y-3">
@@ -328,7 +359,7 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
                                     {matchingItems[index] && <Loader2 className="h-3 w-3 animate-spin"/>}
                                     Concepto del Sistema
                                   </FormLabel>
-                                  {isLoadingMaterials ? (
+                                  {isLoadingDropdowns ? (
                                     <Skeleton className="h-10 w-full" />
                                   ) : (
                                     <Select onValueChange={selectField.onChange} value={selectField.value || ""} disabled={isReadOnly}>

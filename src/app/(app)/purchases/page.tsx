@@ -23,14 +23,17 @@ import { addPurchaseFS, updatePurchaseFS, deletePurchaseFS, getPurchasesFS } fro
 import Link from "next/link";
 import InvoiceUploadDialog from "@/components/app/invoice-upload-dialog";
 import { testUpload } from "@/services/test-upload-service";
-import { initializeMockCategoriesInFirestore, getCategoriesFS } from "@/services/category-service";
+import { useCategories } from "@/contexts/categories-context";
+
 
 export default function PurchasesPage() {
   const { toast } = useToast();
   const { userRole, dataSignature, refreshDataSignature } = useAuth();
+  const { costCategories, categoriesMap, isLoading: isLoadingCategories } = useCategories();
+
   const [purchases, setPurchases] = React.useState<Purchase[]>([]);
-  const [purchaseCategories, setPurchaseCategories] = React.useState<Category[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
+  const [isLoadingPurchases, setIsLoadingPurchases] = React.useState(true);
+  
   const [editingPurchase, setEditingPurchase] = React.useState<Purchase | null>(null);
   const [isPurchaseDialogOpen, setIsPurchaseDialogOpen] = React.useState(false);
   const [purchaseToDelete, setPurchaseToDelete] = React.useState<Purchase | null>(null);
@@ -40,40 +43,34 @@ export default function PurchasesPage() {
   
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<PurchaseStatus | "Todos">("Todos");
-  const [categoryFilter, setCategoryFilter] = React.useState<PurchaseCategory | "Todas">("Todas");
+  const [categoryFilter, setCategoryFilter] = React.useState<string | "Todas">("Todas");
 
   const [testResult, setTestResult] = React.useState<string | null>(null);
   const [isTestingUpload, setIsTestingUpload] = React.useState(false);
 
   const isAdmin = userRole === 'Admin';
+  const isLoading = isLoadingPurchases || isLoadingCategories;
 
   React.useEffect(() => {
     async function loadInitialData() {
-        setIsLoading(true);
+        setIsLoadingPurchases(true);
         try {
-            await initializeMockCategoriesInFirestore();
-            
-            const [fetchedPurchases, fetchedCategories] = await Promise.all([
-              getPurchasesFS(),
-              getCategoriesFS('cost'),
-            ]);
+            const fetchedPurchases = await getPurchasesFS();
             setPurchases(fetchedPurchases);
-            setPurchaseCategories(fetchedCategories);
         } catch (error) {
             console.error("Failed to load purchases:", error);
             toast({ title: "Error", description: "No se pudieron cargar las órdenes de compra.", variant: "destructive" });
         } finally {
-            setIsLoading(false);
+            setIsLoadingPurchases(false);
         }
     }
     if (isAdmin) {
         loadInitialData();
     } else {
-        setIsLoading(false);
+        setIsLoadingPurchases(false);
     }
   }, [toast, isAdmin, dataSignature]);
   
-  const categoriesMap = React.useMemo(() => new Map(purchaseCategories.map(c => [c.id, c.name])), [purchaseCategories]);
 
   const handleAddNewPurchase = () => {
     if (!isAdmin) return;
@@ -101,7 +98,7 @@ export default function PurchasesPage() {
 
   const handleSavePurchase = async (data: PurchaseFormValues, purchaseId?: string) => {
     if (!isAdmin) return;
-    setIsLoading(true);
+    setIsLoadingPurchases(true);
     
     try {
       let successMessage = "";
@@ -120,7 +117,7 @@ export default function PurchasesPage() {
       console.error("Error saving purchase:", error);
       toast({ title: "Error al Guardar", description: `No se pudo guardar el gasto. Error: ${error.message}`, variant: "destructive" });
     } finally {
-      setIsLoading(false);
+      setIsLoadingPurchases(false);
       setIsPurchaseDialogOpen(false);
       setEditingPurchase(null);
       setPrefilledData(null);
@@ -135,7 +132,7 @@ export default function PurchasesPage() {
 
   const confirmDeletePurchase = async () => {
     if (!isAdmin || !purchaseToDelete) return;
-    setIsLoading(true);
+    setIsLoadingPurchases(true);
     try {
       await deletePurchaseFS(purchaseToDelete.id);
       setPurchases(prev => prev.filter(p => p.id !== purchaseToDelete.id));
@@ -144,7 +141,7 @@ export default function PurchasesPage() {
       console.error("Error deleting purchase:", error);
       toast({ title: "Error al Eliminar", description: "No se pudo eliminar el gasto.", variant: "destructive" });
     } finally {
-      setIsLoading(false);
+      setIsLoadingPurchases(false);
       setPurchaseToDelete(null);
     }
   };
@@ -200,7 +197,7 @@ export default function PurchasesPage() {
        (purchase.items && purchase.items.some(item => item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()))))
     )
     .filter(purchase => statusFilter === "Todos" || purchase.status === statusFilter)
-    .filter(purchase => categoryFilter === "Todas" || (categoriesMap.get(purchase.categoryId) || '') === categoryFilter);
+    .filter(purchase => categoryFilter === "Todas" || purchase.categoryId === categoryFilter);
 
   if (!isAdmin) {
     return (
@@ -279,15 +276,15 @@ export default function PurchasesPage() {
             </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="w-full sm:w-auto">
+                <Button variant="outline" className="w-full sm:w-auto" disabled={isLoadingCategories}>
                   <Filter className="mr-2 h-4 w-4" />
-                  Categoría: {categoryFilter} <ChevronDown className="ml-2 h-4 w-4" />
+                  Categoría: {categoryFilter === 'Todas' ? 'Todas' : categoriesMap.get(categoryFilter) || '...'} <ChevronDown className="ml-2 h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
                 <DropdownMenuCheckboxItem onSelect={() => setCategoryFilter("Todas")} checked={categoryFilter === "Todas"}>Todas</DropdownMenuCheckboxItem>
-                {purchaseCategoryList.map(cat => (
-                  <DropdownMenuCheckboxItem key={cat} onSelect={() => setCategoryFilter(cat)} checked={categoryFilter === cat}>{cat}</DropdownMenuCheckboxItem>
+                {costCategories.map(cat => (
+                  <DropdownMenuCheckboxItem key={cat.id} onSelect={() => setCategoryFilter(cat.id)} checked={categoryFilter === cat.id}>{cat.name}</DropdownMenuCheckboxItem>
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
@@ -322,7 +319,7 @@ export default function PurchasesPage() {
                           purchase.supplier
                         )}
                       </TableCell>
-                      <TableCell>{categoriesMap.get(purchase.categoryId) || purchase.categoryId}</TableCell>
+                      <TableCell>{categoriesMap.get(purchase.categoryId) || 'N/D'}</TableCell>
                       <TableCell>{format(parseISO(purchase.orderDate), "dd/MM/yy", { locale: es })}</TableCell>
                       <TableCell className="text-right">
                         <FormattedNumericValue value={purchase.totalAmount} options={{ style: 'currency', currency: purchase.currency }} />

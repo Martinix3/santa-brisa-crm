@@ -18,15 +18,17 @@ import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getInventoryItemsFS, addInventoryItemFS, updateInventoryItemFS, deleteInventoryItemFS } from "@/services/inventory-item-service";
-import { getCategoriesFS } from "@/services/category-service";
+import { useCategories } from "@/contexts/categories-context";
 
 
 export default function InventoryPage() {
   const { toast } = useToast();
   const { userRole, dataSignature, refreshDataSignature } = useAuth();
+  const { inventoryCategories, categoriesMap, isLoading: isLoadingCategories } = useCategories();
+
   const [items, setItems] = React.useState<InventoryItem[]>([]);
-  const [inventoryCategories, setInventoryCategories] = React.useState<Category[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
+  const [isLoadingItems, setIsLoadingItems] = React.useState(true);
+
   const [editingItem, setEditingItem] = React.useState<InventoryItem | null>(null);
   const [isItemDialogOpen, setIsItemDialogOpen] = React.useState(false);
   const [itemToDelete, setItemToDelete] = React.useState<InventoryItem | null>(null);
@@ -35,22 +37,19 @@ export default function InventoryPage() {
   const [categoryFilter, setCategoryFilter] = React.useState<string | "Todos">("Todos");
 
   const isAdmin = userRole === 'Admin';
+  const isLoading = isLoadingItems || isLoadingCategories;
 
   React.useEffect(() => {
     async function loadData() {
-      setIsLoading(true);
+      setIsLoadingItems(true);
       try {
-        const [firestoreItems, categories] = await Promise.all([
-            getInventoryItemsFS(),
-            getCategoriesFS('inventory'),
-        ]);
+        const firestoreItems = await getInventoryItemsFS();
         setItems(firestoreItems);
-        setInventoryCategories(categories);
       } catch (error) {
         console.error("Error fetching inventory items:", error);
-        toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar los artículos de inventario o categorías.", variant: "destructive" });
+        toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar los artículos de inventario.", variant: "destructive" });
       } finally {
-        setIsLoading(false);
+        setIsLoadingItems(false);
       }
     }
     loadData();
@@ -71,7 +70,7 @@ export default function InventoryPage() {
   
   const handleSaveItem = async (data: InventoryItemFormValues, itemId?: string) => {
     if (!isAdmin) return;
-    setIsLoading(true);
+    setIsLoadingItems(true);
     
     try {
       let successMessage = "";
@@ -88,7 +87,7 @@ export default function InventoryPage() {
         console.error("Error saving inventory item:", error);
         toast({ title: "Error al Guardar", description: "No se pudo guardar el artículo en Firestore.", variant: "destructive"});
     } finally {
-        setIsLoading(false);
+        setIsLoadingItems(false);
         setIsItemDialogOpen(false);
         setEditingItem(null);
     }
@@ -101,7 +100,7 @@ export default function InventoryPage() {
 
   const confirmDeleteItem = async () => {
     if (!isAdmin || !itemToDelete) return;
-    setIsLoading(true);
+    setIsLoadingItems(true);
     try {
       await deleteInventoryItemFS(itemToDelete.id);
       refreshDataSignature();
@@ -110,12 +109,10 @@ export default function InventoryPage() {
         console.error("Error deleting inventory item:", error);
         toast({ title: "Error al Eliminar", description: "No se pudo eliminar el artículo de Firestore.", variant: "destructive"});
     } finally {
-        setIsLoading(false);
+        setIsLoadingItems(false);
         setItemToDelete(null);
     }
   };
-
-  const categoriesMap = React.useMemo(() => new Map(inventoryCategories.map(c => [c.id, c.name])), [inventoryCategories]);
 
   const filteredItems = items
     .filter(item =>
@@ -166,7 +163,7 @@ export default function InventoryPage() {
             />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="w-full sm:w-auto">
+                <Button variant="outline" className="w-full sm:w-auto" disabled={isLoadingCategories}>
                   <Filter className="mr-2 h-4 w-4" />
                   Categoría: {categoryFilter === "Todos" ? "Todas" : (categoriesMap.get(categoryFilter) || '...') } <ChevronDown className="ml-2 h-4 w-4" />
                 </Button>
@@ -298,6 +295,7 @@ export default function InventoryPage() {
           isOpen={isItemDialogOpen}
           onOpenChange={setIsItemDialogOpen}
           onSave={handleSaveItem}
+          inventoryCategories={inventoryCategories}
         />
       )}
     </div>

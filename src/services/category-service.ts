@@ -22,33 +22,11 @@ const fromFirestoreCategory = (snapshot: DocumentSnapshot): Category => {
     };
 };
 
-export const getCategoriesFS = async (kind?: CategoryKind | CategoryKind[]): Promise<Category[]> => {
+export const getCategoriesFS = async (): Promise<Category[]> => {
     const categoriesCol = collection(db, CATEGORIES_COLLECTION);
-    let q;
-    let shouldSortManually = false;
-
-    if (Array.isArray(kind)) {
-        if (kind.length > 10) {
-            throw new Error('Firestore "in" query supports a maximum of 10 items.');
-        }
-        q = query(categoriesCol, where('kind', 'in', kind));
-        shouldSortManually = true;
-    } else if (kind) {
-        q = query(categoriesCol, where('kind', '==', kind));
-        shouldSortManually = true;
-    } else {
-        q = query(categoriesCol, orderBy('name', 'asc'));
-    }
-    
+    const q = query(categoriesCol, orderBy('name', 'asc'));
     const snapshot = await getDocs(q);
-    const categories = snapshot.docs.map(fromFirestoreCategory);
-
-    // Sort in-memory if Firestore didn't handle it, to avoid composite indexes.
-    if(shouldSortManually) {
-      categories.sort((a, b) => a.name.localeCompare(b.name));
-    }
-
-    return categories;
+    return snapshot.docs.map(fromFirestoreCategory);
 };
 
 export const getCategoryByIdFS = async (id: string): Promise<Category | null> => {

@@ -42,8 +42,6 @@ import { cn } from "@/lib/utils";
 import { format, parseISO, isValid, subDays, isEqual } from "date-fns";
 import { es } from 'date-fns/locale';
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-import { getCategoriesFS } from "@/services/category-service";
-import { useToast } from "@/hooks/use-toast";
 
 
 const itemFormSchema = z.object({
@@ -77,14 +75,12 @@ interface InventoryItemDialogProps {
   onOpenChange: (open: boolean) => void;
   onSave: (data: InventoryItemFormValues, itemId?: string) => void;
   isReadOnly?: boolean;
+  inventoryCategories: Category[];
 }
 
-export default function InventoryItemDialog({ item, isOpen, onOpenChange, onSave, isReadOnly = false }: InventoryItemDialogProps) {
+export default function InventoryItemDialog({ item, isOpen, onOpenChange, onSave, isReadOnly = false, inventoryCategories }: InventoryItemDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   const [calculatedUnitCost, setCalculatedUnitCost] = React.useState<number | null>(null);
-  const [inventoryCategories, setInventoryCategories] = React.useState<Category[]>([]);
-  const [isLoadingCategories, setIsLoadingCategories] = React.useState(false);
-  const { toast } = useToast();
   
   const form = useForm<InventoryItemFormValues>({
     resolver: zodResolver(itemFormSchema),
@@ -112,23 +108,6 @@ export default function InventoryItemDialog({ item, isOpen, onOpenChange, onSave
     }
   }, [watchedQuantity, watchedTotalCost]);
   
-  React.useEffect(() => {
-    async function loadCategories() {
-        if (isOpen) {
-            setIsLoadingCategories(true);
-            try {
-                const categories = await getCategoriesFS('inventory');
-                setInventoryCategories(categories);
-            } catch (error) {
-                console.error("Error loading inventory categories:", error);
-                toast({ title: "Error", description: "No se pudieron cargar las categorías de inventario.", variant: "destructive" });
-            } finally {
-                setIsLoadingCategories(false);
-            }
-        }
-    }
-    loadCategories();
-  }, [isOpen, toast]);
 
   React.useEffect(() => {
     if (isOpen) {
@@ -206,9 +185,9 @@ export default function InventoryItemDialog({ item, isOpen, onOpenChange, onSave
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Categoría de Inventario</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly || isLoadingCategories}>
+                    <Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly || inventoryCategories.length === 0}>
                       <FormControl>
-                        <SelectTrigger><SelectValue placeholder={isLoadingCategories ? "Cargando..." : "Seleccione una categoría"} /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder={inventoryCategories.length === 0 ? "Cargando..." : "Seleccione una categoría"} /></SelectTrigger>
                       </FormControl>
                       <SelectContent>
                         {inventoryCategories.map(cat => (

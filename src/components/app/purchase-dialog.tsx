@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { Purchase, PurchaseFormValues as PurchaseFormValuesType, PurchaseStatus, InventoryItem, Currency, Category, CostCenter, InventoryItemFormValues } from "@/types";
+import type { Purchase, PurchaseFormValues as PurchaseFormValuesType, PurchaseStatus, InventoryItem, Currency, Category, CostCenter } from "@/types";
 import { purchaseStatusList } from "@/lib/data";
 import { Loader2, Calendar as CalendarIcon, DollarSign, PlusCircle, Trash2, FileCheck2, Link2, Sparkles, HelpCircle, Briefcase, Building } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -44,8 +44,7 @@ import { es } from 'date-fns/locale';
 import { Separator } from "../ui/separator";
 import FormattedNumericValue from "../lib/formatted-numeric-value";
 import Link from 'next/link';
-import { getInventoryItemsFS, addInventoryItemFS } from "@/services/inventory-item-service";
-import { getCategoriesFS } from "@/services/category-service";
+import { getInventoryItemsFS } from "@/services/inventory-item-service";
 import { getCostCentersFS } from "@/services/costcenter-service";
 import { useToast } from "@/hooks/use-toast";
 import { matchMaterial } from "@/ai/flows/material-matching-flow";
@@ -53,6 +52,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
+import { useCategories } from "@/contexts/categories-context";
 
 
 const purchaseItemSchema = z.object({
@@ -112,13 +112,14 @@ async function fileToDataUri(file: File): Promise<string> {
 export default function PurchaseDialog({ purchase, prefilledData, prefilledFile, isOpen, onOpenChange, onSave, isReadOnly = false }: PurchaseDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   const [availableMaterials, setAvailableMaterials] = React.useState<InventoryItem[]>([]);
-  const [availableCategories, setAvailableCategories] = React.useState<Category[]>([]);
   const [availableCostCenters, setAvailableCostCenters] = React.useState<CostCenter[]>([]);
   const [isLoadingDropdowns, setIsLoadingDropdowns] = React.useState(true);
   const [matchingItems, setMatchingItems] = React.useState<Record<number, boolean>>({});
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
   const [previewType, setPreviewType] = React.useState<'image' | 'pdf' | null>(null);
   const { toast } = useToast();
+  const { costCategories, isLoading: isLoadingCategories } = useCategories();
+
 
   const form = useForm<PurchaseFormValues>({
     resolver: zodResolver(purchaseFormSchema),
@@ -152,13 +153,11 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
   const fetchDropdownData = React.useCallback(async () => {
     setIsLoadingDropdowns(true);
     try {
-        const [materials, categories, costCenters] = await Promise.all([
+        const [materials, costCenters] = await Promise.all([
             getInventoryItemsFS(),
-            getCategoriesFS('cost'),
             getCostCentersFS()
         ]);
       setAvailableMaterials(materials);
-      setAvailableCategories(categories);
       setAvailableCostCenters(costCenters);
     } catch (error) {
       toast({ title: "Error", description: "No se pudieron cargar los datos maestros.", variant: "destructive" });
@@ -275,38 +274,6 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
   }, [watchedInvoiceFile, watchedInvoiceUrl, watchedInvoiceContentType]);
 
 
-  const handleCreateNewMaterial = async (index: number, itemName: string) => {
-    setIsSaving(true);
-    try {
-        const result = await matchMaterial({ itemName, existingMaterials: availableMaterials });
-
-        if (result.matchType === 'none' && result.suggestedName && result.suggestedCategoryId) {
-            const newMaterialData: InventoryItemFormValues = {
-                name: result.suggestedName,
-                categoryId: result.suggestedCategoryId,
-                description: `Creado automáticamente desde factura para: ${itemName}`,
-            };
-            const newMaterialId = await addInventoryItemFS(newMaterialData);
-            
-            await fetchDropdownData();
-
-            form.setValue(`items.${index}.materialId`, newMaterialId, { shouldDirty: true });
-
-            toast({ title: "Nuevo artículo creado", description: `"${result.suggestedName}" ha sido añadido al inventario y seleccionado.` });
-        } else if(result.matchedMaterialId) {
-            toast({ title: "Sugerencia Encontrada", description: `Se encontró un artículo similar. Por favor, selecciónelo manualmente.`, variant: "default" });
-        } else {
-            toast({ title: "No se pudo crear", description: `La IA no pudo sugerir una categoría para "${itemName}". Intente crearlo manualmente.`, variant: "destructive" });
-        }
-    } catch (error) {
-        console.error("Error creating new material from dialog:", error);
-        toast({ title: "Error", description: "No se pudo crear el nuevo artículo.", variant: "destructive" });
-    } finally {
-        setIsSaving(false);
-    }
-  };
-
-
   const onSubmit = async (data: PurchaseFormValues) => {
     if (isReadOnly) return;
     setIsSaving(true);
@@ -349,7 +316,7 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
                       <FormField control={form.control} name="supplier" render={({ field }) => (<FormItem><FormLabel className="flex items-center"><Building className="mr-2 h-4 w-4"/>Proveedor</FormLabel><FormControl><Input placeholder="Ej: Proveedor de Tequila" {...field} value={field.value ?? ''} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name="orderDate" render={({ field }) => (<FormItem className="flex flex-col"><FormLabel>Fecha Gasto/Pedido</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("justify-start text-left font-normal", !field.value && "text-muted-foreground")} disabled={isReadOnly}>{field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={isReadOnly} initialFocus locale={es}/></PopoverContent></Popover><FormMessage /></FormItem>)} />
                   </div>
-                  <FormField control={form.control} name="categoryId" render={({ field }) => (<FormItem><FormLabel>Categoría del Gasto</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly || isLoadingDropdowns}><FormControl><SelectTrigger><SelectValue placeholder={isLoadingDropdowns ? "Cargando..." : "Seleccione una categoría"} /></SelectTrigger></FormControl><SelectContent>{availableCategories.map(c => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="categoryId" render={({ field }) => (<FormItem><FormLabel>Categoría del Gasto</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly || isLoadingCategories}><FormControl><SelectTrigger><SelectValue placeholder={isLoadingCategories ? "Cargando..." : "Seleccione una categoría"} /></SelectTrigger></FormControl><SelectContent>{costCategories.map(c => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                   <FormField control={form.control} name="costCenterIds" render={({ field }) => (
                       <FormItem>
                           <FormLabel>Centros de Coste (Opcional)</FormLabel>
@@ -392,7 +359,6 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
                             {!isReadOnly && <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>}
                         </div>
                         <FormField control={form.control} name={`items.${index}.description`} render={({ field: descField }) => (<FormItem><FormLabel className="text-xs text-muted-foreground">{prefilledData ? 'Concepto de Factura (Editable)' : 'Descripción Manual'}</FormLabel><FormControl><Textarea {...descField} value={descField.value ?? ''} placeholder="Descripción del artículo..." className={cn("text-xs h-auto", !watchedItems[index]?.materialId && watchedItems[index]?.description && "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-400")} disabled={isReadOnly} rows={2} /></FormControl><FormMessage /></FormItem>)}/>
-                        {!watchedItems[index]?.materialId && watchedItems[index]?.description && (<div className="flex items-center gap-2 text-xs text-yellow-700 dark:text-yellow-300"><HelpCircle className="h-4 w-4" /><span>Asocia o crea un nuevo material.</span>{!isReadOnly && (<Button size="sm" variant="link" type="button" className="text-xs h-auto p-0" onClick={() => handleCreateNewMaterial(index, watchedItems[index].description || "")}><PlusCircle className="mr-1 h-3 w-3"/>Crear material</Button>)}</div>)}
                         <div className="flex items-end gap-2">
                            <FormField control={form.control} name={`items.${index}.quantity`} render={({ field: qField }) => (<FormItem className="w-24"><FormLabel className="text-xs">Cantidad</FormLabel><FormControl><Input type="number" {...qField} disabled={isReadOnly} value={qField.value ?? ""} onChange={e => qField.onChange(e.target.value === '' ? null : Number(e.target.value))} /></FormControl><FormMessage /></FormItem>)} />
                            <FormField control={form.control} name={`items.${index}.unitPrice`} render={({ field: pField }) => (<FormItem className="w-28"><FormLabel className="text-xs">Precio Unit. (€)</FormLabel><FormControl><Input type="number" step="0.01" {...pField} disabled={isReadOnly} value={pField.value ?? ""} onChange={e => pField.onChange(e.target.value === '' ? null : Number(e.target.value))} /></FormControl><FormMessage /></FormItem>)} />

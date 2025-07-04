@@ -42,6 +42,7 @@ import { getOrdersFS } from '@/services/order-service';
 import { getEventsFS } from '@/services/event-service';
 import { useToast } from '@/hooks/use-toast';
 import DailyTasksWidget from '@/components/app/daily-tasks-widget';
+import { CategoriesProvider } from '@/contexts/categories-context';
 
 interface NavItem {
   href: string;
@@ -307,50 +308,52 @@ function MainAppLayout({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <SidebarProvider defaultOpen>
-      <Sidebar collapsible="icon" className="border-r border-sidebar-border shadow-lg">
-        <SidebarHeader className="p-4 items-center justify-center">
-          <Link href="/dashboard" className="block group-data-[collapsible=icon]:hidden">
-            <Logo />
-          </Link>
-          <Link href="/dashboard" className="hidden group-data-[collapsible=icon]:block">
-             <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" aria-label="Logotipo de Santa Brisa CRM (colapsado)">
-              <rect width="32" height="32" rx="4" fill="hsl(var(--primary))" />
-              <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" fontFamily="Inter, sans-serif" fontSize="12" fontWeight="bold" fill="hsl(var(--primary-foreground))">SB</text>
-            </svg>
-          </Link>
-        </SidebarHeader>
-        <SidebarContent>
-          <AppNavigation navStructure={navigationStructure} userRole={userRole} teamMember={teamMember} />
-        </SidebarContent>
-        <SidebarFooter className="p-2">
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton tooltip={{children: "Cerrar Sesión", side: "right"}} className="hover:bg-destructive/20 hover:text-destructive" onClick={handleLogout}>
-                <LogOut />
-                <span>Cerrar Sesión</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarFooter>
-      </Sidebar>
-      <SidebarInset>
-        <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-md sm:px-6">
-          <div className="flex items-center gap-2">
-            <div className="md:hidden">
-              <SidebarTrigger />
+    <CategoriesProvider>
+      <SidebarProvider defaultOpen>
+        <Sidebar collapsible="icon" className="border-r border-sidebar-border shadow-lg">
+          <SidebarHeader className="p-4 items-center justify-center">
+            <Link href="/dashboard" className="block group-data-[collapsible=icon]:hidden">
+              <Logo />
+            </Link>
+            <Link href="/dashboard" className="hidden group-data-[collapsible=icon]:block">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" aria-label="Logotipo de Santa Brisa CRM (colapsado)">
+                <rect width="32" height="32" rx="4" fill="hsl(var(--primary))" />
+                <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" fontFamily="Inter, sans-serif" fontSize="12" fontWeight="bold" fill="hsl(var(--primary-foreground))">SB</text>
+              </svg>
+            </Link>
+          </SidebarHeader>
+          <SidebarContent>
+            <AppNavigation navStructure={navigationStructure} userRole={userRole} teamMember={teamMember} />
+          </SidebarContent>
+          <SidebarFooter className="p-2">
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton tooltip={{children: "Cerrar Sesión", side: "right"}} className="hover:bg-destructive/20 hover:text-destructive" onClick={handleLogout}>
+                  <LogOut />
+                  <span>Cerrar Sesión</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarFooter>
+        </Sidebar>
+        <SidebarInset>
+          <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-md sm:px-6">
+            <div className="flex items-center gap-2">
+              <div className="md:hidden">
+                <SidebarTrigger />
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <DailyTasksMenu />
-            <UserMenu userRole={userRole} userEmail={user?.email} />
-          </div>
-        </header>
-        <main className="flex-1 p-4 sm:p-6 overflow-auto">
-          {children}
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+            <div className="flex items-center gap-2">
+              <DailyTasksMenu />
+              <UserMenu userRole={userRole} userEmail={user?.email} />
+            </div>
+          </header>
+          <main className="flex-1 p-4 sm:p-6 overflow-auto">
+            {children}
+          </main>
+        </SidebarInset>
+      </SidebarProvider>
+    </CategoriesProvider>
   );
 }
 

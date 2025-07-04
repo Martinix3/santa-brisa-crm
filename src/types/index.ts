@@ -81,6 +81,7 @@ export interface StockTxn {
   qtyDelta: number; // Positive for additions, negative for subtractions
   costDelta: number; // Positive for additions, negative for subtractions. Matches qtyDelta sign.
   uom: UoM;
+  currency: Currency;
   txnType: StockTxnType;
   refCollection: StockTxnRefCollection;
   refId: string;
@@ -351,6 +352,7 @@ export interface Purchase {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+  batchesSeeded?: boolean;
 }
 
 export interface SampleRequest {

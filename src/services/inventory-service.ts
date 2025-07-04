@@ -1,9 +1,10 @@
 
+
 'use server';
 
 import { db } from '@/lib/firebase';
 import { collection, doc, writeBatch, Timestamp, runTransaction, type Transaction } from 'firebase/firestore';
-import type { Purchase, ItemBatch, StockTxn, InventoryItem } from '@/types';
+import type { Purchase, ItemBatch, StockTxn, InventoryItem, UoM, Currency } from '@/types';
 
 const ITEM_BATCHES_COLLECTION = 'itemBatches';
 const STOCK_TXNS_COLLECTION = 'stockTxns';
@@ -37,6 +38,14 @@ export async function seedItemBatches(
       console.warn('Skipping item in purchase due to missing data:', item);
       continue;
     }
+    
+    // Fetch the inventory item to get its UoM
+    const inventoryItemRef = doc(db, INVENTORY_ITEMS_COLLECTION, item.materialId);
+    const inventoryItemDoc = await transaction.get(inventoryItemRef);
+    if (!inventoryItemDoc.exists() || !inventoryItemDoc.data()?.uom) {
+        throw new Error(`Inventory item ${item.materialId} not found or is missing Unit of Measure (uom). Transaction will be rolled back.`);
+    }
+    const itemUom = inventoryItemDoc.data()!.uom as UoM;
 
     const itemTotal = item.quantity * item.unitPrice;
     const shippingProportion = subtotal > 0 ? (itemTotal / subtotal) : 0;
@@ -50,7 +59,7 @@ export async function seedItemBatches(
       sku: item.materialId,
       supplierBatchCode: item.batchNumber || undefined,
       qtyInitial: item.quantity,
-      uom: 'unit', // TODO: This should come from the inventory item master data
+      uom: itemUom, 
       unitCost: landedUnitCost,
       createdAt: new Date().toISOString(),
     };
@@ -65,7 +74,8 @@ export async function seedItemBatches(
       batchId: newItemBatchRef.id,
       qtyDelta: item.quantity,
       costDelta: item.quantity * landedUnitCost,
-      uom: 'unit', // TODO: This should come from the inventory item master data
+      uom: itemUom,
+      currency: purchaseData.currency || 'EUR',
       txnType: 'receive',
       refCollection: 'purchases',
       refId: purchaseId,
@@ -76,12 +86,7 @@ export async function seedItemBatches(
     console.log(`  - Queued StockTxn creation for SKU ${item.materialId}, Txn ID: ${newStockTxnRef.id}`);
 
     // 3. Update the total stock of the inventory item
-    const inventoryItemRef = doc(db, INVENTORY_ITEMS_COLLECTION, item.materialId);
-    const inventoryItemDoc = await transaction.get(inventoryItemRef);
-    if (!inventoryItemDoc.exists()) {
-      throw new Error(`Inventory item ${item.materialId} not found.`);
-    }
-    const currentStock = inventoryItemDoc.data().stock || 0;
+    const currentStock = inventoryItemDoc.data()!.stock || 0;
     transaction.update(inventoryItemRef, { stock: currentStock + item.quantity });
     console.log(`  - Queued stock update for SKU ${item.materialId}. Old stock: ${currentStock}, New stock: ${currentStock + item.quantity}`);
   }

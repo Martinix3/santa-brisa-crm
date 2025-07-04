@@ -11,9 +11,9 @@ import {
 import type { Purchase, PurchaseFormValues, InventoryItem, LatestPurchaseInfo, PurchaseCategory, Currency } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 import { seedItemBatches } from './inventory-service'; // Import the new function
+import { findOrCreateSupplier } from './supplier-service';
 
 const PURCHASES_COLLECTION = 'purchases';
-const SUPPLIERS_COLLECTION = 'suppliers';
 
 async function uploadInvoice(dataUri: string, purchaseId: string): Promise<{ downloadUrl: string; storagePath: string; contentType: string }> {
   const adminBucket = await getAdminBucket();
@@ -67,6 +67,7 @@ const fromFirestorePurchase = (docSnap: DocumentSnapshot): Purchase => {
     notes: data.notes || undefined,
     createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
     updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+    batchesSeeded: data.batchesSeeded || false,
   };
 };
 
@@ -110,70 +111,11 @@ const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean, 
 
   if (isNew) {
     firestoreData.createdAt = Timestamp.fromDate(new Date());
+    firestoreData.batchesSeeded = false;
   }
   firestoreData.updatedAt = Timestamp.fromDate(new Date());
 
   return firestoreData;
-};
-
-const findOrCreateSupplier = async (data: Partial<PurchaseFormValues>): Promise<string | undefined> => {
-    if (!data.supplier || data.supplier.trim() === '') {
-        console.warn('findOrCreateSupplier called with an empty supplier name. Aborting.');
-        return undefined;
-    }
-    console.info(`Finding or creating supplier: "${data.supplier}"`);
-    const suppliersCol = collection(db, SUPPLIERS_COLLECTION);
-
-    if (data.supplierCif && data.supplierCif.trim() !== '') {
-        console.log(`Searching for supplier by CIF: ${data.supplierCif}`);
-        const cifQuery = query(suppliersCol, where("cif", "==", data.supplierCif));
-        const cifSnapshot = await getDocs(cifQuery);
-        if (!cifSnapshot.empty) {
-            const supplierDoc = cifSnapshot.docs[0];
-            console.log(`Found supplier by CIF. ID: ${supplierDoc.id}`);
-            return supplierDoc.id;
-        }
-    }
-
-    console.log(`Searching for supplier by name: "${data.supplier}"`);
-    const nameQuery = query(suppliersCol, where("name", "==", data.supplier));
-    const nameSnapshot = await getDocs(nameQuery);
-    if (!nameSnapshot.empty) {
-        const supplierDoc = nameSnapshot.docs[0];
-        console.log(`Found supplier by name. ID: ${supplierDoc.id}`);
-        if (!supplierDoc.data().cif && data.supplierCif) {
-            console.log(`Updating CIF for existing supplier ${supplierDoc.id}`);
-            await updateDoc(doc(db, SUPPLIERS_COLLECTION, supplierDoc.id), { cif: data.supplierCif });
-        }
-        return supplierDoc.id;
-    }
-
-    console.log(`No existing supplier found. Creating new one for: "${data.supplier}"`);
-    try {
-        const newSupplierData = {
-            name: data.supplier!,
-            cif: data.supplierCif || null,
-            address: (data.supplierAddress_street || data.supplierAddress_city) ? {
-                street: data.supplierAddress_street || null,
-                number: data.supplierAddress_number || null,
-                city: data.supplierAddress_city || null,
-                province: data.supplierAddress_province || null,
-                postalCode: data.supplierAddress_postalCode || null,
-                country: data.supplierAddress_country || "España",
-            } : null,
-            contactName: null, contactEmail: null, contactPhone: null,
-            notes: "Creado automáticamente desde una compra.",
-            createdAt: Timestamp.fromDate(new Date()),
-            updatedAt: Timestamp.fromDate(new Date()),
-        };
-
-        const docRef = await addDoc(collection(db, SUPPLIERS_COLLECTION), newSupplierData);
-        console.log(`New supplier created with ID: ${docRef.id}`);
-        return docRef.id;
-    } catch (err) {
-        console.error('Supplier creation failed', err);
-        throw err;
-    }
 };
 
 export const getPurchasesFS = async (): Promise<Purchase[]> => {
@@ -185,7 +127,7 @@ export const getPurchasesFS = async (): Promise<Purchase[]> => {
 
 export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> => {
     return await runTransaction(db, async (transaction) => {
-        const supplierId = await findOrCreateSupplier(data);
+        const supplierId = await findOrCreateSupplier(data, transaction);
         if (!supplierId) {
             throw new Error("Failed to process supplier. Supplier name might be empty.");
         }
@@ -204,12 +146,14 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
         }
 
         const firestoreData = toFirestorePurchase(dataToSave, true, supplierId);
-        transaction.set(newDocRef, firestoreData);
-
+        
         if (dataToSave.status === 'Factura Recibida') {
             console.log(`Purchase created with 'Factura Recibida'. Seeding item batches for ${purchaseId}.`);
             await seedItemBatches(purchaseId, firestoreData, transaction);
+            firestoreData.batchesSeeded = true;
         }
+
+        transaction.set(newDocRef, firestoreData);
 
         console.log(`New purchase added with ID: ${purchaseId}`);
         return purchaseId;
@@ -229,7 +173,7 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
         let supplierId = oldData.supplierId;
 
         if (data.supplier && data.supplier !== oldData.supplier) {
-            supplierId = await findOrCreateSupplier(data);
+            supplierId = await findOrCreateSupplier(data, transaction);
         }
 
         if (data.invoiceDataUri) { 
@@ -250,13 +194,14 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
         }
 
         const firestoreData = toFirestorePurchase(dataToSave as PurchaseFormValues, false, supplierId);
-        transaction.update(purchaseDocRef, firestoreData);
         
-        if (data.status === 'Factura Recibida' && oldData.status !== 'Factura Recibida') {
-            console.log(`Purchase ${id} status changed to 'Factura Recibida'. Seeding item batches.`);
+        if (data.status === 'Factura Recibida' && !oldData.batchesSeeded) {
+            console.log(`Purchase ${id} status changed to 'Factura Recibida' and not yet seeded. Seeding item batches.`);
             await seedItemBatches(id, firestoreData, transaction);
+            firestoreData.batchesSeeded = true;
         }
-
+        
+        transaction.update(purchaseDocRef, firestoreData);
         console.log(`Purchase document ${id} updated.`);
     });
 };

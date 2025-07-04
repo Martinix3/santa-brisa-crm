@@ -34,14 +34,15 @@ export async function testUpload(fileData: { dataUri: string; contentType: strin
       resumable: false,
     });
     
-    // Make the file public so the URL works
-    await file.makePublic();
+    // Generate a long-lived signed URL instead of making the file public
+    const [signedUrl] = await file.getSignedUrl({
+        action: 'read',
+        expires: '01-01-2100' // A very distant future date
+    });
     
-    const publicUrl = `https://storage.googleapis.com/${adminBucket.name}/${filePath}`;
-    
-    console.log(`[Test Upload] Success. File available at: ${publicUrl}`);
+    console.log(`[Test Upload] Success. File available at signed URL.`);
 
-    return { url: publicUrl };
+    return { url: signedUrl };
 
   } catch (error: any) {
     console.error('[Test Upload] Error during upload process:', error);

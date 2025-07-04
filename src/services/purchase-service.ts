@@ -33,13 +33,15 @@ async function uploadInvoice(dataUri: string, purchaseId: string): Promise<{ dow
       contentType: contentType,
       resumable: false,
     });
+    
+    // Generate a long-lived signed URL instead of making the file public.
+    const [signedUrl] = await file.getSignedUrl({
+        action: 'read',
+        expires: '01-01-2100' // Set a very distant expiration date
+    });
 
-    // Make the file publicly accessible.
-    await file.makePublic();
-
-    const url = `https://storage.googleapis.com/${adminBucket.name}/${path}`;
-    console.log(`File uploaded to ${path}, GCS URL: ${url}`);
-    return { downloadUrl: url, storagePath: path, contentType: contentType };
+    console.log(`File uploaded to ${path}, Signed URL generated.`);
+    return { downloadUrl: signedUrl, storagePath: path, contentType: contentType };
   } catch (err: any) {
     console.error(`Error uploading to Firebase Storage at path ${path}:`, err);
     throw new Error(`Failed to upload to storage: ${err.message}`);

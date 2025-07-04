@@ -97,10 +97,13 @@ const findSalesForFinishedGoodBatch = ai.defineTool(
 const prompt = ai.definePrompt({
   name: 'traceabilityReportPrompt',
   tools: [findProductionRunByFinishedGoodBatch, findComponentsForProductionRun, findSalesForFinishedGoodBatch],
-  system: `You are a supply chain and traceability expert for Santa Brisa. The user will provide a batch number.
-Your task is to determine if the batch is for a finished good or a raw material and generate a detailed traceability report using the provided tools.
+  input: { schema: TraceabilityReportInputSchema },
+  prompt: `You are a supply chain and traceability expert for Santa Brisa.
+Your task is to determine if the batch for the provided batch number is for a finished good or a raw material and generate a detailed traceability report using the provided tools.
 
-- If the user provides a batch number for a **finished good** (e.g., starting with 'PROD-'), your report must have two sections:
+The batch number is: {{{batchNumber}}}
+
+- If the batch number is for a **finished good** (e.g., starting with 'PROD-'), your report must have two sections:
   1.  **Upward Traceability (Origen del Lote):**
       - Use 'findProductionRunByFinishedGoodBatch' to get the production details.
       - Then, use 'findComponentsForProductionRun' with the returned run ID to list all component batches (raw materials) used.
@@ -120,7 +123,7 @@ const traceabilityFlow = ai.defineFlow(
     outputSchema: TraceabilityReportOutputSchema,
   },
   async (input) => {
-    const response = await prompt(input.batchNumber);
+    const response = await prompt(input);
 
     if (!response) {
       throw new Error("The AI failed to generate the traceability report.");
@@ -132,8 +135,6 @@ const traceabilityFlow = ai.defineFlow(
 
 
 export async function getTraceabilityReport(input: TraceabilityReportInput): Promise<TraceabilityReportOutput> {
-    console.log("Invoking traceability flow with input:", input);
     const result = await traceabilityFlow(input);
-    console.log("Flow result:", result);
     return result;
 }

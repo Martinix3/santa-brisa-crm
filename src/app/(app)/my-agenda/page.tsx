@@ -568,8 +568,8 @@ export default function MyAgendaPage() {
        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-grow">
           <div className="lg:col-span-1">
               <Card>
-                   <CardHeader className="flex flex-row items-center justify-between pb-4">
-                        <CardTitle className="text-lg font-semibold">Calendario</CardTitle>
+                   <CardHeader className="flex flex-row items-center justify-between gap-4 pb-4">
+                        <CardTitle>Calendario</CardTitle>
                         <Button onClick={handleOpenNewEntryDialog} size="sm">
                             <PlusCircle className="mr-2 h-4 w-4" />
                             Añadir Entrada
@@ -605,8 +605,10 @@ export default function MyAgendaPage() {
           <div className="lg:col-span-2">
               <Card className="h-full flex flex-col">
                   <CardHeader>
-                      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-                        <CardTitle>Actividades para {viewMode === 'day' ? format(selectedDate, 'dd MMMM, yyyy', {locale: es}) : `${format(interval.start, 'dd MMM', {locale: es})} - ${format(interval.end, 'dd MMM, yyyy', {locale: es})}`}</CardTitle>
+                      <div className="flex flex-wrap items-center justify-between gap-4">
+                        <CardTitle className="text-lg font-semibold">
+                            Actividades para {viewMode === 'day' ? format(selectedDate, 'dd MMMM, yyyy', {locale: es}) : `${format(interval.start, 'dd MMM', {locale: es})} - ${format(interval.end, 'dd MMM, yyyy', {locale: es})}`}
+                        </CardTitle>
                         <div className="flex items-center gap-4">
                             <div className="flex items-center gap-1 rounded-md bg-muted p-1">
                                 <Button variant={viewMode === 'day' ? 'primary' : 'ghost'} className="flex-1" onClick={() => setViewMode('day')}>Día</Button>

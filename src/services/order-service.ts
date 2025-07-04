@@ -372,9 +372,9 @@ export const reorderTasksBatchFS = async (
     }
 
     const ref = doc(db, ORDERS_COLLECTION, update.id);
-    const payload: any = { 
-      orderIndex: update.orderIndex, 
-      lastUpdated: Timestamp.now() 
+    const payload: any = {
+      orderIndex: update.orderIndex,
+      lastUpdated: Timestamp.now()
     };
 
     if (update.date) {
@@ -398,5 +398,6 @@ export const reorderTasksBatchFS = async (
   }
 };
     
+
 
 

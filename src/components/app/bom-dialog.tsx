@@ -133,21 +133,23 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
     setIsSaving(false);
   };
   
-  const { categoriesMap, costCategories } = useCategories();
+  const { categoriesMap, allCategories } = useCategories();
 
   const finishedGoods = React.useMemo(() => 
     inventoryItems.filter(i => i.sku && categoriesMap.get(i.categoryId)?.name === "Producto Terminado"),
     [inventoryItems, categoriesMap]
   );
   
-  const cogsCategoryIds = React.useMemo(() => {
-    return costCategories.map(c => c.id);
-  }, [costCategories]);
+  const components = React.useMemo(() => {
+    const costCategoryIds = allCategories
+      .filter(c => c.kind === 'cost')
+      .map(c => c.id);
+    
+    return inventoryItems.filter(
+      i => i.sku && i.categoryId && costCategoryIds.includes(i.categoryId)
+    );
+  }, [inventoryItems, allCategories]);
 
-  const components = React.useMemo(() => 
-    inventoryItems.filter(i => i.sku && i.categoryId && cogsCategoryIds.includes(i.categoryId)),
-    [inventoryItems, cogsCategoryIds]
-  );
   
   const isEditing = !!recipe;
 

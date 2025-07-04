@@ -45,6 +45,7 @@ const toFirestoreEvent = (data: EventFormValues, isNew: boolean): any => {
     assignedTeamMemberIds: data.assignedTeamMemberIds || [],
     assignedMaterials: data.assignedMaterials || [],
     notes: data.notes || null,
+    orderIndex: data.orderIndex ?? 0,
   };
 
   if (isNew) {
@@ -68,9 +69,21 @@ const toFirestoreEvent = (data: EventFormValues, isNew: boolean): any => {
 
 export const getEventsFS = async (): Promise<CrmEvent[]> => {
   const eventsCol = collection(db, EVENTS_COLLECTION);
-  const q = query(eventsCol, orderBy('startDate', 'desc'), orderBy('orderIndex', 'asc'));
+  const q = query(eventsCol, orderBy('startDate', 'desc'));
   const eventSnapshot = await getDocs(q);
-  return eventSnapshot.docs.map(docSnap => fromFirestoreEvent(docSnap));
+  const eventList = eventSnapshot.docs.map(docSnap => fromFirestoreEvent(docSnap));
+
+  // Perform secondary sort by orderIndex in memory
+  eventList.sort((a, b) => {
+    const dateA = parseISO(a.startDate);
+    const dateB = parseISO(b.startDate);
+    if (dateA.getTime() !== dateB.getTime()) {
+      return dateB.getTime() - dateA.getTime();
+    }
+    return (a.orderIndex || 0) - (b.orderIndex || 0);
+  });
+  
+  return eventList;
 };
 
 export const getEventByIdFS = async (id: string): Promise<CrmEvent | null> => {

@@ -134,9 +134,22 @@ const toFirestoreOrder = (data: Partial<Order> & { visitDate?: Date | string, ne
 
 export const getOrdersFS = async (): Promise<Order[]> => {
   const ordersCol = collection(db, ORDERS_COLLECTION);
-  const q = query(ordersCol, orderBy('createdAt', 'desc'), orderBy('orderIndex', 'asc')); 
+  const q = query(ordersCol, orderBy('createdAt', 'desc')); 
   const orderSnapshot = await getDocs(q);
   const orderList = orderSnapshot.docs.map(docSnap => fromFirestoreOrder(docSnap));
+
+  // Perform secondary sort by orderIndex in memory
+  // This is a stable sort as long as the primary sort (by date) is consistent.
+  // We sort primarily by date (desc) then by index (asc)
+  orderList.sort((a, b) => {
+    const dateA = parseISO(a.createdAt);
+    const dateB = parseISO(b.createdAt);
+    if (dateA.getTime() !== dateB.getTime()) {
+      return dateB.getTime() - dateA.getTime();
+    }
+    return (a.orderIndex || 0) - (b.orderIndex || 0);
+  });
+  
   return orderList;
 };
 

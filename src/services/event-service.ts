@@ -8,7 +8,7 @@ import {
 } from "firebase/firestore";
 import type { CrmEvent, EventFormValues } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
-import { updateMaterialStockFS } from './promotional-material-service';
+import { updateInventoryItemStockFS } from './inventory-item-service';
 
 const EVENTS_COLLECTION = 'events';
 
@@ -100,7 +100,7 @@ export const addEventFS = async (data: EventFormValues): Promise<string> => {
   // Deduct stock for assigned materials
   if (data.assignedMaterials && data.assignedMaterials.length > 0) {
     for (const item of data.assignedMaterials) {
-        await updateMaterialStockFS(item.materialId, -item.quantity);
+        await updateInventoryItemStockFS(item.materialId, -item.quantity);
     }
   }
 
@@ -132,7 +132,7 @@ export const updateEventFS = async (id: string, data: EventFormValues): Promise<
   // Apply the net changes
   for (const [materialId, quantityChange] of stockChanges.entries()) {
     if (quantityChange !== 0) {
-      await updateMaterialStockFS(materialId, quantityChange);
+      await updateInventoryItemStockFS(materialId, quantityChange);
     }
   }
 };
@@ -146,7 +146,7 @@ export const deleteEventFS = async (id: string): Promise<void> => {
     // Add stock back on deletion
     if (eventData.assignedMaterials && eventData.assignedMaterials.length > 0) {
         for (const item of eventData.assignedMaterials) {
-            await updateMaterialStockFS(item.materialId, item.quantity);
+            await updateInventoryItemStockFS(item.materialId, item.quantity);
         }
     }
   }

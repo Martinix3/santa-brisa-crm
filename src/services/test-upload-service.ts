@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { getAdminBucket } from '@/lib/firebaseAdmin';
@@ -28,14 +29,11 @@ export async function testUpload(fileData: { dataUri: string; contentType: strin
 
     const file = adminBucket.file(filePath);
     
-    // Removed 'public: true' to comply with uniform bucket-level access.
-    // The file's public accessibility is now controlled by bucket-level IAM permissions.
     await file.save(buffer, {
       contentType: contentType,
       resumable: false,
     });
     
-    // This URL will now point to the object, but access depends on bucket IAM settings.
     const publicUrl = `https://storage.googleapis.com/${adminBucket.name}/${filePath}`;
     
     console.log(`[Test Upload] Success. File available at: ${publicUrl}`);

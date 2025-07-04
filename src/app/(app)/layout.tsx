@@ -88,7 +88,7 @@ const navigationStructure: NavGroup[] = [
       { href: '/direct-sales-sb', label: 'Facturación y Ventas Propias', icon: Briefcase, roles: ['Admin'] },
       { href: '/purchases', label: 'Gestión de Gastos', icon: Receipt, roles: ['Admin'] },
       { href: '/suppliers', label: 'Proveedores', icon: Truck, roles: ['Admin'] },
-      { href: '/admin/promotional-materials', label: 'Inventario y Materiales', icon: Archive, roles: ['Admin'] },
+      { href: '/admin/inventory', label: 'Inventario', icon: Archive, roles: ['Admin'] },
     ],
   },
   {

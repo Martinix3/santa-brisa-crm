@@ -1,9 +1,10 @@
 
+
 'use server';
 /**
- * @fileOverview An AI agent for matching invoice items to existing materials.
+ * @fileOverview An AI agent for matching invoice items to existing inventory items.
  *
- * - matchMaterial - A function that handles the material matching process.
+ * - matchMaterial - A function that handles the inventory item matching process.
  * - MatchMaterialInput - The input type for the matchMaterial function.
  * - MatchMaterialOutput - The return type for the matchMaterial function.
  */
@@ -18,17 +19,17 @@ const MatchMaterialInputSchema = z.object({
         id: z.string(),
         name: z.string(),
         description: z.string().optional(),
-        type: z.string(),
+        categoryId: z.string(),
     })
-  ).describe("A list of all promotional materials currently in the system."),
+  ).describe("A list of all inventory items currently in the system."),
 });
 export type MatchMaterialInput = z.infer<typeof MatchMaterialInputSchema>;
 
 const MatchMaterialOutputSchema = z.object({
   matchType: z.enum(['perfect', 'suggested', 'none']).describe("The type of match found: 'perfect' for a confident match, 'suggested' for a likely but not certain match, and 'none' if no suitable match is found."),
   matchedMaterialId: z.string().optional().describe("The ID of the matched material from the existing list, if a match was found."),
-  suggestedName: z.string().optional().describe("If no match is found, a cleaned-up, suggested name for creating a new material based on the invoice item name."),
-  suggestedType: z.string().optional().describe("If no match is found, the most likely category for the new material."),
+  suggestedName: z.string().optional().describe("If no match is found, a cleaned-up, suggested name for creating a new item based on the invoice item name."),
+  suggestedCategoryId: z.string().optional().describe("If no match is found, the most likely category ID for the new item."),
 });
 export type MatchMaterialOutput = z.infer<typeof MatchMaterialOutputSchema>;
 
@@ -41,19 +42,19 @@ const prompt = ai.definePrompt({
   input: {schema: MatchMaterialInputSchema},
   output: {schema: MatchMaterialOutputSchema},
   model: 'googleai/gemini-1.5-flash-latest',
-  prompt: `Eres un experto gestor de inventario y tu tarea es asociar un artículo de una factura de proveedor con un material existente en el sistema.
+  prompt: `Eres un experto gestor de inventario y tu tarea es asociar un artículo de una factura de proveedor con un artículo existente en el sistema.
 
 Analiza el nombre del artículo de la factura: \`{{{itemName}}}\`.
 
-Compara este nombre con la siguiente lista de materiales existentes en el inventario:
+Compara este nombre con la siguiente lista de artículos de inventario existentes:
 {{#each existingMaterials}}
-- ID: {{id}}, Nombre: {{name}}, Tipo: {{type}}{{#if description}}, Desc: {{description}}{{/if}}
+- ID: {{id}}, Nombre: {{name}}, Categoría ID: {{categoryId}}{{#if description}}, Desc: {{description}}{{/if}}
 {{/each}}
 
 Tu objetivo es determinar la mejor coincidencia posible. Sigue estas reglas:
-1.  **Coincidencia Perfecta:** Si el nombre del artículo de la factura es idéntico o un sinónimo/abreviatura muy obvio de un material existente (p. ej., 'Posavasos' y 'Posavasos de Cartón'), establece \`matchType\` como 'perfect' y devuelve el \`matchedMaterialId\` del material existente.
-2.  **Sugerencia:** Si no hay una coincidencia perfecta pero un material existente es muy similar o podría ser el mismo (p. ej., 'Cubitera Grande' y 'Cubitera Metálica'), establece \`matchType\` como 'suggested' y devuelve el \`matchedMaterialId\` del material sugerido.
-3.  **Sin Coincidencia:** Si no encuentras ningún material que coincida razonablemente, establece \`matchType\` como 'none'. En este caso, limpia el nombre del artículo de la factura para crear un \`suggestedName\` (p. ej., de 'CUBITERAS METAL GRANDE' a 'Cubitera Metálica Grande') y sugiere la categoría más apropiada en \`suggestedType\`. No devuelvas un \`matchedMaterialId\`.
+1.  **Coincidencia Perfecta:** Si el nombre del artículo de la factura es idéntico o un sinónimo/abreviatura muy obvio de un artículo existente (p. ej., 'Posavasos' y 'Posavasos de Cartón'), establece \`matchType\` como 'perfect' y devuelve el \`matchedMaterialId\` del artículo existente.
+2.  **Sugerencia:** Si no hay una coincidencia perfecta pero un artículo existente es muy similar o podría ser el mismo (p. ej., 'Cubitera Grande' y 'Cubitera Metálica'), establece \`matchType\` como 'suggested' y devuelve el \`matchedMaterialId\` del artículo sugerido.
+3.  **Sin Coincidencia:** Si no encuentras ningún artículo que coincida razonablemente, establece \`matchType\` como 'none'. En este caso, limpia el nombre del artículo de la factura para crear un \`suggestedName\` (p. ej., de 'CUBITERAS METAL GRANDE' a 'Cubitera Metálica Grande') y sugiere el \`suggestedCategoryId\` más apropiado. No devuelvas un \`matchedMaterialId\`.
 
 Sé preciso y lógico en tu decisión.
 `,

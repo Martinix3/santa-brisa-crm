@@ -4,7 +4,7 @@
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Users, Goal, Target, Settings } from "lucide-react"; 
+import { Users, Goal, Target, Settings, Archive } from "lucide-react"; 
 import { useAuth } from "@/contexts/auth-context";
 import { AlertTriangle } from "lucide-react";
 
@@ -26,6 +26,12 @@ const adminSections = [
     description: "Ajustar las metas numéricas para los KPIs del panel de lanzamiento.",
     href: "/admin/kpi-launch-targets",
     icon: Target,
+  },
+   {
+    title: "Gestión de Inventario",
+    description: "Gestionar el catálogo de artículos inventariables y su stock.",
+    href: "/admin/inventory",
+    icon: Archive,
   },
 ];
 

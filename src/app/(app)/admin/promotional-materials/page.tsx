@@ -8,27 +8,28 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import type { PromotionalMaterial, UserRole, LatestPurchaseInfo, Category } from "@/types";
+import type { InventoryItem, UserRole, LatestPurchaseInfo, Category } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, Edit, Trash2, MoreHorizontal, Filter, ChevronDown, AlertTriangle, CalendarDays, Loader2, Archive } from "lucide-react";
-import PromotionalMaterialDialog, { type PromotionalMaterialFormValues } from "@/components/app/promotional-material-dialog";
+import InventoryItemDialog from "@/components/app/inventory-item-dialog";
+import type { InventoryItemFormValues } from "@/components/app/inventory-item-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { getPromotionalMaterialsFS, addPromotionalMaterialFS, updatePromotionalMaterialFS, deletePromotionalMaterialFS } from "@/services/promotional-material-service";
+import { getInventoryItemsFS, addInventoryItemFS, updateInventoryItemFS, deleteInventoryItemFS } from "@/services/inventory-item-service";
 import { getCategoriesFS } from "@/services/category-service";
 
 
-export default function PromotionalMaterialsPage() {
+export default function InventoryPage() {
   const { toast } = useToast();
   const { userRole, dataSignature, refreshDataSignature } = useAuth();
-  const [materials, setMaterials] = React.useState<PromotionalMaterial[]>([]);
+  const [items, setItems] = React.useState<InventoryItem[]>([]);
   const [inventoryCategories, setInventoryCategories] = React.useState<Category[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [editingMaterial, setEditingMaterial] = React.useState<PromotionalMaterial | null>(null);
-  const [isMaterialDialogOpen, setIsMaterialDialogOpen] = React.useState(false);
-  const [materialToDelete, setMaterialToDelete] = React.useState<PromotionalMaterial | null>(null);
+  const [editingItem, setEditingItem] = React.useState<InventoryItem | null>(null);
+  const [isItemDialogOpen, setIsItemDialogOpen] = React.useState(false);
+  const [itemToDelete, setItemToDelete] = React.useState<InventoryItem | null>(null);
   
   const [searchTerm, setSearchTerm] = React.useState("");
   const [categoryFilter, setCategoryFilter] = React.useState<string | "Todos">("Todos");
@@ -39,15 +40,15 @@ export default function PromotionalMaterialsPage() {
     async function loadData() {
       setIsLoading(true);
       try {
-        const [firestoreMaterials, categories] = await Promise.all([
-            getPromotionalMaterialsFS(),
+        const [firestoreItems, categories] = await Promise.all([
+            getInventoryItemsFS(),
             getCategoriesFS('inventory'),
         ]);
-        setMaterials(firestoreMaterials);
+        setItems(firestoreItems);
         setInventoryCategories(categories);
       } catch (error) {
-        console.error("Error fetching promotional materials:", error);
-        toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar los materiales o categorías.", variant: "destructive" });
+        console.error("Error fetching inventory items:", error);
+        toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar los artículos de inventario o categorías.", variant: "destructive" });
       } finally {
         setIsLoading(false);
       }
@@ -56,74 +57,74 @@ export default function PromotionalMaterialsPage() {
   }, [toast, dataSignature]);
 
 
-  const handleAddNewMaterial = () => {
+  const handleAddNewItem = () => {
     if (!isAdmin) return;
-    setEditingMaterial(null);
-    setIsMaterialDialogOpen(true);
+    setEditingItem(null);
+    setIsItemDialogOpen(true);
   };
 
-  const handleEditMaterial = (material: PromotionalMaterial) => {
+  const handleEditItem = (item: InventoryItem) => {
     if (!isAdmin) return;
-    setEditingMaterial(material);
-    setIsMaterialDialogOpen(true);
+    setEditingItem(item);
+    setIsItemDialogOpen(true);
   };
   
-  const handleSaveMaterial = async (data: PromotionalMaterialFormValues, materialId?: string) => {
+  const handleSaveItem = async (data: InventoryItemFormValues, itemId?: string) => {
     if (!isAdmin) return;
     setIsLoading(true);
     
     try {
       let successMessage = "";
-      if (materialId) { 
-        await updatePromotionalMaterialFS(materialId, data);
-        successMessage = `El material "${data.name}" ha sido actualizado.`;
+      if (itemId) { 
+        await updateInventoryItemFS(itemId, data);
+        successMessage = `El artículo "${data.name}" ha sido actualizado.`;
       } else { 
-        await addPromotionalMaterialFS(data);
-        successMessage = `El material "${data.name}" ha sido añadido.`;
+        await addInventoryItemFS(data);
+        successMessage = `El artículo "${data.name}" ha sido añadido.`;
       }
       refreshDataSignature();
       toast({ title: "¡Operación Exitosa!", description: successMessage });
     } catch (error) {
-        console.error("Error saving promotional material:", error);
-        toast({ title: "Error al Guardar", description: "No se pudo guardar el material en Firestore.", variant: "destructive"});
+        console.error("Error saving inventory item:", error);
+        toast({ title: "Error al Guardar", description: "No se pudo guardar el artículo en Firestore.", variant: "destructive"});
     } finally {
         setIsLoading(false);
-        setIsMaterialDialogOpen(false);
-        setEditingMaterial(null);
+        setIsItemDialogOpen(false);
+        setEditingItem(null);
     }
   };
 
-  const handleDeleteMaterial = (material: PromotionalMaterial) => {
+  const handleDeleteItem = (item: InventoryItem) => {
     if (!isAdmin) return;
-    setMaterialToDelete(material);
+    setItemToDelete(item);
   };
 
-  const confirmDeleteMaterial = async () => {
-    if (!isAdmin || !materialToDelete) return;
+  const confirmDeleteItem = async () => {
+    if (!isAdmin || !itemToDelete) return;
     setIsLoading(true);
     try {
-      await deletePromotionalMaterialFS(materialToDelete.id);
+      await deleteInventoryItemFS(itemToDelete.id);
       refreshDataSignature();
-      toast({ title: "¡Material Eliminado!", description: `El material "${materialToDelete.name}" ha sido eliminado.`, variant: "destructive" });
+      toast({ title: "¡Artículo Eliminado!", description: `El artículo "${itemToDelete.name}" ha sido eliminado.`, variant: "destructive" });
     } catch (error) {
-        console.error("Error deleting promotional material:", error);
-        toast({ title: "Error al Eliminar", description: "No se pudo eliminar el material de Firestore.", variant: "destructive"});
+        console.error("Error deleting inventory item:", error);
+        toast({ title: "Error al Eliminar", description: "No se pudo eliminar el artículo de Firestore.", variant: "destructive"});
     } finally {
         setIsLoading(false);
-        setMaterialToDelete(null);
+        setItemToDelete(null);
     }
   };
 
   const categoriesMap = React.useMemo(() => new Map(inventoryCategories.map(c => [c.id, c.name])), [inventoryCategories]);
 
-  const filteredMaterials = materials
-    .filter(material =>
-      (material.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (material.description && material.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (material.sku && material.sku.toLowerCase().includes(searchTerm.toLowerCase()))
+  const filteredItems = items
+    .filter(item =>
+      (item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (item.sku && item.sku.toLowerCase().includes(searchTerm.toLowerCase()))
       )
     )
-    .filter(material => categoryFilter === "Todos" || material.categoryId === categoryFilter);
+    .filter(item => categoryFilter === "Todos" || item.categoryId === categoryFilter);
 
   if (!isAdmin) {
     return (
@@ -143,17 +144,17 @@ export default function PromotionalMaterialsPage() {
       <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center space-x-2">
             <Archive className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-headline font-semibold">Inventario de Materiales Promocionales</h1>
+            <h1 className="text-3xl font-headline font-semibold">Gestión de Inventario</h1>
         </div>
-        <Button onClick={handleAddNewMaterial} disabled={isLoading}>
-          <PlusCircle className="mr-2 h-4 w-4" /> Añadir Nuevo Material
+        <Button onClick={handleAddNewItem} disabled={isLoading}>
+          <PlusCircle className="mr-2 h-4 w-4" /> Añadir Nuevo Artículo
         </Button>
       </header>
 
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
           <CardTitle>Catálogo de Inventario</CardTitle>
-          <CardDescription>Administra los materiales promocionales, su stock disponible y los costes asociados a través de las compras.</CardDescription>
+          <CardDescription>Administra todos los artículos inventariables, su stock disponible y los costes asociados a través de las compras.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
@@ -190,7 +191,7 @@ export default function PromotionalMaterialsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[25%]">Nombre del Material</TableHead>
+                  <TableHead className="w-[25%]">Nombre del Artículo</TableHead>
                   <TableHead className="w-[15%]">SKU/Lote</TableHead>
                   <TableHead className="w-[15%]">Categoría</TableHead>
                   <TableHead className="text-right w-[10%]">Stock Disp.</TableHead>
@@ -200,26 +201,26 @@ export default function PromotionalMaterialsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredMaterials.length > 0 ? filteredMaterials.map((material) => (
-                  <TableRow key={material.id}>
-                    <TableCell className="font-medium">{material.name}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{material.sku || 'N/A'}</TableCell>
-                    <TableCell>{categoriesMap.get(material.categoryId) || 'N/D'}</TableCell>
+                {filteredItems.length > 0 ? filteredItems.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="font-medium">{item.name}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{item.sku || 'N/A'}</TableCell>
+                    <TableCell>{categoriesMap.get(item.categoryId) || 'N/D'}</TableCell>
                     <TableCell className="text-right font-bold">
-                       <FormattedNumericValue value={material.stock} />
+                       <FormattedNumericValue value={item.stock} />
                     </TableCell>
                     <TableCell className="text-right">
-                       {material.latestPurchase && material.latestPurchase.calculatedUnitCost !== undefined ? (
-                           <FormattedNumericValue value={material.latestPurchase.calculatedUnitCost} locale="es-ES" options={{ style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4 }} />
+                       {item.latestPurchase && item.latestPurchase.calculatedUnitCost !== undefined ? (
+                           <FormattedNumericValue value={item.latestPurchase.calculatedUnitCost} locale="es-ES" options={{ style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4 }} />
                        ) : (
                            <span className="text-muted-foreground">N/D</span>
                        )}
                     </TableCell>
                     <TableCell className="text-center text-xs">
-                        {material.latestPurchase?.purchaseDate ? (
+                        {item.latestPurchase?.purchaseDate ? (
                             <div className="flex items-center justify-center">
                                 <CalendarDays size={14} className="mr-1 text-muted-foreground" />
-                                {format(parseISO(material.latestPurchase.purchaseDate), "dd/MM/yy", { locale: es })}
+                                {format(parseISO(item.latestPurchase.purchaseDate), "dd/MM/yy", { locale: es })}
                             </div>
                         ) : (
                            <span className="text-muted-foreground">Sin registrar</span>
@@ -234,32 +235,32 @@ export default function PromotionalMaterialsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onSelect={() => handleEditMaterial(material)}>
-                            <Edit className="mr-2 h-4 w-4" /> Editar Material
+                          <DropdownMenuItem onSelect={() => handleEditItem(item)}>
+                            <Edit className="mr-2 h-4 w-4" /> Editar Artículo
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                            <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <DropdownMenuItem 
                                 className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                                onSelect={(e) => { e.preventDefault(); handleDeleteMaterial(material); }}
+                                onSelect={(e) => { e.preventDefault(); handleDeleteItem(item); }}
                                 >
-                                <Trash2 className="mr-2 h-4 w-4" /> Eliminar Material
+                                <Trash2 className="mr-2 h-4 w-4" /> Eliminar Artículo
                               </DropdownMenuItem>
                             </AlertDialogTrigger>
-                            {materialToDelete && materialToDelete.id === material.id && (
+                            {itemToDelete && itemToDelete.id === item.id && (
                                 <AlertDialogContent>
                                     <AlertDialogHeader>
                                     <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                        Esta acción no se puede deshacer. Esto eliminará permanentemente el material:
+                                        Esta acción no se puede deshacer. Esto eliminará permanentemente el artículo:
                                         <br />
-                                        <strong className="mt-2 block">"{materialToDelete.name}"</strong>
+                                        <strong className="mt-2 block">"{itemToDelete.name}"</strong>
                                     </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
-                                    <AlertDialogCancel onClick={() => setMaterialToDelete(null)}>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={confirmDeleteMaterial} variant="destructive">Sí, eliminar</AlertDialogAction>
+                                    <AlertDialogCancel onClick={() => setItemToDelete(null)}>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={confirmDeleteItem} variant="destructive">Sí, eliminar</AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                             )}
@@ -271,7 +272,7 @@ export default function PromotionalMaterialsPage() {
                 )) : (
                   <TableRow>
                     <TableCell colSpan={7} className="h-24 text-center">
-                      No se encontraron materiales que coincidan con tu búsqueda o filtros. Puedes añadir nuevos materiales.
+                      No se encontraron artículos que coincidan con tu búsqueda o filtros. Puedes añadir nuevos artículos.
                     </TableCell>
                   </TableRow>
                 )}
@@ -280,18 +281,18 @@ export default function PromotionalMaterialsPage() {
           </div>
           )}
         </CardContent>
-        {!isLoading && filteredMaterials.length > 0 && (
+        {!isLoading && filteredItems.length > 0 && (
             <CardFooter>
-                <p className="text-xs text-muted-foreground">Total de materiales mostrados: {filteredMaterials.length} de {materials.length}</p>
+                <p className="text-xs text-muted-foreground">Total de artículos mostrados: {filteredItems.length} de {items.length}</p>
             </CardFooter>
         )}
       </Card>
 
-      <PromotionalMaterialDialog
-        material={editingMaterial}
-        isOpen={isMaterialDialogOpen}
-        onOpenChange={setIsMaterialDialogOpen}
-        onSave={handleSaveMaterial}
+      <InventoryItemDialog
+        item={editingItem}
+        isOpen={isItemDialogOpen}
+        onOpenChange={setIsItemDialogOpen}
+        onSave={handleSaveItem}
       />
     </div>
   );

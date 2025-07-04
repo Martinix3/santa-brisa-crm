@@ -9,7 +9,7 @@ import {
 } from "firebase/firestore";
 import type { Order, AssignedPromotionalMaterial, AccountFormValues, NewScheduledTaskData, OrderStatus, TeamMember } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
-import { updateMaterialStockFS } from './promotional-material-service';
+import { updateInventoryItemStockFS } from './inventory-item-service';
 import { getAccountByIdFS, addAccountFS } from './account-service';
 import { getTeamMemberByIdFS } from './team-member-service';
 
@@ -175,7 +175,7 @@ export const addOrderFS = async (data: Partial<Order> & {visitDate: Date | strin
   // Deduct stock for assigned materials
   if (data.assignedMaterials && data.assignedMaterials.length > 0) {
     for (const item of data.assignedMaterials) {
-        await updateMaterialStockFS(item.materialId, -item.quantity);
+        await updateInventoryItemStockFS(item.materialId, -item.quantity);
     }
   }
 
@@ -250,7 +250,7 @@ export const updateOrderFS = async (id: string, data: Partial<Order> & {visitDat
   // Apply the net changes
   for (const [materialId, quantityChange] of stockChanges.entries()) {
     if (quantityChange !== 0) {
-      await updateMaterialStockFS(materialId, quantityChange);
+      await updateInventoryItemStockFS(materialId, quantityChange);
     }
   }
 };
@@ -302,7 +302,7 @@ export const deleteOrderFS = async (id: string): Promise<void> => {
     // Add stock back on deletion
     if (orderData.assignedMaterials && orderData.assignedMaterials.length > 0) {
       for (const item of orderData.assignedMaterials) {
-        await updateMaterialStockFS(item.materialId, item.quantity);
+        await updateInventoryItemStockFS(item.materialId, item.quantity);
       }
     }
   }
@@ -398,6 +398,7 @@ export const reorderTasksBatchFS = async (
   }
 };
     
+
 
 
 

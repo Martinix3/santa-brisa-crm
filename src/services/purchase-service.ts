@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { db } from '@/lib/firebase';
@@ -7,9 +8,9 @@ import {
   collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, setDoc,
   type DocumentSnapshot, runTransaction,
 } from "firebase/firestore";
-import type { Purchase, PurchaseFormValues, PromotionalMaterial, LatestPurchaseInfo, PurchaseCategory, Currency } from '@/types';
+import type { Purchase, PurchaseFormValues, InventoryItem, LatestPurchaseInfo, PurchaseCategory, Currency } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
-import { updateMaterialStockFS, processMaterialUpdateFromPurchase } from './promotional-material-service';
+import { updateInventoryItemStockFS } from './inventory-item-service';
 
 const PURCHASES_COLLECTION = 'purchases';
 const SUPPLIERS_COLLECTION = 'suppliers';
@@ -32,8 +33,6 @@ async function uploadInvoice(dataUri: string, purchaseId: string): Promise<{ dow
       contentType: contentType,
       resumable: false,
     });
-    // This URL format is for direct access via Google Cloud Storage, not a public URL.
-    // Access is controlled by IAM. For client-side access, a signed URL would be needed.
     const url = `https://storage.googleapis.com/${adminBucket.name}/${path}`;
     console.log(`File uploaded to ${path}, GCS URL: ${url}`);
     return { downloadUrl: url, storagePath: path, contentType: contentType };
@@ -117,9 +116,6 @@ const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean, 
   return firestoreData;
 };
 
-// Note for production: This function is not safe for concurrent execution.
-// A more robust solution would use a transaction with retries or a Cloud Function
-// to handle the find-or-create logic atomically.
 const findOrCreateSupplier = async (data: Partial<PurchaseFormValues>): Promise<string | undefined> => {
     if (!data.supplier || data.supplier.trim() === '') {
         console.warn('findOrCreateSupplier called with an empty supplier name. Aborting.');

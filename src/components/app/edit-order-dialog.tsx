@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -374,22 +373,41 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
               <>
                 <Separator className="my-6" />
                 <h3 className="text-md font-semibold text-muted-foreground">Detalles de la Cuenta</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm p-3 border rounded-md bg-muted/50">
-                  <div>
-                    <p className="font-semibold">CIF/NIF</p>
-                    <p>{associatedAccount.cif || 'No especificado'}</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm p-3 border rounded-md bg-muted/50">
+                  <div className="md:col-span-1 space-y-4">
+                    <div>
+                        <p className="font-semibold">Nombre Fiscal</p>
+                        <p>{associatedAccount.legalName || 'No especificado'}</p>
+                    </div>
+                    <div>
+                        <p className="font-semibold">CIF/NIF</p>
+                        <p>{associatedAccount.cif || 'No especificado'}</p>
+                    </div>
+                    <div>
+                        <p className="font-semibold">Tipo de Cuenta</p>
+                        <p>{associatedAccount.type}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-semibold">Tipo de Cuenta</p>
-                    <p>{associatedAccount.type}</p>
+                  <div className="md:col-span-1 space-y-4">
+                      <div>
+                          <p className="font-semibold">Dirección Facturación</p>
+                          <p className="whitespace-pre-line">{formatAddressForDisplay(associatedAccount.addressBilling)}</p>
+                      </div>
+                      <div>
+                          <p className="font-semibold">Dirección Entrega</p>
+                          <p className="whitespace-pre-line">{formatAddressForDisplay(associatedAccount.addressShipping)}</p>
+                      </div>
                   </div>
-                  <div className="col-span-1">
-                      <p className="font-semibold">Dirección Facturación</p>
-                      <p className="whitespace-pre-line">{formatAddressForDisplay(associatedAccount.addressBilling)}</p>
-                  </div>
-                   <div className="col-span-1">
-                      <p className="font-semibold">Dirección Entrega</p>
-                      <p className="whitespace-pre-line">{formatAddressForDisplay(associatedAccount.addressShipping)}</p>
+                  <div className="md:col-span-1 space-y-4">
+                    <div>
+                      <p className="font-semibold">Contacto Principal</p>
+                        <div className="space-y-1">
+                          <p className="font-medium">{associatedAccount.mainContactName || 'No disponible'}</p>
+                          {associatedAccount.mainContactEmail && <a href={`mailto:${associatedAccount.mainContactEmail}`} className="text-primary hover:underline block truncate">{associatedAccount.mainContactEmail}</a>}
+                          {associatedAccount.mainContactPhone && <a href={`tel:${associatedAccount.mainContactPhone}`} className="text-primary hover:underline block">{associatedAccount.mainContactPhone}</a>}
+                          {!(associatedAccount.mainContactEmail || associatedAccount.mainContactPhone) && !associatedAccount.mainContactName && <p className="text-muted-foreground italic">Sin datos</p>}
+                        </div>
+                    </div>
                   </div>
                 </div>
               </>

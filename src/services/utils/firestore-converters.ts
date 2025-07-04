@@ -16,9 +16,13 @@ export const fromFirestorePurchase = (docSnap: DocumentSnapshot): Purchase => {
     costCenterIds: data.costCenterIds || [],
     currency: data.currency || 'EUR',
     items: data.items?.map((item: any) => ({ 
-        ...item, 
+        materialId: item.materialId,
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
         batchNumber: item.batchNumber || undefined,
         categoryId: item.categoryId,
+        total: item.total
     })) || [],
     subtotal: data.subtotal || 0,
     tax: data.tax || 0,
@@ -52,7 +56,7 @@ export const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: bo
     orderDate: data.orderDate instanceof Date && isValid(data.orderDate) ? Timestamp.fromDate(data.orderDate) : Timestamp.fromDate(new Date()),
     status: data.status!,
     items: data.items?.map(item => ({ 
-        materialId: item.materialId, 
+        materialId: item.materialId!, // Should be resolved before calling this
         description: item.description, 
         quantity: item.quantity || 0, 
         unitPrice: item.unitPrice || 0,

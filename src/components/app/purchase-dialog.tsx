@@ -56,11 +56,12 @@ import { useCategories } from "@/contexts/categories-context";
 
 
 const purchaseItemSchema = z.object({
-  materialId: z.string().min(1, "Debe seleccionar un material del sistema."),
-  description: z.string().optional(),
+  materialId: z.string().optional(),
+  description: z.string().min(1, "La descripción es obligatoria."),
   quantity: z.coerce.number({invalid_type_error: "Cantidad debe ser un número."}).min(1, "La cantidad debe ser al menos 1.").nullable(),
   unitPrice: z.coerce.number({invalid_type_error: "Precio debe ser un número."}).min(0.01, "El precio debe ser positivo.").nullable(),
   batchNumber: z.string().optional(),
+  categoryId: z.string({ required_error: "La categoría es obligatoria." }),
 });
 
 const purchaseFormSchema = z.object({
@@ -74,7 +75,6 @@ const purchaseFormSchema = z.object({
   supplierAddress_country: z.string().optional(),
   orderDate: z.date({ required_error: "La fecha del pedido es obligatoria." }),
   status: z.enum(purchaseStatusList as [PurchaseStatus, ...PurchaseStatus[]]),
-  categoryId: z.string({ required_error: "La categoría del gasto es obligatoria." }),
   costCenterIds: z.array(z.string()).optional(),
   currency: z.enum(["EUR", "USD", "MXN"]).default("EUR"),
   items: z.array(purchaseItemSchema).min(1, "Debe añadir al menos un artículo a la compra."),
@@ -86,6 +86,15 @@ const purchaseFormSchema = z.object({
   invoiceUrl: z.union([z.literal(""), z.string().url("URL no válida")]).optional(),
   invoiceContentType: z.string().optional(),
   storagePath: z.string().optional(),
+}).superRefine((data, ctx) => {
+    data.items.forEach((item, index) => {
+        if (!item.materialId && !item.description) {
+            ctx.addIssue({
+                path: [`items.${index}.description`],
+                message: "Debe proporcionar una descripción para el nuevo concepto."
+            });
+        }
+    });
 });
 
 export type PurchaseFormValues = z.infer<typeof purchaseFormSchema>;
@@ -124,9 +133,9 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
   const form = useForm<PurchaseFormValues>({
     resolver: zodResolver(purchaseFormSchema),
     defaultValues: {
-      supplier: "", orderDate: new Date(), status: "Factura Recibida", categoryId: "", costCenterIds: [],
+      supplier: "", orderDate: new Date(), status: "Factura Recibida", costCenterIds: [],
       currency: "EUR",
-      items: [{ materialId: "", description: "", quantity: 1, unitPrice: null, batchNumber: "" }],
+      items: [{ materialId: "", description: "", quantity: 1, unitPrice: null, batchNumber: "", categoryId: "" }],
       shippingCost: 0, taxRate: 21, notes: "", invoiceUrl: "", storagePath: "", invoiceFile: null,
     },
   });
@@ -181,7 +190,7 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
             }
             const result = await matchMaterial({ itemName: item.description || "", existingMaterials: availableMaterials });
             if (result.matchType === 'perfect' || result.matchType === 'suggested') {
-                return { ...item, materialId: result.matchedMaterialId! };
+                return { ...item, materialId: result.matchedMaterialId!, categoryId: result.suggestedCategoryId || item.categoryId };
             }
             return item;
         }));
@@ -210,10 +219,9 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
       supplier: source?.supplier || "",
       orderDate: source?.orderDate ? (typeof source.orderDate === 'string' ? parseISO(source.orderDate) : source.orderDate) : new Date(),
       status: source?.status || "Factura Recibida",
-      categoryId: (source as Purchase)?.categoryId || "",
       costCenterIds: (source as Purchase)?.costCenterIds || [],
       currency: (source as Purchase)?.currency || "EUR",
-      items: source?.items?.map(i => ({...i, quantity: i.quantity || null, unitPrice: i.unitPrice || null })) || [{ materialId: "", description: "", quantity: 1, unitPrice: null, batchNumber: "" }],
+      items: source?.items?.map(i => ({...i, quantity: i.quantity || null, unitPrice: i.unitPrice || null })) || [{ materialId: "", description: "", quantity: 1, unitPrice: null, batchNumber: "", categoryId: "" }],
       shippingCost: (source as Purchase)?.shippingCost || 0,
       taxRate: (source as Purchase)?.taxRate ?? 21,
       notes: source?.notes || "",
@@ -316,8 +324,7 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
                       <FormField control={form.control} name="supplier" render={({ field }) => (<FormItem><FormLabel className="flex items-center"><Building className="mr-2 h-4 w-4"/>Proveedor</FormLabel><FormControl><Input placeholder="Ej: Proveedor de Tequila" {...field} value={field.value ?? ''} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name="orderDate" render={({ field }) => (<FormItem className="flex flex-col"><FormLabel>Fecha Gasto/Pedido</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("justify-start text-left font-normal", !field.value && "text-muted-foreground")} disabled={isReadOnly}>{field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={isReadOnly} initialFocus locale={es}/></PopoverContent></Popover><FormMessage /></FormItem>)} />
                   </div>
-                  <FormField control={form.control} name="categoryId" render={({ field }) => (<FormItem><FormLabel>Categoría del Gasto</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly || isLoadingCategories}><FormControl><SelectTrigger><SelectValue placeholder={isLoadingCategories ? "Cargando..." : "Seleccione una categoría"} /></SelectTrigger></FormControl><SelectContent>{costCategories.map(c => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="costCenterIds" render={({ field }) => (
+                   <FormField control={form.control} name="costCenterIds" render={({ field }) => (
                       <FormItem>
                           <FormLabel>Centros de Coste (Opcional)</FormLabel>
                           <MultiSelect
@@ -335,13 +342,14 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
                   <Separator /><h3 className="text-md font-semibold">Artículos del Gasto</h3>
                   <div className="space-y-3">
                     {fields.map((field, index) => (
-                      <div key={field.id} className="flex flex-col gap-2 p-3 border rounded-md bg-secondary/20">
+                      <div key={field.id} className="flex flex-col gap-3 p-3 border rounded-md bg-secondary/20">
+                        <FormField control={form.control} name={`items.${index}.description`} render={({ field: descField }) => (<FormItem><FormLabel className="text-xs text-muted-foreground">Descripción / Nombre Nuevo Concepto</FormLabel><FormControl><Textarea {...descField} value={descField.value ?? ''} placeholder="Descripción del artículo..." className="text-sm h-auto" disabled={isReadOnly} rows={1} /></FormControl><FormMessage /></FormItem>)}/>
                         <div className="flex items-end gap-2">
                             <FormField control={form.control} name={`items.${index}.materialId`} render={({ field: selectField }) => (
                               <FormItem className="flex-grow">
                                   <FormLabel className="text-xs flex items-center gap-1">
                                     {matchingItems[index] && <Loader2 className="h-3 w-3 animate-spin"/>}
-                                    Concepto del Sistema
+                                    Concepto del Sistema (Opcional)
                                   </FormLabel>
                                   {isLoadingDropdowns ? (
                                     <Skeleton className="h-10 w-full" />
@@ -349,6 +357,7 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
                                     <Select onValueChange={selectField.onChange} value={selectField.value || ""} disabled={isReadOnly}>
                                       <FormControl><SelectTrigger><SelectValue placeholder="Asociar a material..." /></SelectTrigger></FormControl>
                                       <SelectContent>
+                                        <SelectItem value="">(Crear nuevo concepto)</SelectItem>
                                         {availableMaterials.map(material => (<SelectItem key={material.id} value={material.id}>{material.name}</SelectItem>))}
                                       </SelectContent>
                                     </Select>
@@ -358,7 +367,8 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
                             )} />
                             {!isReadOnly && <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>}
                         </div>
-                        <FormField control={form.control} name={`items.${index}.description`} render={({ field: descField }) => (<FormItem><FormLabel className="text-xs text-muted-foreground">{prefilledData ? 'Concepto de Factura (Editable)' : 'Descripción Manual'}</FormLabel><FormControl><Textarea {...descField} value={descField.value ?? ''} placeholder="Descripción del artículo..." className={cn("text-xs h-auto", !watchedItems[index]?.materialId && watchedItems[index]?.description && "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-400")} disabled={isReadOnly} rows={2} /></FormControl><FormMessage /></FormItem>)}/>
+                         <FormField control={form.control} name={`items.${index}.categoryId`} render={({ field }) => (<FormItem><FormLabel className="text-xs">Categoría del Concepto</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly || isLoadingCategories}><FormControl><SelectTrigger><SelectValue placeholder={isLoadingCategories ? "Cargando..." : "Seleccione una categoría"} /></SelectTrigger></FormControl><SelectContent>{costCategories.map(c => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+
                         <div className="flex items-end gap-2">
                            <FormField control={form.control} name={`items.${index}.quantity`} render={({ field: qField }) => (<FormItem className="w-24"><FormLabel className="text-xs">Cantidad</FormLabel><FormControl><Input type="number" {...qField} disabled={isReadOnly} value={qField.value ?? ""} onChange={e => qField.onChange(e.target.value === '' ? null : Number(e.target.value))} /></FormControl><FormMessage /></FormItem>)} />
                            <FormField control={form.control} name={`items.${index}.unitPrice`} render={({ field: pField }) => (<FormItem className="w-28"><FormLabel className="text-xs">Precio Unit. (€)</FormLabel><FormControl><Input type="number" step="0.01" {...pField} disabled={isReadOnly} value={pField.value ?? ""} onChange={e => pField.onChange(e.target.value === '' ? null : Number(e.target.value))} /></FormControl><FormMessage /></FormItem>)} />
@@ -366,7 +376,7 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
                         </div>
                       </div>
                     ))}
-                    {!isReadOnly && <Button type="button" variant="outline" size="sm" onClick={() => append({ materialId: "", description: "", quantity: 1, unitPrice: null, batchNumber: "" })}><PlusCircle className="mr-2 h-4 w-4" />Añadir Artículo</Button>}
+                    {!isReadOnly && <Button type="button" variant="outline" size="sm" onClick={() => append({ materialId: "", description: "", quantity: 1, unitPrice: null, batchNumber: "", categoryId: "" })}><PlusCircle className="mr-2 h-4 w-4" />Añadir Artículo</Button>}
                   </div>
 
                   <Separator />

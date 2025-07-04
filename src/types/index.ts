@@ -1,6 +1,7 @@
 
 
 
+
 import { Timestamp } from "firebase/firestore";
 
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
@@ -325,7 +326,7 @@ export type Currency = "EUR" | "USD" | "MXN";
 
 export interface PurchaseItem {
   materialId: string;
-  description?: string;
+  description: string;
   quantity: number;
   unitPrice: number;
   batchNumber?: string;
@@ -456,7 +457,7 @@ export interface PurchaseFormValues {
   costCenterIds?: string[];
   currency: Currency;
   items: {
-    materialId: string;
+    materialId?: string;
     description: string;
     quantity: number | null;
     unitPrice: number | null;

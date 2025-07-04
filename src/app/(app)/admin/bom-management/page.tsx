@@ -66,7 +66,6 @@ export default function BomManagementPage() {
         const targetCategoryName = "producto terminado";
 
         for (const [id, name] of categoriesMap.entries()) {
-          // Normalize both names for a robust comparison
           if (name.trim().toLowerCase() === targetCategoryName) {
             finishedGoodsCategoryId = id;
             break;
@@ -95,16 +94,42 @@ export default function BomManagementPage() {
       }
 
       if (!finalProductSku) {
-        throw new Error("SKU del producto no definido. No se puede guardar la receta.");
+        toast({
+          title: "Error de Datos",
+          description: "No se ha definido un producto final para la receta. Selecciona uno existente o crea uno nuevo.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      // Pre-validation loop
+      for (const component of data.components) {
+        const material = inventoryItems.find(item => item.id === component.materialId);
+        if (!material) {
+          toast({
+            title: "Error en Componente",
+            description: `El componente "${component.description}" no está correctamente asociado a un artículo del inventario. Por favor, vuelve a buscarlo.`,
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
+        if (!material.sku) {
+          toast({
+            title: "Error en Componente",
+            description: `El componente de inventario "${material.name}" no tiene un SKU definido y no puede ser usado en una receta.`,
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
       }
       
       const componentsToSave = data.components.map(c => {
-        const material = inventoryItems.find(item => item.id === c.materialId);
-        if (!material || !material.sku) {
-            throw new Error(`Componente "${c.description}" no está asociado correctamente. Vuelve a buscarlo.`);
-        }
+        const material = inventoryItems.find(item => item.id === c.materialId)!;
         return {
-            componentSku: material.sku,
+            componentSku: material.sku!,
             quantity: c.quantity,
             uom: c.uom,
         };
@@ -114,12 +139,12 @@ export default function BomManagementPage() {
 
       toast({ title: "Receta Guardada", description: "La receta ha sido guardada correctamente." });
       await fetchBomData(); // Refresh data from server
+      setIsDialogOpen(false);
     } catch (error: any) {
       console.error("Error saving BOM recipe:", error);
       toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
     } finally {
       setIsLoading(false);
-      setIsDialogOpen(false);
     }
   };
 

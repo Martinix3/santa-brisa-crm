@@ -12,12 +12,14 @@ import BomDialog from "@/components/app/bom-dialog";
 import type { BomRecipeFormValues } from "@/components/app/bom-dialog";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { getBomLinesFS, saveRecipeFS, deleteRecipeFS } from "@/services/bom-service";
-import { getInventoryItemsFS } from "@/services/inventory-item-service";
+import { getInventoryItemsFS, addInventoryItemFS } from "@/services/inventory-item-service";
 import { useCategories } from "@/contexts/categories-context";
+import { useAuth } from "@/contexts/auth-context";
 
 export default function BomManagementPage() {
   const { toast } = useToast();
   const { categoriesMap } = useCategories();
+  const { dataSignature } = useAuth();
 
   const [bomLines, setBomLines] = React.useState<BomLine[]>([]);
   const [inventoryItems, setInventoryItems] = React.useState<InventoryItem[]>([]);
@@ -42,7 +44,7 @@ export default function BomManagementPage() {
 
   React.useEffect(() => {
     fetchBomData();
-  }, [fetchBomData]);
+  }, [fetchBomData, dataSignature]);
 
   const handleAddNewRecipe = () => {
     setEditingRecipe(null);
@@ -57,12 +59,41 @@ export default function BomManagementPage() {
   const handleSaveRecipe = async (data: BomRecipeFormValues) => {
     setIsLoading(true);
     try {
-      await saveRecipeFS(data.productSku, data.components);
+      let finalProductSku = data.productSku;
+
+      if (data.isNewProduct && data.newProductName && data.newProductSku) {
+        let finishedGoodsCategoryId = '';
+        for (const [id, name] of categoriesMap.entries()) {
+          if (name === 'Producto Terminado') {
+            finishedGoodsCategoryId = id;
+            break;
+          }
+        }
+        if (!finishedGoodsCategoryId) {
+          throw new Error("No se encontró la categoría 'Producto Terminado'. Por favor, créala en la configuración de categorías.");
+        }
+        
+        await addInventoryItemFS({
+          name: data.newProductName,
+          sku: data.newProductSku,
+          categoryId: finishedGoodsCategoryId,
+          stock: 0,
+        });
+        finalProductSku = data.newProductSku;
+        toast({ title: "Producto Creado", description: `Se ha creado "${data.newProductName}" en el inventario.`});
+      }
+
+      if (!finalProductSku) {
+        throw new Error("SKU del producto no definido. No se puede guardar la receta.");
+      }
+      
+      await saveRecipeFS(finalProductSku, data.components);
+
       toast({ title: "Receta Guardada", description: "La receta ha sido guardada correctamente." });
       await fetchBomData(); // Refresh data from server
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving BOM recipe:", error);
-      toast({ title: "Error al Guardar", variant: "destructive" });
+      toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
     } finally {
       setIsLoading(false);
       setIsDialogOpen(false);

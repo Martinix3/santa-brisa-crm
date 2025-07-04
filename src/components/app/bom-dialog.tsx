@@ -36,7 +36,7 @@ import { Loader2, PlusCircle, Trash2 } from "lucide-react";
 import { useCategories } from "@/contexts/categories-context";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-
+import { Checkbox } from "@/components/ui/checkbox";
 
 const uomList: UoM[] = ['unit', 'kg', 'g', 'l', 'ml'];
 
@@ -46,12 +46,34 @@ const bomComponentSchema = z.object({
   uom: z.enum(uomList as [UoM, ...UoM[]]),
 });
 
-const bomRecipeSchema = z.object({
-  productSku: z.string().min(1, "Debe seleccionar el producto a fabricar."),
+const getBomRecipeSchema = (inventoryItems: InventoryItem[]) => z.object({
+  isNewProduct: z.boolean().default(false),
+  productSku: z.string().optional(),
+  newProductName: z.string().optional(),
+  newProductSku: z.string().optional(),
   components: z.array(bomComponentSchema).min(1, "Debe añadir al menos un componente."),
+}).superRefine((data, ctx) => {
+  if (data.isNewProduct) {
+    if (!data.newProductName || data.newProductName.length < 3) {
+      ctx.addIssue({ path: ["newProductName"], message: "El nombre es obligatorio (mín. 3 caracteres)." });
+    }
+    if (!data.newProductSku || data.newProductSku.length < 3) {
+      ctx.addIssue({ path: ["newProductSku"], message: "El SKU es obligatorio (mín. 3 caracteres)." });
+    } else {
+      const skuExists = inventoryItems.some(item => item.sku?.toLowerCase() === data.newProductSku?.toLowerCase());
+      if (skuExists) {
+        ctx.addIssue({ path: ["newProductSku"], message: "Este SKU ya existe en el inventario." });
+      }
+    }
+  } else {
+    if (!data.productSku) {
+      ctx.addIssue({ path: ["productSku"], message: "Debe seleccionar un producto existente." });
+    }
+  }
 });
 
-export type BomRecipeFormValues = z.infer<typeof bomRecipeSchema>;
+
+export type BomRecipeFormValues = z.infer<ReturnType<typeof getBomRecipeSchema>>;
 
 interface BomDialogProps {
   recipe: { productSku: string; lines: BomLine[] } | null;
@@ -65,10 +87,15 @@ interface BomDialogProps {
 export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDelete, inventoryItems }: BomDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   
+  const bomRecipeSchema = React.useMemo(() => getBomRecipeSchema(inventoryItems), [inventoryItems]);
+
   const form = useForm<BomRecipeFormValues>({
     resolver: zodResolver(bomRecipeSchema),
     defaultValues: {
+      isNewProduct: false,
       productSku: "",
+      newProductName: "",
+      newProductSku: "",
       components: [],
     },
   });
@@ -78,11 +105,16 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
     name: "components",
   });
 
+  const isNewProduct = form.watch("isNewProduct");
+
   React.useEffect(() => {
     if (isOpen) {
       if (recipe) {
         form.reset({
+            isNewProduct: false,
             productSku: recipe.productSku,
+            newProductName: "",
+            newProductSku: "",
             components: recipe.lines.map(line => ({
                 componentSku: line.componentSku,
                 quantity: line.quantity,
@@ -90,7 +122,7 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
             })),
         });
       } else {
-        form.reset({ productSku: "", components: [] });
+        form.reset({ isNewProduct: false, productSku: "", newProductName: "", newProductSku: "", components: [] });
       }
     }
   }, [recipe, isOpen, form]);
@@ -136,18 +168,35 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
-            <FormField
-              control={form.control} name="productSku"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Producto a Fabricar</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={isEditing}>
-                    <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar producto terminado..." /></SelectTrigger></FormControl>
-                    <SelectContent>{finishedGoods.map(item => (<SelectItem key={item.id} value={item.sku!}>{item.name} ({item.sku})</SelectItem>))}</SelectContent>
-                  </Select><FormMessage />
-                </FormItem>
-              )}
-            />
+            {!isEditing && (
+              <FormField
+                control={form.control}
+                name="isNewProduct"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center space-x-2 space-y-0 rounded-md border p-3 shadow-sm">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>Crear un nuevo producto terminado</FormLabel>
+                      <FormMessage />
+                    </div>
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {isNewProduct && !isEditing ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField control={form.control} name="newProductName" render={({ field }) => ( <FormItem><FormLabel>Nombre Nuevo Producto</FormLabel><FormControl><Input placeholder="Ej: Santa Brisa 200ml" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="newProductSku" render={({ field }) => ( <FormItem><FormLabel>SKU Nuevo Producto</FormLabel><FormControl><Input placeholder="Ej: SB-200ML" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+              </div>
+            ) : (
+              <FormField control={form.control} name="productSku" render={({ field }) => ( <FormItem><FormLabel>Producto a Fabricar</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isEditing}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar producto terminado..." /></SelectTrigger></FormControl><SelectContent>{finishedGoods.map(item => (<SelectItem key={item.id} value={item.sku!}>{item.name} ({item.sku})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+            )}
             
             <h4 className="font-medium">Componentes de la Receta</h4>
             <ScrollArea className="h-64 border rounded-md p-2">

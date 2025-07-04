@@ -4,11 +4,10 @@
 import { db } from '@/lib/firebase';
 import {
   collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
-  type DocumentSnapshot, writeBatch
+  type DocumentSnapshot, writeBatch, runTransaction
 } from "firebase/firestore";
 import type { CrmEvent, EventFormValues } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
-import { updateInventoryItemStockFS } from './inventory-item-service';
 
 const EVENTS_COLLECTION = 'events';
 
@@ -73,7 +72,6 @@ export const getEventsFS = async (): Promise<CrmEvent[]> => {
   const eventSnapshot = await getDocs(q);
   const eventList = eventSnapshot.docs.map(docSnap => fromFirestoreEvent(docSnap));
 
-  // Perform secondary sort by orderIndex in memory
   eventList.sort((a, b) => {
     const dateA = parseISO(a.startDate);
     const dateB = parseISO(b.startDate);
@@ -93,14 +91,30 @@ export const getEventByIdFS = async (id: string): Promise<CrmEvent | null> => {
   return docSnap.exists() ? fromFirestoreEvent(docSnap) : null;
 };
 
+const updateStockForEvent = async (materialId: string, quantityChange: number) => {
+    const materialDocRef = doc(db, 'inventoryItems', materialId);
+    try {
+        await runTransaction(db, async (transaction) => {
+            const materialDoc = await transaction.get(materialDocRef);
+            if (!materialDoc.exists()) {
+                throw new Error(`Inventory Item ${materialId} not found.`);
+            }
+            const currentStock = materialDoc.data().stock || 0;
+            transaction.update(materialDocRef, { stock: currentStock + quantityChange });
+        });
+    } catch (e) {
+        console.error(`Stock update for material ${materialId} failed:`, e);
+        // In a real app, you might want more sophisticated error handling
+    }
+};
+
 export const addEventFS = async (data: EventFormValues): Promise<string> => {
   const firestoreData = toFirestoreEvent(data, true);
   const docRef = await addDoc(collection(db, EVENTS_COLLECTION), firestoreData);
   
-  // Deduct stock for assigned materials
   if (data.assignedMaterials && data.assignedMaterials.length > 0) {
     for (const item of data.assignedMaterials) {
-        await updateInventoryItemStockFS(item.materialId, -item.quantity);
+        await updateStockForEvent(item.materialId, -item.quantity);
     }
   }
 
@@ -116,23 +130,20 @@ export const updateEventFS = async (id: string, data: EventFormValues): Promise<
   const firestoreData = toFirestoreEvent(data, false);
   await updateDoc(eventDocRef, firestoreData);
 
-  // Calculate stock difference and update
   const stockChanges = new Map<string, number>();
   const oldMaterials = oldData.assignedMaterials || [];
   const newMaterials = data.assignedMaterials || [];
 
-  // Add new quantities to be deducted
-  for (const newItem of newMaterials) {
-    stockChanges.set(newItem.materialId, (stockChanges.get(newItem.materialId) || 0) - newItem.quantity);
-  }
-  // Add old quantities back to stock
   for (const oldItem of oldMaterials) {
     stockChanges.set(oldItem.materialId, (stockChanges.get(oldItem.materialId) || 0) + oldItem.quantity);
   }
-  // Apply the net changes
+  for (const newItem of newMaterials) {
+    stockChanges.set(newItem.materialId, (stockChanges.get(newItem.materialId) || 0) - newItem.quantity);
+  }
+  
   for (const [materialId, quantityChange] of stockChanges.entries()) {
     if (quantityChange !== 0) {
-      await updateInventoryItemStockFS(materialId, quantityChange);
+      await updateStockForEvent(materialId, quantityChange);
     }
   }
 };
@@ -143,10 +154,9 @@ export const deleteEventFS = async (id: string): Promise<void> => {
 
   if (existingEventDoc.exists()) {
     const eventData = fromFirestoreEvent(existingEventDoc);
-    // Add stock back on deletion
     if (eventData.assignedMaterials && eventData.assignedMaterials.length > 0) {
         for (const item of eventData.assignedMaterials) {
-            await updateInventoryItemStockFS(item.materialId, item.quantity);
+            await updateStockForEvent(item.materialId, item.quantity);
         }
     }
   }
@@ -191,7 +201,6 @@ export const reorderEventsBatchFS = async (
   }
   const batch = writeBatch(db);
 
-  // To avoid N+1 reads inside a loop, fetch all documents first.
   const docRefs = updates.map(u => doc(db, EVENTS_COLLECTION, u.id));
   const docSnapshots = await Promise.all(docRefs.map(ref => getDoc(ref)));
   
@@ -211,7 +220,6 @@ export const reorderEventsBatchFS = async (
     if (update.date) {
         payload.startDate = Timestamp.fromDate(update.date);
         const eventData = docSnap.data();
-        // Move endDate proportionally if it exists
         if(eventData.endDate && eventData.startDate) {
             const duration = eventData.endDate.toDate().getTime() - eventData.startDate.toDate().getTime();
             if (duration >= 0) { 

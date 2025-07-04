@@ -1,15 +1,13 @@
 
-
 'use server';
 
 import { db } from '@/lib/firebase';
 import {
   collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
-  type DocumentSnapshot, writeBatch,
+  type DocumentSnapshot, writeBatch, runTransaction
 } from "firebase/firestore";
 import type { Order, AssignedPromotionalMaterial, AccountFormValues, NewScheduledTaskData, OrderStatus, TeamMember } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
-import { updateInventoryItemStockFS } from './inventory-item-service';
 import { getAccountByIdFS, addAccountFS } from './account-service';
 import { getTeamMemberByIdFS } from './team-member-service';
 
@@ -131,6 +129,21 @@ const toFirestoreOrder = (data: Partial<Order> & { visitDate?: Date | string, ne
   return firestoreData;
 };
 
+const updateStockForOrder = async (materialId: string, quantityChange: number) => {
+    const materialDocRef = doc(db, 'inventoryItems', materialId);
+    try {
+        await runTransaction(db, async (transaction) => {
+            const materialDoc = await transaction.get(materialDocRef);
+            if (!materialDoc.exists()) {
+                throw new Error(`Inventory Item ${materialId} not found.`);
+            }
+            const currentStock = materialDoc.data().stock || 0;
+            transaction.update(materialDocRef, { stock: currentStock + quantityChange });
+        });
+    } catch (e) {
+        console.error(`Stock update for material ${materialId} failed:`, e);
+    }
+};
 
 export const getOrdersFS = async (): Promise<Order[]> => {
   const ordersCol = collection(db, ORDERS_COLLECTION);
@@ -138,9 +151,6 @@ export const getOrdersFS = async (): Promise<Order[]> => {
   const orderSnapshot = await getDocs(q);
   const orderList = orderSnapshot.docs.map(docSnap => fromFirestoreOrder(docSnap));
 
-  // Perform secondary sort by orderIndex in memory
-  // This is a stable sort as long as the primary sort (by date) is consistent.
-  // We sort primarily by date (desc) then by index (asc)
   orderList.sort((a, b) => {
     const dateA = parseISO(a.createdAt);
     const dateB = parseISO(b.createdAt);
@@ -172,10 +182,9 @@ export const addOrderFS = async (data: Partial<Order> & {visitDate: Date | strin
   const firestoreData = toFirestoreOrder(data, true);
   const docRef = await addDoc(collection(db, ORDERS_COLLECTION), firestoreData);
   
-  // Deduct stock for assigned materials
   if (data.assignedMaterials && data.assignedMaterials.length > 0) {
     for (const item of data.assignedMaterials) {
-        await updateInventoryItemStockFS(item.materialId, -item.quantity);
+        await updateStockForOrder(item.materialId, -item.quantity);
     }
   }
 
@@ -234,23 +243,20 @@ export const updateOrderFS = async (id: string, data: Partial<Order> & {visitDat
   const firestoreData = toFirestoreOrder(data, false); 
   await updateDoc(orderDocRef, firestoreData);
 
-  // Calculate stock difference and update
   const stockChanges = new Map<string, number>();
   const oldMaterials = oldData.assignedMaterials || [];
   const newMaterials = data.assignedMaterials || [];
 
-  // Add new quantities to be deducted
-  for (const newItem of newMaterials) {
-    stockChanges.set(newItem.materialId, (stockChanges.get(newItem.materialId) || 0) - newItem.quantity);
-  }
-  // Add old quantities back to stock
   for (const oldItem of oldMaterials) {
     stockChanges.set(oldItem.materialId, (stockChanges.get(oldItem.materialId) || 0) + oldItem.quantity);
   }
-  // Apply the net changes
+  for (const newItem of newMaterials) {
+    stockChanges.set(newItem.materialId, (stockChanges.get(newItem.materialId) || 0) - newItem.quantity);
+  }
+
   for (const [materialId, quantityChange] of stockChanges.entries()) {
     if (quantityChange !== 0) {
-      await updateInventoryItemStockFS(materialId, quantityChange);
+      await updateStockForOrder(materialId, quantityChange);
     }
   }
 };
@@ -268,7 +274,7 @@ export const updateScheduledTaskFS = async (taskId: string, data: NewScheduledTa
   if (data.taskCategory === 'Commercial') {
       if (data.clientSelectionMode === 'new' && data.newClientName) {
         updatePayload.clientName = data.newClientName;
-        updatePayload.accountId = null; // A new client name implies we detach from any old accountId
+        updatePayload.accountId = null;
       } else if (data.clientSelectionMode === 'existing' && data.accountId) {
           const account = await getAccountByIdFS(data.accountId);
           if (account) {
@@ -277,7 +283,6 @@ export const updateScheduledTaskFS = async (taskId: string, data: NewScheduledTa
           }
       }
   } else {
-    // For admin tasks, client/account info is not relevant or derived from notes
     updatePayload.clientName = data.notes.substring(0, 50) || "Tarea Administrativa";
     updatePayload.accountId = null;
   }
@@ -299,10 +304,9 @@ export const deleteOrderFS = async (id: string): Promise<void> => {
 
   if (existingOrderDoc.exists()) {
     const orderData = fromFirestoreOrder(existingOrderDoc);
-    // Add stock back on deletion
     if (orderData.assignedMaterials && orderData.assignedMaterials.length > 0) {
       for (const item of orderData.assignedMaterials) {
-        await updateInventoryItemStockFS(item.materialId, item.quantity);
+        await updateStockForOrder(item.materialId, item.quantity);
       }
     }
   }
@@ -360,7 +364,6 @@ export const reorderTasksBatchFS = async (
   }
   const batch = writeBatch(db);
 
-  // To avoid N+1 reads inside a loop, fetch all documents first.
   const docRefs = updates.map(u => doc(db, ORDERS_COLLECTION, u.id));
   const docSnapshots = await Promise.all(docRefs.map(ref => getDoc(ref)));
 
@@ -379,7 +382,6 @@ export const reorderTasksBatchFS = async (
 
     if (update.date) {
       const taskData = docSnap.data();
-      // Logic to determine which date field to update
       if (taskData.status === 'Programada') {
         payload.visitDate = Timestamp.fromDate(update.date);
       } else if (taskData.status === 'Seguimiento') {
@@ -397,8 +399,3 @@ export const reorderTasksBatchFS = async (
     throw error;
   }
 };
-    
-
-
-
-

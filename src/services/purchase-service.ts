@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { db } from '@/lib/firebase';
@@ -10,7 +9,6 @@ import {
 } from "firebase/firestore";
 import type { Purchase, PurchaseFormValues, InventoryItem, LatestPurchaseInfo, PurchaseCategory, Currency } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
-import { seedItemBatches } from './inventory-service'; // Import the new function
 import { findOrCreateSupplier } from './supplier-service';
 
 const PURCHASES_COLLECTION = 'purchases';
@@ -34,10 +32,9 @@ async function uploadInvoice(dataUri: string, purchaseId: string): Promise<{ dow
       resumable: false,
     });
     
-    // Generate a long-lived signed URL instead of making the file public.
     const [signedUrl] = await file.getSignedUrl({
         action: 'read',
-        expires: '01-01-2100' // Set a very distant expiration date
+        expires: '01-01-2100'
     });
 
     console.log(`File uploaded to ${path}, Signed URL generated.`);
@@ -154,8 +151,19 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
         const firestoreData = toFirestorePurchase(dataToSave, true, supplierId);
         
         if (dataToSave.status === 'Factura Recibida') {
-            console.log(`Purchase created with 'Factura Recibida'. Seeding item batches for ${purchaseId}.`);
-            await seedItemBatches(purchaseId, firestoreData, transaction);
+            console.log(`Purchase created with 'Factura Recibida'. Updating stock for ${purchaseId}.`);
+            for (const item of firestoreData.items) {
+                if (item.materialId && item.quantity) {
+                    const materialDocRef = doc(db, 'inventoryItems', item.materialId);
+                    const materialDoc = await transaction.get(materialDocRef);
+                    if (materialDoc.exists()) {
+                        const currentStock = materialDoc.data().stock || 0;
+                        transaction.update(materialDocRef, { stock: currentStock + item.quantity });
+                    } else {
+                         console.warn(`Material with ID ${item.materialId} not found. Stock not updated.`);
+                    }
+                }
+            }
             firestoreData.batchesSeeded = true;
         }
 
@@ -176,11 +184,8 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
         }
         const oldData = fromFirestorePurchase(existingPurchaseDoc);
         let dataToSave = { ...data };
-        let supplierId = oldData.supplierId;
-
-        if (data.supplier && data.supplier !== oldData.supplier) {
-            supplierId = await findOrCreateSupplier(data, transaction);
-        }
+        
+        let supplierId = await findOrCreateSupplier(data, transaction) || oldData.supplierId;
 
         if (data.invoiceDataUri) { 
             console.log(`Uploading new invoice for existing purchase ID: ${id}`);
@@ -201,10 +206,40 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
 
         const firestoreData = toFirestorePurchase(dataToSave as PurchaseFormValues, false, supplierId);
         
-        if (data.status === 'Factura Recibida' && !oldData.batchesSeeded) {
-            console.log(`Purchase ${id} status changed to 'Factura Recibida' and not yet seeded. Seeding item batches.`);
-            await seedItemBatches(id, firestoreData, transaction);
+        const oldStatusWasReceived = oldData.status === 'Factura Recibida';
+        const newStatusIsReceived = data.status === 'Factura Recibida';
+        const stockDeltas = new Map<string, number>();
+
+        if (oldStatusWasReceived) {
+            for (const oldItem of oldData.items) {
+                if (oldItem.materialId && oldItem.quantity) {
+                    stockDeltas.set(oldItem.materialId, (stockDeltas.get(oldItem.materialId) || 0) - oldItem.quantity);
+                }
+            }
+        }
+        
+        if (newStatusIsReceived) {
+            for (const newItem of firestoreData.items) {
+                if (newItem.materialId && newItem.quantity) {
+                    stockDeltas.set(newItem.materialId, (stockDeltas.get(newItem.materialId) || 0) + newItem.quantity);
+                }
+            }
             firestoreData.batchesSeeded = true;
+        } else {
+            firestoreData.batchesSeeded = false;
+        }
+
+        for (const [materialId, delta] of stockDeltas.entries()) {
+            if (delta !== 0) {
+                const materialDocRef = doc(db, 'inventoryItems', materialId);
+                const materialDoc = await transaction.get(materialDocRef);
+                if (materialDoc.exists()) {
+                    const currentStock = materialDoc.data().stock || 0;
+                    transaction.update(materialDocRef, { stock: currentStock + delta });
+                } else {
+                    console.warn(`Material with ID ${materialId} not found during stock update. Skipping.`);
+                }
+            }
         }
         
         transaction.update(purchaseDocRef, firestoreData);
@@ -220,7 +255,25 @@ export const deletePurchaseFS = async (id: string): Promise<void> => {
   
   if (docSnap.exists()) {
       const data = fromFirestorePurchase(docSnap);
-      // Stock adjustment on deletion will be handled by triggers in Phase 2
+      if (data.status === 'Factura Recibida') {
+        // Revert stock changes on deletion
+        for (const item of data.items) {
+          if (item.materialId && item.quantity) {
+            const materialRef = doc(db, 'inventoryItems', item.materialId);
+            try {
+              await runTransaction(db, async (transaction) => {
+                const materialDoc = await transaction.get(materialRef);
+                if (materialDoc.exists()) {
+                  const currentStock = materialDoc.data().stock || 0;
+                  transaction.update(materialRef, { stock: currentStock - item.quantity });
+                }
+              });
+            } catch (e) {
+              console.error(`Failed to revert stock for item ${item.materialId} from purchase ${id}:`, e);
+            }
+          }
+        }
+      }
       
       if (data.storagePath) {
           try {

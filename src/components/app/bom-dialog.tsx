@@ -133,7 +133,7 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
     setIsSaving(false);
   };
   
-  const { categoriesMap } = useCategories();
+  const { categoriesMap, costCategories } = useCategories();
 
   const finishedGoods = React.useMemo(() => 
     inventoryItems.filter(i => i.sku && categoriesMap.get(i.categoryId)?.name === "Producto Terminado"),
@@ -141,17 +141,11 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
   );
   
   const cogsCategoryIds = React.useMemo(() => {
-    const ids: string[] = [];
-    categoriesMap.forEach((name, id) => {
-        if (name === 'Materia Prima (COGS)' || name === 'Material de Embalaje (COGS)') {
-            ids.push(id);
-        }
-    });
-    return ids;
-  }, [categoriesMap]);
+    return costCategories.map(c => c.id);
+  }, [costCategories]);
 
   const components = React.useMemo(() => 
-    inventoryItems.filter(i => i.sku && cogsCategoryIds.includes(i.categoryId)),
+    inventoryItems.filter(i => i.sku && i.categoryId && cogsCategoryIds.includes(i.categoryId)),
     [inventoryItems, cogsCategoryIds]
   );
   

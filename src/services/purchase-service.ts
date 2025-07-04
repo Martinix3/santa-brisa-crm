@@ -5,7 +5,7 @@ import { db } from '@/lib/firebase';
 import { getAdminBucket } from '@/lib/firebaseAdmin';
 import {
   collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, setDoc,
-  type DocumentSnapshot, runTransaction,
+  type DocumentSnapshot, runTransaction, type DocumentReference,
 } from "firebase/firestore";
 import type { Purchase, PurchaseFormValues, InventoryItem, LatestPurchaseInfo, PurchaseCategory, Currency } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
@@ -129,38 +129,46 @@ export const getPurchasesFS = async (): Promise<Purchase[]> => {
 };
 
 export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> => {
+    let dataToSave = { ...data };
+    const newDocRef = doc(collection(db, PURCHASES_COLLECTION));
+    const purchaseId = newDocRef.id;
+
+    if (data.invoiceDataUri) {
+        console.log(`Uploading invoice for new purchase ID: ${purchaseId}`);
+        const { downloadUrl, storagePath, contentType } = await uploadInvoice(data.invoiceDataUri, purchaseId);
+        dataToSave.invoiceUrl = downloadUrl;
+        dataToSave.storagePath = storagePath;
+        dataToSave.invoiceContentType = contentType;
+    }
+
     return await runTransaction(db, async (transaction) => {
+        // --- READ PHASE ---
+        const materialDocsToUpdate = new Map<string, { ref: DocumentReference; doc: DocumentSnapshot }>();
+        if (dataToSave.status === 'Factura Recibida' && dataToSave.items) {
+            for (const item of dataToSave.items) {
+                if (item.materialId && item.quantity) {
+                    const materialDocRef = doc(db, 'inventoryItems', item.materialId);
+                    const materialDoc = await transaction.get(materialDocRef);
+                    materialDocsToUpdate.set(item.materialId, { ref: materialDocRef, doc: materialDoc });
+                }
+            }
+        }
+        
+        // --- WRITE PHASE ---
         const supplierId = await findOrCreateSupplier(data, transaction);
         if (!supplierId) {
             throw new Error("Failed to process supplier. Supplier name might be empty.");
         }
         
-        const purchasesCol = collection(db, PURCHASES_COLLECTION);
-        const newDocRef = doc(purchasesCol);
-        const purchaseId = newDocRef.id;
-        let dataToSave = { ...data };
-
-        if (data.invoiceDataUri) {
-            console.log(`Uploading invoice for new purchase ID: ${purchaseId}`);
-            const { downloadUrl, storagePath, contentType } = await uploadInvoice(data.invoiceDataUri, purchaseId);
-            dataToSave.invoiceUrl = downloadUrl;
-            dataToSave.storagePath = storagePath;
-            dataToSave.invoiceContentType = contentType;
-        }
-
         const firestoreData = toFirestorePurchase(dataToSave, true, supplierId);
-        
-        if (dataToSave.status === 'Factura Recibida') {
-            console.log(`Purchase created with 'Factura Recibida'. Updating stock for ${purchaseId}.`);
-            for (const item of firestoreData.items) {
+
+        if (dataToSave.status === 'Factura Recibida' && dataToSave.items) {
+            for (const item of dataToSave.items) {
                 if (item.materialId && item.quantity) {
-                    const materialDocRef = doc(db, 'inventoryItems', item.materialId);
-                    const materialDoc = await transaction.get(materialDocRef);
-                    if (materialDoc.exists()) {
-                        const currentStock = materialDoc.data().stock || 0;
-                        transaction.update(materialDocRef, { stock: currentStock + item.quantity });
-                    } else {
-                         console.warn(`Material with ID ${item.materialId} not found. Stock not updated.`);
+                    const materialInfo = materialDocsToUpdate.get(item.materialId);
+                    if (materialInfo && materialInfo.doc.exists()) {
+                        const currentStock = materialInfo.doc.data().stock || 0;
+                        transaction.update(materialInfo.ref, { stock: currentStock + item.quantity });
                     }
                 }
             }
@@ -168,7 +176,6 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
         }
 
         transaction.set(newDocRef, firestoreData);
-
         console.log(`New purchase added with ID: ${purchaseId}`);
         return purchaseId;
     });
@@ -176,35 +183,35 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
 
 
 export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormValues>): Promise<void> => {
+    let dataToSave = { ...data };
+
+    if (data.invoiceDataUri) {
+        console.log(`Uploading new invoice for existing purchase ID: ${id}`);
+        // Handle deletion of old file if it exists, outside transaction for robustness
+        if(data.storagePath) {
+             try {
+                const adminBucket = await getAdminBucket();
+                await adminBucket.file(data.storagePath).delete();
+                console.log(`Old invoice file deleted: ${data.storagePath}`);
+            } catch (e) {
+                console.warn(`Could not delete old invoice file ${data.storagePath}, it may not exist or permissions are insufficient.`);
+            }
+        }
+        const { downloadUrl, storagePath, contentType } = await uploadInvoice(data.invoiceDataUri, id);
+        dataToSave.invoiceUrl = downloadUrl;
+        dataToSave.storagePath = storagePath;
+        dataToSave.invoiceContentType = contentType;
+    }
+
     await runTransaction(db, async (transaction) => {
         const purchaseDocRef = doc(db, PURCHASES_COLLECTION, id);
+
+        // --- READ PHASE ---
         const existingPurchaseDoc = await transaction.get(purchaseDocRef);
         if (!existingPurchaseDoc.exists()) {
             throw new Error("Purchase not found");
         }
         const oldData = fromFirestorePurchase(existingPurchaseDoc);
-        let dataToSave = { ...data };
-        
-        let supplierId = await findOrCreateSupplier(data, transaction) || oldData.supplierId;
-
-        if (data.invoiceDataUri) { 
-            console.log(`Uploading new invoice for existing purchase ID: ${id}`);
-            if (oldData.storagePath) {
-                try {
-                    const adminBucket = await getAdminBucket();
-                    await adminBucket.file(oldData.storagePath).delete();
-                    console.log(`Old invoice file deleted: ${oldData.storagePath}`);
-                } catch (e) {
-                    console.warn(`Could not delete old invoice file ${oldData.storagePath}, it may not exist or permissions are insufficient.`);
-                }
-            }
-            const { downloadUrl, storagePath, contentType } = await uploadInvoice(data.invoiceDataUri, id);
-            dataToSave.invoiceUrl = downloadUrl;
-            dataToSave.storagePath = storagePath;
-            dataToSave.invoiceContentType = contentType;
-        }
-
-        const firestoreData = toFirestorePurchase(dataToSave as PurchaseFormValues, false, supplierId);
         
         const oldStatusWasReceived = oldData.status === 'Factura Recibida';
         const newStatusIsReceived = data.status === 'Factura Recibida';
@@ -217,25 +224,37 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
                 }
             }
         }
-        
-        if (newStatusIsReceived) {
-            for (const newItem of firestoreData.items) {
+        if (newStatusIsReceived && data.items) {
+            for (const newItem of data.items) {
                 if (newItem.materialId && newItem.quantity) {
                     stockDeltas.set(newItem.materialId, (stockDeltas.get(newItem.materialId) || 0) + newItem.quantity);
                 }
             }
+        }
+        
+        const materialDocsToUpdate = new Map<string, { ref: DocumentReference; doc: DocumentSnapshot }>();
+        for (const materialId of stockDeltas.keys()) {
+            const materialDocRef = doc(db, 'inventoryItems', materialId);
+            const materialDoc = await transaction.get(materialDocRef);
+            materialDocsToUpdate.set(materialId, { ref: materialDocRef, doc: materialDoc });
+        }
+        
+        // --- WRITE PHASE ---
+        let supplierId = await findOrCreateSupplier(data, transaction) || oldData.supplierId;
+        const firestoreData = toFirestorePurchase(dataToSave as PurchaseFormValues, false, supplierId);
+        
+        if (newStatusIsReceived) {
             firestoreData.batchesSeeded = true;
         } else {
             firestoreData.batchesSeeded = false;
         }
-
+        
         for (const [materialId, delta] of stockDeltas.entries()) {
             if (delta !== 0) {
-                const materialDocRef = doc(db, 'inventoryItems', materialId);
-                const materialDoc = await transaction.get(materialDocRef);
-                if (materialDoc.exists()) {
-                    const currentStock = materialDoc.data().stock || 0;
-                    transaction.update(materialDocRef, { stock: currentStock + delta });
+                const materialInfo = materialDocsToUpdate.get(materialId);
+                if (materialInfo && materialInfo.doc.exists()) {
+                    const currentStock = materialInfo.doc.data().stock || 0;
+                    transaction.update(materialInfo.ref, { stock: currentStock + delta });
                 } else {
                     console.warn(`Material with ID ${materialId} not found during stock update. Skipping.`);
                 }
@@ -308,3 +327,4 @@ export const initializeMockPurchasesInFirestore = async (mockData: Purchase[]) =
         console.log('Mock purchases initialized in Firestore.');
     }
 };
+

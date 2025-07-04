@@ -3,7 +3,7 @@
 
 import { db } from '@/lib/firebase';
 import {
-  collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, type DocumentSnapshot
+  collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, type DocumentSnapshot, runTransaction
 } from "firebase/firestore";
 import type { InventoryItem, InventoryItemFormValues, LatestPurchaseInfo, UoM } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
@@ -38,7 +38,7 @@ const fromFirestoreInventoryItem = (docSnap: DocumentSnapshot): InventoryItem =>
   };
 };
 
-const toFirestoreInventoryItem = (data: Partial<InventoryItemFormValues>, isNew: boolean): any => {
+const toFirestoreInventoryItem = (data: Partial<InventoryItemFormValues>): any => {
   const firestoreData: { [key: string]: any } = {
     name: data.name,
     description: data.description || null,
@@ -47,7 +47,7 @@ const toFirestoreInventoryItem = (data: Partial<InventoryItemFormValues>, isNew:
     uom: data.uom || 'unit',
   };
 
-  // Only update latestPurchase if new data for it is provided
+  // Only create latestPurchase object if new data for it is provided
   if (data.latestPurchaseQuantity && data.latestPurchaseTotalCost && data.latestPurchaseDate) {
     firestoreData.latestPurchase = {
       quantityPurchased: data.latestPurchaseQuantity,
@@ -57,19 +57,9 @@ const toFirestoreInventoryItem = (data: Partial<InventoryItemFormValues>, isNew:
       notes: data.latestPurchaseNotes || null,
       batchNumber: data.latestPurchaseBatchNumber || null,
     };
-    if(isNew) {
-      firestoreData.stock = data.latestPurchaseQuantity;
-    }
   }
 
-  if (isNew) {
-    if (firestoreData.stock === undefined) {
-      firestoreData.stock = 0; // Initialize stock if no purchase data
-    }
-    firestoreData.createdAt = Timestamp.fromDate(new Date());
-  }
-  firestoreData.updatedAt = Timestamp.fromDate(new Date());
-
+  // Timestamps and stock are handled by the calling functions (add/update)
   return firestoreData;
 };
 
@@ -81,15 +71,48 @@ export const getInventoryItemsFS = async (): Promise<InventoryItem[]> => {
 };
 
 export const addInventoryItemFS = async (data: InventoryItemFormValues): Promise<string> => {
-  const firestoreData = toFirestoreInventoryItem(data, true);
+  const firestoreData = toFirestoreInventoryItem(data);
+
+  // For a new item, stock is initialized from the first purchase quantity
+  if (data.latestPurchaseQuantity) {
+    firestoreData.stock = data.latestPurchaseQuantity;
+  } else {
+    firestoreData.stock = 0;
+  }
+  
+  firestoreData.createdAt = Timestamp.fromDate(new Date());
+  firestoreData.updatedAt = Timestamp.fromDate(new Date());
+
   const docRef = await addDoc(collection(db, INVENTORY_ITEMS_COLLECTION), firestoreData);
   return docRef.id;
 };
 
 export const updateInventoryItemFS = async (id: string, data: Partial<InventoryItemFormValues>): Promise<void> => {
   const itemDocRef = doc(db, INVENTORY_ITEMS_COLLECTION, id);
-  const firestoreData = toFirestoreInventoryItem(data, false);
-  await updateDoc(itemDocRef, firestoreData);
+
+  await runTransaction(db, async (transaction) => {
+    // 1. Read the existing document inside the transaction
+    const itemDoc = await transaction.get(itemDocRef);
+    if (!itemDoc.exists()) {
+      throw new Error("Inventory item not found!");
+    }
+
+    const existingData = itemDoc.data();
+    const existingStock = existingData.stock || 0;
+
+    // 2. Prepare the new data object using the helper
+    const firestoreUpdateData = toFirestoreInventoryItem(data);
+    firestoreUpdateData.updatedAt = Timestamp.fromDate(new Date());
+
+    // 3. Calculate new stock if a new purchase is being registered
+    // This is the key fix: we add the new purchase quantity to the existing stock
+    if (data.latestPurchaseQuantity && data.latestPurchaseTotalCost && data.latestPurchaseDate) {
+      firestoreUpdateData.stock = existingStock + data.latestPurchaseQuantity;
+    }
+
+    // 4. Write the update back to Firestore
+    transaction.update(itemDocRef, firestoreUpdateData);
+  });
 };
 
 export const deleteInventoryItemFS = async (id: string): Promise<void> => {

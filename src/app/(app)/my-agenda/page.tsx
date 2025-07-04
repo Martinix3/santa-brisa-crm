@@ -99,65 +99,55 @@ function SortableAgendaItem({
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
-  
-  const handleCardClick = () => {
-    handleItemClick(item);
-  };
-  
-  const handleKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      handleCardClick();
-    }
-  };
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-    >
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="flex items-center gap-2">
       <Card 
         className="shadow-sm w-full hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing"
       >
-        <CardContent className="p-3 flex items-center gap-3" >
-          <div onClick={handleCardClick} onKeyDown={handleKeyDown} role="button" tabIndex={0} className="flex-grow flex items-center gap-3 min-w-0">
+        <CardContent 
+          className="p-3 flex items-center gap-3"
+          onClick={() => handleItemClick(item)} 
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleItemClick(item); }}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="flex-grow flex items-center gap-3 min-w-0">
             {getAgendaItemIcon(item)}
             <div className="flex-grow">
               <h4 className="font-semibold text-base">{item.title}</h4>
               <p className="text-sm text-muted-foreground">{item.description}</p>
             </div>
           </div>
-          <div className="flex flex-col items-end gap-1 ml-auto flex-shrink-0">
-            {(item.type === 'tarea_comercial' || item.type === 'tarea_administrativa') && <StatusBadge type="order" status={(item.rawItem as Order).status}/>}
-            {item.type === 'evento' && <StatusBadge type="event" status={(item.rawItem as CrmEvent).status}/>}
-            
-            {item.type === 'tarea_comercial' && (
-                <Button 
-                    size="sm" 
-                    variant="outline" 
-                    className="mt-2"
-                    onClick={(e) => { e.stopPropagation(); onFollowUpClick(item.rawItem as Order); }}
-                >
-                    <Send className="mr-2 h-3 w-3" />
-                    Registrar
-                </Button>
-            )}
-            {item.type === 'tarea_administrativa' && (
-                 <Button 
-                    size="sm" 
-                    variant="outline" 
-                    className="mt-2"
-                    onClick={(e) => { e.stopPropagation(); onCompleteClick(item); }}
-                >
-                    <Check className="mr-2 h-4 w-4" />
-                    Completar
-                </Button>
-            )}
-          </div>
         </CardContent>
       </Card>
+       <div className="flex flex-col items-center justify-center gap-1 ml-auto flex-shrink-0">
+        {(item.type === 'tarea_comercial' || item.type === 'tarea_administrativa') && <StatusBadge type="order" status={(item.rawItem as Order).status}/>}
+        {item.type === 'evento' && <StatusBadge type="event" status={(item.rawItem as CrmEvent).status}/>}
+        
+        {item.type === 'tarea_comercial' && (
+            <Button 
+                size="sm" 
+                variant="outline" 
+                className="w-full"
+                onClick={(e) => { e.stopPropagation(); onFollowUpClick(item.rawItem as Order); }}
+            >
+                <Send className="mr-2 h-3 w-3" />
+                Registrar
+            </Button>
+        )}
+        {item.type === 'tarea_administrativa' && (
+              <Button 
+                size="sm" 
+                variant="outline" 
+                className="w-full"
+                onClick={(e) => { e.stopPropagation(); onCompleteClick(item); }}
+            >
+                <Check className="mr-2 h-4 w-4" />
+                Completar
+            </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -461,7 +451,13 @@ export default function MyAgendaPage() {
                 newInteractionData.status = 'Seguimiento';
                 newInteractionData.nextActionType = data.nextActionType;
                 newInteractionData.nextActionCustom = data.nextActionType === 'Opción personalizada' ? data.nextActionCustom : null;
-                newInteractionData.nextActionDate = data.nextActionDate ? Timestamp.fromDate(data.nextActionDate) : null;
+                if (data.nextActionDate) {
+                    const normalizedDate = new Date(data.nextActionDate);
+                    normalizedDate.setHours(12, 0, 0, 0); 
+                    newInteractionData.nextActionDate = Timestamp.fromDate(normalizedDate);
+                } else {
+                    newInteractionData.nextActionDate = null;
+                }
                 newInteractionData.visitDate = null;
             } else if (data.outcome === "failed") {
                 newInteractionData.status = 'Fallido';
@@ -655,7 +651,7 @@ export default function MyAgendaPage() {
                 
                 const otherDayItems = allAgendaItems.filter(i => !isSameDay(i.date, activeItem.date));
                 const reindexedNewDayOrder = newDayOrder.map((item, index) => ({...item, orderIndex: index}));
-                setAllAgendaItems([...otherDayItems, ...reindexedNewDayOrder]);
+                setAllAgendaItems([...otherDayItems, ...reindexedNewDayOrder].sort((a,b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0)));
                 
                 try {
                     const tasksToUpdate = newDayOrder
@@ -913,9 +909,14 @@ export default function MyAgendaPage() {
                 <div className="font-medium text-foreground mt-2">{format(selectedItem.date, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: es })}</div>
             </SheetHeader>
             <div className="py-4 space-y-4">
-                {(selectedItem.type === 'tarea_comercial' || selectedItem.type === 'tarea_administrativa') && (
+                {(selectedItem.type === 'tarea_comercial') && (
                   <Button className="w-full" onClick={() => handleOpenFollowUpDialog(selectedItem.rawItem as Order)}>
                       <Send className="mr-2 h-4 w-4"/>Registrar Resultado
+                  </Button>
+                )}
+                 {(selectedItem.type === 'tarea_administrativa') && (
+                  <Button className="w-full" onClick={() => handleMarkTaskAsComplete(selectedItem)}>
+                      <Check className="mr-2 h-4 w-4"/>Marcar como Completada
                   </Button>
                 )}
                 {selectedItem.type === 'evento' && (
@@ -1007,6 +1008,7 @@ export default function MyAgendaPage() {
 }
 
     
+
 
 
 

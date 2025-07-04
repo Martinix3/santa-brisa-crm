@@ -4,7 +4,7 @@
 import { db } from '@/lib/firebase';
 import {
   collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
-  type DocumentSnapshot,
+  type DocumentSnapshot, writeBatch
 } from "firebase/firestore";
 import type { CrmEvent, EventFormValues } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
@@ -68,7 +68,7 @@ const toFirestoreEvent = (data: EventFormValues, isNew: boolean): any => {
 
 export const getEventsFS = async (): Promise<CrmEvent[]> => {
   const eventsCol = collection(db, EVENTS_COLLECTION);
-  const q = query(eventsCol, orderBy('startDate', 'desc'));
+  const q = query(eventsCol, orderBy('startDate', 'desc'), orderBy('orderIndex', 'asc'));
   const eventSnapshot = await getDocs(q);
   return eventSnapshot.docs.map(docSnap => fromFirestoreEvent(docSnap));
 };
@@ -154,6 +154,7 @@ export const initializeMockEventsInFirestore = async (mockEventsData: CrmEvent[]
             firestoreReadyData.updatedAt = updatedAt ? Timestamp.fromDate(parseISO(updatedAt)) : Timestamp.fromDate(new Date());
             firestoreReadyData.assignedTeamMemberIds = event.assignedTeamMemberIds || [];
             firestoreReadyData.assignedMaterials = event.assignedMaterials || [];
+            firestoreReadyData.orderIndex = event.orderIndex ?? 0;
             
             firestoreReadyData.description = event.description || null;
             firestoreReadyData.location = event.location || null;
@@ -169,33 +170,50 @@ export const initializeMockEventsInFirestore = async (mockEventsData: CrmEvent[]
     }
 };
 
-export const updateEventOrderAndDateFS = async (
-  eventId: string,
-  updates: { date?: Date; orderIndex?: number }
+export const reorderEventsBatchFS = async (
+  updates: { id: string; orderIndex: number; date?: Date }[]
 ): Promise<void> => {
-  const eventDocRef = doc(db, EVENTS_COLLECTION, eventId);
-  
-  const updatePayload: { [key: string]: any } = {
-    updatedAt: Timestamp.fromDate(new Date()),
-  };
+  if (!updates || updates.length === 0) {
+    return;
+  }
+  const batch = writeBatch(db);
 
-  if (updates.date) {
-    updatePayload.startDate = Timestamp.fromDate(updates.date);
-    const eventSnap = await getDoc(eventDocRef);
-    if(eventSnap.exists()) {
-        const eventData = eventSnap.data();
+  // To avoid N+1 reads inside a loop, fetch all documents first.
+  const docRefs = updates.map(u => doc(db, EVENTS_COLLECTION, u.id));
+  const docSnapshots = await Promise.all(docRefs.map(ref => getDoc(ref)));
+  
+  updates.forEach((update, index) => {
+    const docSnap = docSnapshots[index];
+    if (!docSnap.exists()) {
+      console.warn(`Event with ID ${update.id} not found during batch update. Skipping.`);
+      return;
+    }
+
+    const ref = doc(db, EVENTS_COLLECTION, update.id);
+    const payload: any = { 
+      orderIndex: update.orderIndex, 
+      updatedAt: Timestamp.now() 
+    };
+
+    if (update.date) {
+        payload.startDate = Timestamp.fromDate(update.date);
+        const eventData = docSnap.data();
+        // Move endDate proportionally if it exists
         if(eventData.endDate && eventData.startDate) {
             const duration = eventData.endDate.toDate().getTime() - eventData.startDate.toDate().getTime();
-            updatePayload.endDate = Timestamp.fromMillis(updates.date.getTime() + duration);
+            if (duration >= 0) { 
+              payload.endDate = Timestamp.fromMillis(update.date.getTime() + duration);
+            }
         }
     }
-  }
+    batch.update(ref, payload);
+  });
   
-  if (updates.orderIndex !== undefined) {
-    updatePayload.orderIndex = updates.orderIndex;
-  }
-
-  if (Object.keys(updatePayload).length > 1) { // more than just updatedAt
-    await updateDoc(eventDocRef, updatePayload);
+  try {
+    await batch.commit();
+    console.log(`Batch reorder complete for ${updates.length} events.`);
+  } catch (error) {
+    console.error('Error committing batch reorder for events:', error);
+    throw error;
   }
 };

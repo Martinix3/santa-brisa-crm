@@ -5,7 +5,7 @@
 import { db } from '@/lib/firebase';
 import {
   collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
-  type DocumentSnapshot,
+  type DocumentSnapshot, writeBatch,
 } from "firebase/firestore";
 import type { Order, AssignedPromotionalMaterial, AccountFormValues, NewScheduledTaskData, OrderStatus, TeamMember } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
@@ -134,7 +134,7 @@ const toFirestoreOrder = (data: Partial<Order> & { visitDate?: Date | string, ne
 
 export const getOrdersFS = async (): Promise<Order[]> => {
   const ordersCol = collection(db, ORDERS_COLLECTION);
-  const q = query(ordersCol, orderBy('createdAt', 'desc')); 
+  const q = query(ordersCol, orderBy('createdAt', 'desc'), orderBy('orderIndex', 'asc')); 
   const orderSnapshot = await getDocs(q);
   const orderList = orderSnapshot.docs.map(docSnap => fromFirestoreOrder(docSnap));
   return orderList;
@@ -204,6 +204,7 @@ export const addScheduledTaskFS = async (data: NewScheduledTaskData, creator: Te
     clientStatus: data.taskCategory === 'Commercial' ? (data.clientSelectionMode === 'new' ? 'new' : 'existing') : null,
     taskCategory: data.taskCategory || 'Commercial',
     isCompleted: false,
+    orderIndex: 0,
   };
   
   const docRef = await addDoc(collection(db, ORDERS_COLLECTION), orderData);
@@ -310,6 +311,7 @@ export const initializeMockOrdersInFirestore = async (mockOrdersData: Order[]) =
             firestoreReadyData.createdAt = createdAt ? Timestamp.fromDate(parseISO(createdAt)) : Timestamp.fromDate(new Date());
             if (nextActionDate) firestoreReadyData.nextActionDate = Timestamp.fromDate(parseISO(nextActionDate));
             else firestoreReadyData.nextActionDate = null;
+            firestoreReadyData.orderIndex = order.orderIndex ?? 0;
 
             firestoreReadyData.clavadistaId = order.clavadistaId || null;
             firestoreReadyData.accountId = order.accountId || null;
@@ -337,36 +339,51 @@ export const initializeMockOrdersInFirestore = async (mockOrdersData: Order[]) =
     }
 };
 
-export const updateTaskOrderAndDateFS = async (
-  taskId: string,
-  updates: { date?: Date; orderIndex?: number }
+export const reorderTasksBatchFS = async (
+  updates: { id: string; orderIndex: number; date?: Date }[]
 ): Promise<void> => {
-  const taskDocRef = doc(db, ORDERS_COLLECTION, taskId);
-  
-  const updatePayload: { [key: string]: any } = {
-    lastUpdated: Timestamp.fromDate(new Date()),
-  };
-
-  if (updates.date) {
-    const taskSnap = await getDoc(taskDocRef);
-    if (!taskSnap.exists()) {
-      throw new Error(`Task with ID ${taskId} not found.`);
-    }
-    const taskData = taskSnap.data();
-    if (taskData.status === 'Programada') {
-      updatePayload.visitDate = Timestamp.fromDate(updates.date);
-    } else if (taskData.status === 'Seguimiento') {
-      updatePayload.nextActionDate = Timestamp.fromDate(updates.date);
-    }
+  if (!updates || updates.length === 0) {
+    return;
   }
-  
-  if (updates.orderIndex !== undefined) {
-    updatePayload.orderIndex = updates.orderIndex;
-  }
+  const batch = writeBatch(db);
 
-  if (Object.keys(updatePayload).length > 1) {
-    await updateDoc(taskDocRef, updatePayload);
+  // To avoid N+1 reads inside a loop, fetch all documents first.
+  const docRefs = updates.map(u => doc(db, ORDERS_COLLECTION, u.id));
+  const docSnapshots = await Promise.all(docRefs.map(ref => getDoc(ref)));
+
+  updates.forEach((update, index) => {
+    const docSnap = docSnapshots[index];
+    if (!docSnap.exists()) {
+      console.warn(`Task with ID ${update.id} not found during batch update. Skipping.`);
+      return;
+    }
+
+    const ref = doc(db, ORDERS_COLLECTION, update.id);
+    const payload: any = { 
+      orderIndex: update.orderIndex, 
+      lastUpdated: Timestamp.now() 
+    };
+
+    if (update.date) {
+      const taskData = docSnap.data();
+      // Logic to determine which date field to update
+      if (taskData.status === 'Programada') {
+        payload.visitDate = Timestamp.fromDate(update.date);
+      } else if (taskData.status === 'Seguimiento') {
+        payload.nextActionDate = Timestamp.fromDate(update.date);
+      }
+    }
+    batch.update(ref, payload);
+  });
+
+  try {
+    await batch.commit();
+    console.log(`Batch reorder complete for ${updates.length} tasks.`);
+  } catch (error) {
+    console.error('Error committing batch reorder for tasks:', error);
+    throw error;
   }
 };
     
+
 

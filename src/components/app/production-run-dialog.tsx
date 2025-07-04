@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -48,10 +47,13 @@ interface ProductionRunDialogProps {
   inventoryItems: InventoryItem[];
 }
 
+const normalizeStringForComparison = (s: string) => 
+  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+
 export default function ProductionRunDialog({ productionRun, isOpen, onOpenChange, onSave, inventoryItems }: ProductionRunDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   const [isSearching, setIsSearching] = React.useState(false);
-  const { categoriesMap } = useCategories();
+  const { allCategories } = useCategories();
   const { toast } = useToast();
   
   const form = useForm<ProductionRunFormValues>({
@@ -70,9 +72,20 @@ export default function ProductionRunDialog({ productionRun, isOpen, onOpenChang
       
       setIsSearching(true);
       try {
-          const finishedGoods = inventoryItems.filter(i => categoriesMap.get(i.categoryId)?.name === "Producto Terminado");
+          const normalizedTargetName = normalizeStringForComparison("Producto Terminado");
+          const finishedGoodCategory = allCategories.find(c => normalizeStringForComparison(c.name) === normalizedTargetName);
+          
+          if (!finishedGoodCategory) {
+              toast({ title: "Categoría no encontrada", description: "La categoría 'Producto Terminado' no existe. Por favor, créala.", variant: "destructive" });
+              setIsSearching(false);
+              return;
+          }
+
+          const finishedGoods = inventoryItems.filter(i => i.categoryId === finishedGoodCategory.id);
+          
           if (finishedGoods.length === 0) {
               toast({ title: "Sin Productos Terminados", description: "No hay productos en la categoría 'Producto Terminado' para buscar.", variant: "destructive" });
+              setIsSearching(false);
               return;
           }
 
@@ -88,6 +101,8 @@ export default function ProductionRunDialog({ productionRun, isOpen, onOpenChang
                   form.setValue("productName", matchedItem.name, { shouldValidate: true });
                   form.setValue("productSearchTerm", matchedItem.name); // Update search term to matched name
                   toast({ title: "Producto Encontrado", description: `Se ha seleccionado "${matchedItem.name}".`});
+              } else {
+                  toast({ title: "Producto sin SKU", description: "El producto encontrado no tiene un SKU asociado y no puede ser fabricado.", variant: "destructive"});
               }
           } else {
               toast({ title: "Sin Coincidencia Clara", description: "No se encontró un producto terminado que coincida con la búsqueda.", variant: "default" });

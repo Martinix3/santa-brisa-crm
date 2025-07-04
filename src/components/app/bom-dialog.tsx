@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -50,7 +49,8 @@ const bomComponentSchema = z.object({
   uom: z.enum(uomList as [UoM, ...UoM[]]).default('unit'),
 });
 
-const normalizeString = (s: string) => s.trim().toUpperCase();
+const normalizeStringForComparison = (s: string) => 
+  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 
 const getBomRecipeSchema = (inventoryItems: InventoryItem[], currentRecipeSku?: string) => z.object({
   isNewProduct: z.boolean().default(false),
@@ -65,11 +65,11 @@ const getBomRecipeSchema = (inventoryItems: InventoryItem[], currentRecipeSku?: 
     if (!data.newProductName || data.newProductName.length < 3) {
       ctx.addIssue({ path: ["newProductName"], message: "El nombre es obligatorio (mín. 3 caracteres)." });
     }
-    const normalizedNewSku = data.newProductSku ? normalizeString(data.newProductSku) : "";
+    const normalizedNewSku = data.newProductSku ? normalizeStringForComparison(data.newProductSku) : "";
     if (!normalizedNewSku || normalizedNewSku.length < 3) {
       ctx.addIssue({ path: ["newProductSku"], message: "El SKU es obligatorio (mín. 3 caracteres)." });
     } else {
-      const skuExists = inventoryItems.some(item => item.sku && normalizeString(item.sku) === normalizedNewSku);
+      const skuExists = inventoryItems.some(item => item.sku && normalizeStringForComparison(item.sku) === normalizedNewSku);
       if (skuExists) {
         ctx.addIssue({ path: ["newProductSku"], message: "Este SKU ya existe en el inventario." });
       }
@@ -82,10 +82,10 @@ const getBomRecipeSchema = (inventoryItems: InventoryItem[], currentRecipeSku?: 
 
   // Check for recursion
   if (finalProductSku) {
-    const normalizedProductSku = normalizeString(finalProductSku);
+    const normalizedProductSku = normalizeStringForComparison(finalProductSku);
     data.components.forEach((component, index) => {
         const componentItem = inventoryItems.find(item => item.id === component.materialId);
-        if (componentItem && componentItem.sku && normalizeString(componentItem.sku) === normalizedProductSku) {
+        if (componentItem && componentItem.sku && normalizeStringForComparison(componentItem.sku) === normalizedProductSku) {
             ctx.addIssue({
                 path: [`components.${index}.description`],
                 message: "Un producto no puede ser componente de sí mismo.",
@@ -155,14 +155,13 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
   const componentMaterials = React.useMemo(() => {
     if (isLoadingCategories) return [];
     
-    const targetCategoryNames = ['materia prima (cogs)', 'material de embalaje (cogs)'];
-    
-    const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
-    
-    const normalizedTargetNames = targetCategoryNames.map(normalize);
+    const targetCategoryNames = [
+      normalizeStringForComparison('materia prima (cogs)'),
+      normalizeStringForComparison('material de embalaje (cogs)'),
+    ];
     
     const targetCategoryIds = allCategories
-      .filter(c => c.kind === 'cost' && c.isConsumable)
+      .filter(c => targetCategoryNames.includes(normalizeStringForComparison(c.name)))
       .map(c => c.id);
 
     return inventoryItems.filter(i => i.categoryId && targetCategoryIds.includes(i.categoryId));
@@ -237,8 +236,8 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
   };
   
   const finishedGoods = React.useMemo(() => {
-      const normalize = (s: string) => s.trim().toLowerCase();
-      const finishedGoodCategory = allCategories.find(c => normalize(c.name) === 'producto terminado');
+      const normalizedTargetName = normalizeStringForComparison("Producto Terminado");
+      const finishedGoodCategory = allCategories.find(c => normalizeStringForComparison(c.name) === normalizedTargetName);
       if (!finishedGoodCategory) return [];
       return inventoryItems.filter(i => i.sku && i.categoryId === finishedGoodCategory.id);
   }, [inventoryItems, allCategories]);
@@ -321,10 +320,12 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
                       </div>
                   ))}
                   {fields.length === 0 && (
-                     <div className="text-center text-sm text-muted-foreground p-4">Añade componentes usando la búsqueda con IA.</div>
+                     <div className="text-center text-sm text-muted-foreground p-4">
+                        Añade componentes usando la búsqueda con IA.
+                        <FormMessage className="mt-2">{form.formState.errors.components?.root?.message}</FormMessage>
+                     </div>
                   )}
                   </div>
-                   <FormMessage className="p-2">{form.formState.errors.components?.root?.message}</FormMessage>
               </ScrollArea>
             </fieldset>
 
@@ -363,4 +364,3 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
     </Dialog>
   );
 }
-

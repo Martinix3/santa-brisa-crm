@@ -5,7 +5,7 @@
 import * as React from "react";
 import { format, isSameDay, parseISO, startOfDay, endOfDay, isValid, startOfWeek, endOfWeek, isWithinInterval, addDays, startOfMonth, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
-import { Calendar as CalendarIcon, ClipboardList, PartyPopper, Loader2, Filter, ChevronLeft, ChevronRight, Info, User, Send, Briefcase, Footprints, AlertTriangle, PlusCircle, Trash2, Edit } from "lucide-react";
+import { Calendar as CalendarIcon, ClipboardList, PartyPopper, Loader2, Filter, ChevronLeft, ChevronRight, Info, User, Send, Briefcase, Footprints, AlertTriangle, PlusCircle, Trash2, Edit, Check } from "lucide-react";
 
 // DND Kit Imports
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragStartEvent, type DragEndEvent, type DragOverEvent, DragOverlay, useDroppable } from '@dnd-kit/core';
@@ -18,7 +18,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
-import { getOrdersFS, addScheduledTaskFS, deleteOrderFS, updateScheduledTaskFS, reorderTasksBatchFS } from "@/services/order-service";
+import { getOrdersFS, addScheduledTaskFS, deleteOrderFS, updateScheduledTaskFS, reorderTasksBatchFS, updateOrderFS } from "@/services/order-service";
 import { getEventsFS, addEventFS, deleteEventFS, updateEventFS, reorderEventsBatchFS } from "@/services/event-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import type { Order, CrmEvent, TeamMember, UserRole, OrderStatus, FollowUpResultFormValues, NewScheduledTaskData, EventFormValues } from "@/types";
@@ -81,23 +81,17 @@ const getInteractionType = (interaction: Order): string => {
 
 
 // --- DND COMPONENTS ---
-function AgendaItemCard({ item }: { item: AgendaItem }) {
-  return (
-    <Card className="shadow-sm w-full">
-      <CardContent className="p-3 flex items-start gap-3">
-        {getAgendaItemIcon(item)}
-        <div className="flex-grow">
-          <h4 className="font-semibold text-base">{item.title}</h4>
-          <p className="text-sm text-muted-foreground">{item.description}</p>
-        </div>
-        {(item.type === 'tarea_comercial' || item.type === 'tarea_administrativa') && <StatusBadge type="order" status={(item.rawItem as Order).status}/>}
-        {item.type === 'evento' && <StatusBadge type="event" status={(item.rawItem as CrmEvent).status}/>}
-      </CardContent>
-    </Card>
-  );
-}
-
-function SortableAgendaItem({ item, handleItemClick }: { item: AgendaItem; handleItemClick: (item: AgendaItem) => void }) {
+function SortableAgendaItem({ 
+    item, 
+    handleItemClick,
+    onFollowUpClick,
+    onCompleteClick,
+}: { 
+    item: AgendaItem; 
+    handleItemClick: (item: AgendaItem) => void;
+    onFollowUpClick: (task: Order) => void;
+    onCompleteClick: (item: AgendaItem) => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({id: item.id});
   
   const style = {
@@ -110,15 +104,52 @@ function SortableAgendaItem({ item, handleItemClick }: { item: AgendaItem; handl
     <div
       ref={setNodeRef}
       style={style}
-      role="button"
-      tabIndex={0}
-      onClick={() => handleItemClick(item)}
-      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleItemClick(item)}
       className="cursor-grab active:cursor-grabbing"
       {...attributes}
       {...listeners}
     >
-      <AgendaItemCard item={item} />
+      <Card 
+        className="shadow-sm w-full hover:shadow-md transition-shadow"
+        onClick={() => handleItemClick(item)} 
+        role="button" 
+        tabIndex={0} 
+        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleItemClick(item)}
+      >
+        <CardContent className="p-3 flex items-center gap-3">
+          {getAgendaItemIcon(item)}
+          <div className="flex-grow">
+            <h4 className="font-semibold text-base">{item.title}</h4>
+            <p className="text-sm text-muted-foreground">{item.description}</p>
+          </div>
+          <div className="flex flex-col items-end gap-1 ml-auto flex-shrink-0">
+            {(item.type === 'tarea_comercial' || item.type === 'tarea_administrativa') && <StatusBadge type="order" status={(item.rawItem as Order).status}/>}
+            {item.type === 'evento' && <StatusBadge type="event" status={(item.rawItem as CrmEvent).status}/>}
+            
+            {item.type === 'tarea_comercial' && (
+                <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="mt-2"
+                    onClick={(e) => { e.stopPropagation(); onFollowUpClick(item.rawItem as Order); }}
+                >
+                    <Send className="mr-2 h-3 w-3" />
+                    Registrar
+                </Button>
+            )}
+            {item.type === 'tarea_administrativa' && (
+                 <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="mt-2"
+                    onClick={(e) => { e.stopPropagation(); onCompleteClick(item); }}
+                >
+                    <Check className="mr-2 h-4 w-4" />
+                    Completar
+                </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -366,6 +397,17 @@ export default function MyAgendaPage() {
   const handleOpenFollowUpDialog = (task: Order) => {
     setCurrentTask(task);
     setIsFollowUpDialogOpen(true);
+  };
+
+  const handleMarkTaskAsComplete = async (item: AgendaItem) => {
+    if (item.type !== 'tarea_administrativa') return;
+    try {
+        await updateOrderFS(item.id, { status: "Completado" });
+        toast({ title: "Tarea Completada", description: `"${item.title}" ha sido marcada como completada.` });
+        refreshDataSignature();
+    } catch (error) {
+        toast({ title: "Error", description: "No se pudo marcar la tarea como completada.", variant: "destructive" });
+    }
   };
   
   const handleSaveFollowUp = async (data: FollowUpResultFormValues, originalTask: Order) => {
@@ -774,7 +816,13 @@ export default function MyAgendaPage() {
                                     <SortableContext items={itemsForDayView.map(i => i.id)} strategy={verticalListSortingStrategy}>
                                         <div className="space-y-4">
                                             {itemsForDayView.length > 0 ? itemsForDayView.map(item => (
-                                                <SortableAgendaItem key={item.id} item={item} handleItemClick={handleItemClick} />
+                                                <SortableAgendaItem 
+                                                    key={item.id} 
+                                                    item={item} 
+                                                    handleItemClick={handleItemClick}
+                                                    onFollowUpClick={handleOpenFollowUpDialog}
+                                                    onCompleteClick={handleMarkTaskAsComplete}
+                                                />
                                             )) : (
                                                 <div className="flex items-center justify-center h-full text-muted-foreground text-center">
                                                     <p>No hay actividades programadas con los filtros seleccionados.</p>
@@ -791,7 +839,13 @@ export default function MyAgendaPage() {
                                                     <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
                                                         <div className="space-y-3">
                                                             {items.map(item => (
-                                                                <SortableAgendaItem key={item.id} item={item} handleItemClick={handleItemClick} />
+                                                                <SortableAgendaItem 
+                                                                    key={item.id} 
+                                                                    item={item} 
+                                                                    handleItemClick={handleItemClick}
+                                                                    onFollowUpClick={handleOpenFollowUpDialog}
+                                                                    onCompleteClick={handleMarkTaskAsComplete}
+                                                                />
                                                             ))}
                                                         </div>
                                                     </SortableContext>
@@ -811,10 +865,18 @@ export default function MyAgendaPage() {
           </div>
         </div>
 
-        <DragOverlay dropAnimation={null} style={{ transition: 'none' }}>
+        <DragOverlay dropAnimation={null} wrapperElement="div" style={{ transition: 'none' }}>
             {activeAgendaItem ? (
                 overlayMode === 'card' ? (
-                    <AgendaItemCard item={activeAgendaItem} />
+                   <Card className="shadow-lg">
+                      <CardContent className="p-3 flex items-center gap-3">
+                        {getAgendaItemIcon(activeAgendaItem)}
+                        <div>
+                          <h4 className="font-semibold">{activeAgendaItem.title}</h4>
+                          <p className="text-sm text-muted-foreground">{activeAgendaItem.description}</p>
+                        </div>
+                      </CardContent>
+                   </Card>
                 ) : (
                     <DragOverlayIcon item={activeAgendaItem} />
                 )
@@ -924,4 +986,5 @@ export default function MyAgendaPage() {
 }
 
     
+
 

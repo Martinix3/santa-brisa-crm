@@ -1,7 +1,3 @@
-
-
-'use server';
-
 import { initializeApp, getApps, App } from 'firebase-admin/app';
 import { getStorage, Bucket } from 'firebase-admin/storage';
 
@@ -19,9 +15,11 @@ function getFirebaseAdminApp(): App {
     return existingApp;
   }
   
-  // In a managed Google Cloud environment, initialize with an empty config
-  // to allow the SDK to auto-detect credentials and project settings.
-  return initializeApp({}, ADMIN_APP_NAME);
+  // Explicitly initialize with the correct storage bucket name
+  // to ensure the Admin SDK knows where to operate.
+  return initializeApp({
+    storageBucket: BUCKET_NAME
+  }, ADMIN_APP_NAME);
 }
 
 /**

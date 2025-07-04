@@ -522,18 +522,22 @@ export default function MyAgendaPage() {
     setActiveAgendaItem(null);
     const { active, over } = event;
 
-    if (!over || !active.id) return;
+    if (!over || !active.id || active.id === over.id) {
+        return;
+    }
     
     const activeItem = allAgendaItems.find(i => i.id === active.id);
-    if (!activeItem) return;
+    if (!activeItem) {
+        return;
+    }
 
     // Case 1: Drop on a calendar day
-    if (String(over.id).startsWith('drop-')) {
-        const newDateStr = String(over.id).replace('drop-', '');
+    if (typeof over.id === 'string' && over.id.startsWith('drop-')) {
+        const newDateStr = over.id.replace('drop-', '');
         const newDate = parseISO(newDateStr);
-        if (!isValid(newDate)) return;
+        
+        if (!isValid(newDate) || isSameDay(activeItem.date, newDate)) return;
 
-        // Optimistic UI update
         const originalItems = [...allAgendaItems];
         setAllAgendaItems(prev => prev.map(item => item.id === active.id ? { ...item, date: newDate, orderIndex: 0 } : item));
 
@@ -550,35 +554,35 @@ export default function MyAgendaPage() {
             toast({ title: "Error al Mover", description: "No se pudo actualizar la fecha.", variant: "destructive" });
             setAllAgendaItems(originalItems); // Rollback on error
         }
-        return;
-    }
+    } 
+    // Case 2: Drop on another item to reorder
+    else {
+        const overItem = allAgendaItems.find(i => i.id === over.id);
 
-    // Case 2: Reorder within a list
-    const overItem = allAgendaItems.find(i => i.id === over.id);
-    if (!overItem || !isSameDay(activeItem.date, overItem.date)) return;
+        if (overItem && isSameDay(activeItem.date, overItem.date)) {
+            const oldIndex = allAgendaItems.findIndex(i => i.id === active.id);
+            const newIndex = allAgendaItems.findIndex(i => i.id === over.id);
 
-    const oldIndex = allAgendaItems.findIndex(i => i.id === active.id);
-    const newIndex = allAgendaItems.findIndex(i => i.id === over.id);
+            if (oldIndex !== newIndex) {
+                const newSortedItems = arrayMove(allAgendaItems, oldIndex, newIndex);
+                const dailyItemsToUpdate = newSortedItems.filter(item => isSameDay(item.date, activeItem.date));
 
-    if (oldIndex !== newIndex) {
-        const newSortedItems = arrayMove(allAgendaItems, oldIndex, newIndex);
-        const dailyItemsToUpdate = newSortedItems.filter(item => isSameDay(item.date, activeItem.date));
+                setAllAgendaItems(newSortedItems);
 
-        // Optimistic UI update
-        setAllAgendaItems(newSortedItems);
-
-        try {
-            const updates = dailyItemsToUpdate.map((item, index) => ({ id: item.id, orderIndex: index }));
-            if (activeItem.type === 'evento') {
-                await reorderEventsBatchFS(updates);
-            } else {
-                await reorderTasksBatchFS(updates);
+                try {
+                    const updates = dailyItemsToUpdate.map((item, index) => ({ id: item.id, orderIndex: index }));
+                    if (activeItem.type === 'evento') {
+                        await reorderEventsBatchFS(updates);
+                    } else {
+                        await reorderTasksBatchFS(updates);
+                    }
+                    toast({ title: "Agenda Reordenada", description: "El orden de las tareas del día se ha guardado." });
+                } catch (error) {
+                    console.error("Error reordering tasks:", error);
+                    toast({ title: "Error al Reordenar", description: "No se pudo guardar el nuevo orden.", variant: "destructive" });
+                    setAllAgendaItems(allAgendaItems); // Rollback on original array
+                }
             }
-            toast({ title: "Agenda Reordenada", description: "El orden de las tareas del día se ha guardado." });
-        } catch (error) {
-            console.error("Error reordering tasks:", error);
-            toast({ title: "Error al Reordenar", description: "No se pudo guardar el nuevo orden.", variant: "destructive" });
-            setAllAgendaItems(allAgendaItems); // Rollback on error
         }
     }
   };

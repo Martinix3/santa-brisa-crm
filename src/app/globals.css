@@ -288,8 +288,7 @@ body {
   }
 }
 
-
-/* Calendar Dot Modifiers - Correct Implementation */
+/* Calendar Dot Modifiers */
 .rdp-day {
   overflow: visible !important;
   position: relative;
@@ -303,7 +302,6 @@ body {
   bottom: 4px;
   height: 5px;
   pointer-events: none;
-
   background-repeat: no-repeat;
   background-position: 30% 0, 50% 0, 70% 0;
   background-size: 5px 5px;

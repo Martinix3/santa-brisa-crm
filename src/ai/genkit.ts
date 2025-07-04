@@ -1,11 +1,11 @@
 
 import {genkit} from 'genkit';
-import {googleAI} from '@genkit-ai/googleai';
+import {vertexAI} from '@genkit-ai/vertexai';
 
-// Configure a Genkit instance to use the standard Google AI plugin.
-// This will automatically use the GOOGLE_API_KEY from the .env file.
+// Configure a Genkit instance to use the Vertex AI plugin.
+// This will use Application Default Credentials for authentication.
 export const ai = genkit({
   plugins: [
-    googleAI(),
+    vertexAI({ location: 'us-central1' }),
   ],
 });

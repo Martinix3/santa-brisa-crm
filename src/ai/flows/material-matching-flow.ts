@@ -10,6 +10,7 @@
  */
 
 import {ai} from '@/ai/genkit';
+import {vertexAI} from '@genkit-ai/vertexai';
 import {z} from 'genkit';
 
 const MatchMaterialInputSchema = z.object({
@@ -39,7 +40,7 @@ export async function matchMaterial(input: MatchMaterialInput): Promise<MatchMat
 
 const prompt = ai.definePrompt({
   name: 'materialMatchingPrompt',
-  model: 'gemini-1.5-flash',
+  model: vertexAI.model('gemini-1.5-flash'),
   input: {schema: MatchMaterialInputSchema},
   output: {schema: MatchMaterialOutputSchema},
   prompt: `Eres un experto gestor de inventario y tu tarea es asociar un artículo de una factura de proveedor con un artículo existente en el sistema.

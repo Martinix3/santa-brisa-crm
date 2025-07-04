@@ -9,6 +9,7 @@
  */
 
 import {ai} from '@/ai/genkit';
+import {vertexAI} from '@genkit-ai/vertexai';
 import {z} from 'genkit';
 
 const MarketingAssistantInputSchema = z.object({
@@ -27,7 +28,7 @@ export async function askMarketingAssistant(input: MarketingAssistantInput): Pro
 
 const prompt = ai.definePrompt({
   name: 'marketingAssistantPrompt',
-  model: 'gemini-1.5-flash',
+  model: vertexAI.model('gemini-1.5-flash'),
   input: {schema: MarketingAssistantInputSchema},
   output: {schema: MarketingAssistantOutputSchema},
   prompt: `Eres 'Santi', el embajador de Santa Brisa, una marca de margaritas premium listas para servir, nacida del espíritu de Acapulco en los años 60. Eres experto/a en el producto, el mercado HORECA, el canal retail, activaciones de marca y experiencias.

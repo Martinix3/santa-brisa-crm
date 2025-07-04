@@ -10,6 +10,7 @@ import { fromFirestorePurchase, toFirestorePurchase, toFirestoreSupplier } from 
 import { uploadInvoice } from './storage-service';
 import { updateStockForPurchase } from './stock-service';
 import { format, parseISO } from 'date-fns';
+import { getCategoriesFS } from './category-service';
 
 const PURCHASES_COLLECTION = 'purchases';
 const INVENTORY_ITEMS_COLLECTION = 'inventoryItems';
@@ -74,6 +75,9 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
     const supplierSnapshot = await getDocs(supplierQuery);
     const existingSupplierDoc = supplierSnapshot.empty ? null : supplierSnapshot.docs[0];
 
+    const allCategories = await getCategoriesFS();
+    const categoriesMap = new Map(allCategories.map(c => [c.id, c]));
+
     return await runTransaction(db, async (transaction) => {
         const materialDocsMap = new Map<string, DocumentSnapshot>();
         const materialIdsToRead = dataToSave.items.map(item => item.materialId).filter((id): id is string => !!id && id !== NEW_ITEM_SENTINEL);
@@ -103,9 +107,14 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
             if (item.materialId && item.materialId !== NEW_ITEM_SENTINEL) {
                 return { ...item, materialId: item.materialId! };
             }
-            const newMaterialRef = doc(collection(db, INVENTORY_ITEMS_COLLECTION));
-            newItemsToWrite.set(index, newMaterialRef);
-            return { ...item, materialId: newMaterialRef.id };
+            const category = categoriesMap.get(item.categoryId);
+            const isStockable = category?.isConsumable === true;
+            if (isStockable) {
+                const newMaterialRef = doc(collection(db, INVENTORY_ITEMS_COLLECTION));
+                newItemsToWrite.set(index, newMaterialRef);
+                return { ...item, materialId: newMaterialRef.id };
+            }
+            return { ...item, materialId: undefined };
         });
 
         const finalData = { ...dataToSave, items: resolvedItems };
@@ -144,6 +153,9 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
     const supplierSnapshot = await getDocs(supplierQuery);
     const existingSupplierDoc = supplierSnapshot.empty ? null : supplierSnapshot.docs[0];
 
+    const allCategories = await getCategoriesFS();
+    const categoriesMap = new Map(allCategories.map(c => [c.id, c]));
+
     await runTransaction(db, async (transaction) => {
         const existingPurchaseDoc = await transaction.get(purchaseDocRef);
         if (!existingPurchaseDoc.exists()) throw new Error("Purchase not found");
@@ -177,9 +189,14 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
         const newItemsToWrite = new Map<number, DocumentReference>();
         const resolvedItems = (dataToSave.items || []).map((item, index) => {
             if (item.materialId && item.materialId !== NEW_ITEM_SENTINEL) return { ...item, materialId: item.materialId! };
-            const newMaterialRef = doc(collection(db, INVENTORY_ITEMS_COLLECTION));
-            newItemsToWrite.set(index, newMaterialRef);
-            return { ...item, materialId: newMaterialRef.id };
+            const category = categoriesMap.get(item.categoryId);
+            const isStockable = category?.isConsumable === true;
+            if (isStockable) {
+                const newMaterialRef = doc(collection(db, INVENTORY_ITEMS_COLLECTION));
+                newItemsToWrite.set(index, newMaterialRef);
+                return { ...item, materialId: newMaterialRef.id };
+            }
+            return { ...item, materialId: undefined };
         });
 
         newItemsToWrite.forEach((ref, index) => {

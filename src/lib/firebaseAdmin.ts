@@ -4,7 +4,7 @@
 import { initializeApp, getApps, App, applicationDefault, getApp } from 'firebase-admin/app';
 import { getStorage, Bucket } from 'firebase-admin/storage';
 
-const BUCKET_NAME = 'santa-brisa-crm.appspot.com';
+const BUCKET_NAME = 'santa-brisa-crm.firebasestorage.app'; // Corrected bucket name
 const ADMIN_APP_NAME = 'firebase-admin-app-santabrisa'; // Unique name for the app
 
 /**

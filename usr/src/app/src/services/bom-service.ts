@@ -3,7 +3,7 @@
 
 import { db } from '../lib/firebase';
 import {
-  collection, query, getDocs, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, where, type Transaction, writeBatch
+  collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, where, type Transaction, writeBatch
 } from "firebase/firestore";
 import type { BomLine, UoM } from '@/types';
 import { format } from 'date-fns';

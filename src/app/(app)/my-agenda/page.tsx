@@ -7,8 +7,8 @@ import { es } from "date-fns/locale";
 import { Calendar as CalendarIcon, ClipboardList, PartyPopper, Loader2, Filter, ChevronLeft, ChevronRight, Info, User, Send, Briefcase, Footprints, AlertTriangle, PlusCircle, Trash2, Edit } from "lucide-react";
 
 // DND Kit Imports
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragStartEvent, type DragEndEvent, DragOverlay } from '@dnd-kit/core';
-import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragStartEvent, type DragEndEvent, DragOverlay, useDroppable } from '@dnd-kit/core';
+import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,6 @@ import EventDialog from "@/components/app/event-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
 import { DayDots } from "@/components/app/DayDots";
-import { MODIFIER_NAMES } from "@/lib/agenda-colors";
 
 
 // --- TYPE DEFINITIONS ---
@@ -518,59 +517,88 @@ export default function MyAgendaPage() {
     }
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     setActiveAgendaItem(null);
-    const {active, over} = event;
+    const { active, over } = event;
 
-    if (over && active.id !== over.id) {
-        // This is for phase 3, for now we do nothing.
+    if (!over || !active.id) return;
+    
+    const activeItem = allAgendaItems.find(i => i.id === active.id);
+    if (!activeItem) return;
+
+    // Case 1: Drop on a calendar day
+    if (String(over.id).startsWith('drop-')) {
+        const newDateStr = String(over.id).replace('drop-', '');
+        const newDate = parseISO(newDateStr);
+        if (!isValid(newDate)) return;
+
+        // Optimistic UI update
+        const originalItems = [...allAgendaItems];
+        setAllAgendaItems(prev => prev.map(item => item.id === active.id ? { ...item, date: newDate, orderIndex: 0 } : item));
+
+        try {
+            const updates = [{ id: active.id, orderIndex: 0, date: newDate }];
+            if (activeItem.type === 'evento') {
+                await reorderEventsBatchFS(updates);
+            } else {
+                await reorderTasksBatchFS(updates);
+            }
+            toast({ title: "Tarea Movida", description: `"${activeItem.title}" movida al ${format(newDate, 'dd/MM/yyyy')}.` });
+        } catch (error) {
+            console.error("Error moving task to new date:", error);
+            toast({ title: "Error al Mover", description: "No se pudo actualizar la fecha.", variant: "destructive" });
+            setAllAgendaItems(originalItems); // Rollback on error
+        }
+        return;
+    }
+
+    // Case 2: Reorder within a list
+    const overItem = allAgendaItems.find(i => i.id === over.id);
+    if (!overItem || !isSameDay(activeItem.date, overItem.date)) return;
+
+    const oldIndex = allAgendaItems.findIndex(i => i.id === active.id);
+    const newIndex = allAgendaItems.findIndex(i => i.id === over.id);
+
+    if (oldIndex !== newIndex) {
+        const newSortedItems = arrayMove(allAgendaItems, oldIndex, newIndex);
+        const dailyItemsToUpdate = newSortedItems.filter(item => isSameDay(item.date, activeItem.date));
+
+        // Optimistic UI update
+        setAllAgendaItems(newSortedItems);
+
+        try {
+            const updates = dailyItemsToUpdate.map((item, index) => ({ id: item.id, orderIndex: index }));
+            if (activeItem.type === 'evento') {
+                await reorderEventsBatchFS(updates);
+            } else {
+                await reorderTasksBatchFS(updates);
+            }
+            toast({ title: "Agenda Reordenada", description: "El orden de las tareas del día se ha guardado." });
+        } catch (error) {
+            console.error("Error reordering tasks:", error);
+            toast({ title: "Error al Reordenar", description: "No se pudo guardar el nuevo orden.", variant: "destructive" });
+            setAllAgendaItems(allAgendaItems); // Rollback on error
+        }
     }
   };
-  
-  const renderViewContent = () => {
-    if (viewMode === 'day') {
-      const dayItems = itemsForDayView;
-      return dayItems.length > 0 ? (
-        <SortableContext items={dayItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
-            <div className="space-y-4">
-                {dayItems.map(item => (
-                    <SortableAgendaItem key={item.id} item={item} handleItemClick={handleItemClick} />
-                ))}
-            </div>
-        </SortableContext>
-      ) : (
-          <div className="flex items-center justify-center h-full text-muted-foreground text-center">
-              <p>No hay actividades programadas con los filtros seleccionados.</p>
-          </div>
-      );
-    } else { // week or month view
-        return itemsGroupedByDay.length > 0 ? (
-            <div className="space-y-6">
-                {itemsGroupedByDay.map(([day, items]) => (
-                    <div key={day}>
-                        <h3 className="font-semibold mb-2">{format(parseISO(day), "EEEE dd 'de' MMMM", { locale: es })}</h3>
-                        <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
-                            <div className="space-y-3">
-                                {items.map(item => (
-                                    <SortableAgendaItem key={item.id} item={item} handleItemClick={handleItemClick} />
-                                ))}
-                            </div>
-                        </SortableContext>
-                    </div>
-                ))}
-            </div>
-        ) : (
-            <div className="flex items-center justify-center h-full text-muted-foreground text-center">
-                <p>No hay actividades programadas con los filtros seleccionados para este periodo.</p>
-            </div>
-        );
-    }
+
+  const DroppableDay = (props: DayContentProps) => {
+    const { date } = props;
+    const { setNodeRef, isOver } = useDroppable({
+        id: `drop-${format(date, 'yyyy-MM-dd')}`,
+    });
+
+    return (
+        <div ref={setNodeRef} className={cn("h-full w-full", isOver && "bg-primary/20 rounded-md")}>
+            <DayDots {...props} />
+        </div>
+    );
   };
 
   const modifiers = {
-    [MODIFIER_NAMES.commercial]: commercialTaskDays,
-    [MODIFIER_NAMES.event]: eventDays,
-    [MODIFIER_NAMES.admin]: adminTaskDays,
+    commercial: commercialTaskDays,
+    event: eventDays,
+    admin: adminTaskDays,
   };
 
   return (
@@ -628,9 +656,9 @@ export default function MyAgendaPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-grow">
               <div className="lg:col-span-1">
                   <Card>
-                      <CardHeader className="flex flex-row items-center justify-between gap-4 pb-4">
+                       <CardHeader className="flex flex-row items-center justify-between gap-4 pb-4">
                             <CardTitle>Calendario</CardTitle>
-                            <Button onClick={handleOpenNewEntryDialog} size="icon" className="rounded-full h-8 w-8">
+                             <Button onClick={handleOpenNewEntryDialog} size="icon" className="rounded-full h-8 w-8">
                                 <PlusCircle className="h-4 w-4" />
                                 <span className="sr-only">Añadir Entrada</span>
                             </Button>
@@ -642,7 +670,7 @@ export default function MyAgendaPage() {
                               onSelect={(day) => { if(day) { setSelectedDate(day); setViewMode('day'); } }}
                               locale={es}
                               modifiers={modifiers}
-                              components={{ DayContent: DayDots }}
+                              components={{ Day: DroppableDay }}
                               classNames={{
                                 today: "bg-muted/50",
                                 selected:
@@ -688,7 +716,40 @@ export default function MyAgendaPage() {
                           {isLoading ? (
                               <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
                           ) : (
-                            renderViewContent()
+                                viewMode === 'day' ? (
+                                    <SortableContext items={itemsForDayView.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                                        <div className="space-y-4">
+                                            {itemsForDayView.length > 0 ? itemsForDayView.map(item => (
+                                                <SortableAgendaItem key={item.id} item={item} handleItemClick={handleItemClick} />
+                                            )) : (
+                                                <div className="flex items-center justify-center h-full text-muted-foreground text-center">
+                                                    <p>No hay actividades programadas con los filtros seleccionados.</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </SortableContext>
+                                ) : (
+                                     itemsGroupedByDay.length > 0 ? (
+                                        <div className="space-y-6">
+                                            {itemsGroupedByDay.map(([day, items]) => (
+                                                <div key={day}>
+                                                    <h3 className="font-semibold mb-2">{format(parseISO(day), "EEEE dd 'de' MMMM", { locale: es })}</h3>
+                                                    <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                                                        <div className="space-y-3">
+                                                            {items.map(item => (
+                                                                <SortableAgendaItem key={item.id} item={item} handleItemClick={handleItemClick} />
+                                                            ))}
+                                                        </div>
+                                                    </SortableContext>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center justify-center h-full text-muted-foreground text-center">
+                                            <p>No hay actividades programadas con los filtros seleccionados para este periodo.</p>
+                                        </div>
+                                    )
+                                )
                           )}
                       </CardContent>
                   </Card>

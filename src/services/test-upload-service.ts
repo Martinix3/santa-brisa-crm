@@ -34,6 +34,9 @@ export async function testUpload(fileData: { dataUri: string; contentType: strin
       resumable: false,
     });
     
+    // Make the file public so the URL works
+    await file.makePublic();
+    
     const publicUrl = `https://storage.googleapis.com/${adminBucket.name}/${filePath}`;
     
     console.log(`[Test Upload] Success. File available at: ${publicUrl}`);

@@ -33,6 +33,10 @@ async function uploadInvoice(dataUri: string, purchaseId: string): Promise<{ dow
       contentType: contentType,
       resumable: false,
     });
+
+    // Make the file publicly accessible.
+    await file.makePublic();
+
     const url = `https://storage.googleapis.com/${adminBucket.name}/${path}`;
     console.log(`File uploaded to ${path}, GCS URL: ${url}`);
     return { downloadUrl: url, storagePath: path, contentType: contentType };

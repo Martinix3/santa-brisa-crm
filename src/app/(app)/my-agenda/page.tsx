@@ -7,7 +7,7 @@ import { es } from "date-fns/locale";
 import { Calendar as CalendarIcon, ClipboardList, PartyPopper, Loader2, Filter, ChevronLeft, ChevronRight, Info, User, Send, Briefcase, Footprints, AlertTriangle, PlusCircle, Trash2, Edit } from "lucide-react";
 
 // DND Kit Imports
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragStartEvent, type DragEndEvent, DragOverlay, useDroppable } from '@dnd-kit/core';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragStartEvent, type DragEndEvent, type DragOverEvent, DragOverlay, useDroppable } from '@dnd-kit/core';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -117,14 +117,12 @@ function SortableAgendaItem({ item, handleItemClick }: { item: AgendaItem; handl
   );
 }
 
-function DragOverlayItem({ item }: { item: AgendaItem | null }) {
+function DragOverlayIcon({ item }: { item: AgendaItem | null }) {
   if (!item) return null;
   
-  // Clone icon to override its color for the overlay
   const icon = React.cloneElement(getAgendaItemIcon(item), { className: "h-5 w-5 text-primary-foreground" });
 
   return (
-    // A small, circular element that follows the cursor
     <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary/80 shadow-xl backdrop-blur-sm">
       {icon}
     </div>
@@ -167,6 +165,7 @@ export default function MyAgendaPage() {
 
   // DND State
   const [activeAgendaItem, setActiveAgendaItem] = React.useState<AgendaItem | null>(null);
+  const [overlayMode, setOverlayMode] = React.useState<'card' | 'icon'>('card');
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -211,7 +210,7 @@ export default function MyAgendaPage() {
                 orderIndex: e.orderIndex ?? 0,
             }));
         
-        setAllAgendaItems([...tareaItems, ...eventItems]);
+        setAllAgendaItems([...tareaItems, ...eventItems].map(item => ({ ...item, orderIndex: item.orderIndex ?? 0 })));
         setTeamMembers(members);
 
       } catch (error) {
@@ -530,6 +529,24 @@ export default function MyAgendaPage() {
     const item = allAgendaItems.find(i => i.id === active.id);
     if(item) {
         setActiveAgendaItem(item);
+        setOverlayMode('card');
+    }
+  };
+  
+  const handleDragOver = (event: DragOverEvent) => {
+    const { over } = event;
+    if (!over) return;
+    
+    const overId = over.id.toString();
+    
+    if (overId.startsWith('drop-')) {
+        if (overlayMode !== 'icon') {
+            setOverlayMode('icon');
+        }
+    } else {
+        if (overlayMode !== 'card') {
+            setOverlayMode('card');
+        }
     }
   };
 
@@ -542,9 +559,8 @@ export default function MyAgendaPage() {
     const activeItem = allAgendaItems.find(i => i.id === active.id);
     if (!activeItem) return;
 
-    // Case 1: Drop on a calendar day
     if (typeof over.id === 'string' && over.id.startsWith('drop-')) {
-        if (active.id === over.id) return; // Dropped on itself, do nothing
+        if (active.id === over.id) return;
         const newDateStr = over.id.replace('drop-', '');
         const newDate = parseISO(newDateStr);
         
@@ -565,10 +581,9 @@ export default function MyAgendaPage() {
         } catch (error) {
             console.error("Error moving task to new date:", error);
             toast({ title: "Error al Mover", description: "No se pudo actualizar la fecha.", variant: "destructive" });
-            setAllAgendaItems(originalItems); // Rollback on error
+            setAllAgendaItems(originalItems);
         }
     } 
-    // Case 2: Drop on another item to reorder
     else if (active.id !== over.id) {
         const overItem = allAgendaItems.find(i => i.id === over.id);
 
@@ -593,7 +608,7 @@ export default function MyAgendaPage() {
                 } catch (error) {
                     console.error("Error reordering tasks:", error);
                     toast({ title: "Error al Reordenar", description: "No se pudo guardar el nuevo orden.", variant: "destructive" });
-                    setAllAgendaItems(allAgendaItems); // Rollback on original array
+                    setAllAgendaItems(allAgendaItems);
                 }
             }
         }
@@ -615,6 +630,10 @@ export default function MyAgendaPage() {
         </div>
     );
   };
+  
+  const { setNodeRef: setTaskListNodeRef } = useDroppable({
+    id: 'task-list-droppable',
+  });
 
   const modifiers = {
     commercial: commercialTaskDays,
@@ -629,6 +648,7 @@ export default function MyAgendaPage() {
         sensors={sensors}
         collisionDetection={closestCenter}
         onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
         <div className="flex flex-col h-full space-y-6">
@@ -733,7 +753,7 @@ export default function MyAgendaPage() {
                             </div>
                           </div>
                       </CardHeader>
-                      <CardContent className="flex-grow overflow-y-auto pr-3">
+                      <CardContent ref={setTaskListNodeRef} className="flex-grow overflow-y-auto pr-3">
                           {isLoading ? (
                               <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
                           ) : (
@@ -779,7 +799,13 @@ export default function MyAgendaPage() {
         </div>
 
         <DragOverlay>
-            {activeAgendaItem ? <DragOverlayItem item={activeAgendaItem} /> : null}
+            {activeAgendaItem ? (
+                overlayMode === 'card' ? (
+                    <AgendaItemCard item={activeAgendaItem} />
+                ) : (
+                    <DragOverlayIcon item={activeAgendaItem} />
+                )
+            ) : null}
         </DragOverlay>
       </DndContext>
 

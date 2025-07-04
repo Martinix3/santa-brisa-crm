@@ -56,7 +56,7 @@ export const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: bo
     orderDate: data.orderDate instanceof Date && isValid(data.orderDate) ? Timestamp.fromDate(data.orderDate) : Timestamp.fromDate(new Date()),
     status: data.status!,
     items: data.items?.map(item => ({ 
-        materialId: item.materialId!, // Should be resolved before calling this
+        materialId: item.materialId || null,
         description: item.description, 
         quantity: item.quantity || 0, 
         unitPrice: item.unitPrice || 0,

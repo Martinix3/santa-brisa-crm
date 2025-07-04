@@ -114,7 +114,7 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
                 newItemsToWrite.set(index, newMaterialRef);
                 return { ...item, materialId: newMaterialRef.id };
             }
-            return { ...item, materialId: undefined };
+            return { ...item, materialId: null };
         });
 
         const finalData = { ...dataToSave, items: resolvedItems };
@@ -196,7 +196,7 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
                 newItemsToWrite.set(index, newMaterialRef);
                 return { ...item, materialId: newMaterialRef.id };
             }
-            return { ...item, materialId: undefined };
+            return { ...item, materialId: null };
         });
 
         newItemsToWrite.forEach((ref, index) => {

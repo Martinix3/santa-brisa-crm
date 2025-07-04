@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { Purchase, PurchaseFormValues as PurchaseFormValuesType, PurchaseStatus, InventoryItem, Currency, Category, CostCenter } from "@/types";
+import type { Purchase, PurchaseFormValues as PurchaseFormValuesType, PurchaseStatus, InventoryItem, Currency, Category, CostCenter } from '@/types';
 import { purchaseStatusList } from "@/lib/data";
 import { Loader2, Calendar as CalendarIcon, DollarSign, PlusCircle, Trash2, FileCheck2, Link2, Sparkles, HelpCircle, Briefcase, Building } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -117,6 +117,8 @@ async function fileToDataUri(file: File): Promise<string> {
       reader.readAsDataURL(file);
   });
 }
+
+const NEW_ITEM_SENTINEL = '##NEW##';
 
 export default function PurchaseDialog({ purchase, prefilledData, prefilledFile, isOpen, onOpenChange, onSave, isReadOnly = false }: PurchaseDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
@@ -286,11 +288,19 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
     if (isReadOnly) return;
     setIsSaving(true);
     try {
-      const { invoiceFile, ...rest } = data;
+      const dataToSubmit = {
+        ...data,
+        items: data.items.map(item => ({
+          ...item,
+          materialId: item.materialId === NEW_ITEM_SENTINEL ? undefined : item.materialId,
+        }))
+      };
+      
+      const { invoiceFile, ...rest } = dataToSubmit;
       const dataToSave: Partial<PurchaseFormValues> = rest;
       
       if (invoiceFile) {
-        dataToSave.invoiceDataUri = await fileToDataUri(invoiceFile);
+        dataToSave.invoiceDataUri = await fileToDataUri(invoiceFile as File);
       }
       
       await onSave(dataToSave as PurchaseFormValues, purchase?.id);
@@ -357,7 +367,7 @@ export default function PurchaseDialog({ purchase, prefilledData, prefilledFile,
                                     <Select onValueChange={selectField.onChange} value={selectField.value || ""} disabled={isReadOnly}>
                                       <FormControl><SelectTrigger><SelectValue placeholder="Asociar a material..." /></SelectTrigger></FormControl>
                                       <SelectContent>
-                                        <SelectItem value="">(Crear nuevo concepto)</SelectItem>
+                                        <SelectItem value={NEW_ITEM_SENTINEL}>(Crear nuevo concepto)</SelectItem>
                                         {availableMaterials.map(material => (<SelectItem key={material.id} value={material.id}>{material.name}</SelectItem>))}
                                       </SelectContent>
                                     </Select>

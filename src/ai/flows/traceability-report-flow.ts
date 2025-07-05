@@ -15,6 +15,7 @@ import { db } from '@/lib/firebase';
 import type { ItemBatch, StockTxn, ProductionRun, DirectSale, InventoryItem } from '@/types';
 import { fromFirestoreItemBatch } from '@/services/utils/firestore-converters';
 import { format, parseISO, isValid } from 'date-fns';
+import Handlebars from 'handlebars';
 
 
 const TraceabilityReportInputSchema = z.object({
@@ -85,7 +86,8 @@ const ReportDataSchema = z.object({
     totalOut: z.number(),
     reception: z.any().optional(),
     production: z.any().optional(),
-    sales: z.array(z.any()).optional(),
+    consumption: z.array(z.any()),
+    sales: z.array(z.any()),
 });
 
 
@@ -112,30 +114,35 @@ const reportGenerationPrompt = ai.definePrompt({
 {{else if production}}
 > Producido internamente en la **Orden de Producción** \`{{{production.runId}}}\`  
 > **Fecha de producción:** {{{production.date}}}
+{{else}}
+> _No se ha encontrado un origen claro para este lote (posiblemente stock inicial o migrado)._
 {{/if}}
 
-{{#if production.components}}
+{{#if consumption.length}}
 
-| # | Componente | Cant. | UoM | Lote consumido |
+### Componentes Consumidos
+| # | Componente | Cant. | UoM | Lote Consumido |
 |---|---|---:|---|---|
-{{#each production.components}}
-| {{@index}} | {{{componentName}}} | {{{quantity}}} | {{{uom}}} | \`{{{batchId}}}\` |
+{{#each consumption}}
+| {{@index}} | {{{this.componentName}}} | {{{this.quantity}}} | {{{this.uom}}} | \`{{{this.supplierBatchCode}}}\` |
 {{/each}}
-{{/if}}
 {{#if production.totalCostString}}
+
 _Coste total de componentes: **{{{production.totalCostString}}}**._
 {{/if}}
+{{/if}}
+
 ---
 
 ## 📦 Destino del lote (Downstream)
-{{#if sales}}
+{{#if sales.length}}
 | Fecha | Cliente | Documento | Canal | Cant. |
 |---|---|---|---|---:|
 {{#each sales}}
-| {{{date}}} | **{{{customerName}}}** | Venta directa \`{{{saleId}}}\` | {{{channel}}} | {{{quantity}}} |
+| {{{this.date}}} | **{{{this.customerName}}}** | Venta directa \`{{{this.saleId}}}\` | {{{this.channel}}} | {{{this.quantity}}} |
 {{/each}}
 {{else}}
-Sin movimientos de salida.
+Sin movimientos de salida registrados.
 {{/if}}
 
 _Total vendido: **{{{totalOut}}} {{{uom}}}** · Stock restante: **{{{qtyRemaining}}}**_
@@ -171,7 +178,9 @@ const traceabilityFlow = ai.defineFlow(
     const downstreamTxns = allTxnsForBatch.filter(txn => (txn.qtyDelta || 0) < 0);
 
     const refsToRead = new Map<string, DocumentReference<DocumentData>>();
-    if(originTxn?.refId && originTxn.refCollection) refsToRead.set(`origin_${originTxn.refId}`, doc(db, originTxn.refCollection, originTxn.refId));
+    if(originTxn?.refId && originTxn.refCollection) {
+        refsToRead.set(`origin_${originTxn.refId}`, doc(db, originTxn.refCollection, originTxn.refId));
+    }
     downstreamTxns.forEach(txn => {
         if (txn.refId && txn.refCollection) {
             refsToRead.set(`${txn.txnType}_${txn.refId}`, doc(db, txn.refCollection, txn.refId));
@@ -209,6 +218,7 @@ const traceabilityFlow = ai.defineFlow(
     
     let receptionData: any = undefined;
     let productionData: any = undefined;
+    let consumptionData: any[] = [];
 
     if (originTxn && originTxn.refId) {
         const originDoc = docsMap.get(`origin_${originTxn.refId}`);
@@ -216,31 +226,30 @@ const traceabilityFlow = ai.defineFlow(
             const originDocData = originDoc.data();
             if (originTxn.txnType === 'recepcion') {
                 receptionData = {
-                    supplier: originDocData.supplier || 'Proveedor Desconocido',
+                    supplier: originDocData!.supplier || 'Proveedor Desconocido',
                     purchaseId: originTxn.refId || 'N/A',
                     date: formatDDMMYYYY(originTxn.date.toDate()),
                 };
             } else if (originTxn.txnType === 'produccion') {
                 const runData = originDocData as ProductionRun;
-                const componentsWithCost = await Promise.all((runData.consumedComponents || []).map(async (comp) => {
-                    const batch = await getBatchDetails(comp.batchId);
-                    const cost = (batch?.unitCost || 0) * comp.quantity;
-                    const compItem = await getInventoryItem(comp.componentId);
-                    return { ...comp, cost, uom: compItem?.uom || 'unit', supplierBatchCode: batch?.supplierBatchCode };
-                }));
-                const totalCost = componentsWithCost.reduce((sum, comp) => sum + comp.cost, 0);
+                const totalCost = (runData.consumedComponents || []).reduce((sum, comp) => sum + (comp.quantity * (comp.unitCost || 0)), 0);
 
                 productionData = {
                     runId: originTxn.refId || 'N/A',
                     date: formatDDMMYYYY(originTxn.date.toDate()),
-                    components: componentsWithCost.map((c, index) => ({
-                        componentName: c.componentName || 'Componente Desconocido',
-                        quantity: c.quantity || 0,
-                        uom: c.uom || 'unit',
-                        batchId: c.supplierBatchCode || c.batchId || 'N/A',
-                    })),
                     totalCostString: totalCost > 0 ? `${totalCost.toFixed(2)} €` : '',
                 };
+
+                const consumptionWithUomPromises = (runData.consumedComponents || []).map(async (c) => {
+                    const compItem = await getInventoryItem(c.componentId);
+                    return {
+                        componentName: c.componentName || 'Componente Desconocido',
+                        quantity: c.quantity || 0,
+                        uom: compItem?.uom || 'unit',
+                        supplierBatchCode: c.supplierBatchCode || 'N/A',
+                    }
+                });
+                consumptionData = await Promise.all(consumptionWithUomPromises);
             }
         }
     }
@@ -255,7 +264,7 @@ const traceabilityFlow = ai.defineFlow(
                 salesData.push({
                     date: formatDDMMYYYY(txn.date.toDate()),
                     customerName: sale.customerName || 'Cliente Desconocido',
-                    saleId: sale.id || 'N/A',
+                    saleId: txn.refId || 'N/A',
                     channel: sale.channel || 'N/D',
                     quantity: Math.abs(txn.qtyDelta || 0),
                 });
@@ -265,15 +274,29 @@ const traceabilityFlow = ai.defineFlow(
     
     const promptData = {
       ...basePromptData,
-      reception: receptionData || null,
-      production: productionData || null,
-      sales: salesData,
+      reception: receptionData ?? null,
+      production: productionData ?? null,
+      consumption: consumptionData ?? [],
+      sales: salesData ?? [],
     };
     
     // --- PHASE 4: GENERATE REPORT ---
+    // Correct way to invoke the prompt
+    const compiledPromptTemplate = Handlebars.compile(reportGenerationPrompt.prompt);
+    const finalPromptString = compiledPromptTemplate(promptData);
+    
     const result = await ai.generate({
-      prompt: reportGenerationPrompt,
-      input: promptData,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { text: finalPromptString }
+          ]
+        }
+      ],
+      output: {
+        schema: TraceabilityReportOutputSchema
+      }
     });
 
     const output = result.output;
@@ -288,4 +311,3 @@ export async function getTraceabilityReport(input: TraceabilityReportInput): Pro
     const result = await traceabilityFlow(input);
     return result;
 }
-

@@ -85,7 +85,6 @@ const ReportDataSchema = z.object({
     totalOut: z.number(),
     reception: z.any().optional(),
     production: z.any().optional(),
-    consumption: z.array(z.any()).optional(),
     sales: z.array(z.any()).optional(),
 });
 
@@ -97,22 +96,22 @@ const reportGenerationPrompt = ai.definePrompt({
   prompt: `You are an expert in supply chain traceability for Santa Brisa. Your task is to generate a detailed, clear, and professional traceability report in Markdown format using ONLY the JSON data provided.
 
 # 🧾 Informe de Trazabilidad  
-**Lote interno:** \`{{internalBatchCode}}\`  
-**Producto:** {{productName}} — **SKU:** \`{{productSku}}\`
+**Lote interno:** \`{{{internalBatchCode}}}\`  
+**Producto:** {{{productName}}} — **SKU:** \`{{{productSku}}}\`
 
 | Cantidad | UoM | Creado el | Caduca el | Lote proveedor |
 |---|---|---|---|---|
-| {{qtyInitial}} | {{uom}} | {{formattedCreatedAt}} | {{formattedExpiryDate}} | \`{{supplierBatchCode}}\` |
+| {{{qtyInitial}}} | {{{uom}}} | {{{formattedCreatedAt}}} | {{{formattedExpiryDate}}} | \`{{{supplierBatchCode}}}\` |
 
 ---
 
 ## 🔍 Origen del lote (Upstream)
 {{#if reception}}
-> Recibido del proveedor **{{reception.supplier}}** en la **Compra** \`{{reception.purchaseId}}\`  
-> **Fecha de recepción:** {{reception.date}}
+> Recibido del proveedor **{{{reception.supplier}}}** en la **Compra** \`{{{reception.purchaseId}}}\`  
+> **Fecha de recepción:** {{{reception.date}}}
 {{else if production}}
-> Producido internamente en la **Orden de Producción** \`{{production.runId}}\`  
-> **Fecha de producción:** {{production.date}}
+> Producido internamente en la **Orden de Producción** \`{{{production.runId}}}\`  
+> **Fecha de producción:** {{{production.date}}}
 {{/if}}
 
 {{#if production.components}}
@@ -120,11 +119,11 @@ const reportGenerationPrompt = ai.definePrompt({
 | # | Componente | Cant. | UoM | Lote consumido |
 |---|---|---:|---|---|
 {{#each production.components}}
-| {{index}} | {{componentName}} | {{quantity}} | {{uom}} | \`{{batchId}}\` |
+| {{@index}} | {{{componentName}}} | {{{quantity}}} | {{{uom}}} | \`{{{batchId}}}\` |
 {{/each}}
 {{/if}}
 {{#if production.totalCostString}}
-_Coste total de componentes: **{{production.totalCostString}}**._
+_Coste total de componentes: **{{{production.totalCostString}}}**._
 {{/if}}
 ---
 
@@ -133,13 +132,13 @@ _Coste total de componentes: **{{production.totalCostString}}**._
 | Fecha | Cliente | Documento | Canal | Cant. |
 |---|---|---|---|---:|
 {{#each sales}}
-| {{date}} | **{{customerName}}** | Venta directa \`{{saleId}}\` | {{channel}} | {{quantity}} |
+| {{{date}}} | **{{{customerName}}}** | Venta directa \`{{{saleId}}}\` | {{{channel}}} | {{{quantity}}} |
 {{/each}}
 {{else}}
 Sin movimientos de salida.
 {{/if}}
 
-_Total vendido: **{{totalOut}} {{uom}}** · Stock restante: **{{qtyRemaining}}**_
+_Total vendido: **{{{totalOut}}} {{{uom}}}** · Stock restante: **{{{qtyRemaining}}}**_
 
 ---
 
@@ -211,8 +210,8 @@ const traceabilityFlow = ai.defineFlow(
     let receptionData: any = undefined;
     let productionData: any = undefined;
 
-    if (originTxn) {
-        const originDoc = originTxn.refId ? docsMap.get(`origin_${originTxn.refId}`) : undefined;
+    if (originTxn && originTxn.refId) {
+        const originDoc = docsMap.get(`origin_${originTxn.refId}`);
         if(originDoc && originDoc.exists()){
             const originDocData = originDoc.data();
             if (originTxn.txnType === 'recepcion') {
@@ -235,7 +234,6 @@ const traceabilityFlow = ai.defineFlow(
                     runId: originTxn.refId || 'N/A',
                     date: formatDDMMYYYY(originTxn.date.toDate()),
                     components: componentsWithCost.map((c, index) => ({
-                        index: index + 1,
                         componentName: c.componentName || 'Componente Desconocido',
                         quantity: c.quantity || 0,
                         uom: c.uom || 'unit',
@@ -247,7 +245,7 @@ const traceabilityFlow = ai.defineFlow(
         }
     }
     
-    const salesData: any[] = []; // Initialize as empty array
+    const salesData: any[] = [];
     if (downstreamTxns.length > 0) {
         for (const txn of downstreamTxns) {
             if (!txn.refId || !txn.refCollection || txn.txnType !== 'venta') continue;
@@ -265,15 +263,12 @@ const traceabilityFlow = ai.defineFlow(
         }
     }
     
-    const promptData: any = {
+    const promptData = {
       ...basePromptData,
-      sales: salesData, // Always an array, even if empty
+      reception: receptionData || null,
+      production: productionData || null,
+      sales: salesData,
     };
-    if (receptionData) promptData.reception = receptionData;
-    if (productionData) {
-        // Ensure components is an array, even if empty
-        promptData.production = { ...productionData, components: productionData.components || [] };
-    }
     
     // --- PHASE 4: GENERATE REPORT ---
     const result = await ai.generate({

@@ -1,5 +1,6 @@
 
 
+
 import { Timestamp } from "firebase/firestore";
 
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
@@ -63,15 +64,15 @@ export type UoM = 'unit' | 'kg' | 'g' | 'l' | 'ml';
 export interface ItemBatch {
   id: string;
   inventoryItemId: string; // FK to inventoryItems
-  supplierBatchCode?: string;
-  internalBatchCode: string; // Our own generated code for tracking
+  supplierBatchCode?: string; // The original batch code from the supplier's invoice
+  internalBatchCode: string; // Our own generated code (M... or B...)
   qtyInitial: number;
   qtyRemaining: number;
   uom: UoM;
-  unitCost: number; // The landed cost for this specific batch
+  unitCost: number;
   expiryDate?: string; // ISO String
-  locationId?: string; // For warehouse/shelf tracking
-  isClosed: boolean; // When qtyRemaining is 0
+  locationId?: string;
+  isClosed: boolean;
   createdAt: string; 
 }
 
@@ -81,13 +82,13 @@ export type StockTxnRefCollection = 'purchases' | 'productionRuns' | 'directSale
 export interface StockTxn {
   id: string;
   date: Timestamp; 
-  inventoryItemId: string; // The item whose stock is changing
-  batchId: string; // The specific batch being affected
-  qtyDelta: number; // Positive for additions, negative for subtractions
-  newStock: number; // The stock level of the InventoryItem AFTER the transaction
-  unitCost?: number; // Cost of the items moved
+  inventoryItemId: string;
+  batchId: string;
+  qtyDelta: number;
+  newStock: number;
+  unitCost?: number;
   refCollection?: StockTxnRefCollection;
-  refId?: string; // The ID of the purchase, run, or sale
+  refId?: string;
   notes?: string;
   txnType: StockTxnType;
   createdAt?: Timestamp;
@@ -98,23 +99,23 @@ export type ProductionRunStatus = 'Borrador' | 'En Progreso' | 'Finalizada' | 'C
 
 export interface ProductionRun {
     id: string;
-    productSku: string; // The SKU being produced
+    productSku: string;
     productName: string;
-    batchNumber: string; // Human-readable identifier for the run
-    outputBatchId: string; // The ID of the ItemBatch created for the finished product
+    batchNumber: string; // The P... code for the OP
+    outputBatchId?: string; // The ID of the ItemBatch created for the finished product
     qtyPlanned: number;
     qtyProduced?: number;
     status: ProductionRunStatus;
     startDate: string; // ISO
     endDate?: string; // ISO
-    unitCost?: number; // Snapshot of cost at completion
+    unitCost?: number;
     consumedComponents: {
       componentId: string;
       batchId: string;
       componentName: string;
       componentSku?: string;
       quantity: number;
-      supplierBatchCode?: string;
+      supplierBatchCode?: string; // The original supplier batch for this component
     }[];
     createdAt?: string;
     updatedAt?: string;
@@ -124,7 +125,7 @@ export interface ProductionRun {
 export interface ProductCostSnapshot {
     id: string;
     date: Timestamp;
-    inventoryItemId: string; // The finished product SKU
+    inventoryItemId: string;
     unitCost: number;
     productionRunId: string;
 }
@@ -172,7 +173,7 @@ export interface Account {
   responsableId: string; // FK to TeamMember
   brandAmbassadorId?: string; // FK to TeamMember (Clavadista)
   
-  status: AccountStatus; // This is now a calculated field in EnrichedAccount, but the raw field may be deprecated.
+  status: AccountStatus;
   leadScore: number;
 
   legalName?: string;
@@ -186,7 +187,7 @@ export interface Account {
   iban?: string;
   notes?: string; 
   internalNotes?: string;
-  salesRepId?: string; // Kept for compatibility, should transition to responsableId
+  salesRepId?: string;
   createdAt: string; 
   updatedAt: string; 
 }
@@ -226,7 +227,7 @@ export interface InventoryItem {
   stock: number;
   sku?: string;
   uom: UoM;
-  createdAt?: string; // Added for legacy stock reconciliation
+  createdAt?: string | Timestamp;
 }
 
 export interface AssignedPromotionalMaterial {
@@ -406,12 +407,12 @@ export interface DirectSale {
   dueDate?: string; 
   invoiceNumber?: string;
   status: DirectSaleStatus;
-  relatedPlacementOrders?: string[]; // IDs de las órdenes de colocación que cubre esta venta
+  relatedPlacementOrders?: string[];
   notes?: string;
   createdAt: string;
   updatedAt: string;
-  costOfGoods?: number; // Extension
-  paidStatus?: PaidStatus; // Extension
+  costOfGoods?: number;
+  paidStatus?: PaidStatus;
 }
 
 export interface Supplier {

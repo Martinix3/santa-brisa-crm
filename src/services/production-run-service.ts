@@ -4,7 +4,7 @@
 import { db } from '@/lib/firebase';
 import { collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, runTransaction, where, limit, type DocumentReference, type DocumentSnapshot, setDoc } from "firebase/firestore";
 import type { ProductionRun, ProductionRunFormValues, InventoryItem, BomLine, ItemBatch } from '@/types';
-import { format } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
 import { fromFirestoreProductionRun, fromFirestoreBomLine } from './utils/firestore-converters';
 import { addStockTxnFSTransactional } from './stock-txn-service';
 import { addProductCostSnapshotFSTransactional } from './product-cost-snapshot-service';
@@ -55,15 +55,15 @@ export const deleteProductionRunFS = async (id: string): Promise<void> => {
  * than the sum of stock in all existing batches for that item.
  * This is a lazy migration helper to reconcile pre-existing stock.
  */
-async function reconcileLegacyStock(itemData: DocumentSnapshot['data'] & { id: string }): Promise<void> {
-    const canonicalStock = itemData.stock || 0;
+async function reconcileLegacyStock(item: InventoryItem): Promise<void> {
+    const canonicalStock = item.stock || 0;
     if (canonicalStock <= 0) {
       return; // No legacy stock to reconcile
     }
   
     const batchesQuery = query(
       collection(db, BATCHES_COLLECTION),
-      where('inventoryItemId', '==', itemData.id)
+      where('inventoryItemId', '==', item.id)
     );
     const batchesSnapshot = await getDocs(batchesQuery);
     
@@ -75,20 +75,22 @@ async function reconcileLegacyStock(itemData: DocumentSnapshot['data'] & { id: s
     const discrepancy = canonicalStock - batchedStock;
   
     if (discrepancy > 0.001) { // Use a small tolerance for floating point
-      console.log(`Reconciling legacy stock for ${itemData.name}. Discrepancy: ${discrepancy}`);
+      console.log(`Reconciling legacy stock for ${item.name}. Discrepancy: ${discrepancy}`);
       const newBatchRef = doc(collection(db, BATCHES_COLLECTION));
-      const skuPart = (itemData.sku ?? 'NA').substring(0,4).toUpperCase();
+      const skuPart = (item.sku ?? 'NA').substring(0,4).toUpperCase();
       const internalBatchCode = `LEGACY_${skuPart}_${newBatchRef.id.slice(0,4)}`;
       
       await setDoc(newBatchRef, {
-        inventoryItemId: itemData.id,
+        inventoryItemId: item.id,
         internalBatchCode,
         qtyInitial: discrepancy,
         qtyRemaining: discrepancy,
-        uom: itemData.uom || 'unit',
-        unitCost: itemData.latestPurchase?.calculatedUnitCost || 0,
+        uom: item.uom || 'unit',
+        unitCost: item.latestPurchase?.calculatedUnitCost || 0,
         isClosed: false,
-        createdAt: itemData.createdAt || Timestamp.fromMillis(Date.now() - 31536000000), // Default to 1 year ago for FIFO
+        createdAt: item.createdAt instanceof Timestamp
+          ? item.createdAt
+          : (item.createdAt ? Timestamp.fromMillis(parseISO(item.createdAt).getTime()) : Timestamp.fromMillis(Date.now() - 31536000000)), // Default to 1 year ago for FIFO
       });
     }
 }
@@ -117,9 +119,12 @@ export const closeProductionRunFS = async (runId: string, qtyProduced: number) =
     const componentDocs = await Promise.all(
       bomLines.map(line => getDoc(doc(db, INVENTORY_ITEMS_COLLECTION, line.componentId)))
     );
-    for (const componentDoc of componentDocs) {
+    for (const [index, componentDoc] of componentDocs.entries()) {
       if (componentDoc.exists()) {
-        await reconcileLegacyStock({ id: componentDoc.id, ...componentDoc.data() });
+        const itemData = { id: componentDoc.id, ...componentDoc.data() } as InventoryItem;
+        await reconcileLegacyStock(itemData);
+      } else {
+        throw new Error(`El componente con nombre "${bomLines[index].componentName}" (ID: ${bomLines[index].componentId}) no existe en el inventario.`);
       }
     }
 
@@ -167,7 +172,7 @@ export const closeProductionRunFS = async (runId: string, qtyProduced: number) =
         }
         const finishedGoodDoc = docsMap.get('finishedGoodRef');
         if (!finishedGoodDoc || !finishedGoodDoc.exists()) throw new Error("Producto terminado no encontrado en la transacción.");
-        const finishedGoodData = finishedGoodDoc.data() as InventoryItem;
+        const finishedGoodData = { id: finishedGoodDoc.id, ...finishedGoodDoc.data() } as InventoryItem;
 
 
         let totalConsumedCost = 0;

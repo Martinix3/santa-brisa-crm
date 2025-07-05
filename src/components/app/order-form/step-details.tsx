@@ -18,13 +18,13 @@ import { cn } from '@/lib/utils';
 import { paymentMethodList, nextActionTypeList, failureReasonList, canalOrigenColocacionList, provincesSpainList } from '@/lib/data';
 import { ADMIN_SELF_REGISTER_VALUE, NO_CLAVADISTA_VALUE } from '@/lib/schemas/order-form-schema';
 import type { OrderFormValues } from '@/lib/schemas/order-form-schema';
-import type { PromotionalMaterial, TeamMember, UserRole } from '@/types';
+import type { InventoryItem, TeamMember, UserRole } from '@/types';
 
 interface StepDetailsProps {
     form: UseFormReturn<OrderFormValues>;
     handleBack: () => void;
     handleNextStep: () => void;
-    availableMaterials: PromotionalMaterial[];
+    availableMaterials: InventoryItem[];
     materialFields: FieldArrayWithId<OrderFormValues, "assignedMaterials", "id">[];
     appendMaterial: (item: { materialId: string; quantity: number | undefined; }) => void;
     removeMaterial: (index: number) => void;

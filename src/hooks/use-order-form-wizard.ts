@@ -9,12 +9,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { getAccountsFS, addAccountFS, getAccountByIdFS } from "@/services/account-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
-import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
+import { getInventoryItemsFS } from "@/services/inventory-item-service";
 import { getOrderByIdFS } from "@/services/order-service";
 import { runTransaction, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { collection, doc } from "firebase/firestore";
-import type { Account, Order, PromotionalMaterial, TeamMember, UserRole, OrderStatus, AccountType } from "@/types";
+import type { Account, Order, InventoryItem, TeamMember, UserRole, OrderStatus, AccountType } from "@/types";
 import { orderFormSchema, type OrderFormValues, NO_CLAVADISTA_VALUE, ADMIN_SELF_REGISTER_VALUE, type Step } from '@/lib/schemas/order-form-schema';
 
 export function useOrderWizard() {
@@ -31,7 +31,7 @@ export function useOrderWizard() {
   const [allAccounts, setAllAccounts] = React.useState<Account[]>([]);
   const [clavadistas, setClavadistas] = React.useState<TeamMember[]>([]);
   const [salesRepsList, setSalesRepsList] = React.useState<TeamMember[]>([]);
-  const [availableMaterials, setAvailableMaterials] = React.useState<PromotionalMaterial[]>([]);
+  const [availableMaterials, setAvailableMaterials] = React.useState<InventoryItem[]>([]);
   const [originatingTask, setOriginatingTask] = React.useState<Order | null>(null);
   
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -163,7 +163,7 @@ export function useOrderWizard() {
           getAccountsFS(),
           getTeamMembersFS(['Clavadista']),
           getTeamMembersFS(['SalesRep', 'Admin']),
-          getPromotionalMaterialsFS(),
+          getInventoryItemsFS(),
           originatingTaskId ? getOrderByIdFS(originatingTaskId) : Promise.resolve(null),
         ]);
         setAllAccounts(accounts);
@@ -394,7 +394,7 @@ export function useOrderWizard() {
              if (values.assignedMaterials && values.assignedMaterials.length > 0) {
                 for (const item of values.assignedMaterials) {
                     if (item.materialId && item.quantity) {
-                        const materialRef = doc(db, 'promotionalMaterials', item.materialId);
+                        const materialRef = doc(db, 'inventoryItems', item.materialId);
                         const materialDoc = await transaction.get(materialRef);
                         if(materialDoc.exists()) {
                             const currentStock = (materialDoc.data().stock ?? 0) as number;
@@ -423,5 +423,3 @@ export function useOrderWizard() {
     materialFields, appendMaterial, removeMaterial, userRole, teamMember
   };
 }
-
-    

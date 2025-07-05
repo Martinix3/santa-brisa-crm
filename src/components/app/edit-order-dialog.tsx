@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -34,7 +35,7 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { Order, OrderStatus, UserRole, TeamMember, NextActionType, FailureReasonType, ClientType, PromotionalMaterial, Account, CanalOrigenColocacion, PaymentMethod, AddressDetails } from "@/types"; 
+import type { Order, OrderStatus, UserRole, TeamMember, NextActionType, FailureReasonType, ClientType, InventoryItem, Account, CanalOrigenColocacion, PaymentMethod, AddressDetails } from "@/types"; 
 import { orderStatusesList, nextActionTypeList, failureReasonList, clientTypeList, canalOrigenColocacionList, paymentMethodList } from "@/lib/data"; 
 import { Loader2, CalendarIcon, Printer, Award, Package, PlusCircle, Trash2, Zap, CreditCard, UploadCloud, Link2 } from "lucide-react"; 
 import { Separator } from "@/components/ui/separator";
@@ -43,7 +44,7 @@ import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { getTeamMembersFS } from "@/services/team-member-service";
-import { getPromotionalMaterialsFS } from "@/services/promotional-material-service";
+import { getInventoryItemsFS } from "@/services/inventory-item-service";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 
@@ -101,7 +102,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const [isSaving, setIsSaving] = React.useState(false);
   const [clavadistas, setClavadistas] = React.useState<TeamMember[]>([]);
   const [salesReps, setSalesReps] = React.useState<TeamMember[]>([]);
-  const [availableMaterials, setAvailableMaterials] = React.useState<PromotionalMaterial[]>([]);
+  const [availableMaterials, setAvailableMaterials] = React.useState<InventoryItem[]>([]);
   const [isLoadingDropdownData, setIsLoadingDropdownData] = React.useState(true);
   const { toast } = useToast();
 
@@ -166,7 +167,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         Promise.all([
             getTeamMembersFS(['Clavadista']),
             getTeamMembersFS(['SalesRep', 'Admin']),
-            getPromotionalMaterialsFS()
+            getInventoryItemsFS()
         ]).then(([fetchedClavadistas, fetchedSalesReps, fetchedMaterials]) => {
             setClavadistas(fetchedClavadistas);
             setSalesReps(fetchedSalesReps);
@@ -499,7 +500,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                                   <FormControl><SelectTrigger><SelectValue placeholder={isLoadingDropdownData ? "Cargando..." : "Seleccionar material"} /></SelectTrigger></FormControl>
                                   <SelectContent>
                                     {availableMaterials.map(mat => (
-                                      <SelectItem key={mat.id} value={mat.id}>{mat.name} ({mat.type}) - <FormattedNumericValue value={mat.latestPurchase?.calculatedUnitCost || 0} options={{style:'currency', currency:'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4 }}/></SelectItem>
+                                      <SelectItem key={mat.id} value={mat.id}>{mat.name} - <FormattedNumericValue value={mat.latestPurchase?.calculatedUnitCost || 0} options={{style:'currency', currency:'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4 }}/></SelectItem>
                                     ))}
                                   </SelectContent>
                                 </Select>

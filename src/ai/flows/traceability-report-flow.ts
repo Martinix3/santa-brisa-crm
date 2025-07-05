@@ -96,15 +96,13 @@ const reportGenerationPrompt = ai.definePrompt({
   output: { schema: TraceabilityReportOutputSchema },
   prompt: `You are an expert in supply chain traceability for Santa Brisa. Your task is to generate a detailed, clear, and professional traceability report in Markdown format using ONLY the JSON data provided.
 
-## Formato que debes devolver
-
 # 🧾 Informe de Trazabilidad  
 **Lote interno:** \`{{internalBatchCode}}\`  
 **Producto:** {{productName}} — **SKU:** \`{{productSku}}\`
 
 | Cantidad | UoM | Creado el | Caduca el | Lote proveedor |
 |---|---|---|---|---|
-| {{qtyInitial}} | {{uom}} | {{formattedCreatedAt}} | {{formattedExpiryDate}} | {{supplierBatchCode}} |
+| {{qtyInitial}} | {{uom}} | {{formattedCreatedAt}} | {{formattedExpiryDate}} | \`{{supplierBatchCode}}\` |
 
 ---
 
@@ -118,6 +116,7 @@ const reportGenerationPrompt = ai.definePrompt({
 {{/if}}
 
 {{#if production.components}}
+
 | # | Componente | Cant. | UoM | Lote proveedor |
 |---|---|---:|---|---|
 {{#each production.components}}
@@ -148,9 +147,6 @@ _Total vendido: **{{totalOut}} {{uom}}** · Stock restante: **{{qtyRemaining}}**
 * **Flechas temporales**: Arriba (Upstream) indica de dónde viene; Abajo (Downstream) indica a dónde fue.
 * **IDs clicables**: En la UI, los IDs de documentos como \`Ghg3s3...\` son enlaces directos.
 * **Datos no disponibles**: _N/D_ significa "No Disponible", y — significa "No Aplica".
-
-## Datos del Lote
-{{{json this}}}
 `,
 });
 
@@ -199,7 +195,7 @@ const traceabilityFlow = ai.defineFlow(
     
     const totalOut = downstreamTxns.reduce((sum, txn) => sum + Math.abs(txn.qtyDelta || 0), 0);
     
-    const promptData: any = {
+    const basePromptData = {
         internalBatchCode: batchDetails.internalBatchCode,
         productName: itemDetails.name,
         productSku: itemDetails.sku || '—',
@@ -211,12 +207,15 @@ const traceabilityFlow = ai.defineFlow(
         qtyRemaining: batchDetails.qtyRemaining,
         totalOut,
     };
+    
+    let receptionData: any = undefined;
+    let productionData: any = undefined;
 
     if (originTxn) {
-        const originDoc = docsMap.get(`origin_${originTxn.refId!}`);
+        const originDoc = originTxn.refId ? docsMap.get(`origin_${originTxn.refId}`) : undefined;
         if(originDoc && originDoc.exists()){
             if (originTxn.txnType === 'recepcion') {
-                promptData.reception = {
+                receptionData = {
                     supplier: originDoc.data().supplier,
                     purchaseId: originTxn.refId,
                     date: formatDDMMYYYY(originTxn.date.toDate()),
@@ -231,7 +230,7 @@ const traceabilityFlow = ai.defineFlow(
                 }));
                 const totalCost = componentsWithCost.reduce((sum, comp) => sum + comp.cost, 0);
 
-                promptData.production = {
+                productionData = {
                     runId: originTxn.refId,
                     date: formatDDMMYYYY(originTxn.date.toDate()),
                     components: componentsWithCost.map((c, index) => ({
@@ -247,41 +246,52 @@ const traceabilityFlow = ai.defineFlow(
         }
     }
     
-    const consumptionData: any[] = [];
-    const salesData: any[] = [];
-    for (const txn of downstreamTxns) {
-        if (!txn.refId || !txn.refCollection) continue;
-        const docSnap = docsMap.get(`${txn.txnType}_${txn.refId}`);
-        if (docSnap && docSnap.exists()) {
-            if (txn.txnType === 'consumo') {
-                const run = docSnap.data() as ProductionRun;
-                consumptionData.push({
-                    date: formatDDMMYYYY(txn.date.toDate()),
-                    productName: run.productName,
-                    quantity: -txn.qtyDelta,
-                    uom: itemDetails.uom,
-                    outputBatchId: run.outputBatchId || '—',
-                });
-            } else if (txn.txnType === 'venta') {
-                const sale = docSnap.data() as DirectSale;
-                salesData.push({
-                    date: formatDDMMYYYY(txn.date.toDate()),
-                    customerName: sale.customerName,
-                    saleId: sale.id,
-                    channel: sale.channel,
-                    quantity: -txn.qtyDelta,
-                });
+    let consumptionData: any[] | undefined = undefined;
+    let salesData: any[] | undefined = undefined;
+    if (downstreamTxns.length > 0) {
+        const tempConsumption: any[] = [];
+        const tempSales: any[] = [];
+        for (const txn of downstreamTxns) {
+            if (!txn.refId || !txn.refCollection) continue;
+            const docSnap = docsMap.get(`${txn.txnType}_${txn.refId}`);
+            if (docSnap && docSnap.exists()) {
+                if (txn.txnType === 'consumo') {
+                    const run = docSnap.data() as ProductionRun;
+                    tempConsumption.push({
+                        date: formatDDMMYYYY(txn.date.toDate()),
+                        productName: run.productName,
+                        quantity: -txn.qtyDelta,
+                        uom: itemDetails.uom,
+                        outputBatchId: run.outputBatchId || '—',
+                    });
+                } else if (txn.txnType === 'venta') {
+                    const sale = docSnap.data() as DirectSale;
+                    tempSales.push({
+                        date: formatDDMMYYYY(txn.date.toDate()),
+                        customerName: sale.customerName,
+                        saleId: sale.id,
+                        channel: sale.channel,
+                        quantity: -txn.qtyDelta,
+                    });
+                }
             }
         }
+        if (tempConsumption.length > 0) consumptionData = tempConsumption;
+        if (tempSales.length > 0) salesData = tempSales;
     }
     
-    if (consumptionData.length > 0) promptData.consumption = consumptionData;
-    if (salesData.length > 0) promptData.sales = salesData;
+    const promptData: any = {
+      ...basePromptData
+    };
+    if (receptionData) promptData.reception = receptionData;
+    if (productionData) promptData.production = productionData;
+    if (consumptionData) promptData.consumption = consumptionData;
+    if (salesData) promptData.sales = salesData;
     
     // --- PHASE 4: GENERATE REPORT ---
     const result = await ai.generate({
       prompt: reportGenerationPrompt,
-      input: promptData as z.infer<typeof ReportDataSchema>,
+      input: promptData,
     });
 
     const output = result.output;
@@ -296,3 +306,4 @@ export async function getTraceabilityReport(input: TraceabilityReportInput): Pro
     const result = await traceabilityFlow(input);
     return result;
 }
+

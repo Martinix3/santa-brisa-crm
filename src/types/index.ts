@@ -72,7 +72,7 @@ export interface ItemBatch {
   expiryDate?: string; // ISO String
   locationId?: string; // For warehouse/shelf tracking
   isClosed: boolean; // When qtyRemaining is 0
-  createdAt: Timestamp; 
+  createdAt: string; 
 }
 
 export type StockTxnType = 'recepcion' | 'consumo' | 'produccion' | 'ajuste' | 'desperdicio' | 'venta';

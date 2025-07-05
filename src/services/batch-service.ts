@@ -2,9 +2,10 @@
 'use server';
 
 import { db } from '@/lib/firebase';
-import { collection, doc, query, where, orderBy, getDocs, Timestamp, type Transaction, type DocumentData, type DocumentReference, type DocumentSnapshot } from "firebase/firestore";
+import { collection, doc, query, where, orderBy, getDocs, Timestamp, type Transaction, type DocumentData, type DocumentReference, type DocumentSnapshot, setDoc } from "firebase/firestore";
 import type { ItemBatch, InventoryItem } from '@/types';
 import { format, parseISO } from 'date-fns';
+import { fromFirestoreItemBatch } from './utils/firestore-converters';
 
 const BATCHES_COLLECTION = 'itemBatches';
 
@@ -68,7 +69,7 @@ export async function planBatchConsumption(
 
   const snapshot = await getDocs(batchesQuery);
   const availableBatches = snapshot.docs
-    .map(doc => ({ id: doc.id, ...doc.data() } as ItemBatch))
+    .map(fromFirestoreItemBatch)
     .filter(batch => batch.qtyRemaining > 0);
 
   let remainingToConsume = quantityToConsume;
@@ -99,13 +100,13 @@ export async function getBatchesForItemFS(inventoryItemId: string): Promise<Item
     );
     const snapshot = await getDocs(q);
     const batches = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as ItemBatch))
+        .map(fromFirestoreItemBatch)
         .filter(batch => batch.qtyRemaining > 0);
 
     batches.sort((a, b) => {
-        const dateA = a.createdAt?.toMillis() || 0;
-        const dateB = b.createdAt?.toMillis() || 0;
-        return dateA - dateB;
+        const dateA = a.createdAt;
+        const dateB = b.createdAt;
+        return dateA.localeCompare(dateB);
     });
     
     return batches;

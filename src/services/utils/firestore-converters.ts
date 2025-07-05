@@ -2,7 +2,7 @@
 
 import { Timestamp, type DocumentSnapshot } from "firebase/firestore";
 import { format, parseISO, isValid } from "date-fns";
-import type { Purchase, PurchaseFormValues, PurchaseFirestorePayload, Supplier, SupplierFormValues, BomLine, ProductionRun, DirectSaleWithExtras, DirectSale } from '@/types';
+import type { Purchase, PurchaseFormValues, PurchaseFirestorePayload, Supplier, SupplierFormValues, BomLine, ProductionRun, DirectSaleWithExtras, DirectSale, ItemBatch } from '@/types';
 
 // --- PURCHASE CONVERTERS ---
 
@@ -159,6 +159,26 @@ export const fromFirestoreBomLine = (snapshot: DocumentSnapshot): BomLine => {
     createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : undefined,
     updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : undefined,
   };
+};
+
+// --- ITEM BATCH CONVERTER ---
+export const fromFirestoreItemBatch = (snapshot: DocumentSnapshot): ItemBatch => {
+    const data = snapshot.data();
+    if (!data) throw new Error("ItemBatch data is undefined.");
+    return {
+        id: snapshot.id,
+        inventoryItemId: data.inventoryItemId,
+        supplierBatchCode: data.supplierBatchCode,
+        internalBatchCode: data.internalBatchCode,
+        qtyInitial: data.qtyInitial,
+        qtyRemaining: data.qtyRemaining,
+        uom: data.uom,
+        unitCost: data.unitCost,
+        expiryDate: data.expiryDate, // Already a string
+        locationId: data.locationId,
+        isClosed: data.isClosed,
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+    };
 };
 
 // --- PRODUCTION RUN CONVERTER ---

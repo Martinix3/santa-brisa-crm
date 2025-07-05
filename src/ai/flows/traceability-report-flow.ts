@@ -18,7 +18,6 @@ import { format, parseISO, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Handlebars from 'handlebars';
 
-
 const TraceabilityReportInputSchema = z.object({
   batchId: z.string().describe('The document ID or internal batch code of the batch to trace.'),
 });
@@ -37,7 +36,7 @@ const formatDDMMYYYY = (date: Date | string | null | undefined): string => {
     return format(d, 'dd-MM-yyyy');
 };
 
-const traceabilityPromptTemplate = `
+const reportGenerationPromptTemplate = `
 # 🧾 Informe de Trazabilidad
 
 ### Lote Principal
@@ -46,42 +45,87 @@ const traceabilityPromptTemplate = `
 - **Lote Proveedor:** \`{{supplierBatchCode}}\`
 - **Cantidad Inicial:** {{qtyInitial}} {{uom}}
 - **Stock Restante:** **{{qtyRemaining}} {{uom}}**
-- **Fecha Creación:** {{formattedCreatedAt}}
-- **Fecha Caducidad:** {{formattedExpiryDate}}
+- **Creado el:** {{formattedCreatedAt}}
+- **Caduca el:** {{formattedExpiryDate}}
 
 ---
 
-## 🔍 Origen del Lote (Upstream)
-> {{{originSummary}}}
+## 🔍 Origen del lote (Upstream)
+{{#if production}}
+> Producido internamente en la **Orden de Producción** \`{{production.runId}}\` el {{production.date}}.
+{{else if reception}}
+> Recibido del proveedor **{{reception.supplierName}}** en la compra \`{{reception.purchaseId}}\` el {{reception.date}}.
+{{else}}
+> Origen del lote no especificado o es stock inicial.
+{{/if}}
 
-{{#if consumption.length}}
-### Componentes Consumidos
-| Componente | Cantidad | UoM | Lote Consumido (Proveedor) |
-|---|---:|---|---|
+{{#if consumption}}
+**Componentes Consumidos:**
 {{#each consumption}}
-| {{this.componentName}} | {{this.quantity}} | {{this.uom}} | \`{{this.supplierBatchCode}}\` |
+- **{{this.componentName}}**: {{this.quantity}} {{this.uom}} (Lote: \`{{this.supplierBatchCode}}\`)
 {{/each}}
-{{/if}}
+
 {{#if totalCostString}}
-**Coste total de producción:** {{totalCostString}}
+*Coste total de componentes: **{{totalCostString}}***
+{{/if}}
 {{/if}}
 
 ---
 
-## 📦 Destino del Lote (Downstream)
-
+## 📦 Destino del lote (Downstream)
 {{#if sales.length}}
-| Fecha | Cliente | Documento | Canal | Cantidad |
-|---|---|---|---|---:|
+**Ventas Registradas:**
 {{#each sales}}
-| {{this.date}} | **{{this.customerName}}** | Venta \`{{this.saleId}}\` | {{this.channel}} | {{this.quantity}} |
+- **Venta a {{this.customerName}}** (Doc: \`{{this.saleId}}\`, Canal: {{this.channel}}): {{this.quantity}} {{../uom}} el {{this.date}}.
 {{/each}}
+
+*Total vendido: **{{totalOut}} {{../uom}}***
 {{else}}
 > Sin movimientos de salida (ventas) registrados para este lote.
 {{/if}}
 
 ---
+
+### 🖨️ Consejos de lectura
+- **Flechas temporales**: Arriba (Upstream) es de dónde viene. Abajo (Downstream) es a dónde fue.
+- **IDs**: Los identificadores como los de lotes o documentos son internos del sistema.
 `;
+
+const ReportDataSchema = z.object({
+    internalBatchCode: z.string(),
+    productName: z.string(),
+    productSku: z.string(),
+    qtyInitial: z.number(),
+    uom: z.string(),
+    formattedCreatedAt: z.string(),
+    formattedExpiryDate: z.string(),
+    supplierBatchCode: z.string(),
+    qtyRemaining: z.number(),
+    totalOut: z.number(),
+    reception: z.object({
+        purchaseId: z.string(),
+        supplierName: z.string(),
+        date: z.string(),
+    }).optional().nullable(),
+    production: z.object({
+        runId: z.string(),
+        date: z.string(),
+    }).optional().nullable(),
+    consumption: z.array(z.object({
+        componentName: z.string(),
+        quantity: z.number(),
+        uom: z.string(),
+        supplierBatchCode: z.string(),
+    })).optional(),
+    sales: z.array(z.object({
+        date: z.string(),
+        customerName: z.string(),
+        saleId: z.string(),
+        channel: z.string(),
+        quantity: z.number(),
+    })),
+    totalCostString: z.string().optional(),
+});
 
 
 async function getBatchDetails(batchIdOrCode: string): Promise<ItemBatch | null> {
@@ -142,9 +186,10 @@ const traceabilityFlow = ai.defineFlow(
     const allTxnsForBatch = allTxnsSnapshot.docs.map(doc => doc.data() as StockTxn);
     const originTxn = allTxnsForBatch.find(txn => (txn.qtyDelta || 0) > 0);
     const downstreamTxns = allTxnsForBatch.filter(txn => (txn.qtyDelta || 0) < 0);
-
+    const totalOut = downstreamTxns.reduce((sum, txn) => sum + Math.abs(txn.qtyDelta || 0), 0);
+    
     const refsToRead = new Map<string, DocumentReference<DocumentData>>();
-    if(originTxn?.refId && originTxn.refCollection) {
+    if (originTxn?.refId && originTxn.refCollection) {
         refsToRead.set(`origin_${originTxn.refId}`, doc(db, originTxn.refCollection, originTxn.refId));
     }
     downstreamTxns.forEach(txn => {
@@ -152,34 +197,36 @@ const traceabilityFlow = ai.defineFlow(
             refsToRead.set(`${txn.txnType}_${txn.refId}`, doc(db, txn.refCollection, txn.refId));
         }
     });
-    
+
     const docsRead = await Promise.all(
         Array.from(refsToRead.values()).map(ref => getDoc(ref))
     );
     const docsMap = new Map<string, DocumentSnapshot>();
     Array.from(refsToRead.keys()).forEach((key, index) => docsMap.set(key, docsRead[index]));
 
-    // --- PHASE 3: PREPARE DATA FOR PROMPT (with safe fallbacks) ---
-    
-    let originSummary = "Origen del lote no encontrado (posiblemente stock inicial o migrado).";
-    let consumptionData: any[] = [];
-    let totalCostString = "";
-    
-    if (originTxn && originTxn.refId) {
+    // --- PHASE 3: PREPARE DATA FOR PROMPT ---
+
+    let receptionData: z.infer<typeof ReportDataSchema>['reception'] = null;
+    let productionData: z.infer<typeof ReportDataSchema>['production'] = null;
+    let consumptionData: z.infer<typeof ReportDataSchema>['consumption'] = [];
+    let totalCostString = '';
+
+    if (originTxn?.refId && originTxn.refCollection) {
         const originDoc = docsMap.get(`origin_${originTxn.refId}`);
         if(originDoc && originDoc.exists()){
             const originDocData = originDoc.data();
-            if (originTxn.txnType === 'recepcion') {
-                originSummary = `Recibido del proveedor **${originDocData!.supplier || 'Desconocido'}** en la Compra \`${originTxn.refId}\` el ${formatDDMMYYYY(originTxn.date.toDate())}.`;
-            } else if (originTxn.txnType === 'produccion') {
-                const runData = originDocData as ProductionRun;
-                originSummary = `Producido internamente en la **Orden de Producción** \`${originTxn.refId}\` el ${formatDDMMYYYY(originTxn.date.toDate())}.`;
-
-                const totalCost = (runData.consumedComponents || []).reduce((sum, comp) => {
-                  const unitCost = comp.unitCost || 0;
-                  return sum + (comp.quantity * unitCost);
-                }, 0);
-                if (totalCost > 0) totalCostString = `**${totalCost.toFixed(2)} €**`;
+            if (originTxn.txnType === 'recepcion' && originDocData) {
+                receptionData = {
+                    purchaseId: originTxn.refId,
+                    supplierName: originDocData.supplier || 'Proveedor Desconocido',
+                    date: formatDDMMYYYY(originTxn.date.toDate()),
+                };
+            } else if (originTxn.txnType === 'produccion' && originDocData) {
+                 const runData = originDocData as ProductionRun;
+                 productionData = {
+                    runId: originTxn.refId,
+                    date: formatDDMMYYYY(originTxn.date.toDate()),
+                };
                 
                 if (runData.consumedComponents && runData.consumedComponents.length > 0) {
                    const componentItems = await Promise.all(
@@ -189,17 +236,23 @@ const traceabilityFlow = ai.defineFlow(
                       componentName: c.componentName || 'Componente Desconocido',
                       quantity: c.quantity || 0,
                       uom: componentItems[i]?.uom || 'unit',
-                      supplierBatchCode: c.supplierBatchCode || c.batchId, // Fallback to internal batch if supplier one is missing
+                      supplierBatchCode: c.supplierBatchCode || c.batchId,
                    }));
+
+                   const totalCost = (runData.consumedComponents || []).reduce((sum, comp) => {
+                      const unitCost = (comp as any).unitCost || 0; // The type is missing this field
+                      return sum + (comp.quantity * unitCost);
+                   }, 0);
+                   if (totalCost > 0) totalCostString = `**${totalCost.toFixed(2)} €**`;
                 }
             }
         }
     }
     
-    const salesData: any[] = [];
+    const salesData: z.infer<typeof ReportDataSchema>['sales'] = [];
     if (downstreamTxns.length > 0) {
         for (const txn of downstreamTxns) {
-            if (!txn.refId || !txn.refCollection || txn.txnType !== 'venta') continue;
+            if (!txn.refId || txn.txnType !== 'venta') continue;
             const docSnap = docsMap.get(`${txn.txnType}_${txn.refId}`);
             if (docSnap && docSnap.exists()) {
                 const sale = docSnap.data() as DirectSale;
@@ -214,7 +267,7 @@ const traceabilityFlow = ai.defineFlow(
         }
     }
     
-    const promptData = {
+    const basePromptData = {
       internalBatchCode: batchDetails.internalBatchCode || 'N/A',
       productName: itemDetails.name || 'Producto Desconocido',
       productSku: itemDetails.sku || '—',
@@ -224,14 +277,21 @@ const traceabilityFlow = ai.defineFlow(
       formattedExpiryDate: formatDDMMYYYY(batchDetails.expiryDate),
       supplierBatchCode: batchDetails.supplierBatchCode || '—',
       qtyRemaining: batchDetails.qtyRemaining || 0,
-      originSummary,
+      totalOut,
+    };
+
+    const promptData: z.infer<typeof ReportDataSchema> = {
+      ...basePromptData,
+      reception: receptionData,
+      production: productionData,
       consumption: consumptionData,
-      totalCostString,
       sales: salesData,
+      totalCostString: totalCostString,
     };
     
     // --- PHASE 4: GENERATE REPORT ---
-    const compiledPromptTemplate = Handlebars.compile(traceabilityPromptTemplate);
+    // Manually compile the prompt with Handlebars and then pass it to the AI.
+    const compiledPromptTemplate = Handlebars.compile(reportGenerationPromptTemplate);
     const finalPromptString = compiledPromptTemplate(promptData);
     
     const result = await ai.generate({

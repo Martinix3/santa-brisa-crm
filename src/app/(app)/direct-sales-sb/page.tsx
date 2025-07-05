@@ -17,11 +17,14 @@ import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
 import StatusBadge from "@/components/app/status-badge";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-import { getDirectSalesFS, deleteDirectSaleFS } from "@/services/venta-directa-sb-service"; 
+import { getDirectSalesFS, deleteDirectSaleFS, updateDirectSaleFS } from "@/services/venta-directa-sb-service"; 
 import { getAccountsFS } from "@/services/account-service";
 import Link from 'next/link';
 import DirectSaleShippingLabelDialog from "@/components/app/direct-sale-shipping-label-dialog";
 import DeliveryNoteDialog from "@/components/app/delivery-note-dialog";
+import DirectSaleDialog from "@/components/app/direct-sale-dialog";
+import type { EditDirectSaleFormValues } from "@/components/app/direct-sale-dialog";
+import type { DirectSaleWizardFormValues } from "@/lib/schemas/direct-sale-schema";
 
 
 export default function DirectSalesSbPage() {
@@ -33,6 +36,9 @@ export default function DirectSalesSbPage() {
   const [saleToDelete, setSaleToDelete] = React.useState<DirectSale | null>(null);
   const [labelSale, setLabelSale] = React.useState<DirectSale | null>(null);
   const [deliveryNoteSale, setDeliveryNoteSale] = React.useState<DirectSale | null>(null);
+  const [editingSale, setEditingSale] = React.useState<DirectSale | null>(null);
+  const [isSaleDialogOpen, setIsSaleDialogOpen] = React.useState(false);
+
 
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<DirectSaleStatus | "Todos">("Todos");
@@ -71,6 +77,36 @@ export default function DirectSalesSbPage() {
     if (!isAdmin) return;
     setSaleToDelete(sale);
   };
+
+  const handleViewOrEditClick = (sale: DirectSale) => {
+    if (!isAdmin) return;
+    setEditingSale(sale);
+    setIsSaleDialogOpen(true);
+  };
+
+  const handleUpdateSale = async (data: EditDirectSaleFormValues, saleId: string) => {
+      const originalSale = sales.find(s => s.id === saleId);
+      if (!originalSale) return;
+  
+      setIsLoading(true);
+      try {
+          const dataForFirestore: Partial<DirectSaleWizardFormValues> = {
+              ...originalSale, 
+              ...data,
+              relatedPlacementOrders: data.relatedPlacementOrders,
+          };
+          await updateDirectSaleFS(saleId, dataForFirestore);
+          toast({ title: "¡Venta Actualizada!", description: `La venta a "${originalSale.customerName}" ha sido actualizada.` });
+          refreshDataSignature();
+      } catch (error: any) {
+          toast({ title: "Error al Actualizar", description: error.message, variant: "destructive" });
+      } finally {
+          setIsLoading(false);
+          setIsSaleDialogOpen(false);
+          setEditingSale(null);
+      }
+  };
+
 
   const confirmDeleteSale = async () => {
     if (!isAdmin || !saleToDelete) return;
@@ -187,7 +223,7 @@ export default function DirectSalesSbPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onSelect={() => { /* TODO: Implement view/edit dialog */ }}>
+                            <DropdownMenuItem onSelect={() => handleViewOrEditClick(sale)}>
                               <Eye className="mr-2 h-4 w-4" /> Ver/Editar Detalles
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
@@ -260,6 +296,16 @@ export default function DirectSalesSbPage() {
         isOpen={!!deliveryNoteSale}
         onOpenChange={(open) => !open && setDeliveryNoteSale(null)}
       />
+
+      {isAdmin && (
+        <DirectSaleDialog
+            sale={editingSale}
+            isOpen={isSaleDialogOpen}
+            onOpenChange={setIsSaleDialogOpen}
+            onSave={handleUpdateSale}
+            isReadOnly={!isAdmin}
+        />
+      )}
     </div>
   );
 }

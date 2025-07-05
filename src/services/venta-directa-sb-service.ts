@@ -167,6 +167,7 @@ export const addDirectSaleFS = async (data: DirectSaleWithExtras): Promise<strin
 
 export const updateDirectSaleFS = async (id: string, data: Partial<DirectSaleWithExtras>): Promise<void> => {
   const saleDocRef = doc(db, DIRECT_SALES_COLLECTION, id);
+  // Note: This update does not handle stock changes. It assumes items are not editable after creation.
   const firestoreData = toFirestoreDirectSale(data, false);
   await updateDoc(saleDocRef, firestoreData);
 };

@@ -70,7 +70,7 @@ export interface ItemBatch {
   unitCost: number; // The landed cost for this specific batch
   expiryDate?: string; // ISO String
   locationId?: string; // For warehouse/shelf tracking
-  isClosed?: boolean; // When qtyRemaining is 0
+  isClosed: boolean; // When qtyRemaining is 0
   createdAt: Timestamp; 
 }
 
@@ -98,7 +98,7 @@ export type ProductionRunStatus = 'Borrador' | 'En Progreso' | 'Finalizada' | 'C
 export interface ProductionRun {
     id: string;
     productSku: string; // The SKU being produced
-    productName?: string;
+    productName: string;
     batchNumber: string; // Human-readable identifier for the run
     outputBatchId: string; // The ID of the ItemBatch created for the finished product
     qtyPlanned: number;
@@ -107,7 +107,7 @@ export interface ProductionRun {
     startDate: string; // ISO
     endDate?: string; // ISO
     unitCost?: number; // Snapshot of cost at completion
-    consumedComponents?: {
+    consumedComponents: {
       componentId: string;
       batchId: string;
       componentName: string;
@@ -121,7 +121,7 @@ export interface ProductionRun {
 
 export interface ProductCostSnapshot {
     id: string;
-    date: string; // ISO
+    date: Timestamp;
     inventoryItemId: string; // The finished product SKU
     unitCost: number;
     productionRunId: string;
@@ -537,9 +537,6 @@ export interface FollowUpResultFormValues {
   notes?: string;
   assignedSalesRepId?: string;
 }
-
-export type SampleRequestStatus = 'Pendiente' | 'Aprobada' | 'Rechazada' | 'Enviada';
-export type SampleRequestPurpose = 'Captación Cliente Nuevo' | 'Seguimiento Cliente Existente' | 'Material para Evento' | 'Uso Interno/Formación' | 'Otro';
 
 export interface SampleRequestFormValues {
   requesterId?: string;

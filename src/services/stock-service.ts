@@ -10,6 +10,7 @@ import { createItemBatchTransactional } from './batch-service';
 /**
  * Updates the stock for inventory items based on a purchase document.
  * This function is designed to be called from within a Firestore transaction.
+ * All document reads must have been performed before this function is called.
  * @param transaction The Firestore transaction object.
  * @param oldPurchaseData The previous state of the purchase document, or null if it's a new purchase.
  * @param newPurchaseData The new state of the purchase document, or null if it's being deleted.
@@ -23,22 +24,30 @@ export async function updateStockForPurchase(
     materialDocsMap: Map<string, DocumentSnapshot>,
     createBatchFn: typeof createItemBatchTransactional
 ) {
-    const stockDeltas = new Map<string, number>();
     const oldStatusWasReceived = oldPurchaseData?.status === 'Factura Recibida';
     const newStatusIsReceived = newPurchaseData?.status === 'Factura Recibida';
 
-    if (oldStatusWasReceived) {
-        // This part is complex because reverting batches is non-trivial.
-        // For now, we assume once a purchase is 'Factura Recibida', it cannot be changed back easily.
-        // A proper implementation would require reversing batch quantities or a more complex reconciliation.
-        // Here, we'll simply log a warning if an attempt is made to revert a received purchase.
-        if (newPurchaseData?.status !== 'Factura Recibida') {
-             console.warn(`Reverting stock from a previously received purchase (ID: ${oldPurchaseData?.id}) is not fully supported and may lead to stock inconsistencies.`);
+    // Handle reversal of a previously received purchase
+    if (oldStatusWasReceived && (!newPurchaseData || newPurchaseData.status !== 'Factura Recibida')) {
+        // This is complex and potentially dangerous. A simple stock reversal is implemented.
+        // A more robust system might prevent this or require a manual adjustment.
+        console.warn(`Reverting stock from a previously received purchase (ID: ${oldPurchaseData?.id}). This may lead to stock inconsistencies if batches have been consumed.`);
+        for (const item of oldPurchaseData!.items || []) {
+            if (item.materialId) {
+                const materialDoc = materialDocsMap.get(item.materialId);
+                if (materialDoc && materialDoc.exists()) {
+                    const delta = -item.quantity!;
+                    const newStock = (materialDoc.data()!.stock || 0) + delta;
+                    transaction.update(materialDoc.ref, { stock: newStock });
+                    // NOTE: This does not delete the batch, which could be problematic.
+                    // A full implementation would need to handle this.
+                }
+            }
         }
     }
 
-    if (newStatusIsReceived && oldPurchaseData?.status !== 'Factura Recibida') {
-        // This is a new reception of goods.
+    // Handle new reception of goods
+    if (newStatusIsReceived && !oldStatusWasReceived) {
         for (const item of newPurchaseData!.items || []) {
             if (item.materialId) {
                 const materialDoc = materialDocsMap.get(item.materialId);
@@ -47,7 +56,6 @@ export async function updateStockForPurchase(
                     const delta = item.quantity || 0;
                     const newStock = (materialData.stock || 0) + delta;
                     
-                    // Create a new batch for this reception
                     const batchId = await createBatchFn(transaction, materialData, {
                         purchaseId: newPurchaseData!.id,
                         supplierBatchCode: item.batchNumber || undefined,
@@ -55,12 +63,11 @@ export async function updateStockForPurchase(
                         unitCost: item.unitPrice || 0,
                     });
 
-                    // Create a stock transaction record for this batch reception
                     await addStockTxnFSTransactional(transaction, {
                         inventoryItemId: item.materialId,
                         batchId: batchId,
                         qtyDelta: delta,
-                        newStock: newStock, // This is the new total stock for the item
+                        newStock: newStock,
                         unitCost: item.unitPrice,
                         refCollection: 'purchases',
                         refId: newPurchaseData!.id,
@@ -68,7 +75,6 @@ export async function updateStockForPurchase(
                         notes: `Recepción desde compra a ${newPurchaseData!.supplier}`
                     });
 
-                    // Update the total stock and latest purchase info on the InventoryItem
                     transaction.update(materialDoc.ref, { 
                         stock: newStock,
                         latestPurchase: {

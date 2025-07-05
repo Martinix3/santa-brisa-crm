@@ -114,6 +114,7 @@ export interface ProductionRun {
       componentName: string;
       componentSku?: string;
       quantity: number;
+      supplierBatchCode?: string;
     }[];
     createdAt?: string;
     updatedAt?: string;
@@ -142,13 +143,6 @@ export interface CashTxn {
   refId: string;
   costCenterIds?: string[];
   notes?: string;
-}
-
-export interface FxRate {
-    date: string; // YYYY-MM-DD
-    base: Currency;
-    quote: Currency;
-    rate: number;
 }
 
 export type PaidStatus = 'Pendiente' | 'Pagado' | 'Cobrado' | 'Parcial';
@@ -646,3 +640,5 @@ export interface BomLine {
     createdAt?: string;
     updatedAt?: string;
 }
+
+export type DirectSaleWithExtras = DirectSaleWizardFormValues & { issueDate: Date; customerId?: string };

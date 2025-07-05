@@ -202,7 +202,14 @@ export const closeProductionRunFS = async (runId: string, qtyProduced: number, e
                 const batchRef = refsToRead.get(`batch_${plan.batchId}`)!;
                 transaction.update(batchRef, { qtyRemaining: newQtyRemaining, isClosed: newQtyRemaining <= 0 });
                 
-                consumedComponentsSnapshot.push({ componentId: line.componentId, batchId: plan.batchId, componentName: line.componentName, componentSku: line.componentSku, quantity: plan.quantity });
+                consumedComponentsSnapshot.push({ 
+                    componentId: line.componentId, 
+                    batchId: plan.batchId, 
+                    supplierBatchCode: batchData.supplierBatchCode,
+                    componentName: line.componentName, 
+                    componentSku: line.componentSku, 
+                    quantity: plan.quantity 
+                });
             }
             totalConsumedByComponent[line.componentId] = (totalConsumedByComponent[line.componentId] || 0) + (line.quantity * qtyProduced);
         }

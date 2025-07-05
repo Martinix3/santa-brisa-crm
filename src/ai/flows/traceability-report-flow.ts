@@ -44,6 +44,15 @@ async function getBatchDetails(batchIdOrCode: string): Promise<ItemBatch | null>
         const doc = querySnapshot.docs[0];
         return fromFirestoreItemBatch(doc);
     }
+    
+    // Fallback for supplier batch code
+    const qSupplier = query(collection(db, 'itemBatches'), where('supplierBatchCode', '==', batchIdOrCode), limit(1));
+    const querySnapshotSupplier = await getDocs(qSupplier);
+
+    if (!querySnapshotSupplier.empty) {
+        const doc = querySnapshotSupplier.docs[0];
+        return fromFirestoreItemBatch(doc);
+    }
 
     return null;
 }
@@ -88,23 +97,60 @@ const reportGenerationPrompt = ai.definePrompt({
   prompt: `You are an expert in supply chain traceability for Santa Brisa. Your task is to generate a detailed, clear, and professional traceability report in Markdown format using ONLY the JSON data provided.
 
 ## Formato que debes devolver
-Genera **un único bloque Markdown** con:
-1. Título con el emoji 🧾.
-2. Tabla resumen del lote (usa los campos preformateados para las fechas y placeholders para datos vacíos).
-3. Encabezado “🔍 Origen del lote (Upstream)” con:
-   * Si existe 'reception', la frase “Recibido desde Proveedor X…”.
-   * Si existe 'production', la frase “Producido internamente…”.
-   * Tabla de componentes con numeración. Si no hay, no generes la tabla.
-   * Si existe 'totalCostString', inclúyelo al final del apartado de origen.
-4. Encabezado “📦 Destino del lote (Downstream)” con tablas de consumo o ventas. Si no hay, indica “Sin movimientos de salida.”.
-5. Un pie con el stock restante y las notas de lectura.
 
-Usa fechas en formato DD-MM-YYYY y separadores finos (---). No inventes datos.
+# 🧾 Informe de Trazabilidad  
+**Lote interno:** \`{{internalBatchCode}}\`  
+**Producto:** {{productName}} — **SKU:** \`{{productSku}}\`
+
+| Cantidad | UoM | Creado el | Caduca el | Lote proveedor |
+|---|---|---|---|---|
+| {{qtyInitial}} | {{uom}} | {{formattedCreatedAt}} | {{formattedExpiryDate}} | {{supplierBatchCode}} |
+
+---
+
+## 🔍 Origen del lote (Upstream)
+{{#if reception}}
+> Recibido del proveedor **{{reception.supplier}}** en la **Compra** \`{{reception.purchaseId}}\`  
+> **Fecha de recepción:** {{reception.date}}
+{{else if production}}
+> Producido internamente en la **Orden de Producción** \`{{production.runId}}\`  
+> **Fecha de producción:** {{production.date}}
+{{/if}}
+
+{{#if production.components}}
+| # | Componente | Cant. | UoM | Lote proveedor |
+|---|---|---:|---|---|
+{{#each production.components}}
+| {{index}} | {{componentName}} | {{quantity}} | {{uom}} | \`{{batchId}}\` |
+{{/each}}
+{{/if}}
+{{#if production.totalCostString}}
+_Coste total de componentes: **{{production.totalCostString}}**._
+{{/if}}
+---
+
+## 📦 Destino del lote (Downstream)
+{{#if sales}}
+| Fecha | Cliente | Documento | Canal | Cant. |
+|---|---|---|---|---:|
+{{#each sales}}
+| {{date}} | **{{customerName}}** | Venta directa \`{{saleId}}\` | {{channel}} | {{quantity}} |
+{{/each}}
+{{else}}
+Sin movimientos de salida.
+{{/if}}
+
+_Total vendido: **{{totalOut}} {{uom}}** · Stock restante: **{{qtyRemaining}}**_
+
+---
+
+### 🖨️ Consejos de lectura
+* **Flechas temporales**: Arriba (Upstream) indica de dónde viene; Abajo (Downstream) indica a dónde fue.
+* **IDs clicables**: En la UI, los IDs de documentos como \`Ghg3s3...\` son enlaces directos.
+* **Datos no disponibles**: _N/D_ significa "No Disponible", y — significa "No Aplica".
 
 ## Datos del Lote
-\`\`\`json
 {{{json this}}}
-\`\`\`
 `,
 });
 
@@ -132,7 +178,9 @@ const traceabilityFlow = ai.defineFlow(
     const refsToRead = new Map<string, DocumentReference<DocumentData>>();
     if(originTxn?.refId && originTxn.refCollection) refsToRead.set(`origin_${originTxn.refId}`, doc(db, originTxn.refCollection, originTxn.refId));
     downstreamTxns.forEach(txn => {
-        if(txn.refId && txn.refCollection) refsToRead.set(`${txn.txnType}_${txn.refId}`, doc(db, txn.refCollection, txn.refId));
+        if (txn.refId && txn.refCollection) {
+            refsToRead.set(`${txn.txnType}_${txn.refId}`, doc(db, txn.refCollection, txn.refId));
+        }
     });
 
     const docsRead = await Promise.all(
@@ -151,7 +199,6 @@ const traceabilityFlow = ai.defineFlow(
     
     const totalOut = downstreamTxns.reduce((sum, txn) => sum + Math.abs(txn.qtyDelta || 0), 0);
     
-    // Dynamically build the prompt data object to avoid 'undefined' properties
     const promptData: any = {
         internalBatchCode: batchDetails.internalBatchCode,
         productName: itemDetails.name,
@@ -166,7 +213,7 @@ const traceabilityFlow = ai.defineFlow(
     };
 
     if (originTxn) {
-        const originDoc = docsMap.get(`origin_${originTxn.refId}`);
+        const originDoc = docsMap.get(`origin_${originTxn.refId!}`);
         if(originDoc && originDoc.exists()){
             if (originTxn.txnType === 'recepcion') {
                 promptData.reception = {
@@ -180,7 +227,7 @@ const traceabilityFlow = ai.defineFlow(
                     const batch = await getBatchDetails(comp.batchId);
                     const cost = (batch?.unitCost || 0) * comp.quantity;
                     const compItem = await getInventoryItem(comp.componentId);
-                    return { ...comp, cost, uom: compItem?.uom || 'unit' };
+                    return { ...comp, cost, uom: compItem?.uom || 'unit', supplierBatchCode: batch?.supplierBatchCode };
                 }));
                 const totalCost = componentsWithCost.reduce((sum, comp) => sum + comp.cost, 0);
 
@@ -192,7 +239,7 @@ const traceabilityFlow = ai.defineFlow(
                         componentName: c.componentName,
                         quantity: c.quantity,
                         uom: c.uom,
-                        batchId: c.batchId,
+                        batchId: c.supplierBatchCode || c.batchId,
                     })),
                     totalCostString: totalCost > 0 ? `${totalCost.toFixed(2)} €` : '',
                 };
@@ -232,13 +279,15 @@ const traceabilityFlow = ai.defineFlow(
     if (salesData.length > 0) promptData.sales = salesData;
     
     // --- PHASE 4: GENERATE REPORT ---
-    const { output } = await reportGenerationPrompt(promptData as z.infer<typeof ReportDataSchema>);
+    const result = await ai.generate({
+      prompt: reportGenerationPrompt,
+      input: promptData as z.infer<typeof ReportDataSchema>,
+    });
+
+    const output = result.output;
+    if (!output) throw new Error("AI failed to format the final report.");
     
-    if (!output) {
-      throw new Error("AI failed to format the final report.");
-    }
-    
-    return output;
+    return { markdown: output.markdown };
   }
 );
 

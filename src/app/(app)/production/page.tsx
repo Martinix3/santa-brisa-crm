@@ -226,14 +226,14 @@ export default function ProductionPage() {
                               <div className="p-4">
                                   <h4 className="font-semibold text-sm mb-2">Componentes Consumidos</h4>
                                   <Table>
-                                      <TableHeader><TableRow><TableHead>Componente</TableHead><TableHead>SKU</TableHead><TableHead className="text-right">Cantidad</TableHead><TableHead>Lote de Origen</TableHead></TableRow></TableHeader>
+                                      <TableHeader><TableRow><TableHead>Componente</TableHead><TableHead>SKU</TableHead><TableHead className="text-right">Cantidad</TableHead><TableHead>Lote Proveedor</TableHead></TableRow></TableHeader>
                                       <TableBody>
                                           {run.consumedComponents.map((comp, index) => (
                                               <TableRow key={`${run.id}-${index}`}>
                                                   <TableCell>{comp.componentName}</TableCell>
                                                   <TableCell>{comp.componentSku || 'N/A'}</TableCell>
                                                   <TableCell className="text-right"><FormattedNumericValue value={comp.quantity} /></TableCell>
-                                                  <TableCell className="font-mono text-xs">{comp.batchId}</TableCell>
+                                                  <TableCell className="font-mono text-xs">{comp.supplierBatchCode || comp.batchId}</TableCell>
                                               </TableRow>
                                           ))}
                                       </TableBody>

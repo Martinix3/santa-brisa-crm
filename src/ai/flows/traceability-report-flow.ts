@@ -232,8 +232,15 @@ const traceabilityFlow = ai.defineFlow(
     if (salesData.length > 0) promptData.sales = salesData;
     
     // --- PHASE 4: GENERATE REPORT ---
-    const { output } = await reportGenerationPrompt(promptData as z.infer<typeof ReportDataSchema>);
-    if (!output) throw new Error("AI failed to format the final report.");
+    const result = await ai.generate({
+      prompt: reportGenerationPrompt,
+      input: promptData as z.infer<typeof ReportDataSchema>,
+    });
+    const output = result.output;
+    
+    if (!output) {
+      throw new Error("AI failed to format the final report.");
+    }
     
     return { markdown: output.markdown };
   }

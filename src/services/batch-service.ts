@@ -71,8 +71,7 @@ export async function planBatchConsumption(
 
   const snapshot = await getDocs(batchesQuery);
   const availableBatches = snapshot.docs
-    .map(doc => ({ id: doc.id, ...doc.data() } as ItemBatch))
-    .filter(batch => batch.qtyRemaining > 0);
+    .map(doc => ({ id: doc.id, ...doc.data() } as ItemBatch));
 
   let remainingToConsume = quantityToConsume;
   const consumptionPlan: { batchId: string; quantity: number; batchData: ItemBatch }[] = [];

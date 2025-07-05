@@ -632,3 +632,15 @@ export interface EventFormValues {
     notes?: string;
     orderIndex?: number;
 }
+
+export interface BomLine {
+    id: string;
+    productSku: string;
+    componentId: string;
+    componentName: string;
+    componentSku?: string;
+    quantity: number;
+    uom: UoM;
+    createdAt?: string;
+    updatedAt?: string;
+}

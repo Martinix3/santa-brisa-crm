@@ -24,108 +24,112 @@ const TraceabilityReportInputSchema = z.object({
 export type TraceabilityReportInput = z.infer<typeof TraceabilityReportInputSchema>;
 
 const TraceabilityReportOutputSchema = z.object({
-  markdown: z.string().describe('The full traceability report in Markdown format.'),
+  html: z.string().describe('The full traceability report in HTML format.'),
 });
 export type TraceabilityReportOutput = z.infer<typeof TraceabilityReportOutputSchema>;
 
 // Helper to format dates consistently, with a fallback for invalid ones.
 const formatDDMMYYYY = (date: Date | string | null | undefined): string => {
-    if (!date) return '_N/D_';
+    if (!date) return 'N/D';
     const d = typeof date === 'string' ? parseISO(date) : date;
-    if (!isValid(d)) return '_N/D_';
+    if (!isValid(d)) return 'N/D';
     return format(d, 'dd-MM-yyyy');
 };
 
-const reportGenerationPromptTemplate = `
-# 🧾 Informe de Trazabilidad
+const reportGenerationPromptTemplateHtml = `
+<div style="font-family: sans-serif; max-width: 800px; margin: auto; color: #333;">
+  <h2 style="border-bottom: 2px solid #eee; padding-bottom: 10px;">Informe de Trazabilidad</h2>
 
-### Lote Principal
-- **Producto:** {{productName}} (SKU: \`{{productSku}}\`)
-- **Lote Interno:** \`{{internalBatchCode}}\`
-- **Lote Proveedor:** \`{{supplierBatchCode}}\`
-- **Cantidad Inicial:** {{qtyInitial}} {{uom}}
-- **Stock Restante:** **{{qtyRemaining}} {{uom}}**
-- **Creado el:** {{formattedCreatedAt}}
-- **Caduca el:** {{formattedExpiryDate}}
+  <h3 style="margin-top: 25px;">1. Lote Principal</h3>
+  <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px;">
+    <tbody>
+      <tr style="background-color: #f9f9f9;"><td style="padding: 8px; border: 1px solid #eee; width: 150px;"><strong>Producto:</strong></td><td style="padding: 8px; border: 1px solid #eee;">{{productName}} (SKU: {{productSku}})</td></tr>
+      <tr><td style="padding: 8px; border: 1px solid #eee;"><strong>Lote Interno:</strong></td><td style="padding: 8px; border: 1px solid #eee;">{{internalBatchCode}}</td></tr>
+      <tr style="background-color: #f9f9f9;"><td style="padding: 8px; border: 1px solid #eee;"><strong>Lote Proveedor:</strong></td><td style="padding: 8px; border: 1px solid #eee;">{{supplierBatchCode}}</td></tr>
+      <tr><td style="padding: 8px; border: 1px solid #eee;"><strong>Cantidad Inicial:</strong></td><td style="padding: 8px; border: 1px solid #eee;">{{qtyInitial}} {{uom}}</td></tr>
+      <tr style="background-color: #f9f9f9;"><td style="padding: 8px; border: 1px solid #eee;"><strong>Stock Restante:</strong></td><td style="padding: 8px; border: 1px solid #eee;">{{qtyRemaining}} {{uom}}</td></tr>
+      <tr><td style="padding: 8px; border: 1px solid #eee;"><strong>Fecha de Creación:</strong></td><td style="padding: 8px; border: 1px solid #eee;">{{formattedCreatedAt}}</td></tr>
+      <tr style="background-color: #f9f9f9;"><td style="padding: 8px; border: 1px solid #eee;"><strong>Caducidad:</strong></td><td style="padding: 8px; border: 1px solid #eee;">{{formattedExpiryDate}}</td></tr>
+    </tbody>
+  </table>
 
----
+  <h3 style="margin-top: 25px;">2. Origen del Lote (Upstream)</h3>
+  {{#if reception}}
+  <p style="font-weight: bold;">Recepción de Proveedor:</p>
+  <ul style="list-style-type: disc; padding-left: 20px; font-size: 14px;">
+    <li><strong>Compra ID:</strong> {{reception.purchaseId}}</li>
+    <li><strong>Proveedor:</strong> {{reception.supplierName}}</li>
+    <li><strong>Fecha de Recepción:</strong> {{reception.date}}</li>
+  </ul>
+  {{/if}}
+  {{#if production}}
+  <p style="font-weight: bold;">Producción Interna:</p>
+  <ul style="list-style-type: disc; padding-left: 20px; font-size: 14px;">
+    <li><strong>Orden de Producción:</strong> {{production.runId}}</li>
+    <li><strong>Fecha de Producción:</strong> {{production.date}}</li>
+  </ul>
+  {{#if consumption.length}}
+  <h4 style="margin-top: 15px; margin-bottom: 5px;">Componentes Consumidos</h4>
+  <table style="width: 100%; border-collapse: collapse; border: 1px solid #ccc; font-size: 14px; margin-top: 10px;">
+    <thead style="background-color: #f5f5f5;">
+      <tr>
+        <th style="text-align: left; padding: 8px; border: 1px solid #ccc;">Ingrediente</th>
+        <th style="text-align: right; padding: 8px; border: 1px solid #ccc;">Cantidad</th>
+        <th style="text-align: left; padding: 8px; border: 1px solid #ccc;">Lote Proveedor</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each consumption}}
+      <tr>
+        <td style="padding: 8px; border: 1px solid #ccc;">{{this.componentName}}</td>
+        <td style="text-align: right; padding: 8px; border: 1px solid #ccc;">{{this.quantity}} {{this.uom}}</td>
+        <td style="padding: 8px; border: 1px solid #ccc;">{{this.supplierBatchCode}}</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+  <p style="text-align: right; font-size: 12px; margin-top: 5px;"><strong>Coste total de componentes:</strong> {{totalCostString}}</p>
+  {{else}}
+  <p style="font-size: 14px; color: #666;">No se registraron componentes consumidos para esta producción.</p>
+  {{/if}}
+  {{/if}}
+  {{#unless reception}}
+  {{#unless production}}
+  <p style="font-size: 14px; color: #666;">Origen del lote no especificado o es stock inicial.</p>
+  {{/unless}}
+  {{/unless}}
 
-## 🔍 Origen del lote (Upstream)
-{{#if production}}
-> Producido internamente en la **Orden de Producción** \`{{production.runId}}\` el {{production.date}}.
-{{else if reception}}
-> Recibido del proveedor **{{reception.supplierName}}** en la compra \`{{reception.purchaseId}}\` el {{reception.date}}.
-{{else}}
-> Origen del lote no especificado o es stock inicial.
-{{/if}}
-
-{{#if consumption}}
-**Componentes Consumidos:**
-{{#each consumption}}
-- **{{this.componentName}}**: {{this.quantity}} {{this.uom}} (Lote: \`{{this.supplierBatchCode}}\`)
-{{/each}}
-
-{{#if totalCostString}}
-*Coste total de componentes: **{{totalCostString}}***
-{{/if}}
-{{/if}}
-
----
-
-## 📦 Destino del lote (Downstream)
-{{#if sales.length}}
-**Ventas Registradas:**
-{{#each sales}}
-- **Venta a {{this.customerName}}** (Doc: \`{{this.saleId}}\`, Canal: {{this.channel}}): {{this.quantity}} {{../uom}} el {{this.date}}.
-{{/each}}
-
-*Total vendido: **{{totalOut}} {{../uom}}***
-{{else}}
-> Sin movimientos de salida (ventas) registrados para este lote.
-{{/if}}
-
----
-
-### 🖨️ Consejos de lectura
-- **Flechas temporales**: Arriba (Upstream) es de dónde viene. Abajo (Downstream) es a dónde fue.
-- **IDs**: Los identificadores como los de lotes o documentos son internos del sistema.
+  <h3 style="margin-top: 25px;">3. Destino del Lote (Downstream)</h3>
+  {{#if sales.length}}
+  <h4 style="margin-top: 15px; margin-bottom: 5px;">Ventas Registradas</h4>
+  <table style="width: 100%; border-collapse: collapse; border: 1px solid #ccc; font-size: 14px; margin-top: 10px;">
+    <thead>
+      <tr style="background-color: #f5f5f5;">
+        <th style="text-align: left; padding: 8px; border: 1px solid #ccc;">Documento de Venta</th>
+        <th style="text-align: left; padding: 8px; border: 1px solid #ccc;">Cliente</th>
+        <th style="text-align: left; padding: 8px; border: 1px solid #ccc;">Canal</th>
+        <th style="text-align: right; padding: 8px; border: 1px solid #ccc;">Cantidad</th>
+        <th style="text-align: left; padding: 8px; border: 1px solid #ccc;">Fecha</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each sales}}
+      <tr>
+        <td style="padding: 8px; border: 1px solid #ccc;">{{this.saleId}}</td>
+        <td style="padding: 8px; border: 1px solid #ccc;">{{this.customerName}}</td>
+        <td style="padding: 8px; border: 1px solid #ccc;">{{this.channel}}</td>
+        <td style="text-align: right; padding: 8px; border: 1px solid #ccc;">{{this.quantity}} {{../uom}}</td>
+        <td style="padding: 8px; border: 1px solid #ccc;">{{this.date}}</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+  <p style="font-size: 14px; margin-top: 10px;"><strong>Total vendido:</strong> {{totalOut}} {{uom}}</p>
+  {{else}}
+  <p style="font-size: 14px; color: #666;">No hay movimientos de salida (ventas) registrados para este lote.</p>
+  {{/if}}
+</div>
 `;
-
-const ReportDataSchema = z.object({
-    internalBatchCode: z.string(),
-    productName: z.string(),
-    productSku: z.string(),
-    qtyInitial: z.number(),
-    uom: z.string(),
-    formattedCreatedAt: z.string(),
-    formattedExpiryDate: z.string(),
-    supplierBatchCode: z.string(),
-    qtyRemaining: z.number(),
-    totalOut: z.number(),
-    reception: z.object({
-        purchaseId: z.string(),
-        supplierName: z.string(),
-        date: z.string(),
-    }).optional().nullable(),
-    production: z.object({
-        runId: z.string(),
-        date: z.string(),
-    }).optional().nullable(),
-    consumption: z.array(z.object({
-        componentName: z.string(),
-        quantity: z.number(),
-        uom: z.string(),
-        supplierBatchCode: z.string(),
-    })).optional(),
-    sales: z.array(z.object({
-        date: z.string(),
-        customerName: z.string(),
-        saleId: z.string(),
-        channel: z.string(),
-        quantity: z.number(),
-    })),
-    totalCostString: z.string().optional(),
-});
 
 
 async function getBatchDetails(batchIdOrCode: string): Promise<ItemBatch | null> {
@@ -174,7 +178,7 @@ const traceabilityFlow = ai.defineFlow(
     outputSchema: TraceabilityReportOutputSchema,
   },
   async (input) => {
-    // --- PHASE 1 & 2: DATA FETCHING & PREPARATION ---
+    // --- DATA FETCHING & PREPARATION ---
     const batchDetails = await getBatchDetails(input.batchId);
     if (!batchDetails) throw new Error(`No se encontró ningún lote con el identificador: "${input.batchId}"`);
     
@@ -188,6 +192,7 @@ const traceabilityFlow = ai.defineFlow(
     const downstreamTxns = allTxnsForBatch.filter(txn => (txn.qtyDelta || 0) < 0);
     const totalOut = downstreamTxns.reduce((sum, txn) => sum + Math.abs(txn.qtyDelta || 0), 0);
     
+    // Read related documents
     const refsToRead = new Map<string, DocumentReference<DocumentData>>();
     if (originTxn?.refId && originTxn.refCollection) {
         refsToRead.set(`origin_${originTxn.refId}`, doc(db, originTxn.refCollection, originTxn.refId));
@@ -204,26 +209,35 @@ const traceabilityFlow = ai.defineFlow(
     const docsMap = new Map<string, DocumentSnapshot>();
     Array.from(refsToRead.keys()).forEach((key, index) => docsMap.set(key, docsRead[index]));
 
-    // --- PHASE 3: PREPARE DATA FOR PROMPT ---
-
-    let receptionData: z.infer<typeof ReportDataSchema>['reception'] = null;
-    let productionData: z.infer<typeof ReportDataSchema>['production'] = null;
-    let consumptionData: z.infer<typeof ReportDataSchema>['consumption'] = [];
-    let totalCostString = '';
-
+    // --- PREPARE DATA FOR TEMPLATE ---
+    
+    const promptData: any = {
+      internalBatchCode: batchDetails.internalBatchCode || 'N/A',
+      productName: itemDetails.name || 'Producto Desconocido',
+      productSku: itemDetails.sku || '—',
+      qtyInitial: batchDetails.qtyInitial || 0,
+      uom: itemDetails.uom || 'unit',
+      formattedCreatedAt: formatDDMMYYYY(batchDetails.createdAt),
+      formattedExpiryDate: formatDDMMYYYY(batchDetails.expiryDate),
+      supplierBatchCode: batchDetails.supplierBatchCode || '—',
+      qtyRemaining: batchDetails.qtyRemaining || 0,
+      totalOut,
+    };
+    
+    // Origin data
     if (originTxn?.refId && originTxn.refCollection) {
         const originDoc = docsMap.get(`origin_${originTxn.refId}`);
-        if(originDoc && originDoc.exists()){
+        if (originDoc && originDoc.exists()){
             const originDocData = originDoc.data();
             if (originTxn.txnType === 'recepcion' && originDocData) {
-                receptionData = {
+                promptData.reception = {
                     purchaseId: originTxn.refId,
                     supplierName: originDocData.supplier || 'Proveedor Desconocido',
                     date: formatDDMMYYYY(originTxn.date.toDate()),
                 };
             } else if (originTxn.txnType === 'produccion' && originDocData) {
                  const runData = originDocData as ProductionRun;
-                 productionData = {
+                 promptData.production = {
                     runId: originTxn.refId,
                     date: formatDDMMYYYY(originTxn.date.toDate()),
                 };
@@ -232,24 +246,26 @@ const traceabilityFlow = ai.defineFlow(
                    const componentItems = await Promise.all(
                      runData.consumedComponents.map(c => getInventoryItem(c.componentId))
                    );
-                   consumptionData = runData.consumedComponents.map((c, i) => ({
+                   promptData.consumption = runData.consumedComponents.map((c, i) => ({
                       componentName: c.componentName || 'Componente Desconocido',
                       quantity: c.quantity || 0,
                       uom: componentItems[i]?.uom || 'unit',
-                      supplierBatchCode: c.supplierBatchCode || c.batchId,
+                      supplierBatchCode: c.supplierBatchCode || c.batchId || 'N/A',
                    }));
 
                    const totalCost = (runData.consumedComponents || []).reduce((sum, comp) => {
-                      const unitCost = (comp as any).unitCost || 0; // The type is missing this field
-                      return sum + (comp.quantity * unitCost);
+                      const componentCost = ((comp as any).unitCost || 0) * (comp.quantity || 0);
+                      return sum + componentCost;
                    }, 0);
-                   if (totalCost > 0) totalCostString = `**${totalCost.toFixed(2)} €**`;
+
+                   promptData.totalCostString = totalCost > 0 ? `${totalCost.toFixed(2)} €` : 'N/D';
                 }
             }
         }
     }
     
-    const salesData: z.infer<typeof ReportDataSchema>['sales'] = [];
+    // Destination data
+    const salesData = [];
     if (downstreamTxns.length > 0) {
         for (const txn of downstreamTxns) {
             if (!txn.refId || txn.txnType !== 'venta') continue;
@@ -266,52 +282,13 @@ const traceabilityFlow = ai.defineFlow(
             }
         }
     }
+    promptData.sales = salesData;
     
-    const basePromptData = {
-      internalBatchCode: batchDetails.internalBatchCode || 'N/A',
-      productName: itemDetails.name || 'Producto Desconocido',
-      productSku: itemDetails.sku || '—',
-      qtyInitial: batchDetails.qtyInitial || 0,
-      uom: itemDetails.uom || 'unit',
-      formattedCreatedAt: formatDDMMYYYY(batchDetails.createdAt),
-      formattedExpiryDate: formatDDMMYYYY(batchDetails.expiryDate),
-      supplierBatchCode: batchDetails.supplierBatchCode || '—',
-      qtyRemaining: batchDetails.qtyRemaining || 0,
-      totalOut,
-    };
-
-    const promptData: z.infer<typeof ReportDataSchema> = {
-      ...basePromptData,
-      reception: receptionData,
-      production: productionData,
-      consumption: consumptionData,
-      sales: salesData,
-      totalCostString: totalCostString,
-    };
+    // --- RENDER TEMPLATE ---
+    const compiledPromptTemplate = Handlebars.compile(reportGenerationPromptTemplateHtml);
+    const finalHtmlString = compiledPromptTemplate(promptData);
     
-    // --- PHASE 4: GENERATE REPORT ---
-    // Manually compile the prompt with Handlebars and then pass it to the AI.
-    const compiledPromptTemplate = Handlebars.compile(reportGenerationPromptTemplate);
-    const finalPromptString = compiledPromptTemplate(promptData);
-    
-    const result = await ai.generate({
-      messages: [
-        {
-          role: "user",
-          content: [
-            { text: finalPromptString }
-          ]
-        }
-      ],
-      output: {
-        schema: TraceabilityReportOutputSchema
-      }
-    });
-
-    const output = result.output;
-    if (!output?.markdown) throw new Error("AI failed to format the final report.");
-    
-    return { markdown: output.markdown };
+    return { html: finalHtmlString };
   }
 );
 
@@ -320,3 +297,4 @@ export async function getTraceabilityReport(input: TraceabilityReportInput): Pro
     const result = await traceabilityFlow(input);
     return result;
 }
+

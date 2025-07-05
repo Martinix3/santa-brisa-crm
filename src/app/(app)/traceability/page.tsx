@@ -8,12 +8,11 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Waypoints, Loader2, Search } from 'lucide-react';
 import { getTraceabilityReport, type TraceabilityReportInput, type TraceabilityReportOutput } from '@/ai/flows/traceability-report-flow';
-import Markdown from 'react-markdown';
 
 export default function TraceabilityPage() {
   const { toast } = useToast();
   const [batchId, setBatchId] = React.useState('');
-  const [report, setReport] = React.useState('');
+  const [reportHtml, setReportHtml] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
 
   const handleSearch = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -28,20 +27,20 @@ export default function TraceabilityPage() {
     }
 
     setIsLoading(true);
-    setReport(''); 
+    setReportHtml(''); 
 
     try {
       const input: TraceabilityReportInput = { batchId: batchId.trim() };
       const result: TraceabilityReportOutput = await getTraceabilityReport(input);
-      setReport(result.markdown);
+      setReportHtml(result.html);
     } catch (error: any) {
-      console.error('Error al contactar al asistente de trazabilidad:', error);
+      console.error('Error al generar el informe de trazabilidad:', error);
       toast({
         title: 'Error de Trazabilidad',
         description: `No se pudo obtener el informe: ${error.message}`,
         variant: 'destructive',
       });
-      setReport(`Hubo un error al generar el informe: ${error.message}`);
+      setReportHtml(`<div class="text-red-500">Hubo un error al generar el informe: ${error.message}</div>`);
     } finally {
       setIsLoading(false);
     }
@@ -90,15 +89,13 @@ export default function TraceabilityPage() {
         </CardContent>
       </Card>
 
-      {report && (
-        <Card className="shadow-subtle bg-secondary/30">
-          <CardHeader>
-            <CardTitle className="text-lg">Informe de Trazabilidad</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <article className="prose prose-sm dark:prose-invert max-w-none">
-                <Markdown>{report}</Markdown>
-            </article>
+      {reportHtml && (
+        <Card className="shadow-subtle bg-background">
+          <CardContent className="pt-6">
+            <div
+                className="report-container"
+                dangerouslySetInnerHTML={{ __html: reportHtml }}
+            />
           </CardContent>
         </Card>
       )}

@@ -166,13 +166,16 @@ const traceabilityFlow = ai.defineFlow(
         batchDetails: { ...batchDetails, createdAt: new Date(batchDetails.createdAt).toLocaleDateString('es-ES') },
         itemDetails: itemDetails,
     };
+    
+    // 2. Fetch ALL transactions for this batch in one go to avoid composite indexes.
+    const allTxnsQuery = query(collection(db, 'stockTxns'), where('batchId', '==', batchDetails.id));
+    const allTxnsSnapshot = await getDocs(allTxnsQuery);
+    const allTxnsForBatch = allTxnsSnapshot.docs.map(doc => doc.data() as StockTxn);
 
-    // 2. Trace UPWARDS (how was this batch created?)
-    const originTxnQuery = query(collection(db, 'stockTxns'), where('batchId', '==', batchDetails.id), where('qtyDelta', '>', 0), limit(1));
-    const originTxnSnapshot = await getDocs(originTxnQuery);
+    // 3. Trace UPWARDS (how was this batch created?)
+    const originTxn = allTxnsForBatch.find(txn => (txn.qtyDelta || 0) > 0);
 
-    if (!originTxnSnapshot.empty) {
-        const originTxn = originTxnSnapshot.docs[0].data() as StockTxn;
+    if (originTxn) {
         if (originTxn.txnType === 'recepcion' && originTxn.refId) {
             const purchaseRef = doc(db, 'purchases', originTxn.refId);
             const purchaseSnap = await getDoc(purchaseRef);
@@ -197,20 +200,14 @@ const traceabilityFlow = ai.defineFlow(
         }
     }
 
-    // 3. Trace DOWNWARDS (what happened to this batch?)
-    // The old query required a composite index. By fetching all transactions for the batch and filtering in-memory, we avoid this requirement.
-    const downstreamTxnsQuery = query(collection(db, 'stockTxns'), where('batchId', '==', batchDetails.id));
-    const downstreamTxnsSnapshot = await getDocs(downstreamTxnsQuery);
-    
-    // Filter for consumption/sale transactions (negative delta) after fetching.
-    const downstreamTxns = downstreamTxnsSnapshot.docs.filter(doc => (doc.data().qtyDelta || 0) < 0);
+    // 4. Trace DOWNWARDS (what happened to this batch?)
+    const downstreamTxns = allTxnsForBatch.filter(txn => (txn.qtyDelta || 0) < 0);
     
     if (downstreamTxns.length > 0) {
         reportData.consumption = [];
         reportData.sales = [];
 
-        for (const txnDoc of downstreamTxns) {
-            const txn = txnDoc.data() as StockTxn;
+        for (const txn of downstreamTxns) {
             if (txn.txnType === 'consumo' && txn.refId) {
                 const runRef = doc(db, 'productionRuns', txn.refId);
                 const runSnap = await getDoc(runRef);
@@ -240,7 +237,7 @@ const traceabilityFlow = ai.defineFlow(
         }
     }
 
-    // 4. Pass the complete dataset to the AI for formatting.
+    // 5. Pass the complete dataset to the AI for formatting.
     const { output } = await reportGenerationPrompt(reportData);
     if (!output) throw new Error("AI failed to format the final report.");
     return output;

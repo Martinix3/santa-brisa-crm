@@ -28,71 +28,21 @@ const TraceabilityReportOutputSchema = z.object({
 });
 export type TraceabilityReportOutput = z.infer<typeof TraceabilityReportOutputSchema>;
 
+// Helper to format dates consistently, with a fallback for invalid ones.
+const formatDDMMYYYY = (date: Date | string | null | undefined): string => {
+    if (!date) return '_N/D_';
+    const d = typeof date === 'string' ? parseISO(date) : date;
+    if (!isValid(d)) return '_N/D_';
+    return format(d, 'dd-MM-yyyy');
+};
 
-async function getBatchDetails(batchIdOrCode: string): Promise<ItemBatch | null> {
-    if (!batchIdOrCode) return null;
-
-    const batchRef = doc(db, 'itemBatches', batchIdOrCode);
-    const batchSnap = await getDoc(batchRef);
-    if (batchSnap.exists()) {
-        return fromFirestoreItemBatch(batchSnap);
-    }
-
-    const q = query(collection(db, 'itemBatches'), where('internalBatchCode', '==', batchIdOrCode), limit(1));
-    const querySnapshot = await getDocs(q);
-
-    if (!querySnapshot.empty) {
-        const doc = querySnapshot.docs[0];
-        return fromFirestoreItemBatch(doc);
-    }
-    
-    // Fallback for supplier batch code
-    const qSupplier = query(collection(db, 'itemBatches'), where('supplierBatchCode', '==', batchIdOrCode), limit(1));
-    const querySnapshotSupplier = await getDocs(qSupplier);
-
-    if (!querySnapshotSupplier.empty) {
-        const doc = querySnapshotSupplier.docs[0];
-        return fromFirestoreItemBatch(doc);
-    }
-
-    return null;
-}
-
-async function getInventoryItem(itemId: string): Promise<InventoryItem | null> {
-    if (!itemId) return null;
-    const itemRef = doc(db, 'inventoryItems', itemId);
-    const itemSnap = await getDoc(itemRef);
-    if (!itemSnap.exists()) return null;
-
-    const data = itemSnap.data();
-    return {
-        id: itemSnap.id,
-        name: data.name,
-        sku: data.sku,
-        uom: data.uom || 'unit',
-    } as InventoryItem;
-}
-
-const ReportDataSchema = z.object({
-    internalBatchCode: z.string(),
-    productName: z.string(),
-    productSku: z.string(),
-    qtyInitial: z.number(),
-    uom: z.string(),
-    formattedCreatedAt: z.string(),
-    formattedExpiryDate: z.string(),
-    supplierBatchCode: z.string(),
-    qtyRemaining: z.number(),
-    totalOut: z.number(),
-    reception: z.any().optional(),
-    production: z.any().optional(),
-    consumption: z.array(z.any()),
-    sales: z.array(z.any()),
+// Register a Handlebars helper to add 1 to the index for user-friendly numbering.
+Handlebars.registerHelper('add', function(a, b) {
+  return a + b;
 });
 
-const traceabilityPromptTemplate = `You are an expert in supply chain traceability for Santa Brisa. Your task is to generate a detailed, clear, and professional traceability report in Markdown format using ONLY the JSON data provided.
 
-# 🧾 Informe de Trazabilidad  
+const traceabilityPromptTemplate = `# 🧾 Informe de Trazabilidad  
 **Lote interno:** \`{{{internalBatchCode}}}\`  
 **Producto:** {{{productName}}} — **SKU:** \`{{{productSku}}}\`
 
@@ -119,7 +69,7 @@ const traceabilityPromptTemplate = `You are an expert in supply chain traceabili
 | # | Componente | Cant. | UoM | Lote Consumido |
 |---|---|---:|---|---|
 {{#each consumption}}
-| {{@index}} | {{{this.componentName}}} | {{{this.quantity}}} | {{{this.uom}}} | \`{{{this.supplierBatchCode}}}\` |
+| {{add @index 1}} | {{{this.componentName}}} | {{{this.quantity}}} | {{{this.uom}}} | \`{{{this.supplierBatchCode}}}\` |
 {{/each}}
 {{#if production.totalCostString}}
 
@@ -137,7 +87,7 @@ _Coste total de componentes: **{{{production.totalCostString}}}**._
 | {{{this.date}}} | **{{{this.customerName}}}** | Venta directa \`{{{this.saleId}}}\` | {{{this.channel}}} | {{{this.quantity}}} |
 {{/each}}
 {{else}}
-Sin movimientos de salida registrados.
+> Sin movimientos de salida registrados.
 {{/if}}
 
 _Total vendido: **{{{totalOut}}} {{{uom}}}** · Stock restante: **{{{qtyRemaining}}}**_
@@ -151,14 +101,49 @@ _Total vendido: **{{{totalOut}}} {{{uom}}}** · Stock restante: **{{{qtyRemainin
 `;
 
 
-const reportGenerationPrompt = ai.definePrompt({
-  name: 'reportGenerationPrompt',
-  input: { schema: ReportDataSchema },
-  output: { schema: TraceabilityReportOutputSchema },
-  prompt: traceabilityPromptTemplate,
-});
+async function getBatchDetails(batchIdOrCode: string): Promise<ItemBatch | null> {
+    if (!batchIdOrCode) return null;
 
-// The main orchestration flow
+    const batchRef = doc(db, 'itemBatches', batchIdOrCode);
+    const batchSnap = await getDoc(batchRef);
+    if (batchSnap.exists()) {
+        return fromFirestoreItemBatch(batchSnap);
+    }
+
+    const q = query(collection(db, 'itemBatches'), where('internalBatchCode', '==', batchIdOrCode), limit(1));
+    const querySnapshot = await getDocs(q);
+
+    if (!querySnapshot.empty) {
+        const doc = querySnapshot.docs[0];
+        return fromFirestoreItemBatch(doc);
+    }
+    
+    const qSupplier = query(collection(db, 'itemBatches'), where('supplierBatchCode', '==', batchIdOrCode), limit(1));
+    const querySnapshotSupplier = await getDocs(qSupplier);
+
+    if (!querySnapshotSupplier.empty) {
+        const doc = querySnapshotSupplier.docs[0];
+        return fromFirestoreItemBatch(doc);
+    }
+
+    return null;
+}
+
+async function getInventoryItem(itemId: string): Promise<InventoryItem | null> {
+    if (!itemId) return null;
+    const itemRef = doc(db, 'inventoryItems', itemId);
+    const itemSnap = await getDoc(itemRef);
+    if (!itemSnap.exists()) return null;
+
+    const data = itemSnap.data();
+    return {
+        id: itemSnap.id,
+        name: data.name,
+        sku: data.sku,
+        uom: data.uom || 'unit',
+    } as InventoryItem;
+}
+
 const traceabilityFlow = ai.defineFlow(
   {
     name: 'traceabilityFlow',
@@ -166,7 +151,7 @@ const traceabilityFlow = ai.defineFlow(
     outputSchema: TraceabilityReportOutputSchema,
   },
   async (input) => {
-    // --- PHASE 1 & 2: DATA FETCHING & TRANSACTIONAL READ PREP ---
+    // --- PHASE 1 & 2: DATA FETCHING & PREPARATION ---
     const batchDetails = await getBatchDetails(input.batchId);
     if (!batchDetails) throw new Error(`No se encontró ningún lote con el identificador: "${input.batchId}"`);
     
@@ -195,32 +180,12 @@ const traceabilityFlow = ai.defineFlow(
     const docsMap = new Map<string, DocumentSnapshot>();
     Array.from(refsToRead.keys()).forEach((key, index) => docsMap.set(key, docsRead[index]));
 
-    // --- PHASE 3: PREPARE DATA FOR PROMPT ---
-    const formatDDMMYYYY = (date: Date | string | null | undefined): string => {
-        if (!date) return '_N/D_';
-        const d = typeof date === 'string' ? parseISO(date) : date;
-        if (!isValid(d)) return '_N/D_';
-        return format(d, 'dd-MM-yyyy');
-    };
+    // --- PHASE 3: PREPARE DATA FOR PROMPT (with safe fallbacks) ---
     
     const totalOut = downstreamTxns.reduce((sum, txn) => sum + Math.abs(txn.qtyDelta || 0), 0);
     
-    const basePromptData = {
-        internalBatchCode: batchDetails.internalBatchCode || 'N/A',
-        productName: itemDetails.name || 'Producto Desconocido',
-        productSku: itemDetails.sku || '—',
-        qtyInitial: batchDetails.qtyInitial || 0,
-        uom: itemDetails.uom || 'unit',
-        formattedCreatedAt: formatDDMMYYYY(batchDetails.createdAt),
-        formattedExpiryDate: formatDDMMYYYY(batchDetails.expiryDate),
-        supplierBatchCode: batchDetails.supplierBatchCode || '—',
-        qtyRemaining: batchDetails.qtyRemaining || 0,
-        totalOut,
-    };
-    
     let receptionData: any = null;
     let productionData: any = null;
-    let consumptionData: any[] = [];
 
     if (originTxn && originTxn.refId) {
         const originDoc = docsMap.get(`origin_${originTxn.refId}`);
@@ -234,26 +199,33 @@ const traceabilityFlow = ai.defineFlow(
                 };
             } else if (originTxn.txnType === 'produccion') {
                 const runData = originDocData as ProductionRun;
-                const totalCost = (runData.consumedComponents || []).reduce((sum, comp) => sum + (comp.quantity * (comp.unitCost || 0)), 0);
+                const totalCost = (runData.consumedComponents || []).reduce((sum, comp) => {
+                  const unitCost = comp.unitCost || 0; // Ensure unitCost is a number
+                  return sum + (comp.quantity * unitCost);
+                }, 0);
 
                 productionData = {
                     runId: originTxn.refId || 'N/A',
                     date: formatDDMMYYYY(originTxn.date.toDate()),
                     totalCostString: totalCost > 0 ? `${totalCost.toFixed(2)} €` : '',
+                    components: runData.consumedComponents || []
                 };
-
-                const consumptionWithUomPromises = (runData.consumedComponents || []).map(async (c) => {
-                    const compItem = await getInventoryItem(c.componentId);
-                    return {
-                        componentName: c.componentName || 'Componente Desconocido',
-                        quantity: c.quantity || 0,
-                        uom: compItem?.uom || 'unit',
-                        supplierBatchCode: c.supplierBatchCode || 'N/A',
-                    }
-                });
-                consumptionData = await Promise.all(consumptionWithUomPromises);
             }
         }
+    }
+    
+    let consumptionData: any[] = [];
+    if (productionData?.components?.length > 0) {
+        const consumptionWithUomPromises = productionData.components.map(async (c: any) => {
+            const compItem = await getInventoryItem(c.componentId);
+            return {
+                componentName: c.componentName || 'Componente Desconocido',
+                quantity: c.quantity || 0,
+                uom: compItem?.uom || 'unit',
+                supplierBatchCode: c.supplierBatchCode || 'N/A',
+            }
+        });
+        consumptionData = await Promise.all(consumptionWithUomPromises);
     }
     
     const salesData: any[] = [];
@@ -275,7 +247,16 @@ const traceabilityFlow = ai.defineFlow(
     }
     
     const promptData = {
-      ...basePromptData,
+      internalBatchCode: batchDetails.internalBatchCode || 'N/A',
+      productName: itemDetails.name || 'Producto Desconocido',
+      productSku: itemDetails.sku || '—',
+      qtyInitial: batchDetails.qtyInitial || 0,
+      uom: itemDetails.uom || 'unit',
+      formattedCreatedAt: formatDDMMYYYY(batchDetails.createdAt),
+      formattedExpiryDate: formatDDMMYYYY(batchDetails.expiryDate),
+      supplierBatchCode: batchDetails.supplierBatchCode || '—',
+      qtyRemaining: batchDetails.qtyRemaining || 0,
+      totalOut,
       reception: receptionData,
       production: productionData,
       consumption: consumptionData,
@@ -283,7 +264,6 @@ const traceabilityFlow = ai.defineFlow(
     };
     
     // --- PHASE 4: GENERATE REPORT ---
-    // Correct way to invoke the prompt
     const compiledPromptTemplate = Handlebars.compile(traceabilityPromptTemplate);
     const finalPromptString = compiledPromptTemplate(promptData);
     
@@ -302,7 +282,7 @@ const traceabilityFlow = ai.defineFlow(
     });
 
     const output = result.output;
-    if (!output) throw new Error("AI failed to format the final report.");
+    if (!output?.markdown) throw new Error("AI failed to format the final report.");
     
     return { markdown: output.markdown };
   }

@@ -62,12 +62,13 @@ export async function planBatchConsumption(
     collection(db, BATCHES_COLLECTION),
     where("inventoryItemId", "==", inventoryItemId),
     where("isClosed", "==", false),
-    where("qtyRemaining", ">", 0),
     orderBy(strategy === 'FEFO' ? 'expiryDate' : 'createdAt', 'asc')
   );
 
   const snapshot = await getDocs(batchesQuery);
-  const availableBatches = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ItemBatch));
+  const availableBatches = snapshot.docs
+    .map(doc => ({ id: doc.id, ...doc.data() } as ItemBatch))
+    .filter(batch => batch.qtyRemaining > 0); // Filter in code to avoid composite index
 
   let remainingToConsume = quantityToConsume;
   const consumptionPlan: { batchId: string; quantity: number; batchData: ItemBatch }[] = [];

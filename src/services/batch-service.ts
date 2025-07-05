@@ -14,12 +14,10 @@ export const createItemBatchTransactional = async (
     purchaseData: { purchaseId: string, supplierBatchCode?: string, quantity: number, unitCost: number, locationId?: string, expiryDate?: Date }
 ): Promise<string> => {
     const newBatchRef = doc(collection(db, BATCHES_COLLECTION));
-    // Corrected, safer internalBatchCode generation
     const skuPart = (item.sku ?? 'NA').substring(0,4).toUpperCase();
     const internalBatchCode = `B${format(new Date(), 'yyMMdd')}-${skuPart}-${newBatchRef.id.slice(0,4).toUpperCase()}`;
 
 
-    // Build the core object with required fields
     const newBatchData: {[key: string]: any} = {
         id: newBatchRef.id,
         inventoryItemId: item.id,
@@ -32,7 +30,6 @@ export const createItemBatchTransactional = async (
         createdAt: Timestamp.now(),
     };
 
-    // Conditionally add optional fields to avoid passing `undefined`
     if (purchaseData.supplierBatchCode) {
         newBatchData.supplierBatchCode = purchaseData.supplierBatchCode;
     }
@@ -53,15 +50,16 @@ export const createItemBatchTransactional = async (
  * This function reads data but does NOT perform writes. It should be called OUTSIDE a transaction.
  * @param inventoryItemId The ID of the item to consume.
  * @param quantityToConsume The total quantity needed.
+ * @param inventoryItemName Optional name of the item for better error messages.
  * @param strategy The consumption strategy (FIFO or FEFO).
  * @returns An array of objects, each specifying a batch ID and the quantity to consume from it.
  */
 export async function planBatchConsumption(
   inventoryItemId: string,
   quantityToConsume: number,
+  inventoryItemName?: string,
   strategy: 'FIFO' | 'FEFO' = 'FIFO'
 ): Promise<{ batchId: string; quantity: number; batchData: ItemBatch }[]> {
-  // Corrected query with isClosed filter - Requires a composite index in Firestore
   const batchesQuery = query(
     collection(db, BATCHES_COLLECTION),
     where("inventoryItemId", "==", inventoryItemId),
@@ -71,7 +69,8 @@ export async function planBatchConsumption(
 
   const snapshot = await getDocs(batchesQuery);
   const availableBatches = snapshot.docs
-    .map(doc => ({ id: doc.id, ...doc.data() } as ItemBatch));
+    .map(doc => ({ id: doc.id, ...doc.data() } as ItemBatch))
+    .filter(batch => batch.qtyRemaining > 0);
 
   let remainingToConsume = quantityToConsume;
   const consumptionPlan: { batchId: string; quantity: number; batchData: ItemBatch }[] = [];
@@ -86,7 +85,8 @@ export async function planBatchConsumption(
   }
 
   if (remainingToConsume > 0) {
-    throw new Error(`Stock insuficiente para el artículo ${inventoryItemId}. Se necesitan ${quantityToConsume}, pero solo hay ${totalAvailable} disponibles.`);
+    const userFriendlyName = inventoryItemName || inventoryItemId;
+    throw new Error(`Stock insuficiente para el artículo "${userFriendlyName}". Se necesitan ${quantityToConsume}, pero solo hay ${totalAvailable} disponibles.`);
   }
 
   return consumptionPlan;

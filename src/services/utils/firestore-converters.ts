@@ -42,7 +42,7 @@ export const fromFirestorePurchase = (docSnap: DocumentSnapshot): Purchase => {
   };
 };
 
-export const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean, supplierId?: string): PurchaseFirestorePayload => {
+export const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean, supplierId?: string | null): PurchaseFirestorePayload => {
   const subtotal = data.items?.reduce((sum, item) => sum + (item.quantity || 0) * (item.unitPrice || 0), 0) || 0;
   const shippingCost = data.shippingCost || 0;
   const subtotalWithShipping = subtotal + shippingCost;
@@ -76,11 +76,11 @@ export const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: bo
     invoiceContentType: data.invoiceContentType || null,
     storagePath: data.storagePath || null,
     updatedAt: Timestamp.fromDate(new Date()),
-    batchesSeeded: data.status === 'Factura Recibida', // Set initial seeded status
   };
   
   if (isNew) {
     firestoreData.createdAt = Timestamp.fromDate(new Date());
+    firestoreData.batchesSeeded = false;
   }
 
   return firestoreData;

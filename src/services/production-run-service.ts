@@ -72,7 +72,7 @@ export const closeProductionRunFS = async (runId: string, qtyProduced: number) =
 
     // Plan consumption for all components outside the transaction
     const consumptionPlans = await Promise.all(
-        bomLines.map(line => planBatchConsumption(line.componentId, line.quantity * qtyProduced))
+        bomLines.map(line => planBatchConsumption(line.componentId, line.quantity * qtyProduced, line.componentName, 'FIFO'))
     );
     
     // --- TRANSACTION START ---
@@ -106,16 +106,14 @@ export const closeProductionRunFS = async (runId: string, qtyProduced: number) =
 
                 const batchData = batchDoc.data() as ItemBatch;
 
-                // CONCURRENCY CHECK: ensure the stock hasn't changed since we planned
                 if (batchData.qtyRemaining < plan.quantity) {
-                    throw new Error(`El stock para el lote ${plan.batchId} ha cambiado. La operación se reintentará.`);
+                    throw new Error(`El stock para el lote ${plan.batchId} (${line.componentName}) ha cambiado. La operación se reintentará.`);
                 }
                 
                 const newQtyRemaining = batchData.qtyRemaining - plan.quantity;
                 totalConsumedCost += plan.quantity * batchData.unitCost;
                 totalStockForComponent -= plan.quantity;
 
-                // Queue writes
                 transaction.update(batchRef, { qtyRemaining: newQtyRemaining, isClosed: newQtyRemaining <= 0 });
                 
                 consumedComponentsSnapshot.push({ componentId: line.componentId, batchId: plan.batchId, componentName: line.componentName, componentSku: line.componentSku, quantity: plan.quantity });
@@ -128,7 +126,7 @@ export const closeProductionRunFS = async (runId: string, qtyProduced: number) =
         const newFinishedStock = (finishedGoodData.stock || 0) + qtyProduced;
         
         // --- PHASE 4: TRANSACTIONAL WRITES ---
-        const outputBatchId = await createItemBatchTransactional(transaction, finishedGoodData, { purchaseId: runId, quantity: qtyProduced, unitCost: newUnitCost });
+        const outputBatchId = await createItemBatchTransactional(transaction, finishedGoodData, { purchaseId: runId, quantity: qtyProduced, unitCost: newUnitCost, locationId: 'produccion' });
 
         await addStockTxnFSTransactional(transaction, { inventoryItemId: finishedGoodRef.id, batchId: outputBatchId, qtyDelta: qtyProduced, newStock: newFinishedStock, unitCost: newUnitCost, refCollection: 'productionRuns', refId: runId, txnType: 'produccion', notes: `Producción de ${runData.productName}` });
         await addProductCostSnapshotFSTransactional(transaction, { inventoryItemId: finishedGoodRef.id, unitCost: newUnitCost, productionRunId: runId });

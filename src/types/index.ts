@@ -511,7 +511,7 @@ export interface PurchaseFirestorePayload {
   storagePath: string | null;
   createdAt?: Timestamp;
   updatedAt: Timestamp;
-  batchesSeeded: boolean;
+  batchesSeeded?: boolean;
 }
 
 

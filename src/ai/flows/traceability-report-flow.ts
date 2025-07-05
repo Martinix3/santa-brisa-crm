@@ -10,7 +10,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { collection, query, where, getDocs, doc, getDoc, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, limit, type DocumentReference, type DocumentData, type DocumentSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { ItemBatch, StockTxn, ProductionRun, DirectSale, InventoryItem } from '@/types';
 import { fromFirestoreItemBatch } from '@/services/utils/firestore-converters';
@@ -151,6 +151,7 @@ const traceabilityFlow = ai.defineFlow(
     
     const totalOut = downstreamTxns.reduce((sum, txn) => sum + Math.abs(txn.qtyDelta || 0), 0);
     
+    // Explicitly define all fields to avoid 'undefined' properties.
     const promptData: z.infer<typeof ReportDataSchema> = {
         internalBatchCode: batchDetails.internalBatchCode,
         productName: itemDetails.name,
@@ -162,6 +163,10 @@ const traceabilityFlow = ai.defineFlow(
         supplierBatchCode: batchDetails.supplierBatchCode || '—',
         qtyRemaining: batchDetails.qtyRemaining,
         totalOut,
+        reception: undefined,
+        production: undefined,
+        consumption: [],
+        sales: []
     };
 
     if (originTxn) {
@@ -202,6 +207,7 @@ const traceabilityFlow = ai.defineFlow(
     const consumptionData: any[] = [];
     const salesData: any[] = [];
     for (const txn of downstreamTxns) {
+        if (!txn.refId || !txn.refCollection) continue;
         const docSnap = docsMap.get(`${txn.txnType}_${txn.refId}`);
         if (docSnap && docSnap.exists()) {
             if (txn.txnType === 'consumo') {

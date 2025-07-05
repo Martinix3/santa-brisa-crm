@@ -14,30 +14,29 @@ import { collection, query, where, getDocs, doc, getDoc, limit } from 'firebase/
 import { db } from '@/lib/firebase';
 import type { ItemBatch, StockTxn, ProductionRun, DirectSale, InventoryItem } from '@/types';
 import { fromFirestoreItemBatch } from '@/services/utils/firestore-converters';
+import { format, parseISO, isValid } from 'date-fns';
 
-// Zod schemas remain local to the file
+
 const TraceabilityReportInputSchema = z.object({
   batchId: z.string().describe('The document ID or internal batch code of the batch to trace.'),
 });
 export type TraceabilityReportInput = z.infer<typeof TraceabilityReportInputSchema>;
 
 const TraceabilityReportOutputSchema = z.object({
-  report: z.string().describe('The full traceability report in Markdown format.'),
+  markdown: z.string().describe('The full traceability report in Markdown format.'),
 });
 export type TraceabilityReportOutput = z.infer<typeof TraceabilityReportOutputSchema>;
 
-// Helper function to fetch batch details by either ID or internal code
+
 async function getBatchDetails(batchIdOrCode: string): Promise<ItemBatch | null> {
     if (!batchIdOrCode) return null;
 
-    // First, try to get by document ID
     const batchRef = doc(db, 'itemBatches', batchIdOrCode);
     const batchSnap = await getDoc(batchRef);
     if (batchSnap.exists()) {
         return fromFirestoreItemBatch(batchSnap);
     }
 
-    // If not found by ID, query by internalBatchCode
     const q = query(collection(db, 'itemBatches'), where('internalBatchCode', '==', batchIdOrCode), limit(1));
     const querySnapshot = await getDocs(q);
 
@@ -49,7 +48,6 @@ async function getBatchDetails(batchIdOrCode: string): Promise<ItemBatch | null>
     return null;
 }
 
-// Helper function to fetch inventory item details
 async function getInventoryItem(itemId: string): Promise<InventoryItem | null> {
     if (!itemId) return null;
     const itemRef = doc(db, 'inventoryItems', itemId);
@@ -61,82 +59,52 @@ async function getInventoryItem(itemId: string): Promise<InventoryItem | null> {
         id: itemSnap.id,
         name: data.name,
         sku: data.sku,
+        uom: data.uom || 'unit',
     } as InventoryItem;
 }
 
-// The data schema for the AI prompt
 const ReportDataSchema = z.object({
-  batchId: z.string(),
-  batchDetails: z.any().optional(),
-  itemDetails: z.any().optional(),
-  reception: z.any().optional(),
-  production: z.any().optional(),
-  consumption: z.array(z.any()).optional(),
-  sales: z.array(z.any()).optional(),
+    internalBatchCode: z.string(),
+    productName: z.string(),
+    productSku: z.string(),
+    qtyInitial: z.number(),
+    uom: z.string(),
+    formattedCreatedAt: z.string(),
+    formattedExpiryDate: z.string(),
+    supplierBatchCode: z.string(),
+    qtyRemaining: z.number(),
+    totalOut: z.number(),
+    reception: z.any().optional(),
+    production: z.any().optional(),
+    consumption: z.array(z.any()).optional(),
+    sales: z.array(z.any()).optional(),
 });
 
 
-// The prompt for generating the report from structured data
 const reportGenerationPrompt = ai.definePrompt({
   name: 'reportGenerationPrompt',
   input: { schema: ReportDataSchema },
   output: { schema: TraceabilityReportOutputSchema },
-  prompt: `You are an expert in supply chain and food safety traceability for Santa Brisa.
-Your task is to generate a detailed, clear, and professional traceability report in Markdown format using ONLY the JSON data provided.
+  prompt: `You are an expert in supply chain traceability for Santa Brisa. Your task is to generate a detailed, clear, and professional traceability report in Markdown format using ONLY the JSON data provided.
 
-## Traceability Report for Batch: \`{{{batchId}}}\`
+## Formato que debes devolver
+Genera **un único bloque Markdown** con:
+1. Título con el emoji 🧾.
+2. Tabla resumen del lote (usa los campos preformateados para las fechas y placeholders para datos vacíos).
+3. Encabezado “🔍 Origen del lote (Upstream)” con:
+   * Si existe 'reception', la frase “Recibido desde Proveedor X…”.
+   * Si existe 'production', la frase “Producido internamente…”.
+   * Tabla de componentes con numeración. Si no hay, no generes la tabla.
+   * Si existe 'totalCostString', inclúyelo al final del apartado de origen.
+4. Encabezado “📦 Destino del lote (Downstream)” con tablas de consumo o ventas. Si no hay, indica “Sin movimientos de salida.”.
+5. Un pie con el stock restante y las notas de lectura.
 
-### 1. Batch Details
-- **Product:** {{{itemDetails.name}}} (SKU: {{{itemDetails.sku}}})
-- **Internal Batch Code:** {{{batchDetails.internalBatchCode}}}
-- **Supplier Batch Code:** {{{batchDetails.supplierBatchCode}}}
-- **Quantity Produced/Received:** {{{batchDetails.qtyInitial}}} {{{batchDetails.uom}}}
-- **Creation Date:** {{{batchDetails.createdAt}}}
-- **Expiry Date:** {{{batchDetails.expiryDate}}}
+Usa fechas en formato DD-MM-YYYY y separadores finos (---). No inventes datos.
 
----
-
-{{#if reception}}
-### 2. Upward Traceability (Origin)
-This batch was received from a supplier.
-- **Supplier:** {{{reception.supplier}}}
-- **Purchase ID:** \`{{{reception.purchaseId}}}\`
-- **Reception Date:** {{{reception.date}}}
-{{/if}}
-
-{{#if production}}
-### 2. Upward Traceability (Origin)
-This batch was produced internally.
-- **Production Run ID:** \`{{{production.runId}}}\`
-- **Production Date:** {{{production.date}}}
-- **Components Consumed:**
-{{#each production.components}}
-  - **{{this.componentName}} ({{this.quantity}} units)** from Batch: \`{{this.batchId}}\`
-{{/each}}
-{{/if}}
-
----
-
-{{#if consumption.length}}
-### 3. Downward Traceability (Consumption)
-This batch of raw material was consumed in the following production runs:
-{{#each consumption}}
-- **{{this.quantity}} units** consumed in **Production Run \`{{this.runId}}\`** to produce **{{this.productName}}** (Batch: \`{{this.outputBatchId}}\`) on {{this.date}}.
-{{/each}}
-{{/if}}
-
-{{#if sales.length}}
-### 3. Downward Traceability (Sales)
-This batch of finished product was sold to the following customers:
-{{#each sales}}
-- **{{this.quantity}} units** sold to **{{this.customerName}}** via Direct Sale \`{{this.saleId}}\` on {{this.date}}.
-{{/each}}
-{{/if}}
-
-{{#unless reception}}{{#unless production}}{{#unless consumption.length}}{{#unless sales.length}}
-### No Traceability Information Found
-No production, consumption, or sales records could be found for this batch ID in the system.
-{{/unless}}{{/unless}}{{/unless}}{{/unless}}
+## Datos del Lote
+\`\`\`json
+{{{json anidado=true}}}
+\`\`\`
 `,
 });
 
@@ -148,99 +116,123 @@ const traceabilityFlow = ai.defineFlow(
     outputSchema: TraceabilityReportOutputSchema,
   },
   async (input) => {
-    // 1. Get Batch and Item details (foundational info)
+    // --- PHASE 1 & 2: DATA FETCHING & TRANSACTIONAL READ PREP ---
     const batchDetails = await getBatchDetails(input.batchId);
-
-    if (!batchDetails) {
-        throw new Error(`No se encontró ningún lote con el identificador: "${input.batchId}"`);
-    }
-
-    const itemDetails = await getInventoryItem(batchDetails.inventoryItemId);
-
-    if (!itemDetails) {
-        throw new Error(`Error de integridad: El artículo de inventario (ID: ${batchDetails.inventoryItemId}) para el lote ${batchDetails.internalBatchCode} no fue encontrado.`);
-    }
-
-    const reportData: z.infer<typeof ReportDataSchema> = {
-        batchId: input.batchId,
-        batchDetails: { ...batchDetails, createdAt: new Date(batchDetails.createdAt).toLocaleDateString('es-ES') },
-        itemDetails: itemDetails,
-    };
+    if (!batchDetails) throw new Error(`No se encontró ningún lote con el identificador: "${input.batchId}"`);
     
-    // 2. Fetch ALL transactions for this batch in one go to avoid composite indexes.
+    const itemDetails = await getInventoryItem(batchDetails.inventoryItemId);
+    if (!itemDetails) throw new Error(`Error de integridad: El artículo de inventario (ID: ${batchDetails.inventoryItemId}) para el lote ${batchDetails.internalBatchCode} no fue encontrado.`);
+
     const allTxnsQuery = query(collection(db, 'stockTxns'), where('batchId', '==', batchDetails.id));
     const allTxnsSnapshot = await getDocs(allTxnsQuery);
     const allTxnsForBatch = allTxnsSnapshot.docs.map(doc => doc.data() as StockTxn);
-
-    // 3. Trace UPWARDS (how was this batch created?)
     const originTxn = allTxnsForBatch.find(txn => (txn.qtyDelta || 0) > 0);
+    const downstreamTxns = allTxnsForBatch.filter(txn => (txn.qtyDelta || 0) < 0);
+
+    const refsToRead = new Map<string, DocumentReference<DocumentData>>();
+    if(originTxn?.refId && originTxn.refCollection) refsToRead.set(`origin_${originTxn.refId}`, doc(db, originTxn.refCollection, originTxn.refId));
+    downstreamTxns.forEach(txn => {
+        if(txn.refId && txn.refCollection) refsToRead.set(`${txn.txnType}_${txn.refId}`, doc(db, txn.refCollection, txn.refId));
+    });
+
+    const docsRead = await Promise.all(
+        Array.from(refsToRead.values()).map(ref => getDoc(ref))
+    );
+    const docsMap = new Map<string, DocumentSnapshot>();
+    Array.from(refsToRead.keys()).forEach((key, index) => docsMap.set(key, docsRead[index]));
+
+    // --- PHASE 3: PREPARE DATA FOR PROMPT ---
+    const formatDDMMYYYY = (date: Date | string | null | undefined): string => {
+        if (!date) return '_N/D_';
+        const d = typeof date === 'string' ? parseISO(date) : date;
+        if (!isValid(d)) return '_N/D_';
+        return format(d, 'dd-MM-yyyy');
+    };
+    
+    const totalOut = downstreamTxns.reduce((sum, txn) => sum + Math.abs(txn.qtyDelta || 0), 0);
+    
+    const promptData: z.infer<typeof ReportDataSchema> = {
+        internalBatchCode: batchDetails.internalBatchCode,
+        productName: itemDetails.name,
+        productSku: itemDetails.sku || '—',
+        qtyInitial: batchDetails.qtyInitial,
+        uom: itemDetails.uom,
+        formattedCreatedAt: formatDDMMYYYY(batchDetails.createdAt),
+        formattedExpiryDate: formatDDMMYYYY(batchDetails.expiryDate),
+        supplierBatchCode: batchDetails.supplierBatchCode || '—',
+        qtyRemaining: batchDetails.qtyRemaining,
+        totalOut,
+    };
 
     if (originTxn) {
-        if (originTxn.txnType === 'recepcion' && originTxn.refId) {
-            const purchaseRef = doc(db, 'purchases', originTxn.refId);
-            const purchaseSnap = await getDoc(purchaseRef);
-            if (purchaseSnap.exists()) {
-                reportData.reception = {
+        const originDoc = docsMap.get(`origin_${originTxn.refId}`);
+        if(originDoc && originDoc.exists()){
+            if (originTxn.txnType === 'recepcion') {
+                promptData.reception = {
+                    supplier: originDoc.data().supplier,
                     purchaseId: originTxn.refId,
-                    supplier: purchaseSnap.data().supplier,
-                    date: originTxn.date.toDate().toLocaleDateString('es-ES'),
+                    date: formatDDMMYYYY(originTxn.date.toDate()),
                 };
-            }
-        } else if (originTxn.txnType === 'produccion' && originTxn.refId) {
-            const runRef = doc(db, 'productionRuns', originTxn.refId);
-            const runSnap = await getDoc(runRef);
-            if (runSnap.exists()) {
-                const runData = runSnap.data() as ProductionRun;
-                reportData.production = {
+            } else if (originTxn.txnType === 'produccion') {
+                const runData = originDoc.data() as ProductionRun;
+                const componentsWithCost = await Promise.all((runData.consumedComponents || []).map(async (comp) => {
+                    const batch = await getBatchDetails(comp.batchId);
+                    const cost = (batch?.unitCost || 0) * comp.quantity;
+                    const compItem = await getInventoryItem(comp.componentId);
+                    return { ...comp, cost, uom: compItem?.uom || 'unit' };
+                }));
+                const totalCost = componentsWithCost.reduce((sum, comp) => sum + comp.cost, 0);
+
+                promptData.production = {
                     runId: originTxn.refId,
-                    date: originTxn.date.toDate().toLocaleDateString('es-ES'),
-                    components: runData.consumedComponents || [],
+                    date: formatDDMMYYYY(originTxn.date.toDate()),
+                    components: componentsWithCost.map((c, index) => ({
+                        index: index + 1,
+                        componentName: c.componentName,
+                        quantity: c.quantity,
+                        uom: c.uom,
+                        batchId: c.batchId,
+                    })),
+                    totalCostString: totalCost > 0 ? `${totalCost.toFixed(2)} €` : '',
                 };
             }
         }
     }
-
-    // 4. Trace DOWNWARDS (what happened to this batch?)
-    const downstreamTxns = allTxnsForBatch.filter(txn => (txn.qtyDelta || 0) < 0);
     
-    if (downstreamTxns.length > 0) {
-        reportData.consumption = [];
-        reportData.sales = [];
-
-        for (const txn of downstreamTxns) {
-            if (txn.txnType === 'consumo' && txn.refId) {
-                const runRef = doc(db, 'productionRuns', txn.refId);
-                const runSnap = await getDoc(runRef);
-                if (runSnap.exists()) {
-                    const run = runSnap.data() as ProductionRun;
-                    reportData.consumption.push({
-                        runId: txn.refId,
-                        productName: run.productName,
-                        outputBatchId: run.outputBatchId,
-                        date: txn.date.toDate().toLocaleDateString('es-ES'),
-                        quantity: -txn.qtyDelta,
-                    });
-                }
-            } else if (txn.txnType === 'venta' && txn.refId) {
-                const saleRef = doc(db, 'directSales', txn.refId);
-                const saleSnap = await getDoc(saleRef);
-                if (saleSnap.exists()) {
-                    const sale = saleSnap.data() as DirectSale;
-                    reportData.sales.push({
-                        saleId: txn.refId,
-                        customerName: sale.customerName,
-                        date: txn.date.toDate().toLocaleDateString('es-ES'),
-                        quantity: -txn.qtyDelta,
-                    });
-                }
+    const consumptionData: any[] = [];
+    const salesData: any[] = [];
+    for (const txn of downstreamTxns) {
+        const docSnap = docsMap.get(`${txn.txnType}_${txn.refId}`);
+        if (docSnap && docSnap.exists()) {
+            if (txn.txnType === 'consumo') {
+                const run = docSnap.data() as ProductionRun;
+                consumptionData.push({
+                    date: formatDDMMYYYY(txn.date.toDate()),
+                    productName: run.productName,
+                    quantity: -txn.qtyDelta,
+                    uom: itemDetails.uom,
+                    outputBatchId: run.outputBatchId || '—',
+                });
+            } else if (txn.txnType === 'venta') {
+                const sale = docSnap.data() as DirectSale;
+                salesData.push({
+                    date: formatDDMMYYYY(txn.date.toDate()),
+                    customerName: sale.customerName,
+                    saleId: sale.id,
+                    channel: sale.channel,
+                    quantity: -txn.qtyDelta,
+                });
             }
         }
     }
-
-    // 5. Pass the complete dataset to the AI for formatting.
-    const { output } = await reportGenerationPrompt(reportData);
+    promptData.consumption = consumptionData;
+    promptData.sales = salesData;
+    
+    // --- PHASE 4: GENERATE REPORT ---
+    const { output } = await reportGenerationPrompt(promptData);
     if (!output) throw new Error("AI failed to format the final report.");
-    return output;
+    
+    return { markdown: output.markdown };
   }
 );
 

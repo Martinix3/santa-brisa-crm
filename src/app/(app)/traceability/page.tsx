@@ -33,7 +33,7 @@ export default function TraceabilityPage() {
     try {
       const input: TraceabilityReportInput = { batchId: batchId.trim() };
       const result: TraceabilityReportOutput = await getTraceabilityReport(input);
-      setReport(result.report);
+      setReport(result.markdown);
     } catch (error: any) {
       console.error('Error al contactar al asistente de trazabilidad:', error);
       toast({
@@ -58,7 +58,7 @@ export default function TraceabilityPage() {
         <CardHeader>
           <CardTitle>Buscar Lote</CardTitle>
           <CardDescription>
-            Introduce un ID de lote interno (ej: generado en una producción) para generar un informe de trazabilidad completo.
+            Introduce un ID de lote interno (ej: generado en una producción) o un ID de documento para generar un informe de trazabilidad completo.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -66,7 +66,7 @@ export default function TraceabilityPage() {
             <div className="relative flex-grow">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                placeholder="Ej: dGkI3sLq8fJp2r..."
+                placeholder="Ej: B240726-TEQU-ABCD..."
                 value={batchId}
                 onChange={(e) => setBatchId(e.target.value)}
                 className="pl-9"
@@ -93,7 +93,7 @@ export default function TraceabilityPage() {
       {report && (
         <Card className="shadow-subtle bg-secondary/30">
           <CardHeader>
-            <CardTitle className="text-lg">Informe de Trazabilidad para el Lote: {batchId}</CardTitle>
+            <CardTitle className="text-lg">Informe de Trazabilidad</CardTitle>
           </CardHeader>
           <CardContent>
             <article className="prose prose-sm dark:prose-invert max-w-none">

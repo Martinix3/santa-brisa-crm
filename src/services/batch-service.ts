@@ -17,7 +17,6 @@ export const createItemBatchTransactional = async (
     const skuPart = (item.sku ?? 'NA').substring(0,4).toUpperCase();
     const internalBatchCode = `B${format(new Date(), 'yyMMdd')}-${skuPart}-${newBatchRef.id.slice(0,4).toUpperCase()}`;
 
-
     const newBatchData: {[key: string]: any} = {
         id: newBatchRef.id,
         inventoryItemId: item.id,

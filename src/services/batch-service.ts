@@ -111,3 +111,9 @@ export async function getBatchesForItemFS(inventoryItemId: string): Promise<Item
     
     return batches;
 }
+
+export async function getAllBatchesFS(): Promise<ItemBatch[]> {
+    const q = query(collection(db, BATCHES_COLLECTION), orderBy('createdAt', 'desc'));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(fromFirestoreItemBatch);
+}

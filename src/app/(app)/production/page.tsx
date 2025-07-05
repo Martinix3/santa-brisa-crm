@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import type { ProductionRun, InventoryItem } from "@/types";
-import { PlusCircle, Edit, Trash2, MoreHorizontal, Cog, Loader2, CheckCircle, XCircle, Calendar as CalendarIcon } from "lucide-react";
+import { PlusCircle, Edit, Trash2, MoreHorizontal, Cog, Loader2, CheckCircle, XCircle, Calendar as CalendarIcon, ChevronDown } from "lucide-react";
 import ProductionRunDialog from "@/components/app/production-run-dialog";
 import type { ProductionRunFormValues } from "@/components/app/production-run-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -37,6 +37,7 @@ export default function ProductionPage() {
   const [finalizeExpiryDate, setFinalizeExpiryDate] = React.useState<Date | undefined>();
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [runToDelete, setRunToDelete] = React.useState<ProductionRun | null>(null);
+  const [expandedRows, setExpandedRows] = React.useState<Set<string>>(new Set());
 
   const fetchRuns = React.useCallback(async () => {
     setIsLoading(true);
@@ -55,6 +56,18 @@ export default function ProductionPage() {
   React.useEffect(() => {
     fetchRuns();
   }, [fetchRuns]);
+
+  const toggleRowExpansion = (runId: string) => {
+    setExpandedRows(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(runId)) {
+            newSet.delete(runId);
+        } else {
+            newSet.add(runId);
+        }
+        return newSet;
+    });
+  };
 
   const handleAddNewRun = () => {
     setEditingRun(null);
@@ -149,6 +162,7 @@ export default function ProductionPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[5%]"></TableHead>
                   <TableHead>Producto</TableHead>
                   <TableHead>Nº Lote</TableHead>
                   <TableHead>Fecha Inicio</TableHead>
@@ -159,46 +173,79 @@ export default function ProductionPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {runs.length > 0 ? runs.map(run => (
-                  <TableRow key={run.id}>
-                    <TableCell className="font-medium">{getItemName(run.productSku)}</TableCell>
-                    <TableCell className="font-mono text-xs">{run.batchNumber}</TableCell>
-                    <TableCell>{format(parseISO(run.startDate), "dd/MM/yyyy")}</TableCell>
-                    <TableCell><FormattedNumericValue value={run.qtyPlanned} /></TableCell>
-                    <TableCell><FormattedNumericValue value={run.qtyProduced} /></TableCell>
-                    <TableCell><StatusBadge type="production" status={run.status} /></TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          {run.status === 'En Progreso' && (
-                            <DropdownMenuItem onSelect={() => { setRunToFinalize(run); setFinalizeQty(run.qtyPlanned); setFinalizeExpiryDate(addMonths(new Date(), 18)); }}>
-                              <CheckCircle className="mr-2 h-4 w-4" /> Finalizar Producción
-                            </DropdownMenuItem>
-                          )}
-                          {run.status === 'Borrador' && (
-                            <>
-                              <DropdownMenuItem onSelect={() => handleEditRun(run)}><Edit className="mr-2 h-4 w-4" /> Editar</DropdownMenuItem>
-                              <DropdownMenuItem onSelect={() => updateProductionRunFS(run.id, { status: 'En Progreso' }).then(fetchRuns)}>
-                                <Cog className="mr-2 h-4 w-4" /> Iniciar Producción
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                          {(run.status === 'Borrador' || run.status === 'Cancelada') && (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onSelect={() => handleDeleteRun(run)} className="text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Eliminar</DropdownMenuItem>
-                            </>
-                          )}
-                          {run.status === 'En Progreso' && (
-                            <DropdownMenuItem onSelect={() => updateProductionRunFS(run.id, { status: 'Cancelada' }).then(fetchRuns)} className="text-destructive"><XCircle className="mr-2 h-4 w-4" /> Cancelar</DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                )) : (
-                  <TableRow><TableCell colSpan={7} className="text-center h-24">No hay órdenes de producción.</TableCell></TableRow>
+                {runs.length > 0 ? runs.map(run => {
+                  const isExpanded = expandedRows.has(run.id);
+                  const canExpand = run.consumedComponents && run.consumedComponents.length > 0;
+                  return (
+                  <React.Fragment key={run.id}>
+                    <TableRow onClick={() => canExpand && toggleRowExpansion(run.id)} className={cn(canExpand && "cursor-pointer")}>
+                        <TableCell>
+                            {canExpand && (
+                                <ChevronDown className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-180")} />
+                            )}
+                        </TableCell>
+                        <TableCell className="font-medium">{getItemName(run.productSku)}</TableCell>
+                        <TableCell className="font-mono text-xs">{run.batchNumber}</TableCell>
+                        <TableCell>{format(parseISO(run.startDate), "dd/MM/yyyy")}</TableCell>
+                        <TableCell><FormattedNumericValue value={run.qtyPlanned} /></TableCell>
+                        <TableCell><FormattedNumericValue value={run.qtyProduced} /></TableCell>
+                        <TableCell><StatusBadge type="production" status={run.status} /></TableCell>
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                              {run.status === 'En Progreso' && (
+                                <DropdownMenuItem onSelect={() => { setRunToFinalize(run); setFinalizeQty(run.qtyPlanned); setFinalizeExpiryDate(addMonths(new Date(), 18)); }}>
+                                  <CheckCircle className="mr-2 h-4 w-4" /> Finalizar Producción
+                                </DropdownMenuItem>
+                              )}
+                              {run.status === 'Borrador' && (
+                                <>
+                                  <DropdownMenuItem onSelect={() => handleEditRun(run)}><Edit className="mr-2 h-4 w-4" /> Editar</DropdownMenuItem>
+                                  <DropdownMenuItem onSelect={() => updateProductionRunFS(run.id, { status: 'En Progreso' }).then(fetchRuns)}>
+                                    <Cog className="mr-2 h-4 w-4" /> Iniciar Producción
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                              {(run.status === 'Borrador' || run.status === 'Cancelada') && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onSelect={() => handleDeleteRun(run)} className="text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Eliminar</DropdownMenuItem>
+                                </>
+                              )}
+                              {run.status === 'En Progreso' && (
+                                <DropdownMenuItem onSelect={() => updateProductionRunFS(run.id, { status: 'Cancelada' }).then(fetchRuns)} className="text-destructive"><XCircle className="mr-2 h-4 w-4" /> Cancelar</DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                    </TableRow>
+                    {isExpanded && canExpand && (
+                      <TableRow>
+                          <TableCell colSpan={8} className="p-0 bg-muted/30">
+                              <div className="p-4">
+                                  <h4 className="font-semibold text-sm mb-2">Componentes Consumidos</h4>
+                                  <Table>
+                                      <TableHeader><TableRow><TableHead>Componente</TableHead><TableHead>SKU</TableHead><TableHead className="text-right">Cantidad</TableHead><TableHead>Lote de Origen</TableHead></TableRow></TableHeader>
+                                      <TableBody>
+                                          {run.consumedComponents.map((comp, index) => (
+                                              <TableRow key={`${run.id}-${index}`}>
+                                                  <TableCell>{comp.componentName}</TableCell>
+                                                  <TableCell>{comp.componentSku || 'N/A'}</TableCell>
+                                                  <TableCell className="text-right"><FormattedNumericValue value={comp.quantity} /></TableCell>
+                                                  <TableCell className="font-mono text-xs">{comp.batchId}</TableCell>
+                                              </TableRow>
+                                          ))}
+                                      </TableBody>
+                                  </Table>
+                              </div>
+                          </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
+                  );
+                }) : (
+                  <TableRow><TableCell colSpan={8} className="text-center h-24">No hay órdenes de producción.</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>

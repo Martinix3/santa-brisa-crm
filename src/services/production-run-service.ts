@@ -80,6 +80,12 @@ async function reconcileLegacyStock(item: InventoryItem): Promise<void> {
       const skuPart = (item.sku ?? 'NA').substring(0,4).toUpperCase();
       const internalBatchCode = `LEGACY_${skuPart}_${newBatchRef.id.slice(0,4)}`;
       
+      const createdAtTimestamp = item.createdAt instanceof Timestamp
+        ? item.createdAt
+        : (typeof item.createdAt === 'string' && isValid(parseISO(item.createdAt))
+            ? Timestamp.fromMillis(parseISO(item.createdAt).getTime())
+            : Timestamp.fromMillis(Date.now() - 31536000000)); // Default to 1 year ago
+
       await setDoc(newBatchRef, {
         inventoryItemId: item.id,
         internalBatchCode,
@@ -88,15 +94,13 @@ async function reconcileLegacyStock(item: InventoryItem): Promise<void> {
         uom: item.uom || 'unit',
         unitCost: item.latestPurchase?.calculatedUnitCost || 0,
         isClosed: false,
-        createdAt: item.createdAt instanceof Timestamp
-          ? item.createdAt
-          : (item.createdAt ? Timestamp.fromMillis(parseISO(item.createdAt).getTime()) : Timestamp.fromMillis(Date.now() - 31536000000)), // Default to 1 year ago for FIFO
+        createdAt: createdAtTimestamp,
       });
     }
 }
 
 
-export const closeProductionRunFS = async (runId: string, qtyProduced: number) => {
+export const closeProductionRunFS = async (runId: string, qtyProduced: number, expiryDate?: Date) => {
     // --- PHASE 1: PRE-TRANSACTION READS & PREPARATION ---
     const runRef = doc(db, PRODUCTION_RUNS_COLLECTION, runId);
     const initialRunDoc = await getDoc(runRef);
@@ -221,7 +225,7 @@ export const closeProductionRunFS = async (runId: string, qtyProduced: number) =
         const newUnitCost = qtyProduced > 0 ? totalConsumedCost / qtyProduced : 0;
         const newFinishedStock = (finishedGoodData.stock || 0) + qtyProduced;
         
-        const outputBatchId = await createItemBatchTransactional(transaction, finishedGoodData, { purchaseId: runId, quantity: qtyProduced, unitCost: newUnitCost, locationId: 'produccion' });
+        const outputBatchId = await createItemBatchTransactional(transaction, finishedGoodData, { purchaseId: runId, quantity: qtyProduced, unitCost: newUnitCost, locationId: 'produccion', expiryDate: expiryDate });
 
         await addStockTxnFSTransactional(transaction, { inventoryItemId: finishedGoodRef.id, batchId: outputBatchId, qtyDelta: qtyProduced, newStock: newFinishedStock, unitCost: newUnitCost, refCollection: 'productionRuns', refId: runId, txnType: 'produccion', notes: `Producción de ${runData.productName}` });
         await addProductCostSnapshotFSTransactional(transaction, { inventoryItemId: finishedGoodRef.id, unitCost: newUnitCost, productionRunId: runId });

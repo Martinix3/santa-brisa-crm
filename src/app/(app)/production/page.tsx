@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import type { ProductionRun, InventoryItem } from "@/types";
-import { PlusCircle, Edit, Trash2, MoreHorizontal, Cog, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { PlusCircle, Edit, Trash2, MoreHorizontal, Cog, Loader2, CheckCircle, XCircle, Calendar as CalendarIcon } from "lucide-react";
 import ProductionRunDialog from "@/components/app/production-run-dialog";
 import type { ProductionRunFormValues } from "@/components/app/production-run-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -16,8 +16,13 @@ import { getProductionRunsFS, addProductionRunFS, updateProductionRunFS, deleteP
 import { getInventoryItemsFS } from "@/services/inventory-item-service";
 import StatusBadge from "@/components/app/status-badge";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, addMonths } from "date-fns";
 import { es } from 'date-fns/locale';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 export default function ProductionPage() {
   const { toast } = useToast();
@@ -29,6 +34,7 @@ export default function ProductionPage() {
   const [editingRun, setEditingRun] = React.useState<ProductionRun | null>(null);
   const [runToFinalize, setRunToFinalize] = React.useState<ProductionRun | null>(null);
   const [finalizeQty, setFinalizeQty] = React.useState<number>(0);
+  const [finalizeExpiryDate, setFinalizeExpiryDate] = React.useState<Date | undefined>();
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [runToDelete, setRunToDelete] = React.useState<ProductionRun | null>(null);
 
@@ -104,7 +110,7 @@ export default function ProductionPage() {
     if (!runToFinalize || finalizeQty <= 0) return;
     setIsLoading(true);
     try {
-      await closeProductionRunFS(runToFinalize.id, finalizeQty);
+      await closeProductionRunFS(runToFinalize.id, finalizeQty, finalizeExpiryDate);
       toast({ title: "Producción Finalizada", description: `Se ha cerrado la orden para ${getItemName(runToFinalize.productSku)}` });
       fetchRuns();
     } catch (error: any) {
@@ -113,6 +119,7 @@ export default function ProductionPage() {
     } finally {
       setIsLoading(false);
       setRunToFinalize(null);
+      setFinalizeExpiryDate(undefined);
     }
   };
 
@@ -165,7 +172,7 @@ export default function ProductionPage() {
                         <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                         <DropdownMenuContent>
                           {run.status === 'En Progreso' && (
-                            <DropdownMenuItem onSelect={() => { setRunToFinalize(run); setFinalizeQty(run.qtyPlanned); }}>
+                            <DropdownMenuItem onSelect={() => { setRunToFinalize(run); setFinalizeQty(run.qtyPlanned); setFinalizeExpiryDate(addMonths(new Date(), 18)); }}>
                               <CheckCircle className="mr-2 h-4 w-4" /> Finalizar Producción
                             </DropdownMenuItem>
                           )}
@@ -221,15 +228,31 @@ export default function ProductionPage() {
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Finalizar Producción</AlertDialogTitle>
-              <AlertDialogDescription>Introduce la cantidad final producida para {getItemName(runToFinalize.productSku)}.</AlertDialogDescription>
+              <AlertDialogDescription>Introduce la cantidad final producida y la fecha de caducidad para {getItemName(runToFinalize.productSku)}.</AlertDialogDescription>
             </AlertDialogHeader>
-            <div className="py-4">
-              <label htmlFor="finalize-qty" className="text-sm font-medium">Cantidad Producida</label>
-              <input id="finalize-qty" type="number" value={finalizeQty} onChange={e => setFinalizeQty(Number(e.target.value))} className="w-full mt-2 p-2 border rounded-md" />
+            <div className="py-4 space-y-4">
+              <div>
+                <Label htmlFor="finalize-qty">Cantidad Producida</Label>
+                <Input id="finalize-qty" type="number" value={finalizeQty} onChange={e => setFinalizeQty(Number(e.target.value))} className="w-full mt-1" />
+              </div>
+               <div>
+                  <Label>Fecha de Caducidad</Label>
+                  <Popover>
+                      <PopoverTrigger asChild>
+                          <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal mt-1", !finalizeExpiryDate && "text-muted-foreground")}>
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {finalizeExpiryDate ? format(finalizeExpiryDate, "PPP", { locale: es }) : <span>Seleccione fecha</span>}
+                          </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                          <Calendar mode="single" selected={finalizeExpiryDate} onSelect={setFinalizeExpiryDate} initialFocus locale={es} />
+                      </PopoverContent>
+                  </Popover>
+              </div>
             </div>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={handleFinalizeRun} disabled={finalizeQty <= 0}>Confirmar y Cerrar</AlertDialogAction>
+              <AlertDialogAction onClick={handleFinalizeRun} disabled={finalizeQty <= 0 || !finalizeExpiryDate}>Confirmar y Cerrar</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

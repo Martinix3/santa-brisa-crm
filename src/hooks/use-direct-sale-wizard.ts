@@ -7,9 +7,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
+import { useCategories } from "@/contexts/categories-context";
 import { getAccountsFS, addAccountFS } from "@/services/account-service";
+import { getInventoryItemsFS } from "@/services/inventory-item-service";
+import { getBatchesForItemFS } from "@/services/batch-service";
 import { addDirectSaleFS } from "@/services/venta-directa-sb-service";
-import type { Account, AccountStatus, AccountType } from "@/types";
+import type { Account, AccountStatus, AccountType, InventoryItem, ItemBatch } from "@/types";
 import { directSaleWizardSchema, type DirectSaleWizardFormValues, type Step } from '@/lib/schemas/direct-sale-schema';
 
 const relevantAccountTypesForDirectSale: AccountType[] = ['Importador', 'Distribuidor', 'Cliente Final Directo', 'Evento Especial', 'Otro'];
@@ -18,6 +21,7 @@ export function useDirectSaleWizard() {
   const { toast } = useToast();
   const router = useRouter();
   const { teamMember, refreshDataSignature } = useAuth();
+  const { allCategories, isLoading: isLoadingCategories } = useCategories();
   
   const [step, setStep] = React.useState<Step>("client");
   const [client, setClient] = React.useState<Account | { id: 'new'; nombre: string } | null>(null);
@@ -26,6 +30,9 @@ export function useDirectSaleWizard() {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   
   const [allAccounts, setAllAccounts] = React.useState<Account[]>([]);
+  const [finishedGoods, setFinishedGoods] = React.useState<InventoryItem[]>([]);
+  const [allBatches, setAllBatches] = React.useState<ItemBatch[]>([]);
+
   
   const [searchTerm, setSearchTerm] = React.useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = React.useState("");
@@ -51,7 +58,8 @@ export function useDirectSaleWizard() {
       customerId: "",
       customerName: "",
       channel: undefined,
-      items: [{ productName: "Santa Brisa 750ml", quantity: 1, netUnitPrice: undefined }],
+      issueDate: new Date(),
+      items: [{ productId: "", productName: "", batchId: "", quantity: 1, netUnitPrice: undefined }],
       status: "Borrador",
       relatedPlacementOrders: "",
       notes: "",
@@ -110,16 +118,39 @@ export function useDirectSaleWizard() {
     async function loadData() {
       setIsLoading(true);
       try {
-        const fetchedAccounts = await getAccountsFS();
+        const [fetchedAccounts, fetchedInventoryItems] = await Promise.all([
+            getAccountsFS(),
+            getInventoryItemsFS()
+        ]);
+        
         setAllAccounts(fetchedAccounts.filter(acc => relevantAccountTypesForDirectSale.includes(acc.type)));
+        
+        if (!isLoadingCategories) {
+            const normalizedTargetName = "producto terminado".normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+            const fgCategory = allCategories.find(c => c.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase() === normalizedTargetName);
+            
+            if (fgCategory) {
+                const fgItems = fetchedInventoryItems.filter(i => i.categoryId === fgCategory.id);
+                setFinishedGoods(fgItems);
+
+                const batchPromises = fgItems.map(item => getBatchesForItemFS(item.id));
+                const batchesPerItem = await Promise.all(batchPromises);
+                setAllBatches(batchesPerItem.flat());
+            } else {
+                toast({ title: "Advertencia", description: "No se encontró la categoría 'Producto Terminado'. No se podrán seleccionar productos.", variant: "destructive" });
+            }
+        }
+
       } catch (error) {
-        toast({ title: "Error", description: "No se pudieron cargar las cuentas de clientes.", variant: "destructive" });
+        toast({ title: "Error", description: "No se pudieron cargar los datos necesarios.", variant: "destructive" });
       } finally {
         setIsLoading(false);
       }
     }
-    loadData();
-  }, [toast]);
+    if (!isLoadingCategories) {
+        loadData();
+    }
+  }, [toast, isLoadingCategories, allCategories]);
 
   const handleClientSelect = (selectedClient: Account | { id: 'new'; nombre: string }) => {
     setClient(selectedClient);
@@ -154,7 +185,7 @@ export function useDirectSaleWizard() {
     
     switch(step) {
         case "details":
-            fieldsToValidate = ['channel', 'status'];
+            fieldsToValidate = ['channel', 'status', 'issueDate'];
             break;
         case "items":
             fieldsToValidate = ['items'];
@@ -198,12 +229,8 @@ export function useDirectSaleWizard() {
             type: "Cliente Final Directo" as AccountType, // Default type for auto-created
             status: 'Activo' as AccountStatus,
             addressBilling: {
-                street: values.direccionFiscal_street!,
-                number: values.direccionFiscal_number,
-                city: values.direccionFiscal_city!,
-                province: values.direccionFiscal_province!,
-                postalCode: values.direccionFiscal_postalCode!,
-                country: values.direccionFiscal_country!,
+                street: values.direccionFiscal_street!, number: values.direccionFiscal_number, city: values.direccionFiscal_city!,
+                province: values.direccionFiscal_province!, postalCode: values.direccionFiscal_postalCode!, country: values.direccionFiscal_country!,
             },
             addressShipping: values.sameAsBilling ? {
                 street: values.direccionFiscal_street!, number: values.direccionFiscal_number, city: values.direccionFiscal_city!,
@@ -217,7 +244,7 @@ export function useDirectSaleWizard() {
         finalCustomerId = await addAccountFS(newAccountData as any);
       }
 
-      const dataToSave = { ...values, customerId: finalCustomerId, issueDate: new Date() };
+      const dataToSave: DirectSaleWithExtras = { ...values, customerId: finalCustomerId, issueDate: values.issueDate };
 
       await addDirectSaleFS(dataToSave);
       toast({ title: "¡Venta Registrada!", description: `Se ha guardado la venta para ${values.customerName}.` });
@@ -232,6 +259,7 @@ export function useDirectSaleWizard() {
 
   return {
     form, step, setStep, client, handleClientSelect, searchTerm, setSearchTerm, filteredAccounts, debouncedSearchTerm, handleBack,
-    handleNextStep, onSubmit, isLoading, isSubmitting, subtotal, tax, totalAmount
+    handleNextStep, onSubmit, isLoading, isSubmitting, subtotal, tax, totalAmount,
+    finishedGoods, allBatches
   };
 }

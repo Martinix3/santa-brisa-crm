@@ -2,7 +2,7 @@
 
 import { Timestamp, type DocumentSnapshot } from "firebase/firestore";
 import { format, parseISO, isValid } from "date-fns";
-import type { Purchase, PurchaseFormValues, PurchaseFirestorePayload, Supplier, SupplierFormValues, BomLine, ProductionRun } from '@/types';
+import type { Purchase, PurchaseFormValues, PurchaseFirestorePayload, Supplier, SupplierFormValues, BomLine, ProductionRun, DirectSaleWithExtras, DirectSale } from '@/types';
 
 // --- PURCHASE CONVERTERS ---
 
@@ -142,6 +142,7 @@ export const toFirestoreSupplier = (data: Partial<SupplierFormValues>, isNew: bo
   return firestoreData;
 };
 
+
 // --- BOM LINE CONVERTER ---
 
 export const fromFirestoreBomLine = (snapshot: DocumentSnapshot): BomLine => {
@@ -180,4 +181,83 @@ export const fromFirestoreProductionRun = (snapshot: DocumentSnapshot): Producti
     createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : undefined,
     updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : undefined,
   };
+};
+
+// --- DIRECT SALE CONVERTER ---
+
+export const fromFirestoreDirectSale = (docSnap: DocumentSnapshot): DirectSale => {
+  const data = docSnap.data();
+  if (!data) throw new Error("Document data is undefined.");
+
+  return {
+    id: docSnap.id,
+    customerId: data.customerId || '',
+    customerName: data.customerName || '',
+    channel: data.channel || 'Otro',
+    items: data.items || [],
+    subtotal: data.subtotal || 0,
+    tax: data.tax || 0,
+    totalAmount: data.totalAmount || 0,
+    issueDate: data.issueDate instanceof Timestamp ? format(data.issueDate.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+    dueDate: data.dueDate instanceof Timestamp ? format(data.dueDate.toDate(), "yyyy-MM-dd") : undefined,
+    invoiceNumber: data.invoiceNumber || undefined,
+    status: data.status || 'Borrador',
+    relatedPlacementOrders: data.relatedPlacementOrders || [],
+    notes: data.notes || undefined,
+    createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+    updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+  };
+};
+
+export const toFirestoreDirectSale = (data: Partial<DirectSaleWithExtras>, isNew: boolean): any => {
+  const subtotal = data.items?.reduce((sum, item) => sum + (item.quantity || 0) * (item.netUnitPrice || 0), 0) || 0;
+  const tax = subtotal * 0.21;
+  const totalAmount = subtotal + tax;
+
+  const firestoreData: { [key: string]: any } = {
+      customerId: data.customerId || null,
+      customerName: data.customerName,
+      channel: data.channel,
+      items: data.items?.map(item => ({
+          productId: item.productId,
+          productName: item.productName,
+          quantity: item.quantity,
+          netUnitPrice: item.netUnitPrice,
+          total: (item.quantity || 0) * (item.netUnitPrice || 0),
+          batchId: item.batchId,
+          batchNumber: item.batchNumber || null
+      })) || [],
+      subtotal,
+      tax,
+      totalAmount,
+      status: data.status,
+      invoiceNumber: data.invoiceNumber || null,
+      relatedPlacementOrders: data.relatedPlacementOrders ? data.relatedPlacementOrders.split(',').map(s => s.trim()) : [],
+      notes: data.notes || null,
+  };
+  
+  if (data.issueDate && isValid(data.issueDate)) {
+    firestoreData.issueDate = Timestamp.fromDate(data.issueDate);
+  } else {
+    firestoreData.issueDate = Timestamp.fromDate(new Date());
+  }
+
+  if (data.dueDate && isValid(data.dueDate)) {
+    firestoreData.dueDate = Timestamp.fromDate(data.dueDate);
+  } else {
+    firestoreData.dueDate = null;
+  }
+
+  if (isNew) {
+    firestoreData.createdAt = Timestamp.fromDate(new Date());
+  }
+  firestoreData.updatedAt = Timestamp.fromDate(new Date());
+  
+  Object.keys(firestoreData).forEach(key => {
+    if (firestoreData[key] === undefined) {
+      firestoreData[key] = null;
+    }
+  });
+
+  return firestoreData;
 };

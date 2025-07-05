@@ -8,17 +8,12 @@ import type { DirectSaleChannel, DirectSaleStatus } from "@/types";
 export type Step = "client" | "details" | "items" | "address" | "verify";
 
 const directSaleItemSchema = z.object({
-  productId: z.string().optional(),
-  productName: z.string().min(1, "El nombre del producto es obligatorio."),
-  quantity: z.coerce.number().min(1, "La cantidad debe ser al menos 1.").optional(),
-  netUnitPrice: z.coerce.number().min(0.01, "El precio debe ser positivo.").optional(),
-}).superRefine((data, ctx) => {
-    if (data.quantity === undefined || data.quantity <= 0) {
-        ctx.addIssue({ path: ["quantity"], message: "Cantidad es obligatoria." });
-    }
-    if (data.netUnitPrice === undefined || data.netUnitPrice <= 0) {
-        ctx.addIssue({ path: ["netUnitPrice"], message: "Precio es obligatorio." });
-    }
+  productId: z.string().min(1, "Debe seleccionar un producto."),
+  productName: z.string(), // This is set programmatically
+  batchId: z.string().min(1, "Debe seleccionar un lote para el producto."),
+  batchNumber: z.string().optional(),
+  quantity: z.coerce.number().min(0.001, "La cantidad debe ser mayor que cero."),
+  netUnitPrice: z.coerce.number().min(0.01, "El precio neto debe ser un valor positivo."),
 });
 
 export const directSaleWizardSchema = z.object({
@@ -26,6 +21,7 @@ export const directSaleWizardSchema = z.object({
   customerId: z.string().optional(),
   customerName: z.string().min(1, "El nombre del cliente es obligatorio."),
   channel: z.enum(directSaleChannelList as [DirectSaleChannel, ...DirectSaleChannel[]], { required_error: "El canal de venta es obligatorio." }),
+  issueDate: z.date({ required_error: "La fecha de emisión es obligatoria."}),
   items: z.array(directSaleItemSchema).min(1, "Debe añadir al menos un producto a la venta."),
   dueDate: z.date().optional(),
   invoiceNumber: z.string().optional(),

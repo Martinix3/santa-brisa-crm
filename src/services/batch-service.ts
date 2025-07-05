@@ -4,7 +4,7 @@
 import { db } from '@/lib/firebase';
 import { collection, doc, query, where, orderBy, getDocs, Timestamp, type Transaction, type DocumentData, type DocumentReference, type DocumentSnapshot } from "firebase/firestore";
 import type { ItemBatch, InventoryItem } from '@/types';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 
 const BATCHES_COLLECTION = 'itemBatches';
 
@@ -89,4 +89,24 @@ export async function planBatchConsumption(
   }
 
   return consumptionPlan;
+}
+
+export async function getBatchesForItemFS(inventoryItemId: string): Promise<ItemBatch[]> {
+    const q = query(
+        collection(db, BATCHES_COLLECTION),
+        where('inventoryItemId', '==', inventoryItemId),
+        where('isClosed', '==', false)
+    );
+    const snapshot = await getDocs(q);
+    const batches = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as ItemBatch))
+        .filter(batch => batch.qtyRemaining > 0);
+
+    batches.sort((a, b) => {
+        const dateA = a.createdAt?.toMillis() || 0;
+        const dateB = b.createdAt?.toMillis() || 0;
+        return dateA - dateB;
+    });
+    
+    return batches;
 }

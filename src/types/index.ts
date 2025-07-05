@@ -232,6 +232,7 @@ export interface InventoryItem {
   stock: number;
   sku?: string;
   uom: UoM;
+  createdAt?: string; // Added for legacy stock reconciliation
 }
 
 export interface AssignedPromotionalMaterial {
@@ -389,11 +390,12 @@ export type DirectSaleStatus = 'Borrador' | 'Confirmada' | 'Facturada' | 'Pagada
 export type DirectSaleChannel = 'Importador' | 'Online' | 'Estratégica' | 'Otro';
 
 export interface DirectSaleItem {
-  productId?: string | null;
+  productId: string;
   productName: string;
   quantity: number;
   netUnitPrice: number; 
   total: number;
+  batchId: string;
   batchNumber?: string;
 }
 

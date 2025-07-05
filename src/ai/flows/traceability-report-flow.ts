@@ -10,13 +10,14 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { ItemBatch, StockTxn, ProductionRun, DirectSale, InventoryItem } from '@/types';
+import { fromFirestoreItemBatch } from '@/services/utils/firestore-converters';
 
 // Zod schemas remain local to the file
 const TraceabilityReportInputSchema = z.object({
-  batchId: z.string().describe('The internal ID of the batch to trace (from the itemBatches collection).'),
+  batchId: z.string().describe('The document ID or internal batch code of the batch to trace.'),
 });
 export type TraceabilityReportInput = z.infer<typeof TraceabilityReportInputSchema>;
 
@@ -25,20 +26,43 @@ const TraceabilityReportOutputSchema = z.object({
 });
 export type TraceabilityReportOutput = z.infer<typeof TraceabilityReportOutputSchema>;
 
-// Helper function to fetch batch details
-async function getBatchDetails(batchId: string): Promise<ItemBatch | null> {
-    const batchRef = doc(db, 'itemBatches', batchId);
+// Helper function to fetch batch details by either ID or internal code
+async function getBatchDetails(batchIdOrCode: string): Promise<ItemBatch | null> {
+    if (!batchIdOrCode) return null;
+
+    // First, try to get by document ID
+    const batchRef = doc(db, 'itemBatches', batchIdOrCode);
     const batchSnap = await getDoc(batchRef);
-    return batchSnap.exists() ? (batchSnap.data() as ItemBatch) : null;
+    if (batchSnap.exists()) {
+        return fromFirestoreItemBatch(batchSnap);
+    }
+
+    // If not found by ID, query by internalBatchCode
+    const q = query(collection(db, 'itemBatches'), where('internalBatchCode', '==', batchIdOrCode), limit(1));
+    const querySnapshot = await getDocs(q);
+
+    if (!querySnapshot.empty) {
+        const doc = querySnapshot.docs[0];
+        return fromFirestoreItemBatch(doc);
+    }
+
+    return null;
 }
 
 // Helper function to fetch inventory item details
 async function getInventoryItem(itemId: string): Promise<InventoryItem | null> {
+    if (!itemId) return null;
     const itemRef = doc(db, 'inventoryItems', itemId);
     const itemSnap = await getDoc(itemRef);
-    return itemSnap.exists() ? (itemSnap.data() as InventoryItem) : null;
-}
+    if (!itemSnap.exists()) return null;
 
+    const data = itemSnap.data();
+    return {
+        id: itemSnap.id,
+        name: data.name,
+        sku: data.sku,
+    } as InventoryItem;
+}
 
 // The data schema for the AI prompt
 const ReportDataSchema = z.object({
@@ -125,20 +149,26 @@ const traceabilityFlow = ai.defineFlow(
   },
   async (input) => {
     // 1. Get Batch and Item details (foundational info)
-    const [batchDetails, itemDetails] = await Promise.all([
-        getBatchDetails(input.batchId),
-        getBatchDetails(input.batchId).then(b => b ? getInventoryItem(b.inventoryItemId) : null)
-    ]);
-    if (!batchDetails || !itemDetails) throw new Error("Batch o artículo no encontrado.");
+    const batchDetails = await getBatchDetails(input.batchId);
+
+    if (!batchDetails) {
+        throw new Error(`No se encontró ningún lote con el identificador: "${input.batchId}"`);
+    }
+
+    const itemDetails = await getInventoryItem(batchDetails.inventoryItemId);
+
+    if (!itemDetails) {
+        throw new Error(`Error de integridad: El artículo de inventario (ID: ${batchDetails.inventoryItemId}) para el lote ${batchDetails.internalBatchCode} no fue encontrado.`);
+    }
 
     const reportData: z.infer<typeof ReportDataSchema> = {
         batchId: input.batchId,
-        batchDetails: { ...batchDetails, createdAt: batchDetails.createdAt.toDate().toLocaleDateString('es-ES') },
+        batchDetails: { ...batchDetails, createdAt: new Date(batchDetails.createdAt).toLocaleDateString('es-ES') },
         itemDetails: itemDetails,
     };
 
     // 2. Trace UPWARDS (how was this batch created?)
-    const originTxnQuery = query(collection(db, 'stockTxns'), where('batchId', '==', input.batchId), where('qtyDelta', '>', 0), limit(1));
+    const originTxnQuery = query(collection(db, 'stockTxns'), where('batchId', '==', batchDetails.id), where('qtyDelta', '>', 0), limit(1));
     const originTxnSnapshot = await getDocs(originTxnQuery);
 
     if (!originTxnSnapshot.empty) {
@@ -157,17 +187,18 @@ const traceabilityFlow = ai.defineFlow(
             const runRef = doc(db, 'productionRuns', originTxn.refId);
             const runSnap = await getDoc(runRef);
             if (runSnap.exists()) {
+                const runData = runSnap.data() as ProductionRun;
                 reportData.production = {
                     runId: originTxn.refId,
                     date: originTxn.date.toDate().toLocaleDateString('es-ES'),
-                    components: (runSnap.data() as ProductionRun).consumedComponents || [],
+                    components: runData.consumedComponents || [],
                 };
             }
         }
     }
 
     // 3. Trace DOWNWARDS (what happened to this batch?)
-    const downstreamTxnsQuery = query(collection(db, 'stockTxns'), where('batchId', '==', input.batchId), where('qtyDelta', '<', 0));
+    const downstreamTxnsQuery = query(collection(db, 'stockTxns'), where('batchId', '==', batchDetails.id), where('qtyDelta', '<', 0));
     const downstreamTxnsSnapshot = await getDocs(downstreamTxnsQuery);
     
     if (!downstreamTxnsSnapshot.empty) {

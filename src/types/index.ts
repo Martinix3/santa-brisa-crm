@@ -61,14 +61,17 @@ export type UoM = 'unit' | 'kg' | 'g' | 'l' | 'ml';
 
 export interface ItemBatch {
   id: string;
-  purchaseId?: string;
-  sku: string; // This will be the InventoryItem ID
+  inventoryItemId: string; // FK to inventoryItems
   supplierBatchCode?: string;
+  internalBatchCode: string; // Our own generated code for tracking
   qtyInitial: number;
+  qtyRemaining: number;
   uom: UoM;
-  unitCost: number; // This should be the landed cost
-  expiryDate?: string; // YYYY-MM-DD
-  createdAt: string; // ISO String
+  unitCost: number; // The landed cost for this specific batch
+  expiryDate?: string; // ISO String
+  locationId?: string; // For warehouse/shelf tracking
+  isClosed?: boolean; // When qtyRemaining is 0
+  createdAt: Timestamp; 
 }
 
 export type StockTxnType = 'recepcion' | 'consumo' | 'produccion' | 'ajuste' | 'desperdicio' | 'venta';
@@ -76,30 +79,19 @@ export type StockTxnRefCollection = 'purchases' | 'productionRuns' | 'directSale
 
 export interface StockTxn {
   id: string;
-  date: string; // ISO
+  date: Timestamp; 
   inventoryItemId: string; // The item whose stock is changing
+  batchId: string; // The specific batch being affected
   qtyDelta: number; // Positive for additions, negative for subtractions
-  newStock: number; // The stock level AFTER the transaction
+  newStock: number; // The stock level of the InventoryItem AFTER the transaction
   unitCost?: number; // Cost of the items moved
   refCollection?: StockTxnRefCollection;
   refId?: string; // The ID of the purchase, run, or sale
   notes?: string;
-  createdAt?: string;
+  txnType: StockTxnType;
+  createdAt?: Timestamp;
 }
 
-
-export interface BomLine {
-    id: string;
-    productSku: string; // The SKU of the item being produced
-    componentId: string; // The ID of the component item from inventory
-    componentName?: string; // Denormalized for easier display
-    componentSku?: string; // Denormalized for display
-    quantity: number; // How many units of component are needed for 1 unit of product
-    uom: UoM;
-    lossFactor?: number;
-    createdAt?: string;
-    updatedAt?: string;
-};
 
 export type ProductionRunStatus = 'Borrador' | 'En Progreso' | 'Finalizada' | 'Cancelada';
 
@@ -107,7 +99,8 @@ export interface ProductionRun {
     id: string;
     productSku: string; // The SKU being produced
     productName?: string;
-    batchNumber: string;
+    batchNumber: string; // Human-readable identifier for the run
+    outputBatchId: string; // The ID of the ItemBatch created for the finished product
     qtyPlanned: number;
     qtyProduced?: number;
     status: ProductionRunStatus;
@@ -116,9 +109,9 @@ export interface ProductionRun {
     unitCost?: number; // Snapshot of cost at completion
     consumedComponents?: {
       componentId: string;
+      batchId: string;
       componentName: string;
       componentSku?: string;
-      consumedBatchNumber?: string;
       quantity: number;
     }[];
     createdAt?: string;
@@ -372,20 +365,23 @@ export interface Purchase {
   batchesSeeded?: boolean;
 }
 
-export interface SampleRequest {
-  id: string;
-  requesterId: string;
-  requesterName: string;
+export type SampleRequestStatus = 'Pendiente' | 'Aprobada' | 'Rechazada' | 'Enviada';
+export type SampleRequestPurpose = 'Captación Cliente Nuevo' | 'Seguimiento Cliente Existente' | 'Material para Evento' | 'Uso Interno/Formación' | 'Otro';
+
+export interface SampleRequestFormValues {
+  requesterId?: string;
+  clientStatus: 'new' | 'existing';
   accountId?: string;
   clientName: string;
   purpose: SampleRequestPurpose;
   numberOfSamples: number;
   justificationNotes: string;
-  status: SampleRequestStatus;
-  requestDate: string;
-  decisionDate?: string;
-  adminNotes?: string;
-  shippingAddress?: AddressDetails;
+  shippingAddress_street?: string;
+  shippingAddress_number?: string;
+  shippingAddress_city?: string;
+  shippingAddress_province?: string;
+  shippingAddress_postalCode?: string;
+  shippingAddress_country?: string;
 }
 
 export type DirectSaleStatus = 'Borrador' | 'Confirmada' | 'Facturada' | 'Pagada' | 'Cancelada';

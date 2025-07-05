@@ -19,7 +19,7 @@ export const addStockTxnFSTransactional = async (
     const txnRef = doc(collection(db, STOCK_TXNS_COLLECTION));
     const now = Timestamp.now();
     
-    const dataToSave = {
+    const dataToSave: Omit<StockTxn, 'id'> = {
         ...data,
         date: now,
         createdAt: now,

@@ -53,7 +53,8 @@ const toFirestoreDirectSale = (data: Partial<DirectSaleWithExtras>, isNew: boole
           productName: item.productName,
           quantity: item.quantity,
           netUnitPrice: item.netUnitPrice,
-          total: (item.quantity || 0) * (item.netUnitPrice || 0)
+          total: (item.quantity || 0) * (item.netUnitPrice || 0),
+          batchNumber: item.batchNumber || null
       })) || [],
       subtotal,
       tax,

@@ -11,6 +11,7 @@ import { uploadInvoice } from './storage-service';
 import { updateStockForPurchase } from './stock-service';
 import { format } from 'date-fns';
 import { getCategoriesFS } from './category-service';
+import { createItemBatchTransactional } from './batch-service'; 
 
 const PURCHASES_COLLECTION = 'purchases';
 const INVENTORY_ITEMS_COLLECTION = 'inventoryItems';
@@ -31,9 +32,9 @@ const createNewMaterialData = (
         name: item.description,
         description: `Creado desde compra a ${supplierName}`,
         categoryId: item.categoryId,
-        stock: quantity, // Set initial stock from purchase
+        stock: 0, // Stock is now managed by batches, so initial item stock is 0
         uom: 'unit',
-        latestPurchase: { // Set initial purchase info
+        latestPurchase: {
             quantityPurchased: quantity,
             totalPurchaseCost: quantity * unitPrice,
             purchaseDate: format(purchaseDate, "yyyy-MM-dd"),
@@ -126,7 +127,7 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
             transaction.set(ref, newMaterialData);
         });
         
-        await updateStockForPurchase(transaction, null, firestoreData, materialDocsMap);
+        await updateStockForPurchase(transaction, null, firestoreData, materialDocsMap, createItemBatchTransactional);
         transaction.set(newPurchaseDocRef, firestoreData);
         
         return purchaseId;
@@ -209,7 +210,7 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
         const finalData = { ...dataToSave, items: resolvedItems };
         const firestoreData = toFirestorePurchase(finalData as PurchaseFormValues, false, supplierId);
         
-        await updateStockForPurchase(transaction, oldData, firestoreData, materialDocsMap);
+        await updateStockForPurchase(transaction, oldData, firestoreData, materialDocsMap, createItemBatchTransactional);
         
         transaction.update(purchaseDocRef, firestoreData);
     });
@@ -238,7 +239,7 @@ export const deletePurchaseFS = async (id: string): Promise<void> => {
         }
       }
       
-      await updateStockForPurchase(transaction, data, null, materialDocsMap);
+      await updateStockForPurchase(transaction, data, null, materialDocsMap, createItemBatchTransactional);
       transaction.delete(purchaseDocRef);
   });
 };

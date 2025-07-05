@@ -10,9 +10,13 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import type { ItemBatch, StockTxn, ProductionRun, DirectSale, InventoryItem } from '@/types';
 
+// Zod schemas remain local to the file
 const TraceabilityReportInputSchema = z.object({
-  batchNumber: z.string().describe('The batch number to trace. Can be for a finished good or a raw material.'),
+  batchId: z.string().describe('The internal ID of the batch to trace (from the itemBatches collection).'),
 });
 export type TraceabilityReportInput = z.infer<typeof TraceabilityReportInputSchema>;
 
@@ -21,105 +25,98 @@ const TraceabilityReportOutputSchema = z.object({
 });
 export type TraceabilityReportOutput = z.infer<typeof TraceabilityReportOutputSchema>;
 
-// Mock functions that simulate database queries.
-// In a real implementation, these would query Firestore.
-async function findProductionRunByFinishedGoodBatch(batchNumber: string) {
-    if (batchNumber.startsWith('PROD-')) {
-      return {
-        id: 'run_12345',
-        date: '2024-09-25',
-        productName: 'Santa Brisa 750ml',
-        quantityProduced: 5000,
-      };
-    }
-    return null;
+// Helper function to fetch batch details
+async function getBatchDetails(batchId: string): Promise<ItemBatch | null> {
+    const batchRef = doc(db, 'itemBatches', batchId);
+    const batchSnap = await getDoc(batchRef);
+    return batchSnap.exists() ? (batchSnap.data() as ItemBatch) : null;
 }
 
-async function findComponentsForProductionRun(runId: string) {
-      if (runId === 'run_12345') {
-        return [
-          { name: 'Tequila Blanco 100% Agave', batchNumber: 'TQ-JAL-2024-08-A', quantity: 850 },
-          { name: 'Botella de Vidrio 750ml', batchNumber: 'BOTT-VID-MX-Q3-2024', quantity: 5000 },
-          { name: 'Etiqueta Frontal Santa Brisa', batchNumber: 'ETIQ-FR-24-V1', quantity: 5100 },
-        ];
-      }
-      return [];
+// Helper function to fetch inventory item details
+async function getInventoryItem(itemId: string): Promise<InventoryItem | null> {
+    const itemRef = doc(db, 'inventoryItems', itemId);
+    const itemSnap = await getDoc(itemRef);
+    return itemSnap.exists() ? (itemSnap.data() as InventoryItem) : null;
 }
 
-async function findSalesForFinishedGoodBatch(batchNumber: string) {
-      if (batchNumber.startsWith('PROD-')) {
-        return [
-          { customerName: 'Distribuidor Central', invoiceNumber: 'INV-2024-09-101', quantitySold: 2500 },
-          { customerName: 'Importador Costa Este', invoiceNumber: 'INV-2024-09-105', quantitySold: 2500 },
-        ];
-      }
-      return [];
-}
 
+// The data schema for the AI prompt
 const ReportDataSchema = z.object({
-  batchNumber: z.string(),
-  productionRun: z.object({
-      id: z.string(),
-      date: z.string(),
-      productName: z.string(),
-      quantityProduced: z.number(),
-    }).optional(),
-  components: z.array(z.object({
-      name: z.string(),
-      batchNumber: z.string(),
-      quantity: z.number(),
-    })).optional(),
-  sales: z.array(z.object({
-      customerName: z.string(),
-      invoiceNumber: z.string(),
-      quantitySold: z.number(),
-    })).optional(),
+  batchId: z.string(),
+  batchDetails: z.any().optional(),
+  itemDetails: z.any().optional(),
+  reception: z.any().optional(),
+  production: z.any().optional(),
+  consumption: z.array(z.any()).optional(),
+  sales: z.array(z.any()).optional(),
 });
 
+
+// The prompt for generating the report from structured data
 const reportGenerationPrompt = ai.definePrompt({
   name: 'reportGenerationPrompt',
   input: { schema: ReportDataSchema },
   output: { schema: TraceabilityReportOutputSchema },
-  prompt: `You are a supply chain and traceability expert for Santa Brisa.
-Your task is to generate a detailed traceability report in Markdown format using the data provided below.
+  prompt: `You are an expert in supply chain and food safety traceability for Santa Brisa.
+Your task is to generate a detailed, clear, and professional traceability report in Markdown format using ONLY the JSON data provided.
 
-Batch Number to Report On: {{{batchNumber}}}
+## Traceability Report for Batch: \`{{{batchId}}}\`
 
-{{#if productionRun}}
-## Traceability Report for Batch: {{{batchNumber}}}
+### 1. Batch Details
+- **Product:** {{{itemDetails.name}}} (SKU: {{{itemDetails.sku}}})
+- **Internal Batch Code:** {{{batchDetails.internalBatchCode}}}
+- **Supplier Batch Code:** {{{batchDetails.supplierBatchCode}}}
+- **Quantity Produced/Received:** {{{batchDetails.qtyInitial}}} {{{batchDetails.uom}}}
+- **Creation Date:** {{{batchDetails.createdAt}}}
+- **Expiry Date:** {{{batchDetails.expiryDate}}}
 
-### Upward Traceability (Origen del Lote)
-- **Production Run ID:** {{{productionRun.id}}}
-- **Production Date:** {{{productionRun.date}}}
-- **Product:** {{{productionRun.productName}}}
-- **Quantity Produced:** {{{productionRun.quantityProduced}}}
+---
 
-#### Componentes Utilizados
-{{#if components.length}}
-{{#each components}}
-- **{{name}}:** Lote \`{{batchNumber}}\` (Cantidad: {{quantity}})
-{{/each}}
-{{else}}
-- No se encontraron componentes para esta producción.
+{{#if reception}}
+### 2. Upward Traceability (Origin)
+This batch was received from a supplier.
+- **Supplier:** {{{reception.supplier}}}
+- **Purchase ID:** \`{{{reception.purchaseId}}}\`
+- **Reception Date:** {{{reception.date}}}
 {{/if}}
 
-### Downward Traceability (Destino del Lote)
+{{#if production}}
+### 2. Upward Traceability (Origin)
+This batch was produced internally.
+- **Production Run ID:** \`{{{production.runId}}}\`
+- **Production Date:** {{{production.date}}}
+- **Components Consumed:**
+{{#each production.components}}
+  - **{{this.componentName}} ({{this.quantity}} units)** from Batch: \`{{this.batchId}}\`
+{{/each}}
+{{/if}}
+
+---
+
+{{#if consumption.length}}
+### 3. Downward Traceability (Consumption)
+This batch of raw material was consumed in the following production runs:
+{{#each consumption}}
+- **{{this.quantity}} units** consumed in **Production Run \`{{this.runId}}\`** to produce **{{this.productName}}** (Batch: \`{{this.outputBatchId}}\`) on {{this.date}}.
+{{/each}}
+{{/if}}
+
 {{#if sales.length}}
+### 3. Downward Traceability (Sales)
+This batch of finished product was sold to the following customers:
 {{#each sales}}
-- **Vendido a:** {{customerName}} (Factura: {{invoiceNumber}}, Cantidad: {{quantitySold}})
+- **{{this.quantity}} units** sold to **{{this.customerName}}** via Direct Sale \`{{this.saleId}}\` on {{this.date}}.
 {{/each}}
-{{else}}
-- No se encontraron ventas para este lote.
 {{/if}}
 
-{{else}}
-## Traceability Report for Batch: {{{batchNumber}}}
-
-This batch number does not correspond to a finished good. Traceability for raw materials is currently under development.
-{{/if}}
+{{#unless reception}}{{#unless production}}{{#unless consumption.length}}{{#unless sales.length}}
+### No Traceability Information Found
+No production, consumption, or sales records could be found for this batch ID in the system.
+{{/unless}}{{/unless}}{{/unless}}{{/unless}}
 `,
 });
 
+// The main orchestration flow
 const traceabilityFlow = ai.defineFlow(
   {
     name: 'traceabilityFlow',
@@ -127,30 +124,88 @@ const traceabilityFlow = ai.defineFlow(
     outputSchema: TraceabilityReportOutputSchema,
   },
   async (input) => {
-    // Orchestration Logic: Code controls the flow, AI just formats the final data.
-    const productionRun = await findProductionRunByFinishedGoodBatch(input.batchNumber);
+    // 1. Get Batch and Item details (foundational info)
+    const [batchDetails, itemDetails] = await Promise.all([
+        getBatchDetails(input.batchId),
+        getBatchDetails(input.batchId).then(b => b ? getInventoryItem(b.inventoryItemId) : null)
+    ]);
+    if (!batchDetails || !itemDetails) throw new Error("Batch o artículo no encontrado.");
 
-    if (!productionRun) {
-        // If no production run, generate the "raw material" report.
-        const { output } = await reportGenerationPrompt({ batchNumber: input.batchNumber });
-        if (!output) throw new Error("AI failed to generate raw material report.");
-        return output;
+    const reportData: z.infer<typeof ReportDataSchema> = {
+        batchId: input.batchId,
+        batchDetails: { ...batchDetails, createdAt: batchDetails.createdAt.toDate().toLocaleDateString('es-ES') },
+        itemDetails: itemDetails,
+    };
+
+    // 2. Trace UPWARDS (how was this batch created?)
+    const originTxnQuery = query(collection(db, 'stockTxns'), where('batchId', '==', input.batchId), where('qtyDelta', '>', 0), limit(1));
+    const originTxnSnapshot = await getDocs(originTxnQuery);
+
+    if (!originTxnSnapshot.empty) {
+        const originTxn = originTxnSnapshot.docs[0].data() as StockTxn;
+        if (originTxn.txnType === 'recepcion' && originTxn.refId) {
+            const purchaseRef = doc(db, 'purchases', originTxn.refId);
+            const purchaseSnap = await getDoc(purchaseRef);
+            if (purchaseSnap.exists()) {
+                reportData.reception = {
+                    purchaseId: originTxn.refId,
+                    supplier: purchaseSnap.data().supplier,
+                    date: originTxn.date.toDate().toLocaleDateString('es-ES'),
+                };
+            }
+        } else if (originTxn.txnType === 'produccion' && originTxn.refId) {
+            const runRef = doc(db, 'productionRuns', originTxn.refId);
+            const runSnap = await getDoc(runRef);
+            if (runSnap.exists()) {
+                reportData.production = {
+                    runId: originTxn.refId,
+                    date: originTxn.date.toDate().toLocaleDateString('es-ES'),
+                    components: (runSnap.data() as ProductionRun).consumedComponents || [],
+                };
+            }
+        }
     }
 
-    // If production run exists, gather all related data.
-    const [components, sales] = await Promise.all([
-        findComponentsForProductionRun(productionRun.id),
-        findSalesForFinishedGoodBatch(input.batchNumber),
-    ]);
+    // 3. Trace DOWNWARDS (what happened to this batch?)
+    const downstreamTxnsQuery = query(collection(db, 'stockTxns'), where('batchId', '==', input.batchId), where('qtyDelta', '<', 0));
+    const downstreamTxnsSnapshot = await getDocs(downstreamTxnsQuery);
     
-    const reportData = {
-        batchNumber: input.batchNumber,
-        productionRun,
-        components,
-        sales,
-    };
-    
-    // Pass the complete dataset to the AI for formatting.
+    if (!downstreamTxnsSnapshot.empty) {
+        reportData.consumption = [];
+        reportData.sales = [];
+
+        for (const txnDoc of downstreamTxnsSnapshot.docs) {
+            const txn = txnDoc.data() as StockTxn;
+            if (txn.txnType === 'consumo' && txn.refId) {
+                const runRef = doc(db, 'productionRuns', txn.refId);
+                const runSnap = await getDoc(runRef);
+                if (runSnap.exists()) {
+                    const run = runSnap.data() as ProductionRun;
+                    reportData.consumption.push({
+                        runId: txn.refId,
+                        productName: run.productName,
+                        outputBatchId: run.outputBatchId,
+                        date: txn.date.toDate().toLocaleDateString('es-ES'),
+                        quantity: -txn.qtyDelta,
+                    });
+                }
+            } else if (txn.txnType === 'venta' && txn.refId) {
+                const saleRef = doc(db, 'directSales', txn.refId);
+                const saleSnap = await getDoc(saleRef);
+                if (saleSnap.exists()) {
+                    const sale = saleSnap.data() as DirectSale;
+                    reportData.sales.push({
+                        saleId: txn.refId,
+                        customerName: sale.customerName,
+                        date: txn.date.toDate().toLocaleDateString('es-ES'),
+                        quantity: -txn.qtyDelta,
+                    });
+                }
+            }
+        }
+    }
+
+    // 4. Pass the complete dataset to the AI for formatting.
     const { output } = await reportGenerationPrompt(reportData);
     if (!output) throw new Error("AI failed to format the final report.");
     return output;

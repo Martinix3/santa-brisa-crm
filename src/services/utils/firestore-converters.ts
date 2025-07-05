@@ -168,6 +168,7 @@ export const fromFirestoreProductionRun = (snapshot: DocumentSnapshot): Producti
     productSku: data.productSku,
     productName: data.productName,
     batchNumber: data.batchNumber,
+    outputBatchId: data.outputBatchId,
     qtyPlanned: data.qtyPlanned,
     qtyProduced: data.qtyProduced,
     status: data.status,

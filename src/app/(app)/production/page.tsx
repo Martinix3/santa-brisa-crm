@@ -143,6 +143,7 @@ export default function ProductionPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Producto</TableHead>
+                  <TableHead>Nº Lote</TableHead>
                   <TableHead>Fecha Inicio</TableHead>
                   <TableHead>Planificado</TableHead>
                   <TableHead>Producido</TableHead>
@@ -154,6 +155,7 @@ export default function ProductionPage() {
                 {runs.length > 0 ? runs.map(run => (
                   <TableRow key={run.id}>
                     <TableCell className="font-medium">{getItemName(run.productSku)}</TableCell>
+                    <TableCell className="font-mono text-xs">{run.batchNumber}</TableCell>
                     <TableCell>{format(parseISO(run.startDate), "dd/MM/yyyy")}</TableCell>
                     <TableCell><FormattedNumericValue value={run.qtyPlanned} /></TableCell>
                     <TableCell><FormattedNumericValue value={run.qtyProduced} /></TableCell>
@@ -189,7 +191,7 @@ export default function ProductionPage() {
                     </TableCell>
                   </TableRow>
                 )) : (
-                  <TableRow><TableCell colSpan={6} className="text-center h-24">No hay órdenes de producción.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center h-24">No hay órdenes de producción.</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>

@@ -2,7 +2,7 @@
 'use server';
 
 import { db } from '@/lib/firebase';
-import { collection, doc, query, where, orderBy, getDocs, Timestamp, type Transaction, type DocumentData, type DocumentReference } from "firebase/firestore";
+import { collection, doc, query, where, orderBy, getDocs, Timestamp, type Transaction, type DocumentData, type DocumentReference, type DocumentSnapshot } from "firebase/firestore";
 import type { ItemBatch, InventoryItem } from '@/types';
 import { format } from 'date-fns';
 
@@ -61,14 +61,13 @@ export async function planBatchConsumption(
   const batchesQuery = query(
     collection(db, BATCHES_COLLECTION),
     where("inventoryItemId", "==", inventoryItemId),
-    where("isClosed", "==", false),
     orderBy(strategy === 'FEFO' ? 'expiryDate' : 'createdAt', 'asc')
   );
 
   const snapshot = await getDocs(batchesQuery);
   const availableBatches = snapshot.docs
     .map(doc => ({ id: doc.id, ...doc.data() } as ItemBatch))
-    .filter(batch => batch.qtyRemaining > 0); // Filter in code to avoid composite index
+    .filter(batch => !batch.isClosed && batch.qtyRemaining > 0); // Filter in code
 
   let remainingToConsume = quantityToConsume;
   const consumptionPlan: { batchId: string; quantity: number; batchData: ItemBatch }[] = [];

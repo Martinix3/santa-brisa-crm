@@ -103,7 +103,7 @@ Usa fechas en formato DD-MM-YYYY y separadores finos (---). No inventes datos.
 
 ## Datos del Lote
 \`\`\`json
-{{{json anidado=true}}}
+{{{json this}}}
 \`\`\`
 `,
 });

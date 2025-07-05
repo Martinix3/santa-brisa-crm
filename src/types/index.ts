@@ -1,4 +1,5 @@
 
+
 import { Timestamp } from "firebase/firestore";
 
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
@@ -177,7 +178,7 @@ export interface Account {
   responsableId: string; // FK to TeamMember
   brandAmbassadorId?: string; // FK to TeamMember (Clavadista)
   
-  status: AccountStatus; // This is now a calculated field in EnrichedAccount, but the type is reused. The raw field may be deprecated.
+  status: AccountStatus; // This is now a calculated field in EnrichedAccount, but the raw field may be deprecated.
   leadScore: number;
 
   legalName?: string;

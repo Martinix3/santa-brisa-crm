@@ -14,7 +14,10 @@ export const createItemBatchTransactional = async (
     purchaseData: { purchaseId: string, supplierBatchCode?: string, quantity: number, unitCost: number, locationId?: string, expiryDate?: Date }
 ): Promise<string> => {
     const newBatchRef = doc(collection(db, BATCHES_COLLECTION));
-    const internalBatchCode = `B${format(new Date(), 'yyMMdd')}-${(item.sku || 'NA').substring(0, 4)}-${newBatchRef.id.substring(0,4).toUpperCase()}`;
+    // Corrected, safer internalBatchCode generation
+    const skuPart = (item.sku ?? 'NA').substring(0,4).toUpperCase();
+    const internalBatchCode = `B${format(new Date(), 'yyMMdd')}-${skuPart}-${newBatchRef.id.slice(0,4).toUpperCase()}`;
+
 
     // Build the core object with required fields
     const newBatchData: {[key: string]: any} = {
@@ -58,16 +61,18 @@ export async function planBatchConsumption(
   quantityToConsume: number,
   strategy: 'FIFO' | 'FEFO' = 'FIFO'
 ): Promise<{ batchId: string; quantity: number; batchData: ItemBatch }[]> {
+  // Corrected query with isClosed filter - Requires a composite index in Firestore
   const batchesQuery = query(
     collection(db, BATCHES_COLLECTION),
     where("inventoryItemId", "==", inventoryItemId),
+    where("isClosed", "==", false),
     orderBy(strategy === 'FEFO' ? 'expiryDate' : 'createdAt', 'asc')
   );
 
   const snapshot = await getDocs(batchesQuery);
   const availableBatches = snapshot.docs
     .map(doc => ({ id: doc.id, ...doc.data() } as ItemBatch))
-    .filter(batch => !batch.isClosed && batch.qtyRemaining > 0); // Filter in code
+    .filter(batch => batch.qtyRemaining > 0);
 
   let remainingToConsume = quantityToConsume;
   const consumptionPlan: { batchId: string; quantity: number; batchData: ItemBatch }[] = [];

@@ -52,7 +52,7 @@ export const deleteProductionRunFS = async (id: string): Promise<void> => {
 
 
 export const closeProductionRunFS = async (runId: string, qtyProduced: number) => {
-    // PHASE 1: PRE-TRANSACTION READS & PREPARATION
+    // --- PHASE 1: PRE-TRANSACTION READS & PREPARATION ---
     const runRef = doc(db, PRODUCTION_RUNS_COLLECTION, runId);
     const initialRunDoc = await getDoc(runRef);
     if (!initialRunDoc.exists() || (initialRunDoc.data().status !== 'En Progreso' && initialRunDoc.data().status !== 'Borrador')) {
@@ -70,67 +70,66 @@ export const closeProductionRunFS = async (runId: string, qtyProduced: number) =
     if (finishedGoodSnapshot.empty) throw new Error(`El producto a fabricar con SKU ${runData.productSku} no se encuentra en el inventario.`);
     const finishedGoodRef = finishedGoodSnapshot.docs[0].ref;
 
-    // Plan consumption for all components
+    // Plan consumption for all components outside the transaction
     const consumptionPlans = await Promise.all(
         bomLines.map(line => planBatchConsumption(line.componentId, line.quantity * qtyProduced))
     );
-
-    // Collect all unique document references to be read transactionally
-    const refsToRead: DocumentReference[] = [runRef, finishedGoodRef];
-    bomLines.forEach(line => refsToRead.push(doc(db, INVENTORY_ITEMS_COLLECTION, line.componentId)));
-    consumptionPlans.flat().forEach(plan => refsToRead.push(doc(db, BATCHES_COLLECTION, plan.batchId)));
-    const uniqueRefsToRead = Array.from(new Set(refsToRead.map(r => r.path))).map(path => doc(db, path));
     
     // --- TRANSACTION START ---
     return runTransaction(db, async (transaction) => {
-        // PHASE 2: TRANSACTIONAL READS
-        const docsSnapshot = await Promise.all(uniqueRefsToRead.map(ref => transaction.get(ref)));
-        const docsMap = new Map(docsSnapshot.map(snap => [snap.ref.path, snap]));
-
-        const getDocFromMap = (ref: DocumentReference): DocumentSnapshot => {
-            const doc = docsMap.get(ref.path);
-            if (!doc) throw new Error(`Document with path ${ref.path} was not pre-fetched for transaction.`);
-            return doc;
-        };
-
-        const freshRunDoc = getDocFromMap(runRef);
+        // --- PHASE 2: TRANSACTIONAL READS ---
+        const freshRunDoc = await transaction.get(runRef);
         if (!freshRunDoc.exists() || freshRunDoc.data().status !== runData.status) {
              throw new Error("El estado de la orden de producción ha cambiado. Por favor, inténtelo de nuevo.");
         }
-        const finishedGoodData = getDocFromMap(finishedGoodRef).data() as InventoryItem;
+        const finishedGoodDoc = await transaction.get(finishedGoodRef);
+        if (!finishedGoodDoc.exists()) throw new Error("Producto terminado no encontrado en la transacción.");
+        const finishedGoodData = finishedGoodDoc.data() as InventoryItem;
 
-        // PHASE 3: IN-MEMORY LOGIC & PREPARING WRITES
+
+        // --- PHASE 3: IN-MEMORY LOGIC & PREPARING WRITES ---
         let totalConsumedCost = 0;
         const consumedComponentsSnapshot: ProductionRun['consumedComponents'] = [];
 
         for (const [index, line] of bomLines.entries()) {
-            const componentDoc = getDocFromMap(doc(db, INVENTORY_ITEMS_COLLECTION, line.componentId));
-            const componentData = componentDoc.data() as InventoryItem;
-            let totalStockForComponent = componentData.stock || 0;
+            const componentRef = doc(db, INVENTORY_ITEMS_COLLECTION, line.componentId);
+            const componentDoc = await transaction.get(componentRef); // Read component stock inside TX
+            if (!componentDoc.exists()) throw new Error(`El componente ${line.componentName} no existe.`);
+
+            let totalStockForComponent = componentDoc.data().stock || 0;
 
             for (const plan of consumptionPlans[index]) {
                 const batchRef = doc(db, BATCHES_COLLECTION, plan.batchId);
-                const batchDoc = getDocFromMap(batchRef);
+                const batchDoc = await transaction.get(batchRef); // READ inside transaction
+                
+                if (!batchDoc.exists()) throw new Error(`Lote ${plan.batchId} no encontrado.`);
+
                 const batchData = batchDoc.data() as ItemBatch;
+
+                // CONCURRENCY CHECK: ensure the stock hasn't changed since we planned
+                if (batchData.qtyRemaining < plan.quantity) {
+                    throw new Error(`El stock para el lote ${plan.batchId} ha cambiado. La operación se reintentará.`);
+                }
                 
                 const newQtyRemaining = batchData.qtyRemaining - plan.quantity;
                 totalConsumedCost += plan.quantity * batchData.unitCost;
-                
-                // Prepare writes
-                transaction.update(batchRef, { qtyRemaining: newQtyRemaining, isClosed: newQtyRemaining <= 0 });
                 totalStockForComponent -= plan.quantity;
 
+                // Queue writes
+                transaction.update(batchRef, { qtyRemaining: newQtyRemaining, isClosed: newQtyRemaining <= 0 });
+                
                 consumedComponentsSnapshot.push({ componentId: line.componentId, batchId: plan.batchId, componentName: line.componentName, componentSku: line.componentSku, quantity: plan.quantity });
                 await addStockTxnFSTransactional(transaction, { inventoryItemId: line.componentId, batchId: plan.batchId, qtyDelta: -plan.quantity, newStock: totalStockForComponent, unitCost: batchData.unitCost, txnType: 'consumo', refCollection: 'productionRuns', refId: runId, notes: `Consumo para ${runData.productName}`});
             }
-             transaction.update(componentDoc.ref, { stock: totalStockForComponent });
+             transaction.update(componentRef, { stock: totalStockForComponent });
         }
 
         const newUnitCost = qtyProduced > 0 ? totalConsumedCost / qtyProduced : 0;
-        const outputBatchId = await createItemBatchTransactional(transaction, finishedGoodData, { purchaseId: runId, quantity: qtyProduced, unitCost: newUnitCost });
         const newFinishedStock = (finishedGoodData.stock || 0) + qtyProduced;
         
         // --- PHASE 4: TRANSACTIONAL WRITES ---
+        const outputBatchId = await createItemBatchTransactional(transaction, finishedGoodData, { purchaseId: runId, quantity: qtyProduced, unitCost: newUnitCost });
+
         await addStockTxnFSTransactional(transaction, { inventoryItemId: finishedGoodRef.id, batchId: outputBatchId, qtyDelta: qtyProduced, newStock: newFinishedStock, unitCost: newUnitCost, refCollection: 'productionRuns', refId: runId, txnType: 'produccion', notes: `Producción de ${runData.productName}` });
         await addProductCostSnapshotFSTransactional(transaction, { inventoryItemId: finishedGoodRef.id, unitCost: newUnitCost, productionRunId: runId });
         

@@ -12,16 +12,16 @@ import Markdown from 'react-markdown';
 
 export default function TraceabilityPage() {
   const { toast } = useToast();
-  const [batchNumber, setBatchNumber] = React.useState('');
+  const [batchId, setBatchId] = React.useState('');
   const [report, setReport] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
 
   const handleSearch = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!batchNumber.trim()) {
+    if (!batchId.trim()) {
       toast({
         title: 'Lote Vacío',
-        description: 'Por favor, introduce un número de lote para buscar.',
+        description: 'Por favor, introduce un ID de lote para buscar.',
         variant: 'destructive',
       });
       return;
@@ -31,17 +31,17 @@ export default function TraceabilityPage() {
     setReport(''); 
 
     try {
-      const input: TraceabilityReportInput = { batchNumber: batchNumber.trim() };
+      const input: TraceabilityReportInput = { batchId: batchId.trim() };
       const result: TraceabilityReportOutput = await getTraceabilityReport(input);
       setReport(result.report);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al contactar al asistente de trazabilidad:', error);
       toast({
-        title: 'Error de IA',
-        description: 'No se pudo obtener el informe. Inténtalo de nuevo.',
+        title: 'Error de Trazabilidad',
+        description: `No se pudo obtener el informe: ${error.message}`,
         variant: 'destructive',
       });
-      setReport('Hubo un error al generar el informe. Por favor, intenta de nuevo.');
+      setReport(`Hubo un error al generar el informe: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -58,7 +58,7 @@ export default function TraceabilityPage() {
         <CardHeader>
           <CardTitle>Buscar Lote</CardTitle>
           <CardDescription>
-            Introduce un número de lote de producto terminado o de materia prima para generar un informe de trazabilidad completo.
+            Introduce un ID de lote interno (ej: generado en una producción) para generar un informe de trazabilidad completo.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -66,14 +66,14 @@ export default function TraceabilityPage() {
             <div className="relative flex-grow">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                placeholder="Ej: PROD-20240925103000 o LOTE-TEQUILA-XYZ"
-                value={batchNumber}
-                onChange={(e) => setBatchNumber(e.target.value)}
+                placeholder="Ej: dGkI3sLq8fJp2r..."
+                value={batchId}
+                onChange={(e) => setBatchId(e.target.value)}
                 className="pl-9"
                 disabled={isLoading}
                 />
             </div>
-            <Button type="submit" disabled={isLoading || !batchNumber.trim()}>
+            <Button type="submit" disabled={isLoading || !batchId.trim()}>
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -93,8 +93,7 @@ export default function TraceabilityPage() {
       {report && (
         <Card className="shadow-subtle bg-secondary/30">
           <CardHeader>
-            <CardTitle className="text-lg">Informe de Trazabilidad para el Lote: {batchNumber}</CardTitle>
-            <CardDescription className="text-destructive">Nota: Los datos de este informe son de ejemplo. La funcionalidad completa requiere conectar las nuevas estructuras de datos.</CardDescription>
+            <CardTitle className="text-lg">Informe de Trazabilidad para el Lote: {batchId}</CardTitle>
           </CardHeader>
           <CardContent>
             <article className="prose prose-sm dark:prose-invert max-w-none">

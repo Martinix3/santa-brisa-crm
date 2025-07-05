@@ -198,14 +198,18 @@ const traceabilityFlow = ai.defineFlow(
     }
 
     // 3. Trace DOWNWARDS (what happened to this batch?)
-    const downstreamTxnsQuery = query(collection(db, 'stockTxns'), where('batchId', '==', batchDetails.id), where('qtyDelta', '<', 0));
+    // The old query required a composite index. By fetching all transactions for the batch and filtering in-memory, we avoid this requirement.
+    const downstreamTxnsQuery = query(collection(db, 'stockTxns'), where('batchId', '==', batchDetails.id));
     const downstreamTxnsSnapshot = await getDocs(downstreamTxnsQuery);
     
-    if (!downstreamTxnsSnapshot.empty) {
+    // Filter for consumption/sale transactions (negative delta) after fetching.
+    const downstreamTxns = downstreamTxnsSnapshot.docs.filter(doc => (doc.data().qtyDelta || 0) < 0);
+    
+    if (downstreamTxns.length > 0) {
         reportData.consumption = [];
         reportData.sales = [];
 
-        for (const txnDoc of downstreamTxnsSnapshot.docs) {
+        for (const txnDoc of downstreamTxns) {
             const txn = txnDoc.data() as StockTxn;
             if (txn.txnType === 'consumo' && txn.refId) {
                 const runRef = doc(db, 'productionRuns', txn.refId);

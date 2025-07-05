@@ -48,51 +48,6 @@ const createNewMaterialData = (
     };
 };
 
-const handleStockUpdate = async (
-    transaction: any, 
-    purchaseId: string, 
-    purchaseData: PurchaseFirestorePayload, 
-    materialDocsMap: Map<string, DocumentSnapshot>
-) => {
-    for (const item of purchaseData.items) {
-        if (!item.materialId) continue;
-        
-        const materialRef = doc(db, INVENTORY_ITEMS_COLLECTION, item.materialId);
-        const materialDoc = materialDocsMap.get(item.materialId);
-
-        if (!materialDoc || !materialDoc.exists()) {
-            console.warn(`Material ${item.materialId} no encontrado en el mapa, podría ser nuevo. Saltando.`);
-            continue;
-        }
-
-        const materialDataForBatch = { id: materialDoc.id, ...materialDoc.data() } as InventoryItem;
-        const delta = item.quantity || 0;
-        const newStock = (materialDataForBatch.stock || 0) + delta;
-
-        const batchId = await createItemBatchTransactional(transaction, materialDataForBatch, {
-            purchaseId, 
-            supplierBatchCode: item.batchNumber || undefined, 
-            quantity: delta, 
-            unitCost: item.unitPrice || 0,
-        });
-
-        await addStockTxnFSTransactional(transaction, {
-            inventoryItemId: item.materialId, 
-            batchId: batchId, 
-            qtyDelta: delta, 
-            newStock: newStock, 
-            unitCost: item.unitPrice,
-            refCollection: 'purchases', 
-            refId: purchaseId, 
-            txnType: 'recepcion', 
-            notes: `Recepción desde compra a ${purchaseData.supplier}`
-        });
-        
-        transaction.update(materialRef, { stock: newStock });
-    }
-};
-
-
 export const getPurchasesFS = async (): Promise<Purchase[]> => {
   const purchasesCol = collection(db, PURCHASES_COLLECTION);
   const q = query(purchasesCol, orderBy('orderDate', 'desc'));
@@ -117,12 +72,28 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
     
     const suppliersCol = collection(db, SUPPLIERS_COLLECTION);
     const supplierQuery = query(suppliersCol, where("name", "==", supplierName), limit(1));
-    const allCategories = await getCategoriesFS();
     
     return await runTransaction(db, async (transaction) => {
+        // --- STAGE 1: READS ---
         const supplierSnapshot = await getDocs(supplierQuery);
         const existingSupplierDoc = supplierSnapshot.empty ? null : supplierSnapshot.docs[0];
         
+        const existingMaterialIds = dataToSave.items
+            .map(item => item.materialId)
+            .filter((id): id is string => !!id && id !== NEW_ITEM_SENTINEL);
+            
+        const materialDocsMap = new Map<string, DocumentSnapshot>();
+        if (existingMaterialIds.length > 0) {
+            const uniqueIds = [...new Set(existingMaterialIds)];
+            const materialRefs = uniqueIds.map(id => doc(db, INVENTORY_ITEMS_COLLECTION, id));
+            const materialSnaps = await Promise.all(materialRefs.map(ref => transaction.get(ref)));
+            materialSnaps.forEach(snap => {
+                if (snap.exists()) materialDocsMap.set(snap.id, snap);
+            });
+        }
+        // ---- ALL READS ARE NOW COMPLETE ----
+
+        // --- STAGE 2: LOGIC & PREPARING WRITES ---
         let supplierId: string;
         if (existingSupplierDoc) {
             supplierId = existingSupplierDoc.id;
@@ -132,35 +103,59 @@ export const addPurchaseFS = async (data: PurchaseFormValues): Promise<string> =
             const newSupplierData = toFirestoreSupplier({ name: supplierName, cif: data.supplierCif }, true);
             transaction.set(newSupplierRef, newSupplierData);
         }
-
-        const categoriesMap = new Map(allCategories.map(c => [c.id, c]));
-        const materialDocsMapForNewItems = new Map<string, DocumentSnapshot>();
-
-        const resolvedItems = dataToSave.items.map((item, index) => {
-            if (item.materialId && item.materialId !== NEW_ITEM_SENTINEL) {
-                return { ...item, materialId: item.materialId! };
-            }
-            const category = categoriesMap.get(item.categoryId);
-            const isStockable = category?.isConsumable === true;
-            if (isStockable) {
+        
+        const resolvedItems = dataToSave.items.map(item => {
+            const isNew = !item.materialId || item.materialId === NEW_ITEM_SENTINEL;
+            if (isNew) {
                 const newMaterialRef = doc(collection(db, INVENTORY_ITEMS_COLLECTION));
-                const newItemData = createNewMaterialData(item, data.supplier, data.orderDate, data.status === 'Factura Recibida');
-                transaction.set(newMaterialRef, newItemData);
-                materialDocsMapForNewItems.set(newMaterialRef.id, { id: newMaterialRef.id, exists: () => true, data: () => newItemData } as DocumentSnapshot);
-                return { ...item, materialId: newMaterialRef.id };
+                return { ...item, materialId: newMaterialRef.id, isNew: true };
             }
-            return { ...item, materialId: null };
+            return { ...item, materialId: item.materialId!, isNew: false };
         });
 
         const firestoreData = toFirestorePurchase({ ...dataToSave, items: resolvedItems }, true, supplierId);
-        
+
         if (firestoreData.status === 'Factura Recibida') {
-            await handleStockUpdate(transaction, purchaseId, firestoreData, materialDocsMapForNewItems);
+            for (const item of resolvedItems) {
+                if (!item.materialId) continue;
+                
+                const materialRef = doc(db, INVENTORY_ITEMS_COLLECTION, item.materialId);
+
+                if (item.isNew) {
+                    const newItemData = createNewMaterialData(item, data.supplier, data.orderDate, true);
+                    transaction.set(materialRef, newItemData);
+                    
+                    const materialDataForBatch = { id: item.materialId, stock: 0, ...newItemData } as InventoryItem;
+                    const batchId = await createItemBatchTransactional(transaction, materialDataForBatch, {
+                         purchaseId, supplierBatchCode: item.batchNumber || undefined, quantity: item.quantity || 0, unitCost: item.unitPrice || 0
+                    });
+                     await addStockTxnFSTransactional(transaction, {
+                        inventoryItemId: item.materialId, batchId, qtyDelta: item.quantity || 0, newStock: item.quantity || 0, unitCost: item.unitPrice,
+                        refCollection: 'purchases', refId: purchaseId, txnType: 'recepcion', notes: `Recepción inicial de ${data.supplier}`
+                    });
+                } else {
+                    const materialDoc = materialDocsMap.get(item.materialId);
+                    if (materialDoc?.exists()) {
+                        const materialData = { id: materialDoc.id, ...materialDoc.data() } as InventoryItem;
+                        const delta = item.quantity || 0;
+                        const newStock = (materialData.stock || 0) + delta;
+
+                        const batchId = await createItemBatchTransactional(transaction, materialData, {
+                            purchaseId, supplierBatchCode: item.batchNumber || undefined, quantity: delta, unitCost: item.unitPrice || 0
+                        });
+                        await addStockTxnFSTransactional(transaction, {
+                            inventoryItemId: item.materialId, batchId, qtyDelta: delta, newStock, unitCost: item.unitPrice,
+                            refCollection: 'purchases', refId: purchaseId, txnType: 'recepcion', notes: `Recepción desde compra a ${data.supplier}`
+                        });
+                        
+                        transaction.update(materialRef, { stock: newStock });
+                    }
+                }
+            }
             firestoreData.batchesSeeded = true;
         }
         
         transaction.set(newPurchaseDocRef, firestoreData);
-        
         return purchaseId;
     });
 };
@@ -181,29 +176,48 @@ export const updatePurchaseFS = async (id: string, data: Partial<PurchaseFormVal
         if (!existingPurchaseDoc.exists()) throw new Error("Purchase not found");
         const oldData = fromFirestorePurchase(existingPurchaseDoc);
 
-        const materialIdsInvolved = [...new Set(
-            (data.items || oldData.items).map(item => item.materialId).filter((id): id is string => !!id && id !== NEW_ITEM_SENTINEL)
-        )];
-        
-        const materialDocsMap = new Map<string, DocumentSnapshot>();
-        if (materialIdsInvolved.length > 0) {
-            const materialRefs = materialIdsInvolved.map(id => doc(db, INVENTORY_ITEMS_COLLECTION, id));
-            for (const ref of materialRefs) {
-                const snap = await transaction.get(ref);
-                if (snap.exists()) {
-                    materialDocsMap.set(snap.id, snap);
-                }
-            }
+        // Disallow editing items if stock has already been seeded.
+        if (oldData.batchesSeeded && JSON.stringify(data.items) !== JSON.stringify(oldData.items)) {
+            throw new Error("No se pueden modificar los artículos de una compra que ya ha sido recibida en el inventario. Por favor, crea una transacción de ajuste.");
         }
         
-        const itemsFromForm = data.items || oldData.items;
-        const firestoreData = toFirestorePurchase({ ...oldData, ...dataToSave, items: itemsFromForm }, false, oldData.supplierId);
+        const firestoreData = toFirestorePurchase({ ...oldData, ...dataToSave }, false, oldData.supplierId);
         
-        const wasAlreadySeeded = oldData.batchesSeeded === true;
+        const wasReceived = oldData.status === 'Factura Recibida';
         const isNowReceived = firestoreData.status === 'Factura Recibida';
 
-        if (isNowReceived && !wasAlreadySeeded) {
-            await handleStockUpdate(transaction, id, firestoreData, materialDocsMap);
+        // Only run stock update logic if the state transitions TO received.
+        if (isNowReceived && !wasReceived) {
+             const allMaterialIds = firestoreData.items.map(i => i.materialId).filter((id): id is string => !!id);
+             const materialDocsMap = new Map<string, DocumentSnapshot>();
+             if(allMaterialIds.length > 0) {
+                 const materialRefs = [...new Set(allMaterialIds)].map(id => doc(db, INVENTORY_ITEMS_COLLECTION, id));
+                 const materialSnaps = await Promise.all(materialRefs.map(ref => transaction.get(ref)));
+                 materialSnaps.forEach(snap => {
+                     if(snap.exists()) materialDocsMap.set(snap.id, snap);
+                 });
+             }
+             
+            for (const item of firestoreData.items) {
+                if (!item.materialId) continue;
+                
+                const materialDoc = materialDocsMap.get(item.materialId);
+                if (materialDoc?.exists()) {
+                    const materialData = { id: materialDoc.id, ...materialDoc.data() } as InventoryItem;
+                    const delta = item.quantity || 0;
+                    const newStock = (materialData.stock || 0) + delta;
+
+                    const batchId = await createItemBatchTransactional(transaction, materialData, {
+                        purchaseId: id, supplierBatchCode: item.batchNumber || undefined, quantity: delta, unitCost: item.unitPrice || 0
+                    });
+                    await addStockTxnFSTransactional(transaction, {
+                        inventoryItemId: item.materialId, batchId, qtyDelta: delta, newStock, unitCost: item.unitPrice,
+                        refCollection: 'purchases', refId: id, txnType: 'recepcion', notes: `Recepción desde compra a ${firestoreData.supplier}`
+                    });
+                    
+                    transaction.update(materialDoc.ref, { stock: newStock });
+                }
+            }
             firestoreData.batchesSeeded = true;
         }
 

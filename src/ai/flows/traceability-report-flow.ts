@@ -151,8 +151,8 @@ const traceabilityFlow = ai.defineFlow(
     
     const totalOut = downstreamTxns.reduce((sum, txn) => sum + Math.abs(txn.qtyDelta || 0), 0);
     
-    // Explicitly define all fields to avoid 'undefined' properties.
-    const promptData: z.infer<typeof ReportDataSchema> = {
+    // Dynamically build the prompt data object to avoid 'undefined' properties
+    const promptData: any = {
         internalBatchCode: batchDetails.internalBatchCode,
         productName: itemDetails.name,
         productSku: itemDetails.sku || '—',
@@ -163,10 +163,6 @@ const traceabilityFlow = ai.defineFlow(
         supplierBatchCode: batchDetails.supplierBatchCode || '—',
         qtyRemaining: batchDetails.qtyRemaining,
         totalOut,
-        reception: undefined,
-        production: undefined,
-        consumption: [],
-        sales: []
     };
 
     if (originTxn) {
@@ -231,11 +227,12 @@ const traceabilityFlow = ai.defineFlow(
             }
         }
     }
-    promptData.consumption = consumptionData;
-    promptData.sales = salesData;
+    
+    if (consumptionData.length > 0) promptData.consumption = consumptionData;
+    if (salesData.length > 0) promptData.sales = salesData;
     
     // --- PHASE 4: GENERATE REPORT ---
-    const { output } = await reportGenerationPrompt(promptData);
+    const { output } = await reportGenerationPrompt(promptData as z.infer<typeof ReportDataSchema>);
     if (!output) throw new Error("AI failed to format the final report.");
     
     return { markdown: output.markdown };

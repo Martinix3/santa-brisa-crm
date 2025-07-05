@@ -55,44 +55,43 @@ export const deleteProductionRunFS = async (id: string): Promise<void> => {
  * than the sum of stock in all existing batches for that item.
  * This is a lazy migration helper to reconcile pre-existing stock.
  */
-async function reconcileLegacyStock(item: InventoryItem): Promise<void> {
-  const canonicalStock = item.stock || 0;
-  if (canonicalStock <= 0) {
-    return; // No legacy stock to reconcile
-  }
-
-  const batchesQuery = query(
-    collection(db, BATCHES_COLLECTION),
-    where('inventoryItemId', '==', item.id)
-  );
-  const batchesSnapshot = await getDocs(batchesQuery);
+async function reconcileLegacyStock(itemData: DocumentSnapshot['data'] & { id: string }): Promise<void> {
+    const canonicalStock = itemData.stock || 0;
+    if (canonicalStock <= 0) {
+      return; // No legacy stock to reconcile
+    }
   
-  const batchedStock = batchesSnapshot.docs.reduce(
-    (sum, doc) => sum + (doc.data().qtyRemaining || 0),
-    0
-  );
-
-  const discrepancy = canonicalStock - batchedStock;
-
-  if (discrepancy > 0.001) { // Use a small tolerance for floating point
-    console.log(`Reconciling legacy stock for ${item.name}. Discrepancy: ${discrepancy}`);
-    const newBatchRef = doc(collection(db, BATCHES_COLLECTION));
-    const internalBatchCode = `LEGACY_${(item.sku || item.name).replace(/[^A-Z0-9]/ig, "").substring(0, 4)}_${newBatchRef.id.slice(0,4)}`;
+    const batchesQuery = query(
+      collection(db, BATCHES_COLLECTION),
+      where('inventoryItemId', '==', itemData.id)
+    );
+    const batchesSnapshot = await getDocs(batchesQuery);
     
-    // Create the legacy batch document. This write is acceptable before the main transaction
-    // as it's an idempotent-like operation that corrects a data inconsistency.
-    // A full system would use a dedicated migration script, but this handles it lazily.
-    await setDoc(newBatchRef, {
-      inventoryItemId: item.id,
-      internalBatchCode,
-      qtyInitial: discrepancy,
-      qtyRemaining: discrepancy,
-      uom: item.uom || 'unit',
-      unitCost: item.latestPurchase?.calculatedUnitCost || 0,
-      isClosed: false,
-      createdAt: item.createdAt ? Timestamp.fromMillis(parseISO(item.createdAt).getTime()) : Timestamp.fromMillis(Date.now() - 31536000000), // Default to 1 year ago for FIFO
-    });
-  }
+    const batchedStock = batchesSnapshot.docs.reduce(
+      (sum, doc) => sum + (doc.data().qtyRemaining || 0),
+      0
+    );
+  
+    const discrepancy = canonicalStock - batchedStock;
+  
+    if (discrepancy > 0.001) { // Use a small tolerance for floating point
+      console.log(`Reconciling legacy stock for ${itemData.name}. Discrepancy: ${discrepancy}`);
+      const newBatchRef = doc(collection(db, BATCHES_COLLECTION));
+      const skuPart = (itemData.sku ?? 'NA').substring(0,4).toUpperCase();
+      const internalBatchCode = `LEGACY_${skuPart}_${newBatchRef.id.slice(0,4)}`;
+      
+      await setDoc(newBatchRef, {
+        inventoryItemId: itemData.id,
+        internalBatchCode,
+        qtyInitial: discrepancy,
+        qtyRemaining: discrepancy,
+        uom: itemData.uom || 'unit',
+        unitCost: itemData.latestPurchase?.calculatedUnitCost || 0,
+        isClosed: false,
+        // The fix is here: itemData.createdAt is a Firestore Timestamp object, so we can use it directly.
+        createdAt: itemData.createdAt || Timestamp.fromMillis(Date.now() - 31536000000), // Default to 1 year ago for FIFO
+      });
+    }
 }
 
 
@@ -121,7 +120,7 @@ export const closeProductionRunFS = async (runId: string, qtyProduced: number) =
     );
     for (const componentDoc of componentDocs) {
       if (componentDoc.exists()) {
-        await reconcileLegacyStock({ id: componentDoc.id, ...componentDoc.data() } as InventoryItem);
+        await reconcileLegacyStock({ id: componentDoc.id, ...componentDoc.data() });
       }
     }
 

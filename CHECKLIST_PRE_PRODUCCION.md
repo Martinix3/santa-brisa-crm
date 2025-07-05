@@ -1,4 +1,3 @@
-
 # Checklist de Revisión Pre-Producción: Santa Brisa CRM
 
 ## I. Acceso y Roles de Usuario
@@ -28,11 +27,11 @@
     *   [ ] Filtros de búsqueda (nombre, CIF, ciudad) y estado funcionan.
     *   [ ] Impresión de ficha de cuenta.
 -   **[ ] Registro de Interacción/Pedido (`/order-form` - Admin, SalesRep, Clavadista):**
-    *   [ ] **Programar Nueva Visita:**
+    *   **Programar Nueva Visita:**
         *   [ ] Funciona correctamente para todos los roles permitidos.
         *   [ ] El SalesRep se asigna correctamente (Admin puede elegir, SalesRep/Clavadista se autoasignan).
         *   [ ] Se puede seleccionar Clavadista.
-    *   [ ] **Registrar Resultado de Visita Programada:**
+    *   **Registrar Resultado de Visita Programada:**
         *   [ ] Carga datos de visita existente.
         *   [ ] **Pedido Exitoso:**
             *   [ ] Permite seleccionar cliente nuevo/existente.
@@ -175,4 +174,86 @@
     *   [ ] Con muchos datos (para probar paginación si la hubiera, o rendimiento de listas largas).
     *   [ ] Con datos "incorrectos" o inesperados en formularios.
 
+## VII. Pruebas del Módulo de Producción y Trazabilidad (Admin)
+
+Este es un flujo de prueba secuencial. Es crucial realizar los pasos en orden para validar la integridad del sistema.
+
+### 1. Configuración Inicial (Datos Maestros)
+- **[ ] Proveedores:**
+    - [ ] Ir a `Administrativo > Proveedores`.
+    - [ ] Crear al menos dos proveedores (Ej: "Proveedor de Tequila", "Proveedor de Botellas").
+- **[ ] Categorías de Inventario y Coste:**
+    - [ ] Ir a `Administrativo > Inventario`.
+    - [ ] Usar el filtro de categorías para crear: `Materia Prima (COGS)` y `Producto Terminado` (si no existen).
+- **[ ] Artículos de Inventario (Materias Primas):**
+    - [ ] Ir a `Administrativo > Inventario`.
+    - [ ] Crear al menos dos materias primas:
+        - **Artículo 1:** "Tequila Blanco Premium" (Categoría: Materia Prima).
+        - **Artículo 2:** "Botella de Vidrio 750ml" (Categoría: Materia Prima).
+- **[ ] Artículo de Inventario (Producto Terminado):**
+    - [ ] Crear un producto terminado:
+        - **Artículo 3:** "Santa Brisa Margarita 750ml" (Categoría: Producto Terminado, SKU: SB-750).
+        
+### 2. Recepción de Stock (Compras)
+- **[ ] Crear Gasto/Compra:**
+    - [ ] Ir a `Administrativo > Gestión de Gastos`.
+    - [ ] Crear una nueva compra para el "Proveedor de Tequila".
+    - [ ] En la sección de artículos, asociar la compra al artículo de inventario "Tequila Blanco Premium".
+    - [ ] Especificar cantidad (ej: 1000 litros) y precio. Guardar con estado `Pagado`.
+- **[ ] Validar Stock Inicial:**
+    - [ ] Ir a `Gestión de Gastos`.
+    - [ ] **Editar la compra anterior y cambiar el estado a `Factura Recibida`**.
+    - [ ] Ir a `Administrativo > Inventario`.
+    - [ ] **Verificar** que el stock de "Tequila Blanco Premium" ha aumentado a 1000.
+    - [ ] **Verificar** que se ha registrado un coste unitario para el tequila.
+- **[ ] Repetir** el proceso para "Botella de Vidrio 750ml" (ej: 500 unidades).
+
+### 3. Creación de Receta (BOM - Bill of Materials)
+- **[ ] Crear Receta:**
+    - [ ] Ir a `Configuración > Gestión de Recetas (BOM)`.
+    - [ ] Crear una nueva receta para el producto "Santa Brisa Margarita 750ml".
+    - [ ] Añadir los componentes:
+        - "Tequila Blanco Premium" (Cantidad: 0.15 litros)
+        - "Botella de Vidrio 750ml" (Cantidad: 1 unidad)
+        - *Añadir otros componentes si se crearon (ej: etiquetas, etc.)*
+    - [ ] Guardar la receta.
+
+### 4. Flujo de Producción
+- **[ ] Iniciar Orden de Producción:**
+    - [ ] Ir a `Producción > Órdenes de Producción`.
+    - [ ] Crear una nueva orden para "Santa Brisa Margarita 750ml".
+    - [ ] Cantidad planificada: **100** unidades. Guardar.
+    - [ ] **Verificar** que la orden aparece en estado `Borrador`.
+- **[ ] Finalizar Orden de Producción:**
+    - [ ] Editar la orden y cambiar su estado a `En Progreso` (o usar la acción correspondiente).
+    - [ ] Volver a la lista y usar la acción "Finalizar Producción".
+    - [ ] Confirmar la cantidad final producida (ej: 100).
+- **[ ] Validar Resultado de Producción:**
+    - [ ] **Verificar Stock de Materias Primas:**
+        - [ ] El stock de "Tequila Blanco Premium" debe haber disminuido en 15 litros (100 * 0.15).
+        - [ ] El stock de "Botella de Vidrio 750ml" debe haber disminuido en 100 unidades.
+    - [ ] **Verificar Stock de Producto Terminado:**
+        - [ ] El stock de "Santa Brisa Margarita 750ml" debe haber aumentado en 100 unidades.
+    - [ ] **Verificar Coste y Lote:**
+        - [ ] En `Inventario`, el producto "Santa Brisa Margarita 750ml" debe tener un nuevo coste unitario calculado.
+        - [ ] En la orden de producción finalizada, debe aparecer un ID de lote de salida (`outputBatchId`).
+
+### 5. Prueba de Trazabilidad con IA
+- **[ ] Trazabilidad Ascendente (del Producto al Origen):**
+    - [ ] Copiar el `outputBatchId` de la orden de producción finalizada.
+    - [ ] Ir a `Producción > Trazabilidad`.
+    - [ ] Pegar el ID del lote y buscar.
+    - [ ] **Verificar** que el informe de la IA muestra correctamente:
+        - Los detalles de la orden de producción.
+        - La lista de componentes consumidos (tequila, botellas) con sus cantidades y los IDs de sus lotes de origen.
+- **[ ] Trazabilidad Descendente (de la Materia Prima al Destino):**
+    - [ ] Ir a los detalles de la compra de "Tequila Blanco Premium" para encontrar el ID del lote de entrada.
+    - [ ] Ir a `Producción > Trazabilidad`.
+    - [ ] Pegar el ID del lote de tequila y buscar.
+    - [ ] **Verificar** que el informe muestra:
+        - Los detalles de su recepción desde la compra.
+        - La información de consumo en la orden de producción "PROD-XXXX".
+        
 Este checklist es bastante exhaustivo. ¡Mucha suerte con la revisión!
+
+    

@@ -16,23 +16,32 @@ export const createItemBatchTransactional = async (
     const newBatchRef = doc(collection(db, BATCHES_COLLECTION));
     const internalBatchCode = `B${format(new Date(), 'yyMMdd')}-${(item.sku || 'NA').substring(0, 4)}-${newBatchRef.id.substring(0,4).toUpperCase()}`;
 
-    const newBatch: ItemBatch = {
+    // Build the core object with required fields
+    const newBatchData: {[key: string]: any} = {
         id: newBatchRef.id,
         inventoryItemId: item.id,
         internalBatchCode,
-        supplierBatchCode: purchaseData.supplierBatchCode,
         qtyInitial: purchaseData.quantity,
         qtyRemaining: purchaseData.quantity,
         uom: item.uom,
         unitCost: purchaseData.unitCost,
-        expiryDate: purchaseData.expiryDate?.toISOString(),
-        locationId: purchaseData.locationId,
         isClosed: false,
         createdAt: Timestamp.now(),
     };
 
-    transaction.set(newBatchRef, newBatch);
-    return newBatch.id;
+    // Conditionally add optional fields to avoid passing `undefined`
+    if (purchaseData.supplierBatchCode) {
+        newBatchData.supplierBatchCode = purchaseData.supplierBatchCode;
+    }
+    if (purchaseData.expiryDate) {
+        newBatchData.expiryDate = purchaseData.expiryDate.toISOString();
+    }
+    if (purchaseData.locationId) {
+        newBatchData.locationId = purchaseData.locationId;
+    }
+
+    transaction.set(newBatchRef, newBatchData);
+    return newBatchRef.id;
 };
 
 /**
@@ -54,7 +63,7 @@ export async function planBatchConsumption(
     where("inventoryItemId", "==", inventoryItemId),
     where("isClosed", "==", false),
     where("qtyRemaining", ">", 0),
-    orderBy(strategy === 'FEFO' && 'expiryDate' in ItemBatch ? 'expiryDate' : 'createdAt', 'asc')
+    orderBy(strategy === 'FEFO' ? 'expiryDate' : 'createdAt', 'asc')
   );
 
   const snapshot = await getDocs(batchesQuery);

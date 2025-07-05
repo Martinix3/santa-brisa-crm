@@ -90,12 +90,7 @@ const ReportDataSchema = z.object({
     sales: z.array(z.any()),
 });
 
-
-const reportGenerationPrompt = ai.definePrompt({
-  name: 'reportGenerationPrompt',
-  input: { schema: ReportDataSchema },
-  output: { schema: TraceabilityReportOutputSchema },
-  prompt: `You are an expert in supply chain traceability for Santa Brisa. Your task is to generate a detailed, clear, and professional traceability report in Markdown format using ONLY the JSON data provided.
+const traceabilityPromptTemplate = `You are an expert in supply chain traceability for Santa Brisa. Your task is to generate a detailed, clear, and professional traceability report in Markdown format using ONLY the JSON data provided.
 
 # 🧾 Informe de Trazabilidad  
 **Lote interno:** \`{{{internalBatchCode}}}\`  
@@ -153,7 +148,14 @@ _Total vendido: **{{{totalOut}}} {{{uom}}}** · Stock restante: **{{{qtyRemainin
 * **Flechas temporales**: Arriba (Upstream) indica de dónde viene; Abajo (Downstream) indica a dónde fue.
 * **IDs clicables**: En la UI, los IDs de documentos como \`Ghg3s3...\` son enlaces directos.
 * **Datos no disponibles**: _N/D_ significa "No Disponible", y — significa "No Aplica".
-`,
+`;
+
+
+const reportGenerationPrompt = ai.definePrompt({
+  name: 'reportGenerationPrompt',
+  input: { schema: ReportDataSchema },
+  output: { schema: TraceabilityReportOutputSchema },
+  prompt: traceabilityPromptTemplate,
 });
 
 // The main orchestration flow
@@ -216,8 +218,8 @@ const traceabilityFlow = ai.defineFlow(
         totalOut,
     };
     
-    let receptionData: any = undefined;
-    let productionData: any = undefined;
+    let receptionData: any = null;
+    let productionData: any = null;
     let consumptionData: any[] = [];
 
     if (originTxn && originTxn.refId) {
@@ -274,15 +276,15 @@ const traceabilityFlow = ai.defineFlow(
     
     const promptData = {
       ...basePromptData,
-      reception: receptionData ?? null,
-      production: productionData ?? null,
-      consumption: consumptionData ?? [],
-      sales: salesData ?? [],
+      reception: receptionData,
+      production: productionData,
+      consumption: consumptionData,
+      sales: salesData,
     };
     
     // --- PHASE 4: GENERATE REPORT ---
     // Correct way to invoke the prompt
-    const compiledPromptTemplate = Handlebars.compile(reportGenerationPrompt.prompt);
+    const compiledPromptTemplate = Handlebars.compile(traceabilityPromptTemplate);
     const finalPromptString = compiledPromptTemplate(promptData);
     
     const result = await ai.generate({

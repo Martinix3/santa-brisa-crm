@@ -1,4 +1,5 @@
 
+
 import { Timestamp, type DocumentSnapshot } from "firebase/firestore";
 import { format, parseISO, isValid } from "date-fns";
 import type { Purchase, PurchaseFormValues, PurchaseFirestorePayload, Supplier, SupplierFormValues, BomLine, ProductionRun } from '@/types';
@@ -75,11 +76,11 @@ export const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: bo
     invoiceContentType: data.invoiceContentType || null,
     storagePath: data.storagePath || null,
     updatedAt: Timestamp.fromDate(new Date()),
+    batchesSeeded: data.status === 'Factura Recibida', // Set initial seeded status
   };
   
   if (isNew) {
     firestoreData.createdAt = Timestamp.fromDate(new Date());
-    firestoreData.batchesSeeded = false;
   }
 
   return firestoreData;

@@ -363,7 +363,7 @@ export interface Purchase {
   notes?: string;
   createdAt: string;
   updatedAt: string;
-  batchesSeeded?: boolean;
+  batchesSeeded: boolean;
 }
 
 export type SampleRequestStatus = 'Pendiente' | 'Aprobada' | 'Rechazada' | 'Enviada';
@@ -511,7 +511,7 @@ export interface PurchaseFirestorePayload {
   storagePath: string | null;
   createdAt?: Timestamp;
   updatedAt: Timestamp;
-  batchesSeeded?: boolean;
+  batchesSeeded: boolean;
 }
 
 

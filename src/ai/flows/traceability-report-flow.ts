@@ -117,7 +117,7 @@ const reportGenerationPrompt = ai.definePrompt({
 
 {{#if production.components}}
 
-| # | Componente | Cant. | UoM | Lote proveedor |
+| # | Componente | Cant. | UoM | Lote consumido |
 |---|---|---:|---|---|
 {{#each production.components}}
 | {{index}} | {{componentName}} | {{quantity}} | {{uom}} | \`{{batchId}}\` |
@@ -196,15 +196,15 @@ const traceabilityFlow = ai.defineFlow(
     const totalOut = downstreamTxns.reduce((sum, txn) => sum + Math.abs(txn.qtyDelta || 0), 0);
     
     const basePromptData = {
-        internalBatchCode: batchDetails.internalBatchCode,
-        productName: itemDetails.name,
+        internalBatchCode: batchDetails.internalBatchCode || 'N/A',
+        productName: itemDetails.name || 'Producto Desconocido',
         productSku: itemDetails.sku || '—',
-        qtyInitial: batchDetails.qtyInitial,
-        uom: itemDetails.uom,
+        qtyInitial: batchDetails.qtyInitial || 0,
+        uom: itemDetails.uom || 'unit',
         formattedCreatedAt: formatDDMMYYYY(batchDetails.createdAt),
         formattedExpiryDate: formatDDMMYYYY(batchDetails.expiryDate),
         supplierBatchCode: batchDetails.supplierBatchCode || '—',
-        qtyRemaining: batchDetails.qtyRemaining,
+        qtyRemaining: batchDetails.qtyRemaining || 0,
         totalOut,
     };
     
@@ -214,14 +214,15 @@ const traceabilityFlow = ai.defineFlow(
     if (originTxn) {
         const originDoc = originTxn.refId ? docsMap.get(`origin_${originTxn.refId}`) : undefined;
         if(originDoc && originDoc.exists()){
+            const originDocData = originDoc.data();
             if (originTxn.txnType === 'recepcion') {
                 receptionData = {
-                    supplier: originDoc.data().supplier,
-                    purchaseId: originTxn.refId,
+                    supplier: originDocData.supplier || 'Proveedor Desconocido',
+                    purchaseId: originTxn.refId || 'N/A',
                     date: formatDDMMYYYY(originTxn.date.toDate()),
                 };
             } else if (originTxn.txnType === 'produccion') {
-                const runData = originDoc.data() as ProductionRun;
+                const runData = originDocData as ProductionRun;
                 const componentsWithCost = await Promise.all((runData.consumedComponents || []).map(async (comp) => {
                     const batch = await getBatchDetails(comp.batchId);
                     const cost = (batch?.unitCost || 0) * comp.quantity;
@@ -231,14 +232,14 @@ const traceabilityFlow = ai.defineFlow(
                 const totalCost = componentsWithCost.reduce((sum, comp) => sum + comp.cost, 0);
 
                 productionData = {
-                    runId: originTxn.refId,
+                    runId: originTxn.refId || 'N/A',
                     date: formatDDMMYYYY(originTxn.date.toDate()),
                     components: componentsWithCost.map((c, index) => ({
                         index: index + 1,
-                        componentName: c.componentName,
-                        quantity: c.quantity,
-                        uom: c.uom,
-                        batchId: c.supplierBatchCode || c.batchId,
+                        componentName: c.componentName || 'Componente Desconocido',
+                        quantity: c.quantity || 0,
+                        uom: c.uom || 'unit',
+                        batchId: c.supplierBatchCode || c.batchId || 'N/A',
                     })),
                     totalCostString: totalCost > 0 ? `${totalCost.toFixed(2)} €` : '',
                 };
@@ -246,47 +247,33 @@ const traceabilityFlow = ai.defineFlow(
         }
     }
     
-    let consumptionData: any[] | undefined = undefined;
-    let salesData: any[] | undefined = undefined;
+    const salesData: any[] = []; // Initialize as empty array
     if (downstreamTxns.length > 0) {
-        const tempConsumption: any[] = [];
-        const tempSales: any[] = [];
         for (const txn of downstreamTxns) {
-            if (!txn.refId || !txn.refCollection) continue;
+            if (!txn.refId || !txn.refCollection || txn.txnType !== 'venta') continue;
             const docSnap = docsMap.get(`${txn.txnType}_${txn.refId}`);
             if (docSnap && docSnap.exists()) {
-                if (txn.txnType === 'consumo') {
-                    const run = docSnap.data() as ProductionRun;
-                    tempConsumption.push({
-                        date: formatDDMMYYYY(txn.date.toDate()),
-                        productName: run.productName,
-                        quantity: -txn.qtyDelta,
-                        uom: itemDetails.uom,
-                        outputBatchId: run.outputBatchId || '—',
-                    });
-                } else if (txn.txnType === 'venta') {
-                    const sale = docSnap.data() as DirectSale;
-                    tempSales.push({
-                        date: formatDDMMYYYY(txn.date.toDate()),
-                        customerName: sale.customerName,
-                        saleId: sale.id,
-                        channel: sale.channel,
-                        quantity: -txn.qtyDelta,
-                    });
-                }
+                const sale = docSnap.data() as DirectSale;
+                salesData.push({
+                    date: formatDDMMYYYY(txn.date.toDate()),
+                    customerName: sale.customerName || 'Cliente Desconocido',
+                    saleId: sale.id || 'N/A',
+                    channel: sale.channel || 'N/D',
+                    quantity: Math.abs(txn.qtyDelta || 0),
+                });
             }
         }
-        if (tempConsumption.length > 0) consumptionData = tempConsumption;
-        if (tempSales.length > 0) salesData = tempSales;
     }
     
     const promptData: any = {
-      ...basePromptData
+      ...basePromptData,
+      sales: salesData, // Always an array, even if empty
     };
     if (receptionData) promptData.reception = receptionData;
-    if (productionData) promptData.production = productionData;
-    if (consumptionData) promptData.consumption = consumptionData;
-    if (salesData) promptData.sales = salesData;
+    if (productionData) {
+        // Ensure components is an array, even if empty
+        promptData.production = { ...productionData, components: productionData.components || [] };
+    }
     
     // --- PHASE 4: GENERATE REPORT ---
     const result = await ai.generate({

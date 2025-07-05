@@ -10,11 +10,12 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { collection, query, where, getDocs, doc, getDoc, limit, type DocumentReference, type DocumentData, type DocumentSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, limit, type DocumentData, type DocumentSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { ItemBatch, StockTxn, ProductionRun, DirectSale, InventoryItem } from '@/types';
 import { fromFirestoreItemBatch } from '@/services/utils/firestore-converters';
 import { format, parseISO, isValid } from 'date-fns';
+import { es } from 'date-fns/locale';
 import Handlebars from 'handlebars';
 
 
@@ -36,68 +37,50 @@ const formatDDMMYYYY = (date: Date | string | null | undefined): string => {
     return format(d, 'dd-MM-yyyy');
 };
 
-// Register a Handlebars helper to add 1 to the index for user-friendly numbering.
-Handlebars.registerHelper('add', function(a, b) {
-  return a + b;
-});
+const traceabilityPromptTemplate = `
+# 🧾 Informe de Trazabilidad
 
-
-const traceabilityPromptTemplate = `# 🧾 Informe de Trazabilidad  
-**Lote interno:** \`{{{internalBatchCode}}}\`  
-**Producto:** {{{productName}}} — **SKU:** \`{{{productSku}}}\`
-
-| Cantidad | UoM | Creado el | Caduca el | Lote proveedor |
-|---|---|---|---|---|
-| {{{qtyInitial}}} | {{{uom}}} | {{{formattedCreatedAt}}} | {{{formattedExpiryDate}}} | \`{{{supplierBatchCode}}}\` |
+### Lote Principal
+- **Producto:** {{productName}} (SKU: \`{{productSku}}\`)
+- **Lote Interno:** \`{{internalBatchCode}}\`
+- **Lote Proveedor:** \`{{supplierBatchCode}}\`
+- **Cantidad Inicial:** {{qtyInitial}} {{uom}}
+- **Stock Restante:** **{{qtyRemaining}} {{uom}}**
+- **Fecha Creación:** {{formattedCreatedAt}}
+- **Fecha Caducidad:** {{formattedExpiryDate}}
 
 ---
 
-## 🔍 Origen del lote (Upstream)
-{{#if reception}}
-> Recibido del proveedor **{{{reception.supplier}}}** en la **Compra** \`{{{reception.purchaseId}}}\`  
-> **Fecha de recepción:** {{{reception.date}}}
-{{else if production}}
-> Producido internamente en la **Orden de Producción** \`{{{production.runId}}}\`  
-> **Fecha de producción:** {{{production.date}}}
-{{else}}
-> _No se ha encontrado un origen claro para este lote (posiblemente stock inicial o migrado)._
-{{/if}}
+## 🔍 Origen del Lote (Upstream)
+> {{{originSummary}}}
 
 {{#if consumption.length}}
-
 ### Componentes Consumidos
-| # | Componente | Cant. | UoM | Lote Consumido |
-|---|---|---:|---|---|
+| Componente | Cantidad | UoM | Lote Consumido (Proveedor) |
+|---|---:|---|---|
 {{#each consumption}}
-| {{add @index 1}} | {{{this.componentName}}} | {{{this.quantity}}} | {{{this.uom}}} | \`{{{this.supplierBatchCode}}}\` |
+| {{this.componentName}} | {{this.quantity}} | {{this.uom}} | \`{{this.supplierBatchCode}}\` |
 {{/each}}
-{{#if production.totalCostString}}
-
-_Coste total de componentes: **{{{production.totalCostString}}}**._
 {{/if}}
+{{#if totalCostString}}
+**Coste total de producción:** {{totalCostString}}
 {{/if}}
 
 ---
 
-## 📦 Destino del lote (Downstream)
+## 📦 Destino del Lote (Downstream)
+
 {{#if sales.length}}
-| Fecha | Cliente | Documento | Canal | Cant. |
+| Fecha | Cliente | Documento | Canal | Cantidad |
 |---|---|---|---|---:|
 {{#each sales}}
-| {{{this.date}}} | **{{{this.customerName}}}** | Venta directa \`{{{this.saleId}}}\` | {{{this.channel}}} | {{{this.quantity}}} |
+| {{this.date}} | **{{this.customerName}}** | Venta \`{{this.saleId}}\` | {{this.channel}} | {{this.quantity}} |
 {{/each}}
 {{else}}
-> Sin movimientos de salida registrados.
+> Sin movimientos de salida (ventas) registrados para este lote.
 {{/if}}
 
-_Total vendido: **{{{totalOut}}} {{{uom}}}** · Stock restante: **{{{qtyRemaining}}}**_
-
 ---
-
-### 🖨️ Consejos de lectura
-* **Flechas temporales**: Arriba (Upstream) indica de dónde viene; Abajo (Downstream) indica a dónde fue.
-* **IDs clicables**: En la UI, los IDs de documentos como \`Ghg3s3...\` son enlaces directos.
-* **Datos no disponibles**: _N/D_ significa "No Disponible", y — significa "No Aplica".
 `;
 
 
@@ -110,20 +93,16 @@ async function getBatchDetails(batchIdOrCode: string): Promise<ItemBatch | null>
         return fromFirestoreItemBatch(batchSnap);
     }
 
-    const q = query(collection(db, 'itemBatches'), where('internalBatchCode', '==', batchIdOrCode), limit(1));
-    const querySnapshot = await getDocs(q);
-
-    if (!querySnapshot.empty) {
-        const doc = querySnapshot.docs[0];
-        return fromFirestoreItemBatch(doc);
+    const qInternal = query(collection(db, 'itemBatches'), where('internalBatchCode', '==', batchIdOrCode), limit(1));
+    const querySnapshotInternal = await getDocs(qInternal);
+    if (!querySnapshotInternal.empty) {
+        return fromFirestoreItemBatch(querySnapshotInternal.docs[0]);
     }
     
     const qSupplier = query(collection(db, 'itemBatches'), where('supplierBatchCode', '==', batchIdOrCode), limit(1));
     const querySnapshotSupplier = await getDocs(qSupplier);
-
     if (!querySnapshotSupplier.empty) {
-        const doc = querySnapshotSupplier.docs[0];
-        return fromFirestoreItemBatch(doc);
+        return fromFirestoreItemBatch(querySnapshotSupplier.docs[0]);
     }
 
     return null;
@@ -173,7 +152,7 @@ const traceabilityFlow = ai.defineFlow(
             refsToRead.set(`${txn.txnType}_${txn.refId}`, doc(db, txn.refCollection, txn.refId));
         }
     });
-
+    
     const docsRead = await Promise.all(
         Array.from(refsToRead.values()).map(ref => getDoc(ref))
     );
@@ -182,50 +161,39 @@ const traceabilityFlow = ai.defineFlow(
 
     // --- PHASE 3: PREPARE DATA FOR PROMPT (with safe fallbacks) ---
     
-    const totalOut = downstreamTxns.reduce((sum, txn) => sum + Math.abs(txn.qtyDelta || 0), 0);
+    let originSummary = "Origen del lote no encontrado (posiblemente stock inicial o migrado).";
+    let consumptionData: any[] = [];
+    let totalCostString = "";
     
-    let receptionData: any = null;
-    let productionData: any = null;
-
     if (originTxn && originTxn.refId) {
         const originDoc = docsMap.get(`origin_${originTxn.refId}`);
         if(originDoc && originDoc.exists()){
             const originDocData = originDoc.data();
             if (originTxn.txnType === 'recepcion') {
-                receptionData = {
-                    supplier: originDocData!.supplier || 'Proveedor Desconocido',
-                    purchaseId: originTxn.refId || 'N/A',
-                    date: formatDDMMYYYY(originTxn.date.toDate()),
-                };
+                originSummary = `Recibido del proveedor **${originDocData!.supplier || 'Desconocido'}** en la Compra \`${originTxn.refId}\` el ${formatDDMMYYYY(originTxn.date.toDate())}.`;
             } else if (originTxn.txnType === 'produccion') {
                 const runData = originDocData as ProductionRun;
+                originSummary = `Producido internamente en la **Orden de Producción** \`${originTxn.refId}\` el ${formatDDMMYYYY(originTxn.date.toDate())}.`;
+
                 const totalCost = (runData.consumedComponents || []).reduce((sum, comp) => {
-                  const unitCost = comp.unitCost || 0; // Ensure unitCost is a number
+                  const unitCost = comp.unitCost || 0;
                   return sum + (comp.quantity * unitCost);
                 }, 0);
-
-                productionData = {
-                    runId: originTxn.refId || 'N/A',
-                    date: formatDDMMYYYY(originTxn.date.toDate()),
-                    totalCostString: totalCost > 0 ? `${totalCost.toFixed(2)} €` : '',
-                    components: runData.consumedComponents || []
-                };
+                if (totalCost > 0) totalCostString = `**${totalCost.toFixed(2)} €**`;
+                
+                if (runData.consumedComponents && runData.consumedComponents.length > 0) {
+                   const componentItems = await Promise.all(
+                     runData.consumedComponents.map(c => getInventoryItem(c.componentId))
+                   );
+                   consumptionData = runData.consumedComponents.map((c, i) => ({
+                      componentName: c.componentName || 'Componente Desconocido',
+                      quantity: c.quantity || 0,
+                      uom: componentItems[i]?.uom || 'unit',
+                      supplierBatchCode: c.supplierBatchCode || c.batchId, // Fallback to internal batch if supplier one is missing
+                   }));
+                }
             }
         }
-    }
-    
-    let consumptionData: any[] = [];
-    if (productionData?.components?.length > 0) {
-        const consumptionWithUomPromises = productionData.components.map(async (c: any) => {
-            const compItem = await getInventoryItem(c.componentId);
-            return {
-                componentName: c.componentName || 'Componente Desconocido',
-                quantity: c.quantity || 0,
-                uom: compItem?.uom || 'unit',
-                supplierBatchCode: c.supplierBatchCode || 'N/A',
-            }
-        });
-        consumptionData = await Promise.all(consumptionWithUomPromises);
     }
     
     const salesData: any[] = [];
@@ -256,10 +224,9 @@ const traceabilityFlow = ai.defineFlow(
       formattedExpiryDate: formatDDMMYYYY(batchDetails.expiryDate),
       supplierBatchCode: batchDetails.supplierBatchCode || '—',
       qtyRemaining: batchDetails.qtyRemaining || 0,
-      totalOut,
-      reception: receptionData,
-      production: productionData,
+      originSummary,
       consumption: consumptionData,
+      totalCostString,
       sales: salesData,
     };
     

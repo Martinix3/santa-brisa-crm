@@ -27,7 +27,7 @@ const fromFirestoreOrder = (docSnap: DocumentSnapshot): Order => {
   return {
     id: docSnap.id,
     clientName: data.clientName,
-    visitDate: toDateString(data.visitDate),
+    visitDate: toDateString(data.visitDate, false), // visitDate is not always present
     products: data.products,
     value: data.value,
     status: data.status,
@@ -58,6 +58,15 @@ const fromFirestoreOrder = (docSnap: DocumentSnapshot): Order => {
     taskCategory: data.taskCategory || 'Commercial',
     isCompleted: !!data.isCompleted,
     orderIndex: data.orderIndex ?? 0,
+    costOfGoods: data.costOfGoods,
+    paidStatus: data.paidStatus,
+    embajadorId: data.embajadorId,
+    comision: data.comision,
+    bonus: data.bonus,
+    es_segundo_pedido: data.es_segundo_pedido,
+    liberado_para_pago: data.liberado_para_pago,
+    cif: data.cif,
+    saleType: data.saleType,
   };
 };
 

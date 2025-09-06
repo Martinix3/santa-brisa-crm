@@ -1,4 +1,5 @@
 
+
 import type { Account, Order, TeamMember, EnrichedAccount, AccountStatus } from '@/types';
 import { parseISO, isValid, isAfter, subDays, differenceInDays } from 'date-fns';
 import { calculateCommercialStatus, calculateLeadScore } from '@/lib/account-logic';
@@ -56,8 +57,8 @@ export async function processCarteraData(
         const accountOrders = Array.from(combinedOrdersMap.values());
         
         accountOrders.sort((a, b) => {
-            const dateA = parseISO(a.visitDate || a.createdAt || new Date(0).toISOString());
-            const dateB = parseISO(b.visitDate || b.createdAt || new Date(0).toISOString());
+            const dateA = a.createdAt ? parseISO(a.createdAt) : new Date(0);
+            const dateB = b.createdAt ? parseISO(b.createdAt) : new Date(0);
             if (!isValid(dateA)) return 1;
             if (!isValid(dateB)) return -1;
             return dateB.getTime() - dateA.getTime();
@@ -92,7 +93,7 @@ export async function processCarteraData(
         }
 
         const lastInteractionOrder = accountOrders[0];
-        const lastInteractionDate = lastInteractionOrder ? parseISO(lastInteractionOrder.visitDate || lastInteractionOrder.createdAt || new Date(0).toISOString()) : undefined;
+        const lastInteractionDate = lastInteractionOrder?.createdAt ? parseISO(lastInteractionOrder.createdAt) : undefined;
         
         const recentOrderValue = accountOrders
             .filter(o => VALID_SALE_STATUSES.includes(o.status) && o.createdAt && isValid(parseISO(o.createdAt)) && isAfter(parseISO(o.createdAt), subDays(new Date(), 30)))

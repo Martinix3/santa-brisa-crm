@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -162,7 +163,7 @@ export function useOrderFormWizard() {
       }
     }
     loadInitialData();
-  }, [searchParams, toast]);
+  }, [searchParams]);
 
   const handleClientSelect = (selectedClient: Account | { id: 'new'; nombre: string }) => {
     setClient(selectedClient);

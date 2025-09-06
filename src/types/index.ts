@@ -607,20 +607,22 @@ export interface Supplier {
   updatedAt: string;
 }
 
-export type InteractionType = 'Visita' | 'Llamada' | 'Mail' | 'Otro';
-export type InteractionResult = 'Programada' | 'Requiere seguimiento' | 'Pedido Exitoso' | 'Fallida';
-
+export type Stage = 'Active'|'Potential'|'Pending';
+export type InteractionType = 'Visita'|'Llamada'|'Email'|'Pedido'|'Cobro'|'Otro';
+export type InteractionResult = 'Completado'|'Seguimiento'|'No_contactado'|'Fallido';
 export interface Interaction {
   id: string;
   accountId: string;
-  tipo: InteractionType;
-  resultado: InteractionResult;
-  fecha_prevista: string;
-  fecha_real?: string;
-  importe?: number;
-  promoItems?: {id: string, qty: number}[];
-  createdBy: string;
-  createdAt: string;
+  date: Timestamp;
+  type: InteractionType;
+  result: InteractionResult;
+  valueEUR?: number;
+  salesRepId: string;
+  notes?: string;
+  managed?: boolean;
+  nextAction?: { type: InteractionType; date?: Timestamp };
+  createdBy: string; 
+  createdAt: Timestamp;
 }
 
 export type Step = "client" | "outcome" | "details" | "verify";

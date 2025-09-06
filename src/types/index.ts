@@ -761,7 +761,7 @@ export interface FinishProductionRunFormValues {
 }
 
 
-export type DirectSaleWithExtras = import('./schemas/direct-sale-schema').GenerateOrderFormValues & { issueDate: Date; customerId?: string };
+export type DirectSaleWithExtras = import('@/lib/schemas/direct-sale-schema').GenerateOrderFormValues & { issueDate: Date; customerId?: string };
 
 export interface BatchFormValues {
   qcStatus: QcStatus;
@@ -805,8 +805,8 @@ export interface Mail {
 
 
 // Purchase Type, derived from form schema
-export type PurchaseFormValues = import('./schemas/purchase-schema').PurchaseFormValues;
-export type ExpenseType = import('./schemas/purchase-schema').PurchaseFormValues;
+export type PurchaseFormValues = import('@/lib/schemas/purchase-schema').PurchaseFormValues;
+export type ExpenseType = import('@/lib/schemas/purchase-schema').PurchaseFormValues;
 
 export interface SampleRequestFormValues {
   requesterId?: string;

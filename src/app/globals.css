@@ -7,105 +7,118 @@ body {
   font-family: var(--font-body), sans-serif;
 }
 
+/* 
+  ===== Nueva Paleta de Colores - Santa Brisa Refresh =====
+  Inspirado en la Brand Guide. 
+  - Primario: Amarillo cálido (#F7D15F)
+  - Secundario: Verde azulado oscuro (#618E8F)
+  - Superficies: Blancos rotos y grises muy claros para dar limpieza.
+  - Menú Lateral: Negro profundo para un contraste elegante.
+*/
+
 @layer base {
   :root {
-    --background: 220 20% 96%;
-    --foreground: 220 15% 20%;
+    /* Tokens de Marca (Primitivos) */
+    --brand-black: 240 10% 3.9%;
+    --brand-yellow: 45 92% 67%;
+    --brand-orange: 18 65% 54%;
+    --brand-teal-light: 182 25% 76%;
+    --brand-teal-dark: 181 18% 47%;
+    --brand-white: 0 0% 100%;
+    --brand-off-white: 240 5% 96.1%;
+    --brand-gray: 0 0% 92.2%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 220 15% 20%;
+    /* Tokens de UI (Semánticos) */
+    --background: var(--brand-off-white); /* surface-background */
+    --foreground: var(--brand-black); /* text-primary */
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 15% 20%;
+    --card: var(--brand-white); /* surface-default */
+    --card-foreground: var(--brand-black);
 
-    /* --- Santa Brisa Official Colors --- */
-    --primary: 45 95% 58%; /* Vibrant Yellow */
-    --primary-foreground: 45 100% 15%; /* Dark Brown/Black for contrast */
+    --popover: var(--brand-white);
+    --popover-foreground: var(--brand-black);
+
+    --primary: var(--brand-yellow); /* action-primary */
+    --primary-foreground: 25 84% 30%; /* Contraste para amarillo */
+
+    --secondary: var(--brand-teal-dark); /* action-secondary */
+    --secondary-foreground: var(--brand-white); /* text-on-color */
     
-    --secondary: 220 15% 90%; /* Cool Gray */
-    --secondary-foreground: 220 15% 25%;
+    --muted: var(--brand-gray); /* surface-subtle */
+    --muted-foreground: 240 4% 46%;
 
-    --muted: 220 15% 94%;
-    --muted-foreground: 220 10% 45%;
+    --accent: var(--brand-teal-light); /* status-info */
+    --accent-foreground: var(--brand-black);
 
-    --accent: 220 15% 90%; /* Using Cool Gray as Accent */
-    --accent-foreground: 220 15% 25%;
+    --destructive: var(--brand-orange); /* action-destructive */
+    --destructive-foreground: 0 0% 100%;
 
-    --destructive: 0 75% 55%;
-    --destructive-foreground: 0 0% 98%;
+    --border: var(--brand-gray); /* border-default */
+    --input: var(--brand-white);
+    --ring: var(--brand-yellow);
 
-    --border: 220 15% 88%;
-    --input: 220 20% 99%; /* Slightly off-white for inputs */
-    --ring: 45 95% 60%;
-    
     /* --- Brand & Status Palette (NEW) --- */
-    --brand-success-hsl: 142 71% 45%; /* Green */
-    --brand-info-hsl: 217 91% 60%;    /* Blue */
-    --brand-warning-hsl: 48 96% 53%;  /* Yellow */
-    --brand-danger-hsl: 0 72% 51%;     /* Red */
-    --brand-process-hsl: 262 83% 58%; /* Purple */
-    --brand-neutral-hsl: 220 13% 47%; /* Slate Gray */
-    --brand-turquoise-hsl: 177 100% 35%; /* Teal/Turquoise */
-
+    --brand-success-hsl: var(--brand-teal-dark);
+    --brand-info-hsl: var(--brand-teal-light);
+    --brand-warning-hsl: var(--brand-yellow);
+    --brand-danger-hsl: var(--brand-orange);
 
     /* --- Sidebar Theme --- */
-    --sidebar-background: 220 15% 15%;
-    --sidebar-foreground: 220 20% 85%;
-    --sidebar-primary: 45 100% 65%;
-    --sidebar-primary-foreground: 45 100% 10%;
-    --sidebar-accent: 220 15% 25%;
+    --sidebar-background: var(--brand-black);
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: var(--brand-yellow);
+    --sidebar-primary-foreground: 25 84% 30%;
+    --sidebar-accent: 240 5% 18%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 220 15% 30%;
-    --sidebar-ring: 45 100% 65%;
+    --sidebar-border: 240 5% 18%;
+    --sidebar-ring: var(--brand-yellow);
+    
+    /* --- Radios y Sombras --- */
+    --radius: 0.5rem; /* 8px */
   }
 
   .dark {
-    --background: 220 15% 12%;
-    --foreground: 220 20% 95%;
+    /* Mantenemos una paleta similar, ajustando brillo y saturación para pantallas oscuras */
+    --brand-black: 0 0% 7%;
+    --brand-yellow: 45 90% 65%;
+    --brand-orange: 18 70% 58%;
+    --brand-teal-light: 182 15% 40%;
+    --brand-teal-dark: 181 25% 65%;
+    --brand-white: 0 0% 100%;
+    --brand-off-white: 240 4% 10%;
+    --brand-gray: 240 4% 15%;
 
-    --card: 220 15% 18%;
-    --card-foreground: 220 20% 95%;
+    --background: var(--brand-off-white);
+    --foreground: var(--brand-white);
 
-    --popover: 220 15% 12%;
-    --popover-foreground: 220 20% 95%;
+    --card: var(--brand-gray);
+    --card-foreground: var(--brand-white);
     
-    --primary: 45 90% 60%;
-    --primary-foreground: 45 100% 10%;
+    --popover: var(--brand-black);
+    --popover-foreground: var(--brand-white);
 
-    --secondary: 220 15% 25%;
-    --secondary-foreground: 220 20% 85%;
-
-    --muted: 220 15% 22%;
-    --muted-foreground: 220 15% 60%;
-
-    --accent: 220 15% 25%;
-    --accent-foreground: 220 20% 85%;
-
-    --destructive: 0 60% 50%;
-    --destructive-foreground: 0 0% 98%;
-
-    --border: 220 15% 30%;
-    --input: 220 15% 20%;
-    --ring: 45 90% 62%;
+    --primary: var(--brand-yellow);
+    --primary-foreground: 25 84% 30%;
     
-     /* --- Brand & Status Palette (Dark) --- */
-    --brand-success-hsl: 142 61% 50%;
-    --brand-info-hsl: 217 81% 65%;
-    --brand-warning-hsl: 48 90% 58%;
-    --brand-danger-hsl: 0 70% 55%;
-    --brand-process-hsl: 262 75% 65%;
-    --brand-neutral-hsl: 220 10% 60%;
-    --brand-turquoise-hsl: 177 90% 40%;
+    --secondary: var(--brand-teal-dark);
+    --secondary-foreground: var(--brand-black);
     
+    --muted: 240 4% 15%;
+    --muted-foreground: 240 4% 65%;
+    
+    --accent: var(--brand-teal-light);
+    --accent-foreground: var(--brand-white);
+    
+    --destructive: var(--brand-orange);
+    --destructive-foreground: var(--brand-white);
+    
+    --border: 240 4% 20%;
+    --input: 240 4% 18%;
+    --ring: var(--brand-yellow);
+
     /* --- Sidebar Theme (Dark) --- */
-    --sidebar-background: 220 15% 10%;
-    --sidebar-foreground: 220 20% 80%;
-    --sidebar-primary: 45 90% 68%;
-    --sidebar-primary-foreground: 45 100% 5%;
-    --sidebar-accent: 220 15% 20%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 220 15% 22%;
-    --sidebar-ring: 45 90% 68%;
+    --sidebar-background: var(--brand-black);
+    /* El resto de colores de sidebar pueden heredar de :root si el diseño es consistente */
   }
 }
 
@@ -277,5 +290,3 @@ body {
       background-color: #f2f2f2 !important;
   }
 }
-
-    

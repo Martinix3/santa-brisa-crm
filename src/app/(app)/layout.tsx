@@ -23,7 +23,7 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import Link from 'next/link';
-import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Building2, ClipboardList, CalendarCheck, PartyPopper, ListChecks, Footprints, Briefcase, Target, Award, Sparkles, Receipt, PackageCheck, SendHorizonal, Truck, Archive, Wrench, Cog, Waypoints, Server, HardHat } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, ShoppingCart, Library, LogOut, Settings, UserCircle, Building2, ClipboardList, CalendarCheck, PartyPopper, ListChecks, Footprints, Briefcase, Target, Award, Sparkles, Receipt, PackageCheck, SendHorizonal, Truck, Archive, Wrench, Cog, Waypoints, Server, HardHat, Palette } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -218,6 +218,7 @@ const navigationStructure: NavGroup[] = [
     groupRoles: ['Admin'], 
     items: [
       { href: '/admin/settings', label: 'Panel de Configuración', icon: Settings, roles: ['Admin'], exact: true }, 
+      { href: '/ui', label: 'UI-Kit Preview', icon: Palette, roles: ['Admin'] }, 
     ],
   },
 ];
@@ -357,5 +358,3 @@ function UserMenu({ userEmail, logout }: UserMenuProps) {
     </TooltipProvider>
   );
 }
-
-    

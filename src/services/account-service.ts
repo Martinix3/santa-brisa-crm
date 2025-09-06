@@ -1,4 +1,5 @@
 
+
 import { db } from '@/lib/firebase';
 import {
   collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
@@ -153,8 +154,6 @@ export const updateAccountFS = async (id: string, data: Partial<AccountFormValue
     const firestoreData = toFirestore(data, false);
     batch.update(accountDocRef, firestoreData);
     
-    // If the sales rep is changing (it's present in the data payload),
-    // update all open tasks for this account.
     if ('salesRepId' in data) {
         let newRepName: string | null = null;
         if (data.salesRepId) {
@@ -165,11 +164,7 @@ export const updateAccountFS = async (id: string, data: Partial<AccountFormValue
                 console.warn(`Could not find team member with ID: ${data.salesRepId}`);
                 newRepName = 'Asignado a ID no válido';
             }
-        } else {
-            // This handles the case where salesRepId is explicitly set to null or undefined
-            // in the form, meaning "Sin Asignar".
-            newRepName = null;
-        }
+        } // If data.salesRepId is null or undefined, newRepName remains null, which is correct for un-assigning.
 
         const openTasksQuery = query(
             collection(db, ORDERS_COLLECTION),
@@ -182,7 +177,7 @@ export const updateAccountFS = async (id: string, data: Partial<AccountFormValue
 
             openTasksSnapshot.forEach(taskDoc => {
                 batch.update(taskDoc.ref, { 
-                    salesRep: newRepName, // Update the name
+                    salesRep: newRepName,
                     lastUpdated: Timestamp.now()
                 });
             });

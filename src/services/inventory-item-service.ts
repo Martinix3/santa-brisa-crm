@@ -1,7 +1,4 @@
 
-
-'use server';
-
 import { db } from '@/lib/firebase';
 import {
   collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, type DocumentSnapshot, runTransaction, FieldValue, where

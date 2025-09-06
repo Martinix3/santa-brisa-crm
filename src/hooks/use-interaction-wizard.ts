@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { getAccountsFS } from "@/services/account-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
-import { getInventoryItemsFS } from "@/services/inventory-item-service";
+import { getInventoryItemsAction } from "@/services/server/inventory-actions";
 import { saveInteractionFS } from "@/services/interaction-service";
 import type { Account, TeamMember, Order, InventoryItem } from "@/types";
 import { interactionFormSchema, type InteractionFormValues } from '@/lib/schemas/interaction-schema';
@@ -61,7 +61,7 @@ export function useInteractionWizard(
           getAccountsFS(),
           getTeamMembersFS(['SalesRep', 'Admin']),
           getTeamMembersFS(['Clavadista', 'Líder Clavadista']),
-          getInventoryItemsFS()
+          getInventoryItemsAction() // Use Server Action here
         ]);
         
         setSalesRepsList(fetchedSalesReps);

@@ -1,3 +1,4 @@
+
 {
   "name": "functions",
   "main": "lib/index.js",
@@ -16,5 +17,9 @@
     "@types/express": "^4.17.21",
     "@types/node": "^20",
     "typescript": "^5.9.2"
+  },
+  "overrides": {
+    "firebase-functions": "6.4.0",
+    "firebase-admin": "12.7.0"
   }
 }

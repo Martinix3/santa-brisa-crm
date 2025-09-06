@@ -1,3 +1,4 @@
+
 {
   "name": "santa-brisa-crm",
   "version": "0.1.0",
@@ -58,11 +59,11 @@
     "handlebars": "^4.7.8",
     "lucide-react": "^0.416.0",
     "monaco-editor": "^0.50.0",
-    "next": "14.2.32",
+    "next": "15.5.2",
     "patch-package": "^8.0.0",
-    "react": "^18.3.1",
+    "react": "19.1.1",
     "react-day-picker": "^8.10.1",
-    "react-dom": "^18.3.1",
+    "react-dom": "19.1.1",
     "react-hook-form": "^7.52.1",
     "react-markdown": "^9.0.1",
     "recharts": "^2.12.7",
@@ -77,12 +78,13 @@
     "@types/gapi.auth2": "^0.0.60",
     "@types/google.picker": "^0.0.45",
     "@types/node": "^20",
-    "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0",
+    "@types/react": "19.1.12",
+    "@types/react-dom": "19.1.9",
     "@types/uuid": "^9.0.8",
     "@typescript-eslint/eslint-plugin": "^8.42.0",
     "@typescript-eslint/parser": "^8.42.0",
     "eslint": "^9.35.0",
+    "eslint-config-next": "15.5.2",
     "genkit-cli": "1.18.0",
     "null-loader": "^4.0.1",
     "postcss": "^8",
@@ -92,6 +94,15 @@
     "typescript": "^5.5.4"
   },
   "overrides": {
-    "firebase-admin": "12.7.0"
+    "next": "15.5.2",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "firebase": "12.2.1",
+    "genkit": "1.18.0",
+    "genkit-cli": "1.18.0",
+    "@genkit-ai/firebase": "1.18.0",
+    "@genkit-ai/googleai": "1.18.0",
+    "firebase-admin": "12.7.0",
+    "firebase-functions": "6.4.0"
   }
 }

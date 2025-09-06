@@ -12,7 +12,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, Loader2, Search, AlertTriangle, ChevronDown, Trash2 } from "lucide-react";
 import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
 import { getAccountsFS, addAccountFS, updateAccountFS, deleteAccountFS } from "@/services/account-service";
-import { getOrdersFS, updateFullOrderFS } from "@/services/order-service";
+import { getOrdersFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { processCarteraData } from "@/services/cartera-service";
 import AccountTableRow from "@/components/app/account-table-row";
@@ -24,6 +24,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import AccountHistoryTable from "@/components/app/account-history-table";
 import { cn } from "@/lib/utils";
+import { saveInteractionFS } from '@/services/interaction-service';
 
 
 type BucketFilter = "Todos" | "Vencidas" | "Para Hoy" | "Pendientes";
@@ -298,7 +299,7 @@ export default function AccountsPage() {
                             <TableHead className="w-[20%]">Última Interacción</TableHead>
                             <TableHead className="w-[15%]">Próxima Tarea</TableHead>
                             <TableHead className="w-[10%] text-right">Valor</TableHead>
-                            <TableHead className="w-[10%] text-center">Estado/Prioridad</TableHead>
+                            <TableHead className="w-[10%] text-center">Prioridad</TableHead>
                             <TableHead className="w-[10%] text-right pr-4">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -396,11 +397,7 @@ const AccountGroup: React.FC<AccountGroupProps> = ({ title, accounts, teamMember
                      {expandedRowId === account.id && (
                         <TableRow className="bg-background hover:bg-background">
                             <TableCell colSpan={7} className="p-0">
-                                {account.interactions ? (
-                                    <AccountHistoryTable interactions={account.interactions} />
-                                ) : (
-                                    <div className="p-4 text-center text-sm text-muted-foreground">Cargando historial...</div>
-                                )}
+                                <AccountHistoryTable interactions={account.interactions} />
                             </TableCell>
                         </TableRow>
                     )}

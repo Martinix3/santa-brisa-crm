@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableRow, TableHead, TableHeader } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import type { Order } from "@/types";
 import { format, parseISO, isValid } from 'date-fns';
@@ -13,7 +13,6 @@ import { Send, CheckCircle, Eye } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
 import { getInteractionType } from '@/lib/interaction-utils';
-
 
 interface AccountHistoryTableProps {
   interactions: Order[];
@@ -30,17 +29,6 @@ export default function AccountHistoryTable({ interactions }: AccountHistoryTabl
     <div className="p-2 bg-muted/20">
         <div className="max-h-64 overflow-y-auto">
             <Table>
-                <TableHeader>
-                    <TableRow className="text-xs">
-                        <TableHead className="w-[20%]">Cuenta</TableHead>
-                        <TableHead className="w-[15%]">Responsable</TableHead>
-                        <TableHead className="w-[20%]">Interacción</TableHead>
-                        <TableHead className="w-[15%]">Próx. Tarea</TableHead>
-                        <TableHead className="w-[10%] text-right">Valor</TableHead>
-                        <TableHead className="w-[10%] text-center">Estado/Prio</TableHead>
-                        <TableHead className="w-[10%] text-right pr-4">Acciones</TableHead>
-                    </TableRow>
-                </TableHeader>
                 <TableBody>
                     {interactions.slice(0, 10).map(interaction => {
                         const isOpenTask = ['Programada', 'Seguimiento'].includes(interaction.status);
@@ -48,26 +36,26 @@ export default function AccountHistoryTable({ interactions }: AccountHistoryTabl
 
                         return (
                             <TableRow key={interaction.id} className="text-xs">
-                                <TableCell className="py-1.5 px-2 font-medium truncate" title={interaction.clientName}>
-                                    {/* Placeholder for account name, data is in parent */}
+                                <TableCell className="py-1.5 px-2 w-[20%] font-medium truncate" title={interaction.clientName}>
+                                    {/* Empty cell for alignment with Account Name */}
                                 </TableCell>
-                                 <TableCell className="py-1.5 px-2 truncate" title={interaction.salesRep}>
+                                 <TableCell className="py-1.5 px-2 w-[15%] truncate" title={interaction.salesRep}>
                                     {interaction.salesRep}
                                 </TableCell>
-                                <TableCell className="py-1.5 px-2">
+                                <TableCell className="py-1.5 px-2 w-[20%]">
                                      <p className="truncate" title={getInteractionType(interaction)}>{getInteractionType(interaction)}</p>
                                      <p className="text-muted-foreground/80">{isValid(parseISO(interaction.createdAt)) ? format(parseISO(interaction.createdAt), "dd MMM yyyy", { locale: es }) : 'N/D'}</p>
                                 </TableCell>
-                                <TableCell className="py-1.5 px-2">
+                                <TableCell className="py-1.5 px-2 w-[15%]">
                                     {/* Placeholder for next action */}
                                 </TableCell>
-                                <TableCell className="py-1.5 px-2 text-right">
+                                <TableCell className="py-1.5 px-2 w-[10%] text-right">
                                     <FormattedNumericValue value={interaction.value} options={{style: 'currency', currency: 'EUR'}} placeholder="—" />
                                 </TableCell>
-                                 <TableCell className="py-1.5 px-2 text-center">
+                                 <TableCell className="py-1.5 px-2 w-[10%] text-center">
                                     <StatusBadge type="order" status={interaction.status} />
                                 </TableCell>
-                                <TableCell className="text-right py-1.5 px-2">
+                                <TableCell className="text-right py-1.5 px-2 w-[10%]">
                                     {isOpenTask && canRegisterResult ? (
                                         <Button asChild variant="outline" size="sm" className="h-7 text-xs">
                                             <Link href={`/order-form?originatingTaskId=${interaction.id}`}>

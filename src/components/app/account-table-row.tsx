@@ -54,7 +54,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
     return (
         <TooltipProvider>
             <TableRow className={cn("transition-colors hover:bg-secondary/10", isExpanded && "bg-secondary/10", isOverdue && "bg-rose-50/50 dark:bg-rose-900/10")}>
-                <TableCell className="font-medium text-base py-3 px-2">
+                <TableCell className="font-medium text-base py-3 px-2 w-[20%]">
                    <div className="flex items-center gap-1">
                      <Button variant="ghost" size="icon" className="h-8 w-8 -ml-2" onClick={onToggleExpand}>
                         <ChevronRight className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-90")} />
@@ -64,7 +64,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                      </Link>
                    </div>
                 </TableCell>
-                <TableCell className="py-3 px-2 text-left">
+                <TableCell className="py-3 px-2 text-left w-[15%]">
                     {isAdmin ? (
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -84,7 +84,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                         <div className="flex items-center gap-2"><Avatar className="h-7 w-7"><AvatarImage src={account.responsableAvatar} data-ai-hint="person face" /><AvatarFallback className="text-xs">{account.responsableName?.split(' ').map(n => n[0]).join('') || 'S/A'}</AvatarFallback></Avatar><span className="text-sm truncate">{account.responsableName || 'Sin Asignar'}</span></div>
                     )}
                 </TableCell>
-                <TableCell className="py-3 px-2 text-xs">
+                <TableCell className="py-3 px-2 text-xs w-[20%]">
                     {lastInteraction ? (
                         <div>
                             <p className="truncate" title={getInteractionType(lastInteraction)}>{getInteractionType(lastInteraction)}</p>
@@ -94,7 +94,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                         <span className="text-muted-foreground">—</span>
                     )}
                 </TableCell>
-                 <TableCell className="py-3 px-2 text-xs">
+                 <TableCell className="py-3 px-2 text-xs w-[15%]">
                     {account.nextInteraction ? (
                         <div className="flex items-center justify-between gap-2">
                             <div>
@@ -110,12 +110,11 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                         <span className="text-muted-foreground">—</span>
                     )}
                 </TableCell>
-                <TableCell className="py-3 px-2 text-right">
+                <TableCell className="py-3 px-2 text-right w-[10%]">
                     <FormattedNumericValue value={account.totalValue} options={{style: 'currency', currency: 'EUR'}} placeholder="—" />
                 </TableCell>
-                <TableCell className="py-3 px-2 text-center">
+                <TableCell className="py-3 px-2 text-center w-[10%]">
                      <div className="flex flex-col items-center justify-center gap-1">
-                        {lastInteraction && <StatusBadge type="order" status={lastInteraction.status} />}
                         <Tooltip>
                             <TooltipTrigger asChild>
                             <div className="flex items-center justify-center gap-1">
@@ -127,7 +126,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                         </Tooltip>
                      </div>
                 </TableCell>
-                <TableCell className="py-3 px-2 text-right pr-4">
+                <TableCell className="py-3 px-2 text-right pr-4 w-[10%]">
                      <div className="flex items-center justify-end gap-1">
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>

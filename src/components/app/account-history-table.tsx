@@ -27,12 +27,12 @@ export default function AccountHistoryTable({ interactions }: AccountHistoryTabl
   }
 
   return (
-    <div className="p-4 bg-muted/30 border-t-2 border-primary/20">
+    <div className="p-4 bg-muted/20">
         <h4 className="font-semibold mb-2 text-base">Historial de Interacciones</h4>
         <div className="max-h-64 overflow-y-auto">
             <Table>
                 <TableHeader>
-                    <TableRow>
+                    <TableRow className="text-xs uppercase">
                         <TableHead>Fecha</TableHead>
                         <TableHead>Tipo / Resultado</TableHead>
                         <TableHead>Valor</TableHead>
@@ -47,7 +47,7 @@ export default function AccountHistoryTable({ interactions }: AccountHistoryTabl
                         const canRegisterResult = userRole === 'Admin' || (userRole === 'SalesRep' && teamMember?.name === interaction.salesRep) || (userRole === 'Clavadista' && interaction.clavadistaId === teamMember?.id);
 
                         return (
-                            <TableRow key={interaction.id}>
+                            <TableRow key={interaction.id} className="text-sm">
                                 <TableCell>{isValid(parseISO(interaction.createdAt)) ? format(parseISO(interaction.createdAt), "dd/MM/yy HH:mm", { locale: es }) : 'N/D'}</TableCell>
                                 <TableCell>{getInteractionType(interaction)}</TableCell>
                                 <TableCell><FormattedNumericValue value={interaction.value} options={{style: 'currency', currency: 'EUR'}} placeholder="—" /></TableCell>

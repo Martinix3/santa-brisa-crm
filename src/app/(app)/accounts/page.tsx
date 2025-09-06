@@ -304,7 +304,7 @@ export default function AccountsPage() {
         )}
       </header>
 
-      <Card className="shadow-subtle">
+      <Card className="shadow-md">
         <CardHeader>
           <div className="flex flex-col sm:flex-row items-center gap-4 flex-wrap">
               <div className="relative flex-grow w-full sm:w-auto">
@@ -356,15 +356,15 @@ export default function AccountsPage() {
             ) : (
                 <Table>
                     <TableHeader>
-                        <TableRow>
-                            <TableHead className="w-[1%]"></TableHead>
-                            <TableHead className="table-header-std w-[24%]">Cuenta</TableHead>
-                            <TableHead className="table-header-std w-[10%] text-center">Estado</TableHead>
-                            <TableHead className="table-header-std w-[15%]">Responsable</TableHead>
-                            <TableHead className="table-header-std w-[15%]">Última Interacción</TableHead>
-                            <TableHead className="table-header-std w-[20%]">Próxima Tarea</TableHead>
-                            <TableHead className="table-header-std w-[5%] text-center">Prioridad</TableHead>
-                            <TableHead className="table-header-std w-[10%] text-right pr-4">Acciones</TableHead>
+                        <TableRow className="bg-muted/50 border-b-border text-xs uppercase tracking-wide text-muted-foreground">
+                            <TableHead className="w-[1%] p-0"></TableHead>
+                            <TableHead className="w-[24%] px-4 py-2">Cuenta</TableHead>
+                            <TableHead className="w-[10%] text-center px-4 py-2">Estado</TableHead>
+                            <TableHead className="w-[15%] px-4 py-2">Responsable</TableHead>
+                            <TableHead className="w-[15%] px-4 py-2">Última Interacción</TableHead>
+                            <TableHead className="w-[20%] px-4 py-2">Próxima Tarea</TableHead>
+                            <TableHead className="w-[5%] text-center px-4 py-2">Prioridad</TableHead>
+                            <TableHead className="w-[10%] text-right pr-4 px-4 py-2">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -444,7 +444,7 @@ interface AccountGroupProps {
 }
 
 const AccountGroup: React.FC<AccountGroupProps> = ({ title, accounts, teamMembers, onResponsibleUpdate, onOpenFollowUpDialog, onDeleteAccount, groupColor }) => {
-    const [isExpanded, setIsExpanded] = React.useState(false);
+    const [isExpanded, setIsExpanded] = React.useState(true);
     const [expandedRows, setExpandedRows] = React.useState<Set<string>>(new Set());
 
     const toggleRowExpansion = (accountId: string) => {
@@ -468,11 +468,14 @@ const AccountGroup: React.FC<AccountGroupProps> = ({ title, accounts, teamMember
             <TableRow className="bg-muted/30 hover:bg-muted/30 sticky top-0 z-10">
                 <TableCell colSpan={8} className="p-0">
                    <div className="py-2 px-2 flex justify-between items-center">
-                        <h3 className="text-base font-semibold text-gray-800">{title} ({accounts.length})</h3>
+                        <div className="flex items-center gap-2">
+                           <div className={cn("w-2 h-6 rounded-r-full", groupColor)}></div>
+                           <h3 className="text-base font-semibold text-gray-800">{title} ({accounts.length})</h3>
+                        </div>
                          {accounts.length > 4 && (
                             <Button variant="ghost" size="sm" onClick={() => setIsExpanded(!isExpanded)}>
                                 {isExpanded ? 'Ocultar' : `Ver más (${accounts.length - 4})`}
-                                <ChevronDown className={`h-4 w-4 ml-2 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                <ChevronDown className={cn("h-4 w-4 ml-2 transition-transform", isExpanded && "rotate-180")} />
                             </Button>
                          )}
                    </div>
@@ -491,8 +494,8 @@ const AccountGroup: React.FC<AccountGroupProps> = ({ title, accounts, teamMember
                         onToggleExpand={() => toggleRowExpansion(account.id)}
                     />
                     {expandedRows.has(account.id) && (
-                        <TableRow>
-                            <TableCell colSpan={8} className="p-0 bg-muted/20">
+                        <TableRow className="bg-background hover:bg-background">
+                            <TableCell colSpan={8} className="p-0 border-l-4 border-primary">
                                 {account.interactions ? (
                                     <AccountHistoryTable interactions={account.interactions} />
                                 ) : (

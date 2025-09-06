@@ -55,11 +55,11 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
 
     return (
         <TooltipProvider>
-            <TableRow className={cn("table-row-std align-top", isOverdue && "bg-rose-50/50 dark:bg-rose-900/10")}>
+            <TableRow className={cn("transition-colors hover:bg-secondary/10", isExpanded && "bg-secondary/10", isOverdue && "bg-rose-50/50 dark:bg-rose-900/10")}>
                 <TableCell className="p-0 w-2">
-                    <div className={cn("w-1.5 h-full min-h-[4rem]", lineColor)}></div>
+                    <div className={cn("w-1.5 h-full min-h-[4rem] transition-all", isExpanded ? lineColor : 'bg-transparent')}></div>
                 </TableCell>
-                <TableCell className="table-cell-std font-semibold">
+                <TableCell className="p-2 align-top font-semibold">
                     <div className="flex items-center gap-1">
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onToggleExpand}>
                             <ChevronRight className={cn("h-4 w-4 text-muted-foreground flex-shrink-0 transition-transform", isExpanded && "rotate-90")} />
@@ -69,10 +69,10 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                         </Link>
                     </div>
                 </TableCell>
-                <TableCell className="table-cell-std text-center">
+                <TableCell className="p-2 align-top text-center">
                     <StatusBadge type="account" status={account.status} />
                 </TableCell>
-                <TableCell className="table-cell-std text-left">
+                <TableCell className="p-2 align-top text-left">
                     {isAdmin ? (
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -92,7 +92,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                         <div className="flex items-center gap-2"><Avatar className="h-7 w-7"><AvatarImage src={account.responsableAvatar} data-ai-hint="person face" /><AvatarFallback className="text-xs">{account.responsableName?.split(' ').map(n => n[0]).join('') || 'S/A'}</AvatarFallback></Avatar><span className="text-sm truncate">{account.responsableName || 'Sin Asignar'}</span></div>
                     )}
                 </TableCell>
-                <TableCell className="table-cell-std text-xs">
+                <TableCell className="p-2 align-top text-xs">
                     {lastInteraction ? (
                         <div>
                             <p className="text-muted-foreground truncate" title={getInteractionType(lastInteraction)}>{getInteractionType(lastInteraction)}</p>
@@ -102,7 +102,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                         <span className="text-muted-foreground">—</span>
                     )}
                 </TableCell>
-                 <TableCell className="table-cell-std text-xs">
+                 <TableCell className="p-2 align-top text-xs">
                     {account.nextInteraction ? (
                         <div className="flex items-center justify-between gap-2">
                             <div>
@@ -125,7 +125,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                         </Button>
                     )}
                 </TableCell>
-                <TableCell className="table-cell-std text-center">
+                <TableCell className="p-2 align-top text-center">
                      <Tooltip>
                         <TooltipTrigger asChild>
                            <div className="flex items-center justify-center gap-1">
@@ -136,7 +136,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                         <TooltipContent><p>Puntuación de Prioridad (Lead Score)</p></TooltipContent>
                     </Tooltip>
                 </TableCell>
-                <TableCell className="table-cell-std text-right pr-4">
+                <TableCell className="p-2 align-top text-right pr-4">
                      <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                            <Button variant="ghost" size="icon"><Eye className="h-4 w-4" /></Button>

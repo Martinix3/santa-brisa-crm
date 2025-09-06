@@ -1,5 +1,4 @@
 
-
 import { Timestamp, FieldValue } from "firebase/firestore";
 
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista' | 'Líder Clavadista';
@@ -321,11 +320,11 @@ export interface Account {
 export interface EnrichedAccount extends Account {
   status: AccountStatus;
   leadScore: number;
-  nextInteraction?: Order;
+  nextInteraction?: Interaction;
   totalSuccessfulOrders: number;
   totalValue: number;
   lastInteractionDate?: Date;
-  interactions: Order[];
+  interactions: Interaction[];
   responsableName?: string;
   responsableAvatar?: string;
 }
@@ -621,9 +620,10 @@ export interface Interaction {
   notes?: string;
   managed?: boolean;
   nextAction?: { type: InteractionType; date?: Timestamp };
-  createdBy: string; 
+  createdBy: string;
   createdAt: Timestamp;
 }
+
 
 export type Step = "client" | "outcome" | "details" | "verify";
 

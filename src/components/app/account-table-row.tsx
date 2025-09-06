@@ -6,13 +6,13 @@ import { TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import StatusBadge from "@/components/app/status-badge";
-import { Eye, Trash2, Check, PlusCircle, ChevronRight, Flame } from "lucide-react";
+import { Eye, Trash2, Check, PlusCircle, ChevronRight, Flame, Edit, CheckCircle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import Link from 'next/link';
 import { parseISO, isBefore, startOfDay, format, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
-import type { EnrichedAccount, TeamMember, Order, AccountStatus } from "@/types";
+import type { EnrichedAccount, TeamMember, Order, AccountStatus, Interaction } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { getInteractionType } from '@/lib/interaction-utils';
@@ -21,14 +21,13 @@ interface AccountTableRowProps {
     account: EnrichedAccount;
     allTeamMembers: TeamMember[];
     onResponsibleUpdate: (accountId: string, newResponsibleId: string | null) => Promise<void>;
-    onOpenFollowUpDialog: (task: Order) => void;
     onDeleteAccount: (account: EnrichedAccount) => void;
     lineColor: string;
     isExpanded: boolean;
     onToggleExpand: () => void;
 }
 
-const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembers, onResponsibleUpdate, onOpenFollowUpDialog, onDeleteAccount, lineColor, isExpanded, onToggleExpand }) => {
+const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembers, onResponsibleUpdate, onDeleteAccount, lineColor, isExpanded, onToggleExpand }) => {
     const { userRole } = useAuth();
     const isAdmin = userRole === 'Admin';
     const salesAndAdminMembers = allTeamMembers.filter(m => m.role === 'Admin' || m.role === 'SalesRep');
@@ -50,7 +49,6 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
         priorityIcon = <Flame className="h-5 w-5 text-gray-300" />;
     }
 
-
     const lastInteraction = account.interactions.length > 0 ? account.interactions[0] : null;
 
     return (
@@ -59,20 +57,15 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                 <TableCell className="p-0 w-2">
                     <div className={cn("w-1.5 h-full min-h-[4rem] transition-all", isExpanded ? lineColor : 'bg-transparent')}></div>
                 </TableCell>
-                <TableCell className="p-2 align-top font-semibold">
-                    <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onToggleExpand}>
-                            <ChevronRight className={cn("h-4 w-4 text-muted-foreground flex-shrink-0 transition-transform", isExpanded && "rotate-90")} />
-                        </Button>
-                        <Link href={`/accounts/${account.id}`} className="hover:underline text-primary text-sm">
-                            {account.nombre}
-                        </Link>
-                    </div>
+                <TableCell className="table-cell-main-text">
+                    <Link href={`/accounts/${account.id}`} className="hover:underline text-primary">
+                        {account.nombre}
+                    </Link>
                 </TableCell>
-                <TableCell className="p-2 align-top text-center">
+                <TableCell className="table-cell-std text-center">
                     <StatusBadge type="account" status={account.status} />
                 </TableCell>
-                <TableCell className="p-2 align-top text-left">
+                <TableCell className="table-cell-std text-left">
                     {isAdmin ? (
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -92,7 +85,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                         <div className="flex items-center gap-2"><Avatar className="h-7 w-7"><AvatarImage src={account.responsableAvatar} data-ai-hint="person face" /><AvatarFallback className="text-xs">{account.responsableName?.split(' ').map(n => n[0]).join('') || 'S/A'}</AvatarFallback></Avatar><span className="text-sm truncate">{account.responsableName || 'Sin Asignar'}</span></div>
                     )}
                 </TableCell>
-                <TableCell className="p-2 align-top text-xs">
+                <TableCell className="table-cell-std text-xs">
                     {lastInteraction ? (
                         <div>
                             <p className="text-muted-foreground truncate" title={getInteractionType(lastInteraction)}>{getInteractionType(lastInteraction)}</p>
@@ -102,7 +95,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                         <span className="text-muted-foreground">—</span>
                     )}
                 </TableCell>
-                 <TableCell className="p-2 align-top text-xs">
+                 <TableCell className="table-cell-std text-xs">
                     {account.nextInteraction ? (
                         <div className="flex items-center justify-between gap-2">
                             <div>
@@ -113,19 +106,12 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                                     </p>
                                 )}
                             </div>
-                            <Button variant="outline" size="sm" onClick={() => onOpenFollowUpDialog(account.nextInteraction!)}>
-                                <Check className="mr-1 h-4 w-4" /> Completar
-                            </Button>
                         </div>
                     ) : (
-                         <Button asChild variant="secondary" size="sm">
-                            <Link href={`/order-form?accountId=${account.id}`}>
-                                <PlusCircle className="mr-2 h-4 w-4" /> Registrar
-                            </Link>
-                        </Button>
+                        <span className="text-muted-foreground">—</span>
                     )}
                 </TableCell>
-                <TableCell className="p-2 align-top text-center">
+                <TableCell className="table-cell-std text-center">
                      <Tooltip>
                         <TooltipTrigger asChild>
                            <div className="flex items-center justify-center gap-1">
@@ -136,27 +122,30 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                         <TooltipContent><p>Puntuación de Prioridad (Lead Score)</p></TooltipContent>
                     </Tooltip>
                 </TableCell>
-                <TableCell className="p-2 align-top text-right pr-4">
-                     <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                           <Button variant="ghost" size="icon"><Eye className="h-4 w-4" /></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                           <DropdownMenuItem asChild><Link href={`/accounts/${account.id}`}><Eye className="mr-2 h-4 w-4"/>Ver Ficha Completa</Link></DropdownMenuItem>
-                           <DropdownMenuSeparator />
-                           <DropdownMenuItem asChild><Link href={`/order-form?accountId=${account.id}`}><PlusCircle className="mr-2 h-4 w-4"/>Registrar Interacción</Link></DropdownMenuItem>
-                           {isAdmin && (<>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem 
-                                className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                                onSelect={(e) => { e.preventDefault(); onDeleteAccount(account); }}
-                            >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Eliminar Cuenta
-                            </DropdownMenuItem>
-                           </>)}
-                        </DropdownMenuContent>
-                     </DropdownMenu>
+                <TableCell className="table-cell-std text-right pr-4">
+                     <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onToggleExpand}>
+                            <Edit className="h-4 w-4 text-teal-600" />
+                        </Button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                               <Button variant="ghost" size="icon" className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                               <DropdownMenuItem asChild><Link href={`/accounts/${account.id}`}><Eye className="mr-2 h-4 w-4"/>Ver Ficha Completa</Link></DropdownMenuItem>
+                               <DropdownMenuSeparator />
+                               {isAdmin && (<>
+                                <DropdownMenuItem 
+                                    className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                    onSelect={(e) => { e.preventDefault(); onDeleteAccount(account); }}
+                                >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Eliminar Cuenta
+                                </DropdownMenuItem>
+                               </>)}
+                            </DropdownMenuContent>
+                         </DropdownMenu>
+                     </div>
                 </TableCell>
             </TableRow>
         </TooltipProvider>

@@ -27,7 +27,17 @@
       ],
       "predeploy": [
         "npm --prefix \"$RESOURCE_DIR\" run build"
-      ]
+      ],
+      "endpoints": {
+        "holdedProjects": {
+          "entryPoint": "holdedProjects",
+          "region": "europe-west1",
+          "httpsTrigger": {},
+          "invoker": [
+            "public"
+          ]
+        }
+      }
     }
   ]
 }

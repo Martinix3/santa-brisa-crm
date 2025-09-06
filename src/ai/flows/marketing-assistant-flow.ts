@@ -24,8 +24,8 @@ export type MarketingAssistantOutput = z.infer<typeof MarketingAssistantOutputSc
 
 export async function askMarketingAssistant(input: MarketingAssistantInput): Promise<MarketingAssistantOutput> {
   // API is disabled
-  return Promise.resolve({ answer: "El asistente de IA está desactivado temporalmente." });
-  // return marketingAssistantFlow(input);
+  // return Promise.resolve({ answer: "El asistente de IA está desactivado temporalmente." });
+  return marketingAssistantFlow(input);
 }
 
 const prompt = ai.definePrompt({
@@ -162,17 +162,12 @@ const marketingAssistantFlow = ai.defineFlow(
   },
   async (input) => {
     // API is disabled
-    return { answer: "El asistente de IA está desactivado temporalmente." };
-    /*
+    // return { answer: "El asistente de IA está desactivado temporalmente." };
     const {output} = await prompt(input);
     if (!output) {
       // Esto no debería ocurrir si el LLM sigue el schema, pero es un fallback.
       return { answer: "No se pudo generar una respuesta en este momento. Por favor, reformula tu pregunta o intenta más tarde." };
     }
     return output;
-    */
   }
 );
-    
-
-    

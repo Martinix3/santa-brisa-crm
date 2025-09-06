@@ -1,5 +1,4 @@
 
-
 'use server';
 /**
  * @fileOverview An AI agent for generating supply chain traceability reports.
@@ -180,9 +179,8 @@ const traceabilityFlow = ai.defineFlow(
   },
   async (input) => {
     // API is disabled
-    throw new Error('El servicio de trazabilidad con IA está desactivado.');
+    // throw new Error('El servicio de trazabilidad con IA está desactivado.');
 
-    /*
     // --- DATA FETCHING & PREPARATION ---
     const batchDetails = await getBatchDetails(input.batchId);
     if (!batchDetails) throw new Error(`No se encontró ningún lote con el identificador: "${input.batchId}"`);
@@ -294,14 +292,13 @@ const traceabilityFlow = ai.defineFlow(
     const finalHtmlString = compiledPromptTemplate(promptData);
     
     return { html: finalHtmlString };
-    */
   }
 );
 
 
 export async function getTraceabilityReport(input: TraceabilityReportInput): Promise<TraceabilityReportOutput> {
     // API is disabled
-    throw new Error('El servicio de trazabilidad con IA está desactivado.');
-    // const result = await traceabilityFlow(input);
-    // return result;
+    // throw new Error('El servicio de trazabilidad con IA está desactivado.');
+    const result = await traceabilityFlow(input);
+    return result;
 }

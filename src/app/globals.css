@@ -3,101 +3,111 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ======= TOKENS DE MARCA ======= */
-:root{
+/* ======= TOKENS DE MARCA (PALETA) ======= */
+:root {
   /* Paleta base (tu marca) */
-  --sb-primary-50:#FFF7DA;
-  --sb-primary-100:#FDEEA8;
-  --sb-primary-200:#FAE57D;
-  --sb-primary-300:#F9DA64;
-  --sb-primary-400:#F8D459;
-  --sb-primary-500:#F7D15F; /* PRINCIPAL */
-  --sb-primary-600:#DDB043;
-  --sb-primary-700:#B58D31;
-  --sb-primary-800:#8C6C25;
-  --sb-primary-900:#6B501A;
+  --sb-primary-500: #F7D15F; /* Amarillo Principal */
+  --sb-teal-600: #618E8F;    /* Teal/Gris Secundario */
+  --sb-n-25: #FAFBFC;        /* Fondo Blanco Roto */
+  --sb-n-900: #14191F;      /* Texto Negro */
+  --sb-tang-600: #B85C34;     /* Naranja para "Destructive" */
+  --sb-n-100: #E9EDF2;       /* Neutro para bordes, inputs */
+  --sb-n-50: #F4F6F8;        /* Neutro para fondos sutiles (muted) */
+  --sb-n-600: #66778E;       /* Neutro para texto sutil (muted-foreground) */
+  --sb-teal-50: #E9F0F1;     /* Fondo de acento */
+  --sb-teal-800: #405D5E;     /* Texto de acento */
 
-  --sb-tang-50:#FBE7DB;
-  --sb-tang-100:#F6C4A9;
-  --sb-tang-200:#F1A27E;
-  --sb-tang-300:#EB845C;
-  --sb-tang-400:#E37546;
-  --sb-tang-500:#D7713E;   /* Secundario 1 (tangerine) */
-  --sb-tang-600:#B85C34;
-  --sb-tang-700:#944A2A;
-  --sb-tang-800:#733A21;
-  --sb-tang-900:#572B19;
+  /* ======= DEFINICIONES SEMÁNTICAS PARA SHADCN (HSL) ======= */
+  /* Estas variables son las que los componentes de ShadCN utilizan. */
+  /* Las mapeamos a los colores de tu marca. */
+  
+  --background: 210 20% 98%;      /* Apunta a --sb-n-25 (#FAFBFC) */
+  --foreground: 210 17% 15%;      /* Apunta a --sb-n-900 (#14191F) */
 
-  --sb-aqua-50:#EDF8F8;
-  --sb-aqua-100:#D3EFF0;
-  --sb-aqua-200:#BCE7E8;
-  --sb-aqua-300:#A7D8D9;   /* Secundario 2 (aqua) */
-  --sb-aqua-400:#8FC6C8;
-  --sb-aqua-500:#76B0B2;
-  --sb-aqua-600:#5E9B9D;
-  --sb-aqua-700:#4D8B8D;
-  --sb-aqua-800:#3E7A7C;
-  --sb-aqua-900:#31696C;
+  --card: 210 20% 98%;             /* Mismo que background */
+  --card-foreground: 210 17% 15%; /* Mismo que foreground */
 
-  --sb-teal-50:#E9F0F1;
-  --sb-teal-100:#CAD8D9;
-  --sb-teal-200:#AFC3C4;
-  --sb-teal-300:#97B0B1;
-  --sb-teal-400:#7E9B9D;
-  --sb-teal-500:#6F9394;
-  --sb-teal-600:#618E8F;   /* Secundario 3 (teal/gris) */
-  --sb-teal-700:#4F7576;
-  --sb-teal-800:#405D5E;
-  --sb-teal-900:#314648;
+  --popover: 210 20% 98%;
+  --popover-foreground: 210 17% 15%;
 
-  /* Neutros */
-  --sb-n-25:#FAFBFC;
-  --sb-n-50:#F4F6F8;
-  --sb-n-100:#E9EDF2;
-  --sb-n-200:#DCE2EA;
-  --sb-n-300:#C7CFDA;
-  --sb-n-400:#A6B2C1;
-  --sb-n-500:#8493A6;
-  --sb-n-600:#66778E;
-  --sb-n-700:#49576B;
-  --sb-n-800:#2E3947;
-  --sb-n-900:#14191F;
+  --primary: 46 93% 66%;           /* Apunta a --sb-primary-500 (#F7D15F) */
+  --primary-foreground: 210 17% 15%; /* Texto sobre primario (negro) */
 
-  /* Semánticos (derivados de marca, no verdes/rojos aleatorios) */
-  --sb-ok-500:   var(--sb-teal-700);   /* “correcto” = teal profundo de tu paleta */
-  --sb-warn-500: var(--sb-primary-700);/* “aviso”   = dorado más oscuro */
-  --sb-err-500:  var(--sb-tang-600);   /* “error”   = tangerine profundo */
-  --sb-info-500: var(--sb-aqua-700);   /* “info”    = aqua/teal marca */
+  --secondary: 184 18% 47%;       /* Apunta a --sb-teal-600 (#618E8F) */
+  --secondary-foreground: 210 20% 98%; /* Texto sobre secundario (blanco) */
 
-  /* Semánticos claros para fondos */
-  --sb-ok-50:   var(--sb-teal-50);
-  --sb-warn-50: var(--sb-primary-50);
-  --sb-err-50:  var(--sb-tang-50);
-  --sb-info-50: var(--sb-aqua-50);
+  --muted: 216 17% 95%;            /* Apunta a --sb-n-50 (#F4F6F8) */
+  --muted-foreground: 214 11% 41%; /* Apunta a --sb-n-600 (#66778E) */
 
-  /* Alias de uso */
-  --sb-primary: var(--sb-primary-500);
-  --sb-accent:  var(--sb-teal-600);
+  --accent: 184 25% 95%;           /* Apunta a --sb-teal-50 (#E9F0F1) */
+  --accent-foreground: 184 22% 31%; /* Apunta a --sb-teal-800 (#405D5E) */
 
-  /* Bordes y sombras */
-  --sb-border: 1px solid rgba(20,25,31,.12);
-  --sb-shadow-1: 0 1px 2px rgba(0,0,0,.06);
-  --sb-shadow-2: 0 6px 18px rgba(0,0,0,.12);
+  --destructive: 18 56% 48%;       /* Apunta a --sb-tang-600 (#B85C34) */
+  --destructive-foreground: 210 20% 98%; /* Texto sobre destructive (blanco) */
 
-  /* Tipografía */
-  --sb-font-sans: ui-sans-serif, system-ui, "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
-  --sb-h1: 28px; --sb-h2: 22px; --sb-h3: 18px; --sb-text: 14px; --sb-small:12px;
+  --border: 216 17% 91%;           /* Apunta a --sb-n-100 (#E9EDF2) */
+  --input: 216 17% 91%;
+  --ring: 184 18% 47%;             /* Apunta a --sb-teal-600 para el foco */
+  
+  /* ======= TOKENS DE DISEÑO ADICIONALES ======= */
+  
+  /* Radios */
+  --radius: 1rem; /* Radio base de ShadCN, lo mantenemos como referencia */
+  --sb-radius-sm: 8px;
+  --sb-radius-md: 12px;
+  --sb-radius-lg: 16px;
+  --sb-radius-2xl: 20px;
 
-  /* Motion (micro) */
-  --sb-fast: 120ms;
-  --sb-med:  200ms;
-  --sb-slow: 320ms;
+  /* Sombras */
+  --sb-shadow-xs: 0 1px 2px rgba(9,11,15,.06);
+  --sb-shadow-sm: 0 2px 8px rgba(9,11,15,.08);
+  --sb-shadow-md: 0 6px 20px rgba(9,11,15,.12);
+  --sb-shadow-lg: 0 16px 40px rgba(9,11,15,.16);
 }
 
-/* Base app */
-html,body{background:var(--sb-n-25); color:var(--sb-n-900); font-family:var(--sb-font-sans);}
-h1{font-size:var(--sb-h1); font-weight:700;}
-h2{font-size:var(--sb-h2); font-weight:600;}
-h3{font-size:var(--sb-h3); font-weight:600;}
-p,li,span,button,input{font-size:var(--sb-text);}
-small{font-size:var(--sb-small); color:var(--sb-n-600);}
+.dark {
+  /* Aquí irían las variables para el modo oscuro si se implementa */
+  --background: 210 17% 15%;
+  --foreground: 210 20% 98%;
+  --card: 210 17% 15%;
+  --card-foreground: 210 20% 98%;
+  --popover: 210 17% 15%;
+  --popover-foreground: 210 20% 98%;
+  --primary: 46 93% 66%;
+  --primary-foreground: 210 17% 15%;
+  --secondary: 184 18% 47%;
+  --secondary-foreground: 210 20% 98%;
+  --muted: 214 11% 25%;
+  --muted-foreground: 214 11% 60%;
+  --accent: 184 22% 21%;
+  --accent-foreground: 210 20% 98%;
+  --destructive: 18 56% 48%;
+  --destructive-foreground: 210 20% 98%;
+  --border: 214 11% 25%;
+  --input: 214 11% 25%;
+  --ring: 46 93% 66%;
+}
+
+/* Base app (tipografía, etc.) */
+@layer base {
+  html,body{ 
+    font-family: 'Inter', sans-serif;
+  }
+
+  h1 { @apply text-2xl font-bold; }
+  h2 { @apply text-xl font-semibold; }
+  h3 { @apply text-lg font-semibold; }
+}
+
+/* Clases de utilidad para layout */
+.header-full-width {
+  @apply fixed top-0 left-0 right-0 z-40;
+}
+
+.sidebar-under-header {
+  @apply fixed top-24 bottom-0 left-0 z-30;
+}
+
+.main-under-header {
+  @apply pt-24;
+}

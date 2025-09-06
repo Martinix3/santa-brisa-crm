@@ -1,55 +1,47 @@
 // src/app/api/holded/projects/route.ts
-import 'server-only';
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
+import { NextRequest } from "next/server";
 
-export const runtime = 'nodejs';
-export const preferredRegion = 'europe-west1';
-export const dynamic = 'force-dynamic';
-
-const API_BASE = process.env.HOLDED_API_BASE ?? 'https://api.holded.com/api';
-const API_KEY = process.env.HOLDED_API_KEY;
-
-function authHeaders(key: string) {
-  return { Authorization: `Bearer ${key}`, key };
-}
-
-function json(body: unknown, status = 200) {
-  return NextResponse.json(body, { status });
-}
+const BASE = "https://api.holded.com/api/projects/v1";
 
 export async function GET(req: NextRequest) {
-  if (!API_KEY) {
-    return json(
-      { ok: false, error: 'Falta HOLDED_API_KEY en .env.local' },
-      500
+  const apiKey = process.env.HOLDED_API_KEY;
+  if (!apiKey) {
+    return Response.json(
+      { ok: false, error: "Falta HOLDED_API_KEY en variables de entorno" },
+      { status: 500 }
     );
   }
 
-  try {
-    const url = new URL(req.url);
-    const page = url.searchParams.get('page') ?? '1';
-    const limit = url.searchParams.get('limit') ?? '50';
+  // reenvía querystring si lo necesitas: ?limit=.. etc.
+  const qs = req.nextUrl.search ?? "";
+  const url = `${BASE}/projects${qs}`;
 
-    const upstream = `${API_BASE.replace(/\/$/, '')}/projects?page=${encodeURIComponent(page)}&limit=${encodeURIComponent(limit)}`;
+  const res = await fetch(url, {
+    headers: {
+      key: apiKey,
+      accept: "application/json",
+      "content-type": "application/json",
+    },
+    // Opcional: 30s por si hay respuestas lentas
+    cache: "no-store",
+  });
 
-    const res = await fetch(upstream, {
-      method: 'GET',
-      headers: { ...authHeaders(API_KEY), Accept: 'application/json' },
-      cache: 'no-store',
-    });
+  // Si Holded devuelve HTML (404/403), lo verás aquí
+  const contentType = res.headers.get("content-type") || "";
+  if (!res.ok) {
+    const body = await res.text(); // no intentes .json() en error
+    return Response.json(
+      { ok: false, status: res.status, body: body.slice(0, 1200) },
+      { status: res.status }
+    );
+  }
 
+  // OK -> JSON
+  if (contentType.includes("application/json")) {
+    const data = await res.json();
+    return Response.json({ ok: true, data });
+  } else {
     const text = await res.text();
-    let data: unknown = text;
-    try { data = JSON.parse(text); } catch {}
-
-    if (!res.ok) {
-      return json({ ok: false, status: res.status, upstream, error: data }, res.status);
-    }
-
-    return json({ ok: true, data });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return json({ ok: false, error: message }, 500);
+    return Response.json({ ok: true, data: text }); // por si acaso
   }
 }

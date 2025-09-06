@@ -51,11 +51,11 @@
     --popover: 0 0% 100%;
     --popover-foreground: 215 14% 34%;
 
-    --primary: 184 18% 47%;              /* ≈ #618E8F (Teal for links) */
-    --primary-foreground: 0 0% 100%;
+    --primary: 46 93% 66%;               /* ≈ #F7D15F (Yellow SB) */
+    --primary-foreground: 210 17% 15%;
 
-    --secondary: 46 93% 66%;             /* Yellow for secondary buttons */
-    --secondary-foreground: 210 17% 15%;
+    --secondary: 184 18% 47%;             /* Teal for secondary buttons */
+    --secondary-foreground: 0 0% 100%;
 
     --muted: 216 17% 95%;                /* --sb-n-50 */
     --muted-foreground: 214 11% 41%;     /* --sb-n-600 */
@@ -70,7 +70,7 @@
     --input: 216 17% 91%;
     --ring: 184 18% 47%;                 
 
-    --radius: 1rem; 
+    --radius: 1rem;
   }
 
   .dark {
@@ -81,10 +81,10 @@
     --card-foreground: 210 20% 98%;
     --popover: 210 17% 15%;
     --popover-foreground: 210 20% 98%;
-    --primary: 184 18% 47%;
-    --primary-foreground: 210 20% 98%;
-    --secondary: 46 93% 66%;
-    --secondary-foreground: 210 17% 15%;
+    --primary: 46 93% 66%;
+    --primary-foreground: 210 17% 15%;
+    --secondary: 184 18% 47%;
+    --secondary-foreground: 210 20% 98%;
     --muted: 214 11% 25%;
     --muted-foreground: 214 11% 60%;
     --accent: 184 22% 21%;

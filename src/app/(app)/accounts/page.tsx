@@ -81,7 +81,7 @@ export default function AccountsPage() {
       }
     }
     loadData();
-  }, [toast, dataSignature, userRole, teamMember]);
+  }, [toast, dataSignature, userRole, teamMember?.id]); // Use teamMember.id instead of the whole object
   
   const { activeAccounts, potentialAccounts, pendingAccounts, failedAccounts, inactiveAccounts } = React.useMemo(() => {
     const todayStart = startOfDay(new Date());
@@ -136,7 +136,7 @@ export default function AccountsPage() {
                 if (!dateA && !dateB) return 0;
                 if (!dateA) return 1;
                 if (!dateB) return -1;
-                return dateB.getTime() - a.getTime();
+                return dateB.getTime() - new Date(a.lastInteractionDate!).getTime();
             }
             case 'leadScore_desc':
             default:

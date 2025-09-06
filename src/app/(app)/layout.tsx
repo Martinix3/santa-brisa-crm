@@ -111,7 +111,7 @@ export default function MainAppLayout({ children }: { children: React.ReactNode 
             </SidebarFooter>
           </Sidebar>
           <SidebarInset>
-            <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-md sm:px-6">
+            <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-brand-yellow px-4 sm:px-6">
               <div className="flex items-center gap-2">
                 <div className="md:hidden">
                   <SidebarTrigger />

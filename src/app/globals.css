@@ -119,12 +119,6 @@
     --brand-blue-hsl: 215 80% 55%;
   }
 
-  .dark {
-    /* TODO: Define dark mode theme */
-  }
-}
-
-@layer base {
   * {
     @apply border-border;
   }

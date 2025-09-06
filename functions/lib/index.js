@@ -1,53 +1,72 @@
 import { onRequest } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
-// No longer need defineSecret, as Firebase will inject the secret into process.env
-import { listProjects, createProject } from "./holdedClient.js";
-/**
- * A Cloud Function that acts as a secure proxy to Holded's /projects endpoint.
- * It fetches projects using the securely stored API key on the server.
- * The HOLDED_API_KEY secret is automatically populated into process.env by Firebase
- * when the function is deployed, if it has been set with `firebase functions:secrets:set`.
- */
+import axios from "axios";
+const HOLDED_API_BASE_URL = "https://api.holded.com/api";
+// Define the function using onRequest from v2, which is better for HTTP triggers
 export const holdedListProjects = onRequest({
     region: "europe-west1",
     timeoutSeconds: 30,
     memory: "256MiB",
-    // The `secrets` property is removed from here. Firebase handles it.
+    secrets: ["HOLDED_API_KEY"],
     cors: true,
 }, async (req, res) => {
-    // Set CORS headers for all responses, including errors
-    res.set("Access-Control-Allow-Origin", "*");
-    res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    logger.info("holdedListProjects function triggered", { method: req.method, path: req.path });
+    // This handles the preflight OPTIONS request for CORS
     if (req.method === "OPTIONS") {
+        res.set("Access-Control-Allow-Origin", "*");
+        res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
         res.status(204).send("");
         return;
     }
+    // Set CORS headers for actual requests
+    res.set("Access-Control-Allow-Origin", "*");
     try {
-        // Read the secret value directly from the environment variables.
         const apiKey = process.env.HOLDED_API_KEY;
         if (!apiKey) {
-            logger.error("The HOLDED_API_KEY environment variable is not configured or accessible in the function's runtime environment.");
+            logger.error("CRITICAL: HOLDED_API_KEY secret is not defined in process.env.");
             res.status(500).json({ ok: false, error: "La clave de API para Holded no está configurada en el servidor." });
             return;
         }
-        if (req.method === 'GET') {
-            const projects = await listProjects(apiKey);
-            res.status(200).json({ ok: true, data: projects });
-        }
-        else if (req.method === 'POST') {
-            const newProject = await createProject(apiKey, req.body);
-            res.status(201).json({ ok: true, data: newProject });
+        logger.info(`API Key found (length: ${apiKey.length}).`);
+        const url = `${HOLDED_API_BASE_URL}/invoicing/v1/projects`;
+        logger.info(`Making request to Holded API: ${url}`);
+        const response = await axios.get(url, {
+            headers: {
+                "key": apiKey,
+                "Content-Type": "application/json",
+            },
+            timeout: 10000,
+        });
+        logger.info("Successfully received response from Holded API.", { status: response.status });
+        res.status(200).json({ ok: true, data: response.data });
+    }
+    catch (error) {
+        logger.error("ERROR during Holded API call:", {
+            // Log rich error information if it's an Axios error
+            isAxiosError: axios.isAxiosError(error),
+            axiosErrorData: axios.isAxiosError(error) ? {
+                code: error.code,
+                status: error.response?.status,
+                headers: error.response?.headers,
+                data: error.response?.data,
+                requestConfig: {
+                    url: error.config?.url,
+                    method: error.config?.method,
+                    headers: error.config?.headers, // Headers are redacted for security by default
+                },
+            } : null,
+            // Fallback for non-Axios errors
+            errorMessage: error.message,
+            errorStack: error.stack,
+        });
+        if (axios.isAxiosError(error)) {
+            const status = error.response?.status || 502; // Default to 502 Bad Gateway if no response
+            const errorMessage = error.response?.data?.info || error.message;
+            res.status(status).json({ ok: false, error: `Error de la API de Holded: ${errorMessage}` });
         }
         else {
-            res.status(405).json({ ok: false, error: "Method Not Allowed" });
+            res.status(500).json({ ok: false, error: "Ocurrió un error inesperado en el servidor." });
         }
-    }
-    catch (e) {
-        logger.error("Error in holdedListProjects proxy", {
-            errorMessage: e.message,
-            errorStack: e.stack,
-        });
-        res.status(502).json({ ok: false, error: e.message });
     }
 });

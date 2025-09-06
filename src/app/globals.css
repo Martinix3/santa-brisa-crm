@@ -75,6 +75,26 @@ body {
     
     /* --- Radios y Sombras --- */
     --radius: 0.5rem; /* 8px */
+
+    /* Tokens del Brand Guide */
+    --sb-radius-sm: 8px;
+    --sb-radius-md: 12px;
+    --sb-radius-lg: 16px;
+    --sb-radius-2xl: 20px;
+
+    --sb-shadow-xs: 0 1px 2px rgba(9,11,15,.06);
+    --sb-shadow-sm: 0 2px 8px rgba(9,11,15,.08);
+    --sb-shadow-md: 0 6px 20px rgba(9,11,15,.12);
+    --sb-shadow-lg: 0 16px 40px rgba(9,11,15,.16);
+
+    --sb-glass-bg: color-mix(in srgb, hsl(var(--card)), transparent 30%);
+    --sb-glass-border: color-mix(in srgb, hsl(var(--border)), white 50%);
+    --sb-glass-blur: 10px;
+
+    --sb-z-nav: 50;
+    --sb-z-popover: 60;
+    --sb-z-modal: 70;
+    --sb-z-toast: 80;
   }
 
   .dark {
@@ -159,6 +179,15 @@ body {
       @apply pt-24;
   }
 
+  .sb-chart-tooltip {
+    backdrop-filter: blur(var(--sb-glass-blur));
+    -webkit-backdrop-filter: blur(var(--sb-glass-blur));
+    background: var(--sb-glass-bg);
+    border: 1px solid var(--sb-glass-border);
+    border-radius: var(--sb-radius-md);
+    box-shadow: var(--sb-shadow-sm);
+    padding: .5rem .75rem;
+  }
 }
 
 

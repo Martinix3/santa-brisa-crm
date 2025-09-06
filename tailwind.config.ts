@@ -79,9 +79,17 @@ const config = {
         'brand-blue': 'hsl(var(--brand-blue-hsl))',
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        lg: "var(--sb-radius-lg)",
+        md: "var(--sb-radius-md)",
+        sm: "var(--sb-radius-sm)",
+        '2xl': "var(--sb-radius-2xl)",
+        full: "9999px",
+      },
+      boxShadow: {
+        'sb-xs': 'var(--sb-shadow-xs)',
+        'sb-sm': 'var(--sb-shadow-sm)',
+        'sb-md': 'var(--sb-shadow-md)',
+        'sb-lg': 'var(--sb-shadow-lg)',
       },
       keyframes: {
         "accordion-down": {

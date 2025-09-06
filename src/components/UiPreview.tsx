@@ -6,26 +6,29 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/toaster';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Check, Info, Loader2, PartyPopper, PlusCircle, Trash2, TriangleAlert, Truck, X } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Check, Info, Loader2, PartyPopper, PlusCircle, Trash2, TriangleAlert, Truck, X, Settings } from 'lucide-react';
+import { Bar, BarChart, Line, LineChart, CartesianGrid, XAxis, YAxis, Tooltip as RechartsTooltip } from 'recharts';
+import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
+import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
+
+const chartData = [
+  { month: "Enero", desktop: 186, mobile: 80 },
+  { month: "Febrero", desktop: 305, mobile: 200 },
+  { month: "Marzo", desktop: 237, mobile: 120 },
+  { month: "Abril", desktop: 73, mobile: 190 },
+  { month: "Mayo", desktop: 209, mobile: 130 },
+  { month: "Junio", desktop: 214, mobile: 140 },
+];
+const chartConfig = {
+  desktop: { label: "Desktop", color: "#618E8F" },
+  mobile: { label: "Mobile", color: "#D7713E" },
+};
 
 export default function UiPreview() {
     const { toast } = useToast();
@@ -37,10 +40,10 @@ export default function UiPreview() {
     }
 
   return (
-    <div className="p-4 md:p-8 space-y-12 bg-surface-background">
+    <div className="p-4 md:p-8 space-y-12 bg-background">
       <header>
-        <h1 className="text-4xl font-bold font-headline text-text-primary">UI Component & Design Token Preview</h1>
-        <p className="text-text-secondary mt-2">Catálogo de componentes visuales y tokens de diseño para el CRM de Santa Brisa.</p>
+        <h1 className="text-4xl font-bold font-headline text-foreground">UI Component & Design Token Preview</h1>
+        <p className="text-muted-foreground mt-2">Catálogo de componentes visuales y tokens de diseño para el CRM de Santa Brisa.</p>
       </header>
       
       {/* Colors Section */}
@@ -66,147 +69,54 @@ export default function UiPreview() {
         </div>
       </section>
 
-      {/* Typography Section */}
-      <section>
-        <h2 className="text-2xl font-semibold font-headline mb-4">Tipografía (Inter)</h2>
-        <div className="space-y-4">
-          <h1 className="text-4xl font-bold font-headline">Titular H1 (Headline)</h1>
-          <h2 className="text-2xl font-semibold font-headline">Titular H2</h2>
-          <h3 className="text-xl font-medium">Titular H3</h3>
-          <p className="text-base">Párrafo de cuerpo (Body). Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed non risus. Suspendisse lectus tortor, dignissim sit amet, adipiscing nec, ultricies sed, dolor.</p>
-          <Label>Etiqueta de formulario (Label)</Label>
-          <p className="text-sm text-text-secondary">Texto secundario o descripción.</p>
-          <p className="text-xs text-text-subtle">Texto sutil para leyendas o metadatos.</p>
-        </div>
-      </section>
-
-      {/* Buttons Section */}
-       <section>
-        <h2 className="text-2xl font-semibold font-headline mb-4">Botones</h2>
-        <div className="flex flex-wrap items-center gap-4">
-          <Button size="lg" onClick={handleAction} disabled={isLoading}>
-            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlusCircle className="mr-2 h-4 w-4"/>}
-            Botón Primario (L)
-          </Button>
-          <Button onClick={handleAction} disabled={isLoading}>
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-            Botón Primario
-          </Button>
-           <Button size="sm" onClick={handleAction} disabled={isLoading}>
-            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlusCircle className="mr-2 h-4 w-4"/>}
-            Primario (S)
-          </Button>
-          <Button variant="secondary">Botón Secundario</Button>
-          <Button variant="destructive"><Trash2 className="mr-2 h-4 w-4"/> Destructivo</Button>
-          <Button variant="outline">Outline</Button>
-          <Button variant="ghost">Ghost</Button>
-          <Button variant="link">Link</Button>
-        </div>
-      </section>
-
       {/* Cards Section */}
       <section>
         <h2 className="text-2xl font-semibold font-headline mb-4">Tarjetas (Cards)</h2>
-        <div className="grid md:grid-cols-2 gap-6">
-          <Card className="shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader>
-              <CardTitle>Tarjeta Estándar</CardTitle>
-              <CardDescription>Descripción de la tarjeta.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p>Contenido de la tarjeta. Este es un buen lugar para mostrar información clave.</p>
-            </CardContent>
-            <CardFooter className="flex justify-end">
-              <Button variant="secondary">Acción</Button>
-            </CardFooter>
+        <div className="grid md:grid-cols-3 gap-6">
+          <Card>
+            <CardHeader><CardTitle>Tarjeta Base</CardTitle><CardDescription>Estándar, neutra.</CardDescription></CardHeader>
+            <CardContent><p>Contenido principal de la tarjeta.</p></CardContent>
+            <CardFooter><Button variant="secondary">Acción</Button></CardFooter>
           </Card>
-           <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle>Tarjeta Elevada</CardTitle>
-              <CardDescription>Con una sombra más pronunciada.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p>Ideal para elementos que necesitan destacar, como modales o popovers.</p>
-            </CardContent>
-            <CardFooter className="flex justify-end">
-              <Button>Acción Primaria</Button>
-            </CardFooter>
+          <Card className="shadow-md transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 cursor-pointer">
+            <CardHeader><CardTitle>Tarjeta Clickable</CardTitle><CardDescription>Con efecto al pasar el ratón.</CardDescription></CardHeader>
+            <CardContent><p>Contenido interactivo.</p></CardContent>
           </Card>
-        </div>
-      </section>
-      
-      {/* Form Elements Section */}
-      <section>
-        <h2 className="text-2xl font-semibold font-headline mb-4">Elementos de Formulario</h2>
-        <div className="grid md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-                <div className="space-y-2">
-                    <Label htmlFor="input-text">Campo de Texto</Label>
-                    <Input id="input-text" placeholder="Escribe aquí..."/>
-                </div>
-                 <div className="space-y-2">
-                    <Label htmlFor="input-disabled">Campo Deshabilitado</Label>
-                    <Input id="input-disabled" placeholder="No puedes escribir aquí" disabled/>
-                </div>
-            </div>
-             <div className="space-y-4">
-                <div className="space-y-2">
-                    <Label htmlFor="select-field">Selector</Label>
-                     <Select>
-                        <SelectTrigger id="select-field">
-                            <SelectValue placeholder="Selecciona una opción" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="opcion1">Opción 1</SelectItem>
-                            <SelectItem value="opcion2">Opción 2</SelectItem>
-                            <SelectItem value="opcion3">Opción 3 (larga)</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-            </div>
+          <div className="rounded-lg p-4 bg-primary/10 text-foreground">
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">Ventas</div>
+            <div className="mt-1 text-2xl font-bold">€ 12.480</div>
+            <div className="mt-1 text-xs text-green-700 font-semibold">▲ +8.4% vs. mes anterior</div>
+          </div>
         </div>
       </section>
 
-      {/* Notifications and Badges */}
+      {/* Chart Section */}
       <section>
-        <h2 className="text-2xl font-semibold font-headline mb-4">Notificaciones y Estados</h2>
-        <div className="grid md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-                 <Alert>
-                    <Info className="h-4 w-4" />
-                    <AlertTitle>Información</AlertTitle>
-                    <AlertDescription>Esta es una notificación informativa estándar.</AlertDescription>
-                </Alert>
-                 <Alert variant="destructive">
-                    <TriangleAlert className="h-4 w-4" />
-                    <AlertTitle>Error Crítico</AlertTitle>
-                    <AlertDescription>Algo ha salido mal y requiere tu atención inmediata.</AlertDescription>
-                </Alert>
-                <div className="flex gap-4">
-                    <Button variant="outline" onClick={() => toast({ title: "Notificación programada", description: "Tu reunión ha sido agendada para el viernes.", })}>Mostrar Toast</Button>
-                     <Button variant="destructive" onClick={() => toast({ variant: 'destructive', title: "Acción fallida", description: "No se pudo eliminar el registro.", })}>Toast de Error</Button>
-                </div>
-            </div>
-            <div className="space-y-4">
-                <h3 className="font-medium">Badges de Estado</h3>
-                <div className="flex flex-wrap gap-2">
-                    <Badge className="bg-status-success text-white"><Check className="mr-1 h-3 w-3"/> Éxito</Badge>
-                    <Badge className="bg-status-warning text-black"><Loader2 className="mr-1 h-3 w-3 animate-spin"/> Pendiente</Badge>
-                    <Badge className="bg-status-error text-white"><X className="mr-1 h-3 w-3"/> Error</Badge>
-                    <Badge className="bg-status-info text-black"><Info className="mr-1 h-3 w-3"/> Informativo</Badge>
-                     <Badge variant="outline">Neutral</Badge>
-                </div>
-            </div>
-        </div>
+        <h2 className="text-2xl font-semibold font-headline mb-4">Gráfico (Recharts)</h2>
+         <Card>
+            <CardHeader><CardTitle>Rendimiento Mensual</CardTitle></CardHeader>
+            <CardContent>
+                <ChartContainer config={chartConfig} className="h-64 w-full">
+                    <BarChart accessibilityLayer data={chartData}>
+                      <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="hsl(var(--border) / 0.5)"/>
+                      <XAxis dataKey="month" tickLine={false} tickMargin={10} axisLine={false} stroke="hsl(var(--muted-foreground))"/>
+                      <YAxis tickLine={false} axisLine={false} stroke="hsl(var(--muted-foreground))"/>
+                      <RechartsTooltip cursor={false} content={<ChartTooltipContent indicator="dot" className="sb-chart-tooltip" />} />
+                      <Bar dataKey="desktop" fill="var(--color-desktop)" radius={8} />
+                      <Bar dataKey="mobile" fill="var(--color-mobile)" radius={8} />
+                    </BarChart>
+                </ChartContainer>
+            </CardContent>
+        </Card>
       </section>
 
       {/* Table Section */}
        <section>
         <h2 className="text-2xl font-semibold font-headline mb-4">Tabla</h2>
-        <Card className="shadow-sm">
+        <Card>
             <Table>
             <TableHeader>
-                <TableRow>
+                <TableRow className="bg-muted/50 border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
                     <TableHead className="w-[100px]">ID</TableHead>
                     <TableHead>Producto</TableHead>
                     <TableHead>Estado</TableHead>
@@ -214,27 +124,54 @@ export default function UiPreview() {
                 </TableRow>
             </TableHeader>
             <TableBody>
-                <TableRow>
+                <TableRow className="border-b border-border hover:bg-secondary/10">
                     <TableCell className="font-medium">PRJ-001</TableCell>
                     <TableCell>Diseño de Packaging</TableCell>
-                    <TableCell><Badge variant="outline" className="bg-status-success text-white">Completado</Badge></TableCell>
+                    <TableCell><Badge className="bg-green-100 text-green-800 border border-green-200">Completado</Badge></TableCell>
                     <TableCell className="text-right">€2,500.00</TableCell>
                 </TableRow>
-                <TableRow>
+                <TableRow className="border-b border-border hover:bg-secondary/10 border-l-4 border-l-secondary">
                     <TableCell className="font-medium">PRJ-002</TableCell>
                     <TableCell>Campaña de Lanzamiento Q3</TableCell>
-                    <TableCell><Badge variant="outline" className="bg-status-warning text-black">En Progreso</Badge></TableCell>
+                    <TableCell><Badge className="bg-amber-100 text-amber-800 border border-amber-200">En Progreso</Badge></TableCell>
                     <TableCell className="text-right">€15,000.00</TableCell>
                 </TableRow>
-                 <TableRow>
+                 <TableRow className="border-b border-border hover:bg-secondary/10">
                     <TableCell className="font-medium">PRJ-003</TableCell>
                     <TableCell>Estudio de Mercado Latam</TableCell>
-                    <TableCell><Badge variant="outline" className="bg-status-error text-white">Cancelado</Badge></TableCell>
+                    <TableCell><Badge className="bg-red-100 text-red-800 border border-red-200">Cancelado</Badge></TableCell>
                     <TableCell className="text-right">€5,000.00</TableCell>
                 </TableRow>
             </TableBody>
             </Table>
         </Card>
+      </section>
+
+      {/* Buttons and Modals */}
+      <section>
+        <h2 className="text-2xl font-semibold font-headline mb-4">Acciones y Modales</h2>
+        <div className="flex flex-wrap items-center gap-4">
+            <Button>Botón Primario</Button>
+            <Button variant="secondary">Botón Secundario</Button>
+            <Button variant="ghost">Botón Ghost</Button>
+            <Button variant="destructive">Eliminar</Button>
+            <Button size="icon" variant="outline" className="rounded-full w-10 h-10 border-border bg-background/50 hover:bg-muted/80 active:scale-95"><Settings className="h-5 w-5 text-foreground"/></Button>
+            <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <Button variant="outline">Abrir Modal (Glass)</Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="sb-chart-tooltip">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Confirmar acción?</AlertDialogTitle>
+                        <AlertDialogDescription>Esta acción no se puede deshacer.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction>Confirmar</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </div>
       </section>
       
       <Toaster />

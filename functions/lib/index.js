@@ -7,7 +7,6 @@ export const holdedListProjects = onRequest({
     region: "europe-west1",
     timeoutSeconds: 30,
     memory: "256MiB",
-    secrets: ["HOLDED_API_KEY"],
     cors: true,
 }, async (req, res) => {
     logger.info("holdedListProjects function triggered", { method: req.method, path: req.path });

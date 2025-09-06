@@ -58,9 +58,14 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                     <div className={cn("w-1.5 h-full min-h-[4rem] transition-all", isExpanded ? lineColor : 'bg-transparent')}></div>
                 </TableCell>
                 <TableCell className="table-cell-main-text">
-                    <Link href={`/accounts/${account.id}`} className="hover:underline text-primary">
+                   <div className="flex items-center gap-1">
+                     <Button variant="ghost" size="icon" className="h-8 w-8 -ml-2" onClick={onToggleExpand}>
+                        <ChevronRight className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-90")} />
+                     </Button>
+                     <Link href={`/accounts/${account.id}`} className="hover:underline text-primary">
                         {account.nombre}
-                    </Link>
+                     </Link>
+                   </div>
                 </TableCell>
                 <TableCell className="table-cell-std text-center">
                     <StatusBadge type="account" status={account.status} />
@@ -124,9 +129,6 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                 </TableCell>
                 <TableCell className="table-cell-std text-right pr-4">
                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onToggleExpand}>
-                            <Edit className="h-4 w-4 text-teal-600" />
-                        </Button>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                <Button variant="ghost" size="icon" className="h-8 w-8"><Eye className="h-4 w-4" /></Button>

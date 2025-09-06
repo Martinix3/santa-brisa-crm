@@ -27,41 +27,30 @@ export default function AccountHistoryTable({ interactions }: AccountHistoryTabl
   }
 
   return (
-    <div className="p-4 bg-muted/20">
-        <h4 className="font-semibold mb-2 text-base">Historial de Interacciones</h4>
+    <div className="p-2 bg-muted/20">
         <div className="max-h-64 overflow-y-auto">
             <Table>
-                <TableHeader>
-                    <TableRow className="text-xs uppercase">
-                        <TableHead>Fecha</TableHead>
-                        <TableHead>Tipo / Resultado</TableHead>
-                        <TableHead>Valor</TableHead>
-                        <TableHead>Comercial</TableHead>
-                        <TableHead>Notas</TableHead>
-                        <TableHead className="text-right">Acciones</TableHead>
-                    </TableRow>
-                </TableHeader>
                 <TableBody>
                     {interactions.slice(0, 10).map(interaction => {
                         const isOpenTask = ['Programada', 'Seguimiento'].includes(interaction.status);
                         const canRegisterResult = userRole === 'Admin' || (userRole === 'SalesRep' && teamMember?.name === interaction.salesRep) || (userRole === 'Clavadista' && interaction.clavadistaId === teamMember?.id);
 
                         return (
-                            <TableRow key={interaction.id} className="text-sm">
-                                <TableCell>{isValid(parseISO(interaction.createdAt)) ? format(parseISO(interaction.createdAt), "dd/MM/yy HH:mm", { locale: es }) : 'N/D'}</TableCell>
-                                <TableCell>{getInteractionType(interaction)}</TableCell>
-                                <TableCell><FormattedNumericValue value={interaction.value} options={{style: 'currency', currency: 'EUR'}} placeholder="—" /></TableCell>
-                                <TableCell>{interaction.salesRep}</TableCell>
-                                <TableCell className="text-xs max-w-[150px] truncate" title={interaction.notes}>{interaction.notes || 'N/A'}</TableCell>
-                                <TableCell className="text-right">
+                            <TableRow key={interaction.id} className="text-xs">
+                                <TableCell className="py-1.5 px-2">{isValid(parseISO(interaction.createdAt)) ? format(parseISO(interaction.createdAt), "dd/MM/yy HH:mm", { locale: es }) : 'N/D'}</TableCell>
+                                <TableCell className="py-1.5 px-2">{getInteractionType(interaction)}</TableCell>
+                                <TableCell className="py-1.5 px-2"><FormattedNumericValue value={interaction.value} options={{style: 'currency', currency: 'EUR'}} placeholder="—" /></TableCell>
+                                <TableCell className="py-1.5 px-2">{interaction.salesRep}</TableCell>
+                                <TableCell className="py-1.5 px-2 max-w-[150px] truncate" title={interaction.notes}>{interaction.notes || 'N/A'}</TableCell>
+                                <TableCell className="text-right py-1.5 px-2">
                                     {isOpenTask && canRegisterResult ? (
-                                        <Button asChild variant="outline" size="sm">
+                                        <Button asChild variant="outline" size="sm" className="h-7 text-xs">
                                             <Link href={`/order-form?originatingTaskId=${interaction.id}`}>
-                                                <Send className="mr-1 h-3 w-3" /> Registrar Resultado
+                                                <Send className="mr-1 h-3 w-3" /> Registrar
                                             </Link>
                                         </Button>
                                     ) : (
-                                       <Button variant="ghost" size="sm" disabled>
+                                       <Button variant="ghost" size="sm" disabled className="h-7 text-xs">
                                             <CheckCircle className="mr-1 h-3 w-3 text-green-500" /> Gestionado
                                         </Button>
                                     )}

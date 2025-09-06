@@ -18,58 +18,56 @@ type StatusKey = OrderStatus | AccountStatus | CrmEventStatus | DocumentStatus |
 
 const statusColorMatrix: Record<StatusKey, string> = {
   // === Positive / Success (Green) ===
-  'Entregado': 'bg-green-100 text-green-800 border-green-200',
-  'Completado': 'bg-green-100 text-green-800 border-green-200',
-  'Facturado': 'bg-green-600 text-white',
-  'Pagado': 'bg-green-600 text-white',
-  'pagado': 'bg-green-600 text-white',
-  'Released': 'bg-green-100 text-green-800 border-green-200',
-  'Libre': 'bg-green-100 text-green-800 border-green-200',
-  'Activo': 'bg-green-100 text-green-800 border-green-200',
-  'Repetición': 'bg-green-600 text-white font-semibold',
-  'Finalizada': 'bg-green-600 text-white',
-  'factura_validada': 'bg-green-100 text-green-800 border-green-200',
+  'Entregado': 'bg-brand-success/20 text-brand-success border border-brand-success/30',
+  'Completado': 'bg-brand-success/20 text-brand-success border border-brand-success/30',
+  'Facturado': 'bg-brand-success text-white',
+  'Pagado': 'bg-brand-success text-white',
+  'pagado': 'bg-brand-success text-white',
+  'Released': 'bg-brand-success/20 text-brand-success border border-brand-success/30',
+  'Libre': 'bg-brand-success/20 text-brand-success border border-brand-success/30',
+  'Activo': 'bg-brand-success/20 text-brand-success border border-brand-success/30',
+  'Repetición': 'bg-brand-success text-white font-semibold',
+  'Finalizada': 'bg-brand-success text-white',
+  'factura_validada': 'bg-brand-success/20 text-brand-success border border-brand-success/30',
+  'Aprobada': 'bg-brand-success/20 text-brand-success border border-brand-success/30',
 
   // === In Progress / Active (Blue/Purple/Sky) ===
-  'Confirmado': 'bg-blue-600 text-white',
-  'confirmado': 'bg-blue-600 text-white',
+  'Confirmado': 'bg-brand-process text-white',
+  'confirmado': 'bg-brand-process text-white',
   'Enviado': 'bg-sky-500 text-white',
   'enviado': 'bg-sky-500 text-white',
   'Procesando': 'bg-purple-500 text-white',
-  'En curso': 'bg-purple-500 text-white',
-  'En Curso': 'bg-purple-500 text-white',
-  'Programada': 'bg-sky-500 text-white', // Changed from Slate to Sky Blue
-  'factura_recibida': 'bg-purple-100 text-purple-800 border-purple-200',
+  'En curso': 'bg-brand-process text-white',
+  'En Curso': 'bg-brand-process text-white',
+  'Programada': 'bg-brand-info/20 text-brand-info border border-brand-info/30',
+  'factura_recibida': 'bg-brand-info/20 text-brand-info border border-brand-info/30',
   'en depósito': 'bg-cyan-500 text-white',
   'En Depósito': 'bg-cyan-500 text-white',
-  'Ocupado': 'bg-blue-200 text-blue-800 border-blue-300',
-
+  'Ocupado': 'bg-brand-process/20 text-brand-process border-brand-process/30',
 
   // === Attention / Warning (Yellow/Orange) ===
-  'Pendiente': 'bg-amber-100 text-amber-800 border-amber-200',
-  'pendiente': 'bg-amber-100 text-amber-800 border-amber-200',
-  'Seguimiento': 'bg-amber-400 text-white',
+  'Pendiente': 'bg-brand-warning/20 text-brand-warning border border-brand-warning/30',
+  'pendiente': 'bg-brand-warning/20 text-brand-warning border border-brand-warning/30',
+  'Seguimiento': 'bg-brand-warning text-white',
   'Pausada': 'bg-orange-400 text-white',
-  'Pending': 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  'Pending': 'bg-brand-warning/20 text-brand-warning border border-brand-warning/30',
   'Parcial': 'bg-orange-400 text-white',
   'parcial': 'bg-orange-400 text-white',
   'Limpieza': 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  'factura_pendiente': 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  'factura_pendiente': 'bg-brand-warning/20 text-brand-warning border border-brand-warning/30',
   'Inactivo': 'bg-orange-100 text-orange-800 border-orange-200',
 
-
   // === Neutral / Info (Gray/Slate) ===
-  'Borrador': 'bg-slate-500 text-white',
-  'borrador': 'bg-slate-500 text-white',
+  'Borrador': 'bg-brand-neutral/20 text-brand-neutral border border-brand-neutral/30',
+  'borrador': 'bg-brand-neutral/20 text-brand-neutral border border-brand-neutral/30',
   'proforma': 'bg-slate-100 text-slate-800 border-slate-200',
   
-  
   // === Negative / Danger (Red) ===
-  'Cancelado': 'bg-red-500 text-white',
-  'cancelado': 'bg-red-500 text-white',
-  'Fallido': 'bg-red-100 text-red-800 border-red-200',
-  'Rejected': 'bg-red-100 text-red-800 border-red-200',
-
+  'Cancelado': 'bg-brand-danger/80 text-white',
+  'cancelado': 'bg-brand-danger/80 text-white',
+  'Fallido': 'bg-brand-danger/20 text-brand-danger border border-brand-danger/30',
+  'Rejected': 'bg-brand-danger/20 text-brand-danger border border-brand-danger/30',
+  'Rechazada': 'bg-brand-danger/20 text-brand-danger border border-brand-danger/30',
 
   // Default fallback
   'Pospuesto': 'bg-gray-400 text-white',
@@ -77,7 +75,7 @@ const statusColorMatrix: Record<StatusKey, string> = {
 
 
 type StatusBadgeProps = 
-  | { type: 'order'; status: OrderStatus; className?: string; children?: React.ReactNode; }
+  | { type: 'order' | 'directSale'; status: OrderStatus | DirectSaleStatus; className?: string; children?: React.ReactNode; }
   | { type: 'account'; status: AccountStatus; isOverdue?: boolean; className?: string; children?: React.ReactNode; }
   | { type: 'event'; status: CrmEventStatus; className?: string; children?: React.ReactNode; }
   | { type: 'document'; status: DocumentStatus; className?: string; children?: React.ReactNode; }
@@ -85,7 +83,7 @@ type StatusBadgeProps =
   | { type: 'production'; status: ProductionRunStatus; className?: string; children?: React.ReactNode; }
   | { type: 'qc'; status: QcStatus; className?: string; children?: React.ReactNode; }
   | { type: 'tank'; status: TankStatus; className?: string; children?: React.ReactNode; }
-  | { type: 'directSale'; status: DirectSaleStatus; className?: string; children?: React.ReactNode; };
+  | { type: 'sampleRequest'; status: SampleRequestStatus; className?: string; children?: React.ReactNode; };
 
 export default function StatusBadge(props: StatusBadgeProps) {
   const { type, status, className, children } = props;
@@ -93,21 +91,13 @@ export default function StatusBadge(props: StatusBadgeProps) {
   let badgeColorClass = statusColorMatrix[status] || 'bg-slate-400 text-white';
 
   if (type === 'account' && (props as any).isOverdue) {
-    badgeColorClass = 'bg-red-500 text-white';
+    badgeColorClass = 'bg-brand-danger text-white';
   }
   
-  // Aliases for DirectSale
-  if (type === 'directSale' && status === 'Confirmada') {
-     badgeColorClass = statusColorMatrix['confirmado'];
-  }
-  if (type === 'directSale' && status === 'En Depósito') {
-      badgeColorClass = statusColorMatrix['en depósito'];
-  }
-  
-  const statusText = children || status.replace(/_/g, ' ');
+  const statusText = children || (typeof status === 'string' ? status.replace(/_/g, ' ') : 'N/D');
 
   return (
-    <Badge className={cn(badgeColorClass, "text-xs capitalize", className)}>
+    <Badge className={cn("text-xs capitalize", badgeColorClass, className)}>
       {statusText}
     </Badge>
   );

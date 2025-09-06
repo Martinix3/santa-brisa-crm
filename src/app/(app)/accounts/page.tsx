@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -23,6 +23,7 @@ import FollowUpResultDialog from "@/components/app/follow-up-result-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import AccountHistoryTable from "@/components/app/account-history-table";
+import { cn } from "@/lib/utils";
 
 
 type BucketFilter = "Todos" | "Vencidas" | "Para Hoy" | "Pendientes";
@@ -420,7 +421,7 @@ export default function AccountsPage() {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                 <AlertDialogCancel onClick={() => setAccountToDelete(null)}>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={confirmDeleteAccount} variant="destructive">Sí, eliminar todo</AlertDialogAction>
+                <AlertDialogAction onClick={confirmDeleteAccount} className={cn(buttonVariants({ variant: "destructive" }))}>Sí, eliminar todo</AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>

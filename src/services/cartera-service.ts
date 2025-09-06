@@ -17,10 +17,6 @@ export async function processCarteraData(
     const teamMembersMap = new Map(teamMembers.map(tm => [tm.id, tm]));
     
     const ordersByAccountId = new Map<string, Order[]>();
-    const ordersByClientName = new Map<string, Order[]>();
-    const ordersByCif = new Map<string, Order[]>();
-
-
     for (const order of orders) {
         if (order.accountId) {
             if (!ordersByAccountId.has(order.accountId)) {
@@ -28,33 +24,10 @@ export async function processCarteraData(
             }
             ordersByAccountId.get(order.accountId)!.push(order);
         }
-        
-        const clientNameKey = order.clientName?.toLowerCase().trim();
-        if (clientNameKey) {
-             if (!ordersByClientName.has(clientNameKey)) {
-                ordersByClientName.set(clientNameKey, []);
-            }
-            ordersByClientName.get(clientNameKey)!.push(order);
-        }
-        
-        // Fallback for orders that might have CIF but not other identifiers
-        const cifKey = (order as any).cif?.toLowerCase().trim();
-        if (cifKey) {
-            if (!ordersByCif.has(cifKey)) {
-                ordersByCif.set(cifKey, []);
-            }
-            ordersByCif.get(cifKey)!.push(order);
-        }
     }
     
     const enrichedAccountsPromises = accounts.map(async (account): Promise<EnrichedAccount> => {
-        const ordersById = ordersByAccountId.get(account.id) || [];
-        const ordersByName = account.nombre ? ordersByClientName.get(account.nombre.toLowerCase().trim()) || [] : [];
-        const ordersByAccountCif = account.cif ? ordersByCif.get(account.cif.toLowerCase().trim()) || [] : [];
-        
-        const combinedOrdersMap = new Map<string, Order>();
-        [...ordersById, ...ordersByName, ...ordersByAccountCif].forEach(order => combinedOrdersMap.set(order.id, order));
-        const accountOrders = Array.from(combinedOrdersMap.values());
+        const accountOrders = ordersByAccountId.get(account.id) || [];
         
         accountOrders.sort((a, b) => {
             const dateA = a.createdAt ? parseISO(a.createdAt) : new Date(0);

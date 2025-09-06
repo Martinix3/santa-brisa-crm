@@ -30,6 +30,18 @@ const nextConfig = {
         tls: false,
         dns: false,
       };
+
+      for (const m of [
+        'genkit',
+        '@genkit-ai/core',
+        '@genkit-ai/googleai',
+        '@genkit-ai/firebase',
+        'handlebars',
+        'require-in-the-middle',
+        '@opentelemetry/instrumentation',
+      ]) {
+        config.resolve.alias[m] = false;
+      }
     }
     
     return config;

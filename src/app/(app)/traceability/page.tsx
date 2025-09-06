@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import * as React from 'react';
@@ -8,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Waypoints, Loader2, Search, PowerOff } from 'lucide-react';
-import { getTraceabilityReport, type TraceabilityReportInput, type TraceabilityReportOutput } from '@/ai/flows/traceability-report-flow';
+import { getTraceabilityReportAction } from '@/services/server/traceability-actions';
+import type { TraceabilityReportInput, TraceabilityReportOutput } from '@/ai/flows/traceability-report-flow';
 
 export default function TraceabilityPage() {
   const { toast } = useToast();
@@ -43,7 +43,7 @@ export default function TraceabilityPage() {
 
     try {
       const input: TraceabilityReportInput = { batchId: batchId.trim() };
-      const result: TraceabilityReportOutput = await getTraceabilityReport(input);
+      const result: TraceabilityReportOutput = await getTraceabilityReportAction(input);
       setReportHtml(result.html);
     } catch (error: any) {
       console.error('Error al generar el informe de trazabilidad:', error);

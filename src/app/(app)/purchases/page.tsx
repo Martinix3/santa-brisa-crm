@@ -1,12 +1,11 @@
 
-
 "use client";
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuCheckboxItem, DropdownMenuContent } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
@@ -21,7 +20,7 @@ import StatusBadge from "@/components/app/status-badge";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { getExpensesFS, deleteExpenseFS, deleteExpensesBatchFS } from "@/services/purchase-service";
 import { useCategories } from "@/contexts/categories-context";
-import { processInvoice } from '@/ai/flows/invoice-processing-flow';
+import { processInvoiceAction } from '@/services/server/invoice-actions';
 
 const documentStatusList: DocumentStatus[] = ['proforma', 'factura_pendiente', 'factura_recibida', 'factura_validada'];
 const paymentStatusList: PaymentStatus[] = ['pendiente', 'parcial', 'pagado', 'pagado_adelantado'];
@@ -110,7 +109,7 @@ export default function PurchasesPage() {
         reader.readAsDataURL(file);
         reader.onload = async () => {
             const dataUri = reader.result as string;
-            const result = await processInvoice({ invoiceDataUri: dataUri });
+            const result = await processInvoiceAction({ invoiceDataUri: dataUri });
             
             const prefilledData: Partial<Expense> = {
                 proveedorNombre: result.supplierName,

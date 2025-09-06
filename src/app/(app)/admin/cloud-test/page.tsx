@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -5,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useAuth } from "@/contexts/auth-context";
 import { Loader2, HardHat, CheckCircle, AlertTriangle, FileJson } from "lucide-react";
-import { testFlow, type TestFlowInput, type TestFlowOutput } from "@/ai/flows/test-flow";
 import { useToast } from "@/hooks/use-toast";
+import { testFlowAction } from "@/services/server/test-actions";
+import type { TestFlowInput, TestFlowOutput } from "@/ai/flows/test-flow";
 
 export default function CloudTestPage() {
   const { user, teamMember, loading: authLoading } = useAuth();
@@ -25,7 +27,7 @@ export default function CloudTestPage() {
       const input: TestFlowInput = {
         message: `Hola desde el cliente, usuario: ${user?.email}`,
       };
-      const result = await testFlow(input);
+      const result = await testFlowAction(input);
       setTestResult(result);
       toast({
         title: "¡Prueba Exitosa!",

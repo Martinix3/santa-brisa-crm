@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -6,14 +7,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Sparkles, Loader2, Send, PowerOff } from 'lucide-react';
-import { askMarketingAssistant, type MarketingAssistantInput, type MarketingAssistantOutput } from '@/ai/flows/marketing-assistant-flow';
+import { askMarketingAssistantAction } from '@/services/server/marketing-actions';
+import type { MarketingAssistantInput, MarketingAssistantOutput } from '@/ai/flows/marketing-assistant-flow';
+
 
 export default function AiAssistantPage() {
   const { toast } = useToast();
   const [question, setQuestion] = React.useState('');
   const [answer, setAnswer] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
-  const isApiDisabled = true; // API is disabled
+  const isApiDisabled = false; // API is enabled, we just call the server action now
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -25,7 +28,7 @@ export default function AiAssistantPage() {
       });
       return;
     }
-    // The rest of the logic is kept but won't be executed
+    
     if (!question.trim()) {
       toast({
         title: 'Pregunta Vacía',
@@ -40,13 +43,13 @@ export default function AiAssistantPage() {
 
     try {
       const input: MarketingAssistantInput = { question };
-      const result: MarketingAssistantOutput = await askMarketingAssistant(input);
+      const result: MarketingAssistantOutput = await askMarketingAssistantAction(input);
       setAnswer(result.answer);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al contactar al asistente de IA:', error);
       toast({
         title: 'Error de IA',
-        description: 'No se pudo obtener una respuesta del asistente. Inténtalo de nuevo.',
+        description: `No se pudo obtener una respuesta del asistente: ${error.message}`,
         variant: 'destructive',
       });
       setAnswer('Hubo un error al procesar tu pregunta. Por favor, intenta de nuevo.');
@@ -81,7 +84,7 @@ export default function AiAssistantPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <Textarea
-              placeholder="El asistente de IA está desactivado temporalmente."
+              placeholder={isApiDisabled ? "El asistente de IA está desactivado temporalmente." : "Escribe tu pregunta aquí..."}
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               rows={3}

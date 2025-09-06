@@ -8,7 +8,7 @@
  * - TraceabilityReportInput - The input type.
  * - TraceabilityReportOutput - The return type.
  */
-
+import 'server-only';
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { collection, query, where, getDocs, doc, getDoc, limit, type DocumentData, type DocumentSnapshot, type DocumentReference } from 'firebase/firestore';

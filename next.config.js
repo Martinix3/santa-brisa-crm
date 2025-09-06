@@ -32,12 +32,6 @@ const nextConfig = {
       };
     }
     
-    // This rule is to handle the 'handlebars' library issue which uses an outdated Node.js feature.
-    config.module.rules.push({
-      test: /handlebars\/dist\/cjs\/handlebars\.js$/,
-      loader: 'null-loader',
-    });
-    
     return config;
   },
 };

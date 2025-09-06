@@ -52,7 +52,7 @@
 
     /* Neutrals */
     --sb-n-25:#FAFBFC;
-    --sb-n-50:#F4F6F8;
+    --sb-n-50:#F4F6F8; /* New Background */
     --sb-n-100:#E9EDF2;
     --sb-n-200:#DCE2EA;
     --sb-n-300:#C7CFDA;
@@ -74,8 +74,65 @@
     --brand-yellow-hsl: 46 93% 66%;
     --brand-purple-hsl: 255 48% 49%;
     --brand-blue-hsl: 215 80% 55%;
+
+    /* Colores del sistema (shadcn) mapeados a tu paleta */
+    --background: 216 17% 95%;           /* #F4F6F8 */
+    --foreground: 210 17% 15%;           /* ≈ #14191F */
+
+    --card: 0 0% 100%;                   /* Pure white */
+    --card-foreground: 210 17% 15%;      /* Dark text for white card */
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 17% 15%;
+
+    --primary: 46 93% 66%;               /* ≈ #F7D15F (Amarillo SB) */
+    --primary-foreground: 210 17% 15%;
+
+    --secondary: 184 18% 47%;            /* ≈ #618E8F */
+    --secondary-foreground: 210 20% 98%;
+
+    --muted: 216 17% 95%;                /* ≈ #F4F6F8 */
+    --muted-foreground: 214 11% 41%;     /* ≈ #66778E */
+
+    --accent: 184 25% 95%;               /* ≈ #E9F0F1 */
+    --accent-foreground: 184 22% 31%;    /* ≈ #405D5E */
+
+    --destructive: 18 56% 48%;           /* ≈ #B85C34 */
+    --destructive-foreground: 210 20% 98%;
+
+    --border: 216 17% 91%;               /* Subtle border: #E9EDF2 */
+    --input: 216 17% 91%;
+    --ring: 184 18% 47%;                 /* foco en teal SB */
+
+    --radius: 0.5rem; /* Subtle rounded corners */
   }
 
+  .dark {
+    /* Keeping dark mode for consistency, though not the primary focus now */
+    --background: 210 17% 15%;
+    --foreground: 210 20% 98%;
+    --card: 210 17% 15%;
+    --card-foreground: 210 20% 98%;
+    --popover: 210 17% 15%;
+    --popover-foreground: 210 20% 98%;
+    --primary: 46 93% 66%;
+    --primary-foreground: 210 17% 15%;
+    --secondary: 184 18% 47%;
+    --secondary-foreground: 210 20% 98%;
+    --muted: 214 11% 25%;
+    --muted-foreground: 214 11% 60%;
+    --accent: 184 22% 21%;
+    --accent-foreground: 210 20% 98%;
+    --destructive: 18 56% 48%;
+    --destructive-foreground: 210 20% 98%;
+    --border: 214 11% 25%;
+    --input: 214 11% 25%;
+    --ring: 46 93% 66%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
   * {
     @apply border-border;
   }
@@ -137,70 +194,4 @@
     size: A4 portrait;
     margin: 1cm;
   }
-}
-
-/* === SB → Shadcn Bridge: activa la marca + bordes rectos === */
-:root {
-  /* Colores del sistema (shadcn) mapeados a tu paleta */
-  --background: 210 20% 98%;           /* ≈ #FAFBFC */
-  --foreground: 210 17% 15%;           /* ≈ #14191F */
-
-  --card: 210 20% 98%;
-  --card-foreground: 210 17% 15%;
-
-  --popover: 210 20% 98%;
-  --popover-foreground: 210 17% 15%;
-
-  --primary: 46 93% 66%;               /* ≈ #F7D15F (Amarillo SB) */
-  --primary-foreground: 210 17% 15%;
-
-  --secondary: 184 18% 47%;            /* ≈ #618E8F */
-  --secondary-foreground: 210 20% 98%;
-
-  --muted: 216 17% 95%;                /* ≈ #F4F6F8 */
-  --muted-foreground: 214 11% 41%;     /* ≈ #66778E */
-
-  --accent: 184 25% 95%;               /* ≈ #E9F0F1 */
-  --accent-foreground: 184 22% 31%;    /* ≈ #405D5E */
-
-  --destructive: 18 56% 48%;           /* ≈ #B85C34 */
-  --destructive-foreground: 210 20% 98%;
-
-  --border: 216 17% 91%;               /* ≈ #E9EDF2 */
-  --input: 216 17% 91%;
-  --ring: 184 18% 47%;                 /* foco en teal SB */
-
-  /* Bordes rectos por defecto en todo el sistema shadcn */
-  --radius: 0px;  /* << clave para quitar redondeos globales */
-}
-
-/* Modo oscuro coherente (opcional; si usas .dark) */
-.dark {
-  --background: 210 17% 15%;
-  --foreground: 210 20% 98%;
-
-  --card: 210 17% 15%;
-  --card-foreground: 210 20% 98%;
-
-  --popover: 210 17% 15%;
-  --popover-foreground: 210 20% 98%;
-
-  --primary: 46 93% 66%;
-  --primary-foreground: 210 17% 15%;
-
-  --secondary: 184 18% 47%;
-  --secondary-foreground: 210 20% 98%;
-
-  --muted: 214 11% 25%;
-  --muted-foreground: 214 11% 60%;
-
-  --accent: 184 22% 21%;
-  --accent-foreground: 210 20% 98%;
-
-  --destructive: 18 56% 48%;
-  --destructive-foreground: 210 20% 98%;
-
-  --border: 214 11% 25%;
-  --input: 214 11% 25%;
-  --ring: 46 93% 66%;
 }

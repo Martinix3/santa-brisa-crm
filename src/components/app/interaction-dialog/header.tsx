@@ -1,4 +1,3 @@
-
 "use client";
 
 import { DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -6,6 +5,7 @@ import type { InteractionMode } from '../interaction-dialog';
 
 interface InteractionHeaderProps {
   mode: InteractionMode;
+  setMode: (m: InteractionMode) => void;
 }
 
 export function InteractionHeader({ mode }: InteractionHeaderProps) {

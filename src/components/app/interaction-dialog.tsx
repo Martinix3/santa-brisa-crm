@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FormProvider } from 'react-hook-form';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { InteractionHeader } from '@/components/app/interaction-dialog/header';
 import { CompactForm } from '@/components/app/interaction-dialog/compact-form';
 import { OrderForm } from '@/components/app/interaction-dialog/order-form';
@@ -68,7 +68,7 @@ export function InteractionDialog({
           if (isSubmitting) e.preventDefault();
         }}
       >
-        <DialogTitle className="sr-only">Registrar Interacción o Pedido</DialogTitle>
+        <InteractionHeader mode={mode} setMode={setMode} />
         {isLoading ? (
             <div className="flex justify-center items-center h-64">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -77,7 +77,6 @@ export function InteractionDialog({
         <FormProvider {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)}>
                 <motion.div layout transition={{ type: 'spring', duration: 0.35, bounce: 0.15 }}>
-                    <InteractionHeader mode={mode} />
                     {mode === 'compact' ? (
                         <CompactForm
                             onGoOrder={() => setMode('order')}

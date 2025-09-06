@@ -716,252 +716,254 @@ export default function MyAgendaPage() {
   };
 
   const modifiers = {
-    commercial: commercialTaskDays,
-    event: eventDays,
-    admin: adminTaskDays,
+    [MODIFIER_NAMES.commercial]: commercialTaskDays,
+    [MODIFIER_NAMES.event]: eventDays,
+    [MODIFIER_NAMES.admin]: adminTaskDays,
   };
 
   const showStickyNotes = (userRole === 'Admin' || userRole === 'SalesRep') && teamMember;
   
   return (
     <>
-    <Sheet open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-      >
-        <div className="flex flex-col h-full space-y-6">
-          <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-                <CalendarIcon className="h-8 w-8 text-primary"/>
-                <h1 className="text-3xl font-headline font-semibold">
-                    Agenda del Equipo
-                </h1>
-            </div>
-          </header>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 flex-grow">
-              <div className="lg:col-span-1">
-                  <Card className="h-full flex flex-col">
-                      <CardHeader>
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <CardTitle className="text-lg font-semibold">
-                                Actividades para {viewMode === 'day' ? format(selectedDate, 'dd MMMM, yyyy', {locale: es}) : `${format(interval.start, 'dd MMM', {locale: es})} - ${format(interval.end, 'dd MMM, yyyy', {locale: es})}`}
-                            </CardTitle>
-                             <div className="flex items-center gap-2 flex-wrap">
-                                {isAdmin && (
-                                    <Select value={userFilter} onValueChange={setUserFilter}>
-                                        <SelectTrigger className="w-auto h-8 text-xs"><SelectValue placeholder="Usuario..." /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">Todos</SelectItem>
-                                            {teamMembers.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                )}
-                                <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as TypeFilter)}>
-                                    <SelectTrigger className="w-auto h-8 text-xs"><SelectValue placeholder="Tipo..." /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">Todo</SelectItem>
-                                        <SelectItem value="tareas_comerciales">T. Comerciales</SelectItem>
-                                        <SelectItem value="tareas_administrativas">T. Admin.</SelectItem>
-                                        <SelectItem value="eventos">Eventos</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                          </div>
-                      </CardHeader>
-                      <CardContent className="flex-grow overflow-y-auto pr-3">
-                          {isLoading ? (
-                              <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-                          ) : (
-                                viewMode === 'day' ? (
-                                    <SortableContext items={itemsForDayView.map(i => i.id)} strategy={verticalListSortingStrategy}>
-                                        <div className="space-y-4">
-                                            {itemsForDayView.length > 0 ? itemsForDayView.map(item => (
-                                                <SortableAgendaItem 
-                                                    key={item.id} 
-                                                    item={item} 
-                                                    handleItemClick={handleItemClick}
-                                                    onFollowUpClick={handleOpenFollowUpDialog}
-                                                    onCompleteClick={handleMarkTaskAsComplete}
-                                                />
-                                            )) : (
-                                                <div className="flex items-center justify-center h-full text-muted-foreground text-center">
-                                                    <p>No hay actividades programadas con los filtros seleccionados.</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </SortableContext>
-                                ) : (
-                                     itemsGroupedByDay.length > 0 ? (
-                                        <div className="space-y-6">
-                                            {itemsGroupedByDay.map(([day, items]) => (
-                                                <div key={day}>
-                                                    <h3 className="font-semibold mb-2">{format(parseISO(day), "EEEE dd 'de' MMMM", { locale: es })}</h3>
-                                                    <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
-                                                        <div className="space-y-4">
-                                                            {items.map(item => (
-                                                                <SortableAgendaItem 
-                                                                    key={item.id} 
-                                                                    item={item} 
-                                                                    handleItemClick={handleItemClick}
-                                                                    onFollowUpClick={handleOpenFollowUpDialog}
-                                                                    onCompleteClick={handleMarkTaskAsComplete}
-                                                                />
-                                                            ))}
-                                                        </div>
-                                                    </SortableContext>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center justify-center h-full text-muted-foreground text-center">
-                                            <p>No hay actividades programadas con los filtros seleccionados para este periodo.</p>
-                                        </div>
-                                    )
-                                )
-                          )}
-                      </CardContent>
-                  </Card>
-              </div>
-
-              <div className="lg:col-span-1 space-y-8">
-                  <Card>
-                       <CardHeader className="flex flex-row items-center justify-between gap-4 pb-4">
-                           <div className="flex items-center gap-1 rounded-md bg-muted p-1">
-                                <Button variant={viewMode === 'day' ? 'primary' : 'ghost'} className="h-8 px-3" onClick={() => setViewMode('day')}>Día</Button>
-                                <Button variant={viewMode === 'week' ? 'primary' : 'ghost'} className="h-8 px-3" onClick={() => setViewMode('week')}>Semana</Button>
-                                <Button variant={viewMode === 'month' ? 'primary' : 'ghost'} className="h-8 px-3" onClick={() => setViewMode('month')}>Mes</Button>
-                            </div>
-                            <div className="flex gap-2">
-                                <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => handleDateChange('prev')}><ChevronLeft className="h-4 w-4"/></Button>
-                                <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => handleDateChange('next')}><ChevronRight className="h-4 w-4"/></Button>
-                            </div>
-                             <Button onClick={handleOpenNewEntryDialog} size="icon" className="rounded-full h-8 w-8">
-                                <PlusCircle className="h-4 w-4" />
-                                <span className="sr-only">Añadir Entrada</span>
-                            </Button>
-                        </CardHeader>
-                      <CardContent className="p-2 flex justify-center">
-                          <Calendar
-                              mode="single"
-                              selected={selectedDate}
-                              onSelect={(day) => { if(day) { setSelectedDate(day); setViewMode('day'); } }}
-                              locale={es}
-                              modifiers={modifiers}
-                              components={{ DayContent: DroppableDay }}
-                              classNames={{
-                                today: "bg-muted/50",
-                                selected:
-                                    "bg-primary text-primary-foreground hover:bg-primary/90 focus:bg-primary focus:text-primary-foreground",
-                              }}
-                              className="p-0"
-                          />
-                      </CardContent>
-                      <CardFooter className="flex-col items-start p-4 pt-0">
-                            <Separator className="mb-2"/>
-                            <div className="space-y-2 text-xs text-muted-foreground w-full">
-                                <div className="flex items-center justify-between">
-                                    <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-yellow"/> Tarea Comercial</span>
-                                    <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-purple"/> Evento</span>
-                                    <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-blue"/> Tarea Admin.</span>
-                                </div>
-                            </div>
-                      </CardFooter>
-                  </Card>
-                   {showStickyNotes && (
-                        <StickyNotesWidget
-                            initialNotes={notes}
-                            currentUserId={teamMember!.id}
-                            isAdmin={isAdmin}
-                            onNotesChange={refreshDataSignature}
-                            allAssignableUsers={assignableUsers}
-                            teamMembersMap={teamMembersMap}
-                        />
-                    )}
-              </div>
-          </div>
-        </div>
-
-        <DragOverlay 
-            dropAnimation={{ duration: 250, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}
-            modifiers={overlayMode === 'icon' ? [({transform, activeNodeRect, draggingNodeRect}) => {
-                if (!activeNodeRect || !draggingNodeRect) return transform;
-                return {
-                  ...transform,
-                  x: transform.x - (draggingNodeRect.width / 2),
-                  y: transform.y - (draggingNodeRect.height / 2),
-                };
-              }] : []}
+      <Sheet open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
         >
-            {activeAgendaItem ? (
-                overlayMode === 'card' ? (
-                   <Card className="shadow-lg">
-                      <CardContent className="p-3 flex items-center gap-3">
-                        {getAgendaItemIcon(activeAgendaItem)}
-                        <div>
-                          <h4 className="font-semibold">{activeAgendaItem.title}</h4>
-                          <p className="text-sm text-muted-foreground">{activeAgendaItem.description}</p>
-                        </div>
-                      </CardContent>
-                   </Card>
-                ) : (
-                    <DragOverlayIcon item={activeAgendaItem} />
-                )
-            ) : null}
-        </DragOverlay>
-      </DndContext>
-
-      {selectedItem && (
-        <SheetContent>
-            <SheetHeader>
-                <SheetTitle className="flex items-center gap-2">{getAgendaItemIcon(selectedItem)} {selectedItem.title}</SheetTitle>
-                <SheetDescription>{selectedItem.description}</SheetDescription>
-                <div className="font-medium text-foreground mt-2">{format(selectedItem.date, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: es })}</div>
-            </SheetHeader>
-            <div className="py-4 space-y-4">
-                {(selectedItem.type === 'tarea_comercial') && (
-                  <Button className="w-full" onClick={() => handleOpenFollowUpDialog(selectedItem.rawItem as Order)}>
-                      <Send className="mr-2 h-4 w-4"/>Registrar Resultado
-                  </Button>
-                )}
-                 {(selectedItem.type === 'tarea_administrativa') && (
-                  <Button className="w-full" onClick={() => handleMarkTaskAsComplete(selectedItem)}>
-                      <Check className="mr-2 h-4 w-4"/>Marcar como Completada
-                  </Button>
-                )}
-                {selectedItem.type === 'evento' && (
-                  <Button asChild className="w-full">
-                    <Link href={`/events?viewEventId=${selectedItem.id}`}><Info className="mr-2 h-4 w-4"/>Ver Detalles del Evento</Link>
-                  </Button>
-                )}
-                {(selectedItem.type === 'tarea_comercial' || selectedItem.type === 'tarea_administrativa') && (
-                    <div className="text-sm space-y-2">
-                        <p><strong>Responsable:</strong> {(selectedItem.rawItem as Order).salesRep}</p>
-                        {(selectedItem.rawItem as Order).clavadistaId && <p><strong>Clavadista:</strong> {teamMembersMap.get((selectedItem.rawItem as Order).clavadistaId!)?.name || 'N/D'}</p>}
-                    </div>
-                )}
-                {selectedItem.type === 'evento' && (
-                    <div className="text-sm space-y-2">
-                        <p><strong>Responsables:</strong> {(selectedItem.rawItem as CrmEvent).assignedTeamMemberIds.map(id => teamMembersMap.get(id)?.name).filter(Boolean).join(', ')}</p>
-                    </div>
-                )}
-            </div>
-            {(isAdmin || (userRole === 'SalesRep' && (selectedItem.rawItem as Order).salesRep === teamMember?.name)) && (
-                <>
-                <Separator />
-                <div className="pt-4 flex justify-end gap-2">
-                    <Button variant="outline" onClick={handleEditSelectedItem}><Edit className="mr-2 h-4 w-4" /> Editar</Button>
-                    <Button variant="destructive" onClick={handleDeleteSelectedItem}><Trash2 className="mr-2 h-4 w-4" /> Eliminar</Button>
+          <div className="flex flex-col h-full space-y-6">
+            <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                  <CalendarIcon className="h-8 w-8 text-primary"/>
+                  <h1 className="text-3xl font-headline font-semibold">
+                      Agenda del Equipo
+                  </h1>
+              </div>
+            </header>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 flex-grow">
+                <div className="lg:col-span-1">
+                    <Card className="h-full flex flex-col">
+                        <CardHeader>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <CardTitle className="text-lg font-semibold">
+                                  Actividades para {viewMode === 'day' ? format(selectedDate, 'dd MMMM, yyyy', {locale: es}) : `${format(interval.start, 'dd MMM', {locale: es})} - ${format(interval.end, 'dd MMM, yyyy', {locale: es})}`}
+                              </CardTitle>
+                               <div className="flex items-center gap-2 flex-wrap">
+                                  {isAdmin && (
+                                      <Select value={userFilter} onValueChange={setUserFilter}>
+                                          <SelectTrigger className="w-auto h-8 text-xs"><SelectValue placeholder="Usuario..." /></SelectTrigger>
+                                          <SelectContent>
+                                              <SelectItem value="all">Todos</SelectItem>
+                                              {teamMembers.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+                                          </SelectContent>
+                                      </Select>
+                                  )}
+                                  <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as TypeFilter)}>
+                                      <SelectTrigger className="w-auto h-8 text-xs"><SelectValue placeholder="Tipo..." /></SelectTrigger>
+                                      <SelectContent>
+                                          <SelectItem value="all">Todo</SelectItem>
+                                          <SelectItem value="tareas_comerciales">T. Comerciales</SelectItem>
+                                          <SelectItem value="tareas_administrativas">T. Admin.</SelectItem>
+                                          <SelectItem value="eventos">Eventos</SelectItem>
+                                      </SelectContent>
+                                  </Select>
+                              </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="flex-grow overflow-y-auto pr-3">
+                            {isLoading ? (
+                                <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+                            ) : (
+                                  viewMode === 'day' ? (
+                                      <SortableContext items={itemsForDayView.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                                          <div className="space-y-4">
+                                              {itemsForDayView.length > 0 ? itemsForDayView.map(item => (
+                                                  <SortableAgendaItem 
+                                                      key={item.id} 
+                                                      item={item} 
+                                                      handleItemClick={handleItemClick}
+                                                      onFollowUpClick={handleOpenFollowUpDialog}
+                                                      onCompleteClick={handleMarkTaskAsComplete}
+                                                  />
+                                              )) : (
+                                                  <div className="flex items-center justify-center h-full text-muted-foreground text-center">
+                                                      <p>No hay actividades programadas con los filtros seleccionados.</p>
+                                                  </div>
+                                              )}
+                                          </div>
+                                      </SortableContext>
+                                  ) : (
+                                       itemsGroupedByDay.length > 0 ? (
+                                          <div className="space-y-6">
+                                              {itemsGroupedByDay.map(([day, items]) => (
+                                                  <div key={day}>
+                                                      <h3 className="font-semibold mb-2">{format(parseISO(day), "EEEE dd 'de' MMMM", { locale: es })}</h3>
+                                                      <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                                                          <div className="space-y-4">
+                                                              {items.map(item => (
+                                                                  <SortableAgendaItem 
+                                                                      key={item.id} 
+                                                                      item={item} 
+                                                                      handleItemClick={handleItemClick}
+                                                                      onFollowUpClick={handleOpenFollowUpDialog}
+                                                                      onCompleteClick={handleMarkTaskAsComplete}
+                                                                  />
+                                                              ))}
+                                                          </div>
+                                                      </SortableContext>
+                                                  </div>
+                                              ))}
+                                          </div>
+                                      ) : (
+                                          <div className="flex items-center justify-center h-full text-muted-foreground text-center">
+                                              <p>No hay actividades programadas con los filtros seleccionados para este periodo.</p>
+                                          </div>
+                                      )
+                                  )
+                            )}
+                        </CardContent>
+                    </Card>
                 </div>
-                </>
+
+                <div className="lg:col-span-1 space-y-8">
+                    <Card>
+                         <CardHeader className="flex flex-row items-center justify-between gap-4 pb-4">
+                             <div className="flex items-center gap-1 rounded-md bg-muted p-1">
+                                  <Button variant={viewMode === 'day' ? 'primary' : 'ghost'} className="h-8 px-3" onClick={() => setViewMode('day')}>Día</Button>
+                                  <Button variant={viewMode === 'week' ? 'primary' : 'ghost'} className="h-8 px-3" onClick={() => setViewMode('week')}>Semana</Button>
+                                  <Button variant={viewMode === 'month' ? 'primary' : 'ghost'} className="h-8 px-3" onClick={() => setViewMode('month')}>Mes</Button>
+                              </div>
+                              <div className="flex gap-2">
+                                  <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => handleDateChange('prev')}><ChevronLeft className="h-4 w-4"/></Button>
+                                  <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => handleDateChange('next')}><ChevronRight className="h-4 w-4"/></Button>
+                              </div>
+                               <Button onClick={handleOpenNewEntryDialog} size="icon" className="rounded-full h-8 w-8">
+                                  <PlusCircle className="h-4 w-4" />
+                                  <span className="sr-only">Añadir Entrada</span>
+                              </Button>
+                          </CardHeader>
+                        <CardContent className="p-2 flex justify-center">
+                            <Calendar
+                                mode="single"
+                                selected={selectedDate}
+                                onSelect={(day) => { if(day) { setSelectedDate(day); setViewMode('day'); } }}
+                                locale={es}
+                                modifiers={modifiers}
+                                components={{ DayContent: DroppableDay }}
+                                classNames={{
+                                  today: "bg-muted/50",
+                                  selected:
+                                      "bg-primary text-primary-foreground hover:bg-primary/90 focus:bg-primary focus:text-primary-foreground",
+                                  ...COLOR_MAP
+                                }}
+                                className="p-0"
+                            />
+                        </CardContent>
+                        <CardFooter className="flex-col items-start p-4 pt-0">
+                              <Separator className="mb-2"/>
+                              <div className="space-y-2 text-xs text-muted-foreground w-full">
+                                  <div className="flex items-center justify-between">
+                                      <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-yellow"/> Tarea Comercial</span>
+                                      <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-purple"/> Evento</span>
+                                      <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-blue"/> Tarea Admin.</span>
+                                  </div>
+                              </div>
+                        </CardFooter>
+                    </Card>
+                     {showStickyNotes && (
+                          <StickyNotesWidget
+                              initialNotes={notes}
+                              currentUserId={teamMember!.id}
+                              isAdmin={isAdmin}
+                              onNotesChange={refreshDataSignature}
+                              allAssignableUsers={assignableUsers}
+                              teamMembersMap={teamMembersMap}
+                          />
+                      )}
+                </div>
+            </div>
+          </div>
+
+          <DragOverlay 
+              dropAnimation={{ duration: 250, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}
+              modifiers={overlayMode === 'icon' ? [({transform, activeNodeRect, draggingNodeRect}) => {
+                  if (!activeNodeRect || !draggingNodeRect) return transform;
+                  return {
+                    ...transform,
+                    x: transform.x - (draggingNodeRect.width / 2),
+                    y: transform.y - (draggingNodeRect.height / 2),
+                  };
+                }] : []}
+          >
+              {activeAgendaItem ? (
+                  overlayMode === 'card' ? (
+                     <Card className="shadow-lg">
+                        <CardContent className="p-3 flex items-center gap-3">
+                          {getAgendaItemIcon(activeAgendaItem)}
+                          <div>
+                            <h4 className="font-semibold">{activeAgendaItem.title}</h4>
+                            <p className="text-sm text-muted-foreground">{activeAgendaItem.description}</p>
+                          </div>
+                        </CardContent>
+                     </Card>
+                  ) : (
+                      <DragOverlayIcon item={activeAgendaItem} />
+                  )
+              ) : null}
+          </DragOverlay>
+        </DndContext>
+        <SheetContent open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
+            {selectedItem && (
+            <>
+                <SheetHeader>
+                    <SheetTitle className="flex items-center gap-2">{getAgendaItemIcon(selectedItem)} {selectedItem.title}</SheetTitle>
+                    <SheetDescription>{selectedItem.description}</SheetDescription>
+                    <div className="font-medium text-foreground mt-2">{format(selectedItem.date, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: es })}</div>
+                </SheetHeader>
+                <div className="py-4 space-y-4">
+                    {(selectedItem.type === 'tarea_comercial') && (
+                      <Button className="w-full" onClick={() => handleOpenFollowUpDialog(selectedItem.rawItem as Order)}>
+                          <Send className="mr-2 h-4 w-4"/>Registrar Resultado
+                      </Button>
+                    )}
+                     {(selectedItem.type === 'tarea_administrativa') && (
+                      <Button className="w-full" onClick={() => handleMarkTaskAsComplete(selectedItem)}>
+                          <Check className="mr-2 h-4 w-4"/>Marcar como Completada
+                      </Button>
+                    )}
+                    {selectedItem.type === 'evento' && (
+                      <Button asChild className="w-full">
+                        <Link href={`/events?viewEventId=${selectedItem.id}`}><Info className="mr-2 h-4 w-4"/>Ver Detalles del Evento</Link>
+                      </Button>
+                    )}
+                    {(selectedItem.type === 'tarea_comercial' || selectedItem.type === 'tarea_administrativa') && (
+                        <div className="text-sm space-y-2">
+                            <p><strong>Responsable:</strong> {(selectedItem.rawItem as Order).salesRep}</p>
+                            {(selectedItem.rawItem as Order).clavadistaId && <p><strong>Clavadista:</strong> {teamMembersMap.get((selectedItem.rawItem as Order).clavadistaId!)?.name || 'N/D'}</p>}
+                        </div>
+                    )}
+                    {selectedItem.type === 'evento' && (
+                        <div className="text-sm space-y-2">
+                            <p><strong>Responsables:</strong> {(selectedItem.rawItem as CrmEvent).assignedTeamMemberIds.map(id => teamMembersMap.get(id)?.name).filter(Boolean).join(', ')}</p>
+                        </div>
+                    )}
+                </div>
+                {(isAdmin || (userRole === 'SalesRep' && (selectedItem.rawItem as Order).salesRep === teamMember?.name)) && (
+                    <>
+                    <Separator />
+                    <div className="pt-4 flex justify-end gap-2">
+                        <Button variant="outline" onClick={handleEditSelectedItem}><Edit className="mr-2 h-4 w-4" /> Editar</Button>
+                        <Button variant="destructive" onClick={handleDeleteSelectedItem}><Trash2 className="mr-2 h-4 w-4" /> Eliminar</Button>
+                    </div>
+                    </>
+                )}
+            </>
             )}
         </SheetContent>
-      )}
-    </Sheet>
+      </Sheet>
     
     <AlertDialog open={!!itemToDelete} onOpenChange={(open) => !open && setItemToDelete(null)}>
         <AlertDialogContent>
@@ -973,7 +975,9 @@ export default function MyAgendaPage() {
             </AlertDialogHeader>
             <AlertDialogFooter>
                 <AlertDialogCancel onClick={() => setItemToDelete(null)}>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={confirmDeleteItem} variant="destructive">Sí, eliminar</AlertDialogAction>
+                <AlertDialogAction asChild>
+                  <Button onClick={confirmDeleteItem} variant="destructive">Sí, eliminar</Button>
+                </AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>
@@ -1021,3 +1025,5 @@ export default function MyAgendaPage() {
     </>
   );
 }
+
+

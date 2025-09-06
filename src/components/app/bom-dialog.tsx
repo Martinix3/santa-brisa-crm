@@ -62,11 +62,11 @@ const getBomRecipeSchema = (inventoryItems: InventoryItem[], currentRecipeSku?: 
 }).superRefine((data, ctx) => {
   if (data.isNewProduct) {
     if (!data.newProductName || data.newProductName.length < 3) {
-      ctx.addIssue({ path: ["newProductName"], message: "El nombre es obligatorio (mín. 3 caracteres)." });
+      ctx.addIssue({ code: 'custom', path: ["newProductName"], message: "El nombre es obligatorio (mín. 3 caracteres)." });
     }
   } else {
     if (!data.productSku) {
-      ctx.addIssue({ path: ["productSku"], message: "Debe seleccionar un producto existente." });
+      ctx.addIssue({ code: 'custom', path: ["productSku"], message: "Debe seleccionar un producto existente." });
     }
   }
 
@@ -77,6 +77,7 @@ const getBomRecipeSchema = (inventoryItems: InventoryItem[], currentRecipeSku?: 
         const componentItem = inventoryItems.find(item => item.id === component.materialId);
         if (componentItem && componentItem.sku && normalizeStringForComparison(componentItem.sku) === normalizedProductSku) {
             ctx.addIssue({
+                code: 'custom',
                 path: [`components.${index}.description`],
                 message: "Un producto no puede ser componente de sí mismo.",
             });
@@ -385,7 +386,9 @@ export default function BomDialog({ recipe, isOpen, onOpenChange, onSave, onDele
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => onDelete(recipe.productSku)} variant="destructive">Eliminar</AlertDialogAction>
+                          <AlertDialogAction asChild>
+                            <Button onClick={() => onDelete(recipe.productSku)} variant="destructive">Eliminar</Button>
+                          </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>

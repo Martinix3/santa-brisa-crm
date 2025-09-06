@@ -1,4 +1,5 @@
 
+
 import * as z from "zod";
 import type { OrderType, DirectSaleStatus, PaymentMethod } from "@/types";
 import { paymentMethodList, directSaleStatusList } from '@/lib/data';
@@ -24,6 +25,7 @@ export const generateOrderSchema = (orderType: OrderType) => z.object({
     data.items.forEach((item, index) => {
         if (!item.batchId) {
             ctx.addIssue({
+                code: 'custom',
                 path: [`items.${index}.batchId`],
                 message: "El lote es obligatorio para cualquier salida de producto.",
             });
@@ -32,6 +34,7 @@ export const generateOrderSchema = (orderType: OrderType) => z.object({
 
      if (data.dueDate && data.issueDate > data.dueDate) {
       ctx.addIssue({
+        code: 'custom',
         path: ["dueDate"],
         message: "La fecha de vencimiento no puede ser anterior a la de emisión.",
       });

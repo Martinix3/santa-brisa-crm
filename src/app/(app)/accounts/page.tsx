@@ -421,7 +421,9 @@ export default function AccountsPage() {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                 <AlertDialogCancel onClick={() => setAccountToDelete(null)}>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={confirmDeleteAccount} className={cn(buttonVariants({ variant: "destructive" }))}>Sí, eliminar todo</AlertDialogAction>
+                <AlertDialogAction asChild>
+                  <Button onClick={confirmDeleteAccount} className={cn(buttonVariants({ variant: "destructive" }))}>Sí, eliminar todo</Button>
+                </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
@@ -491,7 +493,11 @@ const AccountGroup: React.FC<AccountGroupProps> = ({ title, accounts, teamMember
                     {expandedRows.has(account.id) && (
                         <TableRow>
                             <TableCell colSpan={8} className="p-0 bg-muted/20">
-                                <AccountHistoryTable interactions={account.interactions} />
+                                {account.interactions ? (
+                                    <AccountHistoryTable interactions={account.interactions} />
+                                ) : (
+                                    <div className="p-4 text-center text-sm text-muted-foreground">Cargando historial...</div>
+                                )}
                             </TableCell>
                         </TableRow>
                     )}

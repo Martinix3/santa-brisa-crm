@@ -1,4 +1,5 @@
 
+
 import * as z from "zod";
 import { sampleRequestPurposeList, provincesSpainList } from "@/lib/data";
 import type { SampleRequestPurpose } from "@/types";
@@ -28,21 +29,21 @@ export const sampleRequestWizardSchema = z.object({
 }).superRefine((data, ctx) => {
     if (data.isNewClient) {
       if (!data.shippingAddress_street?.trim()) {
-        ctx.addIssue({ path: ["shippingAddress_street"], message: "La calle es obligatoria para nuevos clientes." });
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["shippingAddress_street"], message: "La calle es obligatoria para nuevos clientes." });
       }
       if (!data.shippingAddress_city?.trim()) {
-        ctx.addIssue({ path: ["shippingAddress_city"], message: "La ciudad es obligatoria para nuevos clientes." });
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["shippingAddress_city"], message: "La ciudad es obligatoria para nuevos clientes." });
       }
       if (!data.shippingAddress_province?.trim()) {
-        ctx.addIssue({ path: ["shippingAddress_province"], message: "La provincia es obligatoria para nuevos clientes." });
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["shippingAddress_province"], message: "La provincia es obligatoria para nuevos clientes." });
       }
       if (!data.shippingAddress_postalCode?.trim()) {
-        ctx.addIssue({ path: ["shippingAddress_postalCode"], message: "El código postal es obligatorio para nuevos clientes." });
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["shippingAddress_postalCode"], message: "El código postal es obligatorio para nuevos clientes." });
       }
     } else {
         // If existing client, accountId must be present
         if (!data.accountId) {
-             ctx.addIssue({ path: ["accountId"], message: "Debe seleccionar una cuenta existente." });
+             ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["accountId"], message: "Debe seleccionar una cuenta existente." });
         }
     }
 });

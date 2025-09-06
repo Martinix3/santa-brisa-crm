@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as z from "zod";
@@ -46,22 +47,22 @@ export const purchaseFormSchema = z.object({
 }).superRefine((data, ctx) => {
     if (data.isInventoryPurchase) {
         if (!data.items || data.items.length === 0) {
-            ctx.addIssue({ path: ['items'], message: 'Debe añadir al menos un artículo para una compra de inventario.'});
+            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['items'], message: 'Debe añadir al menos un artículo para una compra de inventario.'});
         }
         
         data.items?.forEach((item, index) => {
             if (item.productoId === '##NEW##' && (!item.newItemName || item.newItemName.trim().length < 3)) {
-                ctx.addIssue({ path: [`items.${index}.newItemName`], message: 'El nombre del nuevo artículo es obligatorio.' });
+                ctx.addIssue({ code: z.ZodIssueCode.custom, path: [`items.${index}.newItemName`], message: 'El nombre del nuevo artículo es obligatorio.' });
             }
         });
     } else {
         if (data.monto === undefined || data.monto <= 0) {
-            ctx.addIssue({ path: ['monto'], message: 'El importe es obligatorio para un gasto general.' });
+            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['monto'], message: 'El importe es obligatorio para un gasto general.' });
         }
     }
 
     if(data.proveedorId === '##NEW##' && (!data.proveedorNombre || data.proveedorNombre.trim().length < 2)) {
-      ctx.addIssue({ path: ['proveedorNombre'], message: 'El nombre del nuevo proveedor es obligatorio.' });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['proveedorNombre'], message: 'El nombre del nuevo proveedor es obligatorio.' });
     }
 });
 

@@ -1,7 +1,8 @@
 
+
 import { Timestamp, FieldValue } from "firebase/firestore";
 
-export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista' | 'Líder Clavadista' | 'finance';
+export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista' | 'Líder Clavadista';
 
 export interface Kpi {
   id: string;
@@ -194,9 +195,9 @@ export interface ProductionRun {
     componentId: string;
     batchId: string;
     componentName: string;
-    componentSku?: string;
+    componentSku?: string | null;
     quantity: number;
-    supplierBatchCode?: string;
+    supplierBatchCode?: string | null;
     unitCost?: number;
   }[];
   outputBatchId?: string;
@@ -207,7 +208,7 @@ export interface ProductionRun {
     total: number; 
     unit: number; 
   };
-  notesPlan?: string;
+  notesPlan?: string | null;
   notesProd?: string;
   createdAt: string; // ISO
   updatedAt: string; // ISO
@@ -221,9 +222,9 @@ export interface Tank {
   name: string;
   capacity: number;
   status: TankStatus;
-  currentBatchId?: string;
-  currentQuantity?: number;
-  currentUom?: UoM;
+  currentBatchId?: string | null;
+  currentQuantity?: number | null;
+  currentUom?: UoM | null;
   location: string;
   createdAt: string; // ISO
   updatedAt: string; // ISO

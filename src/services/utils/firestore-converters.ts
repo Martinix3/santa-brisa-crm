@@ -2,7 +2,7 @@
 
 import { Timestamp, type DocumentSnapshot } from "firebase/firestore";
 import { format, parseISO, isValid } from "date-fns";
-import type { Order, TeamMember, CrmEvent, Account, Supplier, Purchase, Expense, BomLine, ItemBatch, Tank, DirectSale, DirectSaleItem, DirectSaleChannel } from '@/types';
+import type { Order, TeamMember, CrmEvent, Account, Supplier, Expense, BomLine, ItemBatch, Tank, DirectSale, DirectSaleItem, DirectSaleChannel } from '@/types';
 
 const toDateString = (ts: any, defaultNow = true): string | undefined => {
     if (ts === null || ts === undefined) {
@@ -180,8 +180,6 @@ export const fromFirestoreExpense = (docSnap: DocumentSnapshot): Expense => {
         invoiceNumber: data.invoiceNumber,
         notes: data.notes,
         adjuntos: data.adjuntos,
-        fileUrl: data.fileUrl,
-        fileName: data.fileName,
         creadoPor: data.creadoPor,
         fechaCreacion: toDateString(data.fechaCreacion)!,
     }

@@ -147,6 +147,18 @@ body {
   .table-cell-primary-link {
     @apply font-medium text-primary hover:underline;
   }
+
+  /* New classes for the header/sidebar layout */
+  .header-full-width {
+      @apply fixed top-0 left-0 right-0;
+  }
+  .sidebar-under-header {
+      @apply fixed top-24 left-0 h-[calc(100vh-6rem)]; /* 6rem = h-24 */
+  }
+  .main-under-header {
+      @apply pt-24;
+  }
+
 }
 
 

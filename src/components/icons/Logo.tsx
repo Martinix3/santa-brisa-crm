@@ -24,7 +24,7 @@ const Logo: React.FC<LogoProps> = ({ size = 100, className }) => (
       height={size / 4} // Assuming an aspect ratio of roughly 4:1
       priority
       unoptimized={true}
-      className="object-contain"
+      className={cn("object-contain", className)}
     />
   </div>
 );

@@ -5,7 +5,7 @@ import * as React from 'react';
 import { useEffect } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { useRouter, usePathname } from 'next/navigation';
-import { Loader2, AlertTriangle } from 'lucide-react';
+import { Loader2, AlertTriangle, GlassWater, Citrus } from 'lucide-react';
 import Logo from '@/components/icons/Logo';
 import { Button } from '@/components/ui/button';
 
@@ -38,6 +38,8 @@ import DailyTasksWidget from '@/components/app/daily-tasks-widget';
 import { CategoriesProvider } from '@/contexts/categories-context';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import type { UserRole } from '@/types';
+import { cn } from '@/lib/utils';
+
 
 // --- Auth Guard Component ---
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -83,50 +85,48 @@ export default function MainAppLayout({ children }: { children: React.ReactNode 
   return (
     <AuthGuard>
       <CategoriesProvider dataSignature={dataSignature}>
-        <SidebarProvider defaultOpen>
-          <Sidebar collapsible="icon" className="border-r border-sidebar-border shadow-lg">
-            <SidebarHeader className="p-4 items-center justify-center">
-              <Link href="/dashboard" className="block group-data-[collapsible=icon]:hidden">
-                <Logo />
-              </Link>
-              <Link href="/dashboard" className="hidden group-data-[collapsible=icon]:block">
-                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" aria-label="Logotipo de Santa Brisa CRM (colapsado)">
-                  <rect width="32" height="32" rx="4" fill="hsl(var(--primary))" />
-                  <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" fontFamily="Inter, sans-serif" fontSize="12" fontWeight="bold" fill="hsl(var(--primary-foreground))">SB</text>
-                </svg>
-              </Link>
-            </SidebarHeader>
-            <SidebarContent>
-              <AppNavigation />
-            </SidebarContent>
-            <SidebarFooter className="p-2">
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton tooltip={{children: "Cerrar Sesión", side: "right"}} className="hover:bg-destructive/20 hover:text-destructive" onClick={logout}>
-                    <LogOut />
-                    <span>Cerrar Sesión</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarFooter>
-          </Sidebar>
-          <SidebarInset>
-            <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-primary px-4 sm:px-6">
-              <div className="flex items-center gap-2">
-                <div className="md:hidden">
-                  <SidebarTrigger />
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <DailyTasksWidget />
-                <UserMenu userEmail={user?.email} logout={logout}/>
-              </div>
-            </header>
-            <main className="flex-1 p-4 sm:p-6 overflow-auto">
-              {children}
-            </main>
-          </SidebarInset>
-        </SidebarProvider>
+        <header className="header-full-width z-40 flex h-24 items-center justify-between bg-primary px-4 sm:px-6 text-primary-foreground">
+          <div className="flex items-center gap-4">
+             <div className="md:hidden">
+                <SidebarTrigger />
+             </div>
+             <Logo className="invert brightness-0" />
+          </div>
+          <div className="flex items-center gap-4">
+             <div className="hidden md:flex items-center gap-3">
+               <GlassWater size={28} />
+               <Citrus size={28} />
+             </div>
+             <Separator orientation="vertical" className="h-8 mx-2 hidden md:block" />
+             <DailyTasksWidget />
+             <UserMenu userEmail={user?.email} logout={logout}/>
+          </div>
+        </header>
+
+        <div className="flex">
+          <SidebarProvider defaultOpen>
+            <Sidebar collapsible="icon" className="sidebar-under-header border-r border-sidebar-border shadow-lg">
+              <SidebarContent>
+                <AppNavigation />
+              </SidebarContent>
+              <SidebarFooter className="p-2">
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton tooltip={{children: "Cerrar Sesión", side: "right"}} className="hover:bg-destructive/20 hover:text-destructive" onClick={logout}>
+                      <LogOut />
+                      <span>Cerrar Sesión</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarFooter>
+            </Sidebar>
+            <SidebarInset className="main-under-header">
+               <main className="flex-1 p-4 sm:p-6 overflow-auto">
+                {children}
+              </main>
+            </SidebarInset>
+          </SidebarProvider>
+        </div>
       </CategoriesProvider>
     </AuthGuard>
   );

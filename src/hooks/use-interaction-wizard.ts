@@ -5,27 +5,40 @@ import * as React from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { getAccountsFS } from "@/services/account-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { getInventoryItemsAction } from "@/services/server/inventory-actions";
 import { saveInteractionFS } from "@/services/interaction-service";
-import type { Account, TeamMember, Order, InventoryItem } from "@/types";
+import type { Account, TeamMember, Order, InventoryItem, UserRole } from "@/types";
 import { interactionFormSchema, type InteractionFormValues } from '@/lib/schemas/interaction-schema';
 
+type UseInteractionWizardReturn = {
+  form: ReturnType<typeof useForm<InteractionFormValues>>;
+  onSubmit: (values: InteractionFormValues) => Promise<void>;
+  isLoading: boolean;
+  isSubmitting: boolean;
+  availableMaterials: InventoryItem[];
+  materialFields: { id: string }[];
+  appendMaterial: ReturnType<typeof useFieldArray<InteractionFormValues>["append"]>;
+  removeMaterial: ReturnType<typeof useFieldArray<InteractionFormValues>["remove"]>;
+  userRole: UserRole | null;
+  salesRepsList: TeamMember[];
+  clavadistas: TeamMember[];
+  distributorAccounts: Account[];
+};
+
 export function useInteractionWizard(
-    client: Account | null,
-    originatingTask: Order | null,
-    onSuccess: () => void,
-) {
+  client: Account | null,
+  originatingTask: Order | null,
+  onSuccess: () => void,
+): UseInteractionWizardReturn {
   const { toast } = useToast();
-  const router = useRouter();
   const { teamMember, userRole, refreshDataSignature } = useAuth();
-  
+
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  
+
   const [availableMaterials, setAvailableMaterials] = React.useState<InventoryItem[]>([]);
   const [salesRepsList, setSalesRepsList] = React.useState<TeamMember[]>([]);
   const [clavadistas, setClavadistas] = React.useState<TeamMember[]>([]);
@@ -35,11 +48,14 @@ export function useInteractionWizard(
     resolver: zodResolver(interactionFormSchema),
     mode: "onBlur",
     defaultValues: {
-      outcome: 'Visita',
+      outcome: "Visita",
       notes: "",
       unidades: undefined,
       precioUnitario: undefined,
       assignedMaterials: [],
+      accountId: client?.id,
+      clientName: client?.nombre,
+      distributorId: client?.distributorId ?? undefined,
     },
   });
 
@@ -49,67 +65,95 @@ export function useInteractionWizard(
   });
 
   React.useEffect(() => {
-    async function loadData() {
+    let mounted = true;
+    (async () => {
       setIsLoading(true);
       try {
-        const [
-          fetchedAccounts,
-          fetchedSalesReps,
-          fetchedClavadistas,
-          fetchedMaterials
-        ] = await Promise.all([
+        const [fetchedAccounts, fetchedSalesReps, fetchedClavadistas, fetchedMaterials] = await Promise.all([
           getAccountsFS(),
-          getTeamMembersFS(['SalesRep', 'Admin']),
-          getTeamMembersFS(['Clavadista', 'Líder Clavadista']),
-          getInventoryItemsAction() // Use Server Action here
+          getTeamMembersFS(["SalesRep", "Admin"]),
+          getTeamMembersFS(["Clavadista", "Líder Clavadista"]),
+          getInventoryItemsAction(),
         ]);
-        
-        setSalesRepsList(fetchedSalesReps);
-        setClavadistas(fetchedClavadistas);
-        const promoCategory = "Material Promocional"; 
-        setAvailableMaterials(fetchedMaterials.filter(m => (m.stock || 0) > 0)); // Simplified for now
-        setDistributorAccounts(fetchedAccounts.filter(acc => acc.type === 'Distribuidor' || acc.type === 'Importador'));
-      } catch (error) {
-        toast({ title: "Error", description: "No se pudieron cargar los datos necesarios para el diálogo.", variant: "destructive" });
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    loadData();
-  }, [toast]);
-  
-  React.useEffect(() => {
-    if(client) {
-       form.setValue('accountId', client.id);
-       form.setValue('clientName', client.nombre);
-       form.setValue('distributorId', client.distributorId || undefined);
-    }
-  }, [client, form]);
+        if (!mounted) return;
 
+        setSalesRepsList(
+          [...fetchedSalesReps].sort((a, b) => a.name.localeCompare(b.name, "es"))
+        );
+        setClavadistas(
+          [...fetchedClavadistas].sort((a, b) => a.name.localeCompare(b.name, "es"))
+        );
+        setAvailableMaterials(
+          fetchedMaterials.filter(m => Number(m.stock) > 0)
+                          .sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "", "es"))
+        );
+        setDistributorAccounts(
+          fetchedAccounts
+            .filter(acc => acc.type === "Distribuidor" || acc.type === "Importador")
+            .sort((a, b) => (a.nombre ?? "").localeCompare(b.nombre ?? "", "es"))
+        );
+      } catch (error: any) {
+        toast({
+          title: "Error cargando datos",
+          description: error?.message ?? "No se pudieron cargar los datos necesarios.",
+          variant: "destructive",
+        });
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [toast]);
+
+  React.useEffect(() => {
+    if (!client) return;
+    form.reset({
+      ...form.getValues(),
+      accountId: client.id,
+      clientName: client.nombre,
+      distributorId: client.distributorId ?? undefined,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client?.id, client?.nombre, client?.distributorId]);
 
   const onSubmit = async (values: InteractionFormValues) => {
-    if (!teamMember || !client) {
-        toast({ title: "Error", description: "Falta información del cliente o del usuario.", variant: "destructive" });
-        return;
+    if (!teamMember) {
+      toast({ title: "Error", description: "Falta información del usuario.", variant: "destructive" });
+      return;
+    }
+    if (!values.accountId) {
+      toast({ title: "Error", description: "Falta seleccionar la cuenta.", variant: "destructive" });
+      return;
     }
     setIsSubmitting(true);
-    
     try {
-      await saveInteractionFS(client.id, originatingTask?.id, values, teamMember.id, teamMember.name);
-      toast({ title: "¡Interacción Registrada!", description: "Se ha guardado el resultado de la visita." });
-      refreshDataSignature();
+      await saveInteractionFS(
+        values.accountId,
+        originatingTask?.id,
+        values,
+        teamMember.id,
+        teamMember.name,
+      );
+      toast({ title: "¡Interacción registrada!", description: "Se ha guardado el resultado de la visita." });
+      refreshDataSignature?.();
       onSuccess();
-    } catch(e: any) {
-       toast({ title: "Error al Guardar", description: `No se pudo guardar la interacción: ${e.message}`, variant: "destructive" });
+    } catch (e: any) {
+      toast({
+        title: "Error al guardar",
+        description: e?.message ? `No se pudo guardar: ${e.message}` : "No se pudo guardar la interacción.",
+        variant: "destructive",
+      });
     } finally {
-        setIsSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
   return {
-    form, 
+    form,
     onSubmit,
-    isLoading, 
+    isLoading,
     isSubmitting,
     availableMaterials,
     materialFields,

@@ -18,7 +18,9 @@ export async function processCarteraData(
     
     const ordersByAccountId = new Map<string, Order[]>();
     for (const order of orders) {
-        if (order.accountId) {
+        // Ensure the order has a valid date before processing
+        const orderDate = order.createdAt ? parseISO(order.createdAt) : null;
+        if (order.accountId && orderDate && isValid(orderDate)) {
             if (!ordersByAccountId.has(order.accountId)) {
                 ordersByAccountId.set(order.accountId, []);
             }
@@ -29,13 +31,8 @@ export async function processCarteraData(
     const enrichedAccountsPromises = accounts.map(async (account): Promise<EnrichedAccount> => {
         const accountOrders = ordersByAccountId.get(account.id) || [];
         
-        accountOrders.sort((a, b) => {
-            const dateA = a.createdAt ? parseISO(a.createdAt) : new Date(0);
-            const dateB = b.createdAt ? parseISO(b.createdAt) : new Date(0);
-            if (!isValid(dateA)) return 1;
-            if (!isValid(dateB)) return -1;
-            return dateB.getTime() - dateA.getTime();
-        });
+        // Sort orders by date descending
+        accountOrders.sort((a, b) => parseISO(b.createdAt!).getTime() - parseISO(a.createdAt!).getTime());
 
         const openTasks = accountOrders.filter(o => o.status === 'Programada' || o.status === 'Seguimiento');
         openTasks.sort((a, b) => {

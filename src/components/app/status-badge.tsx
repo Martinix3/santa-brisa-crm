@@ -3,11 +3,11 @@
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { OrderStatus, AccountStatus, CrmEventStatus, DocumentStatus, PaymentStatus, ProductionRunStatus, QcStatus, TankStatus, DirectSaleStatus } from "@/types";
+import type { OrderStatus, AccountStatus, CrmEventStatus, DocumentStatus, PaymentStatus, ProductionRunStatus, QcStatus, TankStatus, DirectSaleStatus, SampleRequestStatus } from "@/types";
 
-type BadgeType = 'order' | 'account' | 'event' | 'document' | 'payment' | 'production' | 'qc' | 'tank' | 'directSale';
+type BadgeType = 'order' | 'account' | 'event' | 'document' | 'payment' | 'production' | 'qc' | 'tank' | 'directSale' | 'sampleRequest';
 
-type StatusKey = OrderStatus | AccountStatus | CrmEventStatus | DocumentStatus | PaymentStatus | ProductionRunStatus | QcStatus | TankStatus | DirectSaleStatus;
+type StatusKey = OrderStatus | AccountStatus | CrmEventStatus | DocumentStatus | PaymentStatus | ProductionRunStatus | QcStatus | TankStatus | DirectSaleStatus | SampleRequestStatus;
 
 // Enhanced Color Logic:
 // - Green tones for terminal success states (Delivered, Paid, Completed).
@@ -30,6 +30,7 @@ const statusColorMatrix: Record<StatusKey, string> = {
   'Finalizada': 'bg-brand-success text-white',
   'factura_validada': 'bg-brand-success/20 text-brand-success border border-brand-success/30',
   'Aprobada': 'bg-brand-success/20 text-brand-success border border-brand-success/30',
+  'Enviada': 'bg-brand-success/20 text-brand-success border border-brand-success/30',
 
   // === In Progress / Active (Blue/Purple/Sky) ===
   'Confirmado': 'bg-brand-process text-white',

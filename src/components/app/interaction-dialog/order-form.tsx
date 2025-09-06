@@ -6,6 +6,7 @@ import { useFormContext, useWatch, useFieldArray } from 'react-hook-form';
 import { CardContent, CardFooter } from "@/components/ui/card";
 import { FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from "@/components/ui/form";
 import { Button } from '@/components/ui/button';
+import { DialogFooter } from '@/components/ui/dialog';
 import { Loader2, ArrowLeft, Send } from "lucide-react";
 import type { OrderFormValues } from '@/lib/schemas/order-form-schema';
 import type { InventoryItem, TeamMember, UserRole, Account } from '@/types';

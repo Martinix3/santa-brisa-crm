@@ -86,49 +86,49 @@ export default function MainAppLayout({ children }: { children: React.ReactNode 
   return (
     <AuthGuard>
       <CategoriesProvider dataSignature={dataSignature}>
-        <header className="header-full-width z-40 flex h-24 items-center justify-between bg-primary px-4 sm:px-6 text-primary-foreground">
-          <div className="flex items-center gap-4">
-             <div className="md:hidden">
-                <SidebarTrigger />
-             </div>
-             <Logo className="invert brightness-0" />
-          </div>
-          <div className="flex items-center gap-4">
-             <div className="hidden md:flex items-center gap-3">
-               <GlassWater size={28} />
-               <Citrus size={28} />
-             </div>
-             <div className="h-8 w-px bg-primary-foreground/30 mx-2 hidden md:block" />
-             <DailyTasksWidget />
-             <UserMenu userEmail={user?.email} logout={logout}/>
-          </div>
-        </header>
+        <SidebarProvider defaultOpen>
+          <header className="header-full-width z-40 flex h-24 items-center justify-between bg-primary px-4 sm:px-6 text-primary-foreground">
+            <div className="flex items-center gap-4">
+               <div className="md:hidden">
+                  <SidebarTrigger />
+               </div>
+               <Logo className="invert brightness-0" />
+            </div>
+            <div className="flex items-center gap-4">
+               <div className="hidden md:flex items-center gap-3">
+                 <GlassWater size={28} />
+                 <Citrus size={28} />
+               </div>
+               <div className="h-8 w-px bg-primary-foreground/30 mx-2 hidden md:block" />
+               <DailyTasksWidget />
+               <UserMenu userEmail={user?.email} logout={logout}/>
+            </div>
+          </header>
 
-        <div className="flex">
-          <SidebarProvider defaultOpen>
-            <Sidebar collapsible="icon" className="sidebar-under-header border-r border-sidebar-border shadow-lg">
-              <SidebarContent>
-                <SidebarHeader />
-                <AppNavigation />
-              </SidebarContent>
-              <SidebarFooter className="p-2">
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton tooltip={{children: "Cerrar Sesión", side: "right"}} className="hover:bg-destructive/20 hover:text-destructive" onClick={logout}>
-                      <LogOut />
-                      <span>Cerrar Sesión</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarFooter>
-            </Sidebar>
-            <SidebarInset className="main-under-header">
-               <main className="flex-1 p-4 sm:p-6 overflow-auto">
-                {children}
-              </main>
-            </SidebarInset>
-          </SidebarProvider>
-        </div>
+          <div className="flex">
+              <Sidebar collapsible="icon" className="sidebar-under-header border-r border-sidebar-border shadow-lg">
+                <SidebarContent>
+                  <SidebarHeader />
+                  <AppNavigation />
+                </SidebarContent>
+                <SidebarFooter className="p-2">
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton tooltip={{children: "Cerrar Sesión", side: "right"}} className="hover:bg-destructive/20 hover:text-destructive" onClick={logout}>
+                        <LogOut />
+                        <span>Cerrar Sesión</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </SidebarFooter>
+              </Sidebar>
+              <SidebarInset className="main-under-header">
+                 <main className="flex-1 p-4 sm:p-6 overflow-auto">
+                  {children}
+                </main>
+              </SidebarInset>
+          </div>
+        </SidebarProvider>
       </CategoriesProvider>
     </AuthGuard>
   );
@@ -343,14 +343,14 @@ function UserMenu({ userEmail, logout }: UserMenuProps) {
               </p>
             </div>
           </DropdownMenuLabel>
-          <DropdownMenuSeparator />
+          <Separator />
            <DropdownMenuItem asChild disabled={userRole !== 'Clavadista' || !teamMember}>
               <Link href={profileLink}>
                 <UserCircle className="mr-2 h-4 w-4" />
                 <span>Mi Perfil</span>
               </Link>
             </DropdownMenuItem>
-          <DropdownMenuSeparator />
+          <Separator />
           <DropdownMenuItem onClick={handleLogout}>
             <LogOut className="mr-2 h-4 w-4" />
             <span>Cerrar sesión</span>

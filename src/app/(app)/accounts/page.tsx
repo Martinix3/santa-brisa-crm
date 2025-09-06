@@ -196,9 +196,9 @@ export default function AccountsPage() {
           await updateAccountFS(accountId, { salesRepId: newResponsibleId === null ? undefined : newResponsibleId });
           refreshDataSignature();
           toast({ title: "Responsable Actualizado", description: "Se ha reasignado la cuenta correctamente." });
-      } catch (error) {
+      } catch (error: any) {
           console.error("Error updating responsible:", error);
-          toast({ title: "Error al Reasignar", description: "No se pudo actualizar el responsable.", variant: "destructive" });
+          toast({ title: "Error al Reasignar", description: `No se pudo actualizar el responsable: ${error.message}`, variant: "destructive" });
       }
   };
 
@@ -296,9 +296,9 @@ export default function AccountsPage() {
                         <TableRow className="bg-muted/30 hover:bg-muted/30">
                             <TableHead className="w-[20%]">Cuenta</TableHead>
                             <TableHead className="w-[15%]">Responsable</TableHead>
-                            <TableHead className="w-[20%]">Última Interacción + Resultado</TableHead>
+                            <TableHead className="w-[20%]">Última Interacción</TableHead>
                             <TableHead className="w-[15%]">Próxima Tarea</TableHead>
-                            <TableHead className="w-[10%] text-right">Valor</TableHead>
+                            <TableHead className="w-[10%] text-right">Valor Total</TableHead>
                             <TableHead className="w-[10%] text-center">Prioridad</TableHead>
                             <TableHead className="w-[10%] text-right pr-4">Acciones</TableHead>
                         </TableRow>

@@ -9,28 +9,47 @@ import { format, parseISO, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 import StatusBadge from "@/components/app/status-badge";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-import { Send, CheckCircle, Eye } from "lucide-react";
+import { Send, CheckCircle, Eye, FileText, PlusCircle } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
 import { getInteractionType } from '@/lib/interaction-utils';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { InteractionEditor } from "./interaction-inline-form";
+import { saveInteractionFS } from "@/services/interaction-service";
+import { useToast } from "@/hooks/use-toast";
 
 interface AccountHistoryTableProps {
   interactions: Order[];
 }
 
 export default function AccountHistoryTable({ interactions }: AccountHistoryTableProps) {
-  const { userRole, teamMember } = useAuth();
+  const { userRole, teamMember, refreshDataSignature } = useAuth();
+  const { toast } = useToast();
 
-  if (!interactions || interactions.length === 0) {
+  const handleSaveInteraction = async (accountId: string, data: any) => {
+    if (!teamMember) return;
+    try {
+        await saveInteractionFS(accountId, undefined, data, teamMember.id, teamMember.name);
+        toast({ title: "Interacción Guardada", description: "Se ha registrado la nueva interacción." });
+        refreshDataSignature();
+    } catch (error: any) {
+        toast({ title: "Error", description: `No se pudo guardar la interacción: ${error.message}`, variant: "destructive" });
+    }
+  };
+
+  if (!interactions) {
     return <div className="text-center text-sm text-muted-foreground p-4">No hay historial de interacciones para esta cuenta.</div>;
   }
+  
+  const accountId = interactions[0]?.accountId;
 
   return (
     <div className="p-2 bg-muted/20">
         <div className="max-h-64 overflow-y-auto">
             <Table>
                 <TableBody>
-                    {interactions.slice(0, 10).map(interaction => {
+                    {interactions.length > 0 ? (
+                      interactions.slice(0, 10).map(interaction => {
                         const isOpenTask = ['Programada', 'Seguimiento'].includes(interaction.status);
                         const canRegisterResult = userRole === 'Admin' || (userRole === 'SalesRep' && teamMember?.name === interaction.salesRep) || (userRole === 'Clavadista' && interaction.clavadistaId === teamMember?.id);
 
@@ -72,11 +91,31 @@ export default function AccountHistoryTable({ interactions }: AccountHistoryTabl
                                 </TableCell>
                             </TableRow>
                         )
-                    })}
+                    })
+                    ) : (
+                        <TableRow><TableCell colSpan={7} className="h-16 text-center">No hay interacciones registradas.</TableCell></TableRow>
+                    )}
                 </TableBody>
             </Table>
         </div>
         {interactions.length > 10 && <p className="text-center text-xs text-muted-foreground mt-2">Mostrando las 10 interacciones más recientes.</p>}
+        {accountId && (
+             <div className="flex gap-2 pt-3 mt-2 border-t">
+                <Popover>
+                    <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm"><PlusCircle className="mr-2 h-4 w-4"/>Registrar Interacción</Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-96">
+                        <InteractionEditor account={{ id: accountId }} onSave={handleSaveInteraction} />
+                    </PopoverContent>
+                </Popover>
+                <Button variant="secondary" size="sm" asChild>
+                    <Link href={`/order-form?accountId=${accountId}`}>
+                        <FileText className="mr-2 h-4 w-4"/>Completar Datos
+                    </Link>
+                </Button>
+            </div>
+        )}
     </div>
   );
 }

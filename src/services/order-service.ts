@@ -1,4 +1,5 @@
 
+"use client"; // This service is used by client components, so it must be marked as client-compatible.
 
 import { db } from '@/lib/firebase';
 import {

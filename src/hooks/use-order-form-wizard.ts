@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import * as React from "react";
@@ -152,7 +151,9 @@ export function useOrderFormWizard() {
         } else if (accountId) {
             const account = accounts.find(acc => acc.id === accountId);
             if(account) {
-                handleClientSelect(account);
+                setClient(account);
+                setValue('isNewClient', false);
+                setStep("details"); // Go directly to details
             }
         }
 

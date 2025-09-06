@@ -33,8 +33,7 @@ interface AccountTableRowProps {
 }
 
 const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembers, onResponsibleUpdate, onDeleteAccount, isExpanded, onToggleExpand }) => {
-    const { userRole, teamMember, refreshDataSignature } = useAuth();
-    const { toast } = useToast();
+    const { userRole } = useAuth();
     const isAdmin = userRole === 'Admin';
     const salesAndAdminMembers = allTeamMembers.filter(m => m.role === 'Admin' || m.role === 'SalesRep');
 
@@ -56,17 +55,6 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
     }
 
     const lastInteraction = account.interactions.length > 0 ? account.interactions[0] : null;
-
-    const handleSaveInteraction = async (accountId: string, data: InlineEditorFormValues) => {
-        if (!teamMember) return;
-        try {
-            await saveInteractionFS(accountId, undefined, data, teamMember.id, teamMember.name);
-            toast({ title: "Interacción Guardada", description: "Se ha registrado la nueva interacción." });
-            refreshDataSignature();
-        } catch (error: any) {
-            toast({ title: "Error", description: `No se pudo guardar la interacción: ${error.message}`, variant: "destructive" });
-        }
-    };
 
 
     return (
@@ -125,14 +113,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                             </div>
                         </div>
                     ) : (
-                         <Popover>
-                            <PopoverTrigger asChild>
-                                <Button variant="outline" size="sm"><FileText className="mr-2 h-4 w-4"/>Registrar</Button>
-                            </PopoverTrigger>
-                            <PopoverContent align="start" className="w-96">
-                                <InteractionEditor account={account} onSave={handleSaveInteraction} />
-                            </PopoverContent>
-                        </Popover>
+                        <span className="text-muted-foreground">—</span>
                     )}
                 </TableCell>
                 <TableCell className="py-3 px-2 text-right w-[10%]">

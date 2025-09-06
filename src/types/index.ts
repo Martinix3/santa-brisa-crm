@@ -1,3 +1,4 @@
+
 import { Timestamp, FieldValue } from "firebase/firestore";
 
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista' | 'Líder Clavadista';
@@ -609,10 +610,11 @@ export interface Supplier {
   updatedAt: string;
 }
 
+// --- FORM VALUE TYPES ---
 export type Stage = 'Active'|'Potential'|'Pending';
-
-export type InteractionType = 'Visita'|'Llamada'|'Email'|'Incidencia'|'Otro';
-export type InteractionResult = 'Completado'|'Seguimiento'|'Fallido'|'Pedido';
+export type InteractionType = 'Visita'|'Llamada'|'Email'|'Pedido'|'Cobro'|'Otro';
+export type InteractionResult = 'Completado'|'Seguimiento'|'No_contactado'|'Fallido';
+export type InteractionOutcome = 'Pedido' | 'Seguimiento' | 'Visita' | 'Llamada' | 'Email' | 'Incidencia' | 'Otro';
 
 export interface Interaction {
   id: string;
@@ -630,7 +632,7 @@ export interface Interaction {
 
 export type Step = "client" | "outcome" | "details" | "verify";
 
-// --- FORM VALUE TYPES ---
+
 export interface TeamMemberFormValues {
   name: string;
   email: string; 
@@ -843,8 +845,7 @@ export interface HoldedProject {
     billed?: number;
     pending?: number;
 }
-export type InteractionOutcome = 'Pedido' | 'Seguimiento' | 'Visita' | 'Llamada' | 'Email' | 'Incidencia' | 'Otro';
-export type InlineEditorFormValues = {
+export interface InlineEditorFormValues {
   outcome: InteractionOutcome;
   date: Date;
   value?: number;
@@ -852,4 +853,4 @@ export type InlineEditorFormValues = {
   producto?: string;
   unidades?: number;
   precioUnitario?: number;
-};
+}

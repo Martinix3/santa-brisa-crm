@@ -16,61 +16,82 @@ import {
   type DocumentSnapshot,
   runTransaction,
 } from 'firebase/firestore';
-import type { Interaction, InteractionResult, InteractionType, InteractionOutcome, Order, InlineEditorFormValues } from '@/types';
-import { addOrderFS } from './order-service';
+import type { Order } from '@/types';
+import type { InteractionFormValues } from '@/lib/schemas/interaction-schema';
 
 const INTERACTIONS_COLLECTION = 'orders'; // We keep using 'orders' for now to avoid a big migration
 
 export async function saveInteractionFS(
   accountId: string, 
-  interactionId: string | undefined,
-  data: InlineEditorFormValues, 
+  originatingTaskId: string | undefined,
+  data: InteractionFormValues, 
   userId: string,
   userName: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const subtotal = (data.unidades || 0) * (data.precioUnitario || 0);
-    const totalValue = subtotal * 1.21;
     
-    const baseData: Partial<Order> = {
-        accountId: accountId,
-        visitDate: data.date.toISOString(),
-        createdAt: new Date().toISOString(),
-        lastUpdated: new Date().toISOString(),
-        salesRep: userName,
-        notes: data.notes,
-        orderIndex: 0,
-        clientStatus: 'existing',
-        taskCategory: 'Commercial',
-    };
-    
-    let interactionData: Partial<Order> = {};
-
-    switch (data.outcome) {
-      case 'Pedido':
-        interactionData = {
-          ...baseData,
-          status: 'Confirmado',
-          numberOfUnits: data.unidades,
-          unitPrice: data.precioUnitario,
-          value: totalValue,
-          paymentMethod: 'Adelantado', 
+    await runTransaction(db, async (transaction) => {
+        // If there was an originating task (a 'Programada' or 'Seguimiento' task), we mark it as 'Completado'
+        if (originatingTaskId) {
+          const originalTaskRef = doc(db, INTERACTIONS_COLLECTION, originatingTaskId);
+          transaction.update(originalTaskRef, {
+            status: 'Completado',
+            lastUpdated: Timestamp.now(),
+          });
+        }
+        
+        const newInteractionRef = doc(collection(db, INTERACTIONS_COLLECTION));
+        
+        const subtotal = (data.unidades || 0) * (data.precioUnitario || 0);
+        const totalValue = subtotal * 1.21;
+        
+        const baseData: Partial<Order> = {
+            accountId: accountId,
+            clientName: data.clientName,
+            salesRep: userName,
+            notes: data.notes,
+            orderIndex: 0,
+            clientStatus: 'existing',
+            taskCategory: 'Commercial',
+            assignedMaterials: data.assignedMaterials || [],
+            originatingTaskId: originatingTaskId,
+            distributorId: data.distributorId,
         };
-        break;
-      case 'Seguimiento':
-        interactionData = { ...baseData, status: 'Seguimiento', nextActionType: 'Visitar de nuevo' };
-        break;
-      case 'Visita':
-        interactionData = { ...baseData, status: 'Fallido', failureReasonType: 'No interesado' };
-        break;
-      default:
-        interactionData = { ...baseData, status: 'Completado', nextActionType: data.outcome };
-        break;
-    }
-    
-    // addOrderFS already handles the transaction logic for updating the originating task.
-    // We pass undefined for originatingTaskId if it's a new interaction from the inline form.
-    await addOrderFS(interactionData);
+        
+        let interactionData: Partial<Order> = {};
+
+        switch (data.outcome) {
+          case 'Pedido':
+            interactionData = {
+              ...baseData,
+              status: 'Confirmado',
+              visitDate: new Date().toISOString(),
+              numberOfUnits: data.unidades,
+              unitPrice: data.precioUnitario,
+              value: totalValue,
+              paymentMethod: 'Adelantado',
+            };
+            break;
+          case 'Seguimiento':
+            interactionData = { ...baseData, status: 'Seguimiento', nextActionType: 'Visitar de nuevo', nextActionDate: new Date().toISOString() };
+            break;
+          case 'Visita':
+          case 'Llamada':
+          case 'Email':
+          case 'Otro':
+          default:
+            interactionData = { ...baseData, status: 'Completado', visitDate: new Date().toISOString() };
+            break;
+        }
+        
+        transaction.set(newInteractionRef, {
+            ...interactionData,
+            createdAt: Timestamp.now(),
+            lastUpdated: Timestamp.now(),
+            visitDate: interactionData.visitDate ? Timestamp.fromDate(new Date(interactionData.visitDate)) : null,
+            nextActionDate: interactionData.nextActionDate ? Timestamp.fromDate(new Date(interactionData.nextActionDate)) : null,
+        });
+    });
     
     return { success: true };
   } catch (e: any) {

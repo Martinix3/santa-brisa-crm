@@ -4,17 +4,17 @@
 import * as React from "react";
 import { TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { format, isValid } from "date-fns";
+import { format, isValid, parseISO } from "date-fns";
 import { es } from 'date-fns/locale';
 import StatusBadge from "@/components/app/status-badge";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Send } from "lucide-react";
 import type { EnrichedAccount, TeamMember } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
 import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { InteractionDialog } from "./interaction-dialog"; 
+import { InteractionDialog } from "../app/interaction-dialog"; 
 
 interface AccountTableRowProps {
   account: EnrichedAccount;
@@ -91,7 +91,10 @@ export function AccountTableRow({ account, allTeamMembers, onResponsibleUpdate, 
                     <StatusBadge type="account" status={account.status} isOverdue={account.nextInteraction?.status === 'Seguimiento' && nextActionDate ? nextActionDate < new Date() : false}/>
                 </TableCell>
                 <TableCell className="text-right">
-                    <Button size="sm" onClick={handleOpenDialog}>Completar</Button>
+                    <Button size="sm" onClick={handleOpenDialog}>
+                        <Send className="mr-2 h-3 w-3" />
+                        Completar
+                    </Button>
                 </TableCell>
             </TableRow>
             <InteractionDialog
@@ -103,3 +106,4 @@ export function AccountTableRow({ account, allTeamMembers, onResponsibleUpdate, 
         </>
     );
 }
+

@@ -2,8 +2,8 @@
 "use client";
 
 import * as React from 'react';
-import { useFormContext } from 'react-hook-form';
-import { FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from "@/components/ui/form";
+import { useFormContext, useWatch } from 'react-hook-form';
+import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowRight } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -21,18 +21,15 @@ const interactionOutcomes = [
     { value: "Visita", label: "Visita" },
     { value: "Llamada", label: "Llamada" },
     { value: "Email", label: "Email" },
-    { value: "Seguimiento", label: "Seguimiento" },
     { value: "Otro", label: "Otro" },
 ];
 
 export function CompactForm({ onGoOrder, onClose, isSubmitting }: CompactFormProps) {
-    const { control, trigger } = useFormContext<InteractionFormValues>();
+    const { control, setValue } = useFormContext<InteractionFormValues>();
 
-    const handleContinue = async () => {
-        const result = await trigger(["outcome"]);
-        if (result) {
-            onGoOrder();
-        }
+    const handleContinue = () => {
+        setValue('outcome', 'Pedido');
+        onGoOrder();
     };
 
     return (

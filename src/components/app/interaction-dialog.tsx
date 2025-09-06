@@ -3,16 +3,15 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useForm, FormProvider } from 'react-hook-form';
-import { zodResolver } from "@hookform/resolvers/zod";
+import { FormProvider } from 'react-hook-form';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { InteractionHeader } from '@/components/app/interaction-dialog/header';
 import { CompactForm } from '@/components/app/interaction-dialog/compact-form';
 import { OrderForm } from '@/components/app/interaction-dialog/order-form';
 import { cn } from '@/lib/utils';
 import type { Account, Order } from '@/types';
-import { interactionFormSchema, type InteractionFormValues } from '@/lib/schemas/interaction-schema';
 import { useInteractionWizard } from '@/hooks/use-interaction-wizard';
+import { Loader2 } from 'lucide-react';
 
 export type InteractionMode = 'compact' | 'order';
 
@@ -29,6 +28,8 @@ export function InteractionDialog({
 }) {
   const [mode, setMode] = useState<InteractionMode>('compact');
 
+  const wizard = useInteractionWizard(client, originatingTask, () => onOpenChange(false));
+
   const {
     form,
     onSubmit,
@@ -41,15 +42,15 @@ export function InteractionDialog({
     userRole,
     salesRepsList,
     clavadistas,
-    distributorAccounts
-  } = useInteractionWizard(client, originatingTask);
+    distributorAccounts,
+  } = wizard;
 
   useEffect(() => {
     if (!open) {
       setTimeout(() => {
         setMode('compact');
         form.reset();
-      }, 300); // Reset after closing animation
+      }, 200); 
     }
   }, [open, form]);
 
@@ -64,8 +65,15 @@ export function InteractionDialog({
           'w-full p-0 border transition-[max-width] duration-300 ease-in-out',
           contentSize
         )}
-        onInteractOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => {
+          if (isSubmitting) e.preventDefault();
+        }}
       >
+        {isLoading ? (
+            <div className="flex justify-center items-center h-64">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        ) : (
         <FormProvider {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)}>
                 <motion.div layout transition={{ type: 'spring', duration: 0.35, bounce: 0.15 }}>
@@ -79,7 +87,6 @@ export function InteractionDialog({
                     ) : (
                         <OrderForm
                             onBack={() => setMode('compact')}
-                            onClose={() => onOpenChange(false)}
                             isSubmitting={isSubmitting}
                             availableMaterials={availableMaterials}
                             materialFields={materialFields}
@@ -94,6 +101,7 @@ export function InteractionDialog({
                 </motion.div>
             </form>
         </FormProvider>
+        )}
       </DialogContent>
     </Dialog>
   );

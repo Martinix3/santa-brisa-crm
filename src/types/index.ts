@@ -612,7 +612,7 @@ export interface Supplier {
 
 // --- FORM VALUE TYPES ---
 export type Stage = 'Active'|'Potential'|'Pending';
-export type InteractionType = 'Visita'|'Llamada'|'Email'|'Pedido'|'Cobro'|'Otro';
+export type InteractionType = 'Visita'|'Llamada'|'Mail'|'Otro';
 export type InteractionResult = 'Completado'|'Seguimiento'|'No_contactado'|'Fallido';
 export type InteractionOutcome = 'Pedido' | 'Seguimiento' | 'Visita' | 'Llamada' | 'Email' | 'Incidencia' | 'Otro';
 
@@ -629,9 +629,6 @@ export interface Interaction {
   nextAction?: { type: InteractionType; date?: Timestamp };
   createdBy: string; createdAt: Timestamp;
 }
-
-export type Step = "client" | "outcome" | "details" | "verify";
-
 
 export interface TeamMemberFormValues {
   name: string;
@@ -845,12 +842,5 @@ export interface HoldedProject {
     billed?: number;
     pending?: number;
 }
-export interface InlineEditorFormValues {
-  outcome: InteractionOutcome;
-  date: Date;
-  value?: number;
-  notes?: string;
-  producto?: string;
-  unidades?: number;
-  precioUnitario?: number;
-}
+
+export type InteractionFormValues = import('@/lib/schemas/interaction-schema').InteractionFormValues;

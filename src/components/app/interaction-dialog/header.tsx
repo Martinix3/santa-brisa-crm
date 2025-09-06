@@ -10,15 +10,15 @@ interface InteractionHeaderProps {
 
 export function InteractionHeader({ mode }: InteractionHeaderProps) {
   return (
-    <div className="border-b px-6 py-4">
+    <div className="border-b px-6 py-4 bg-white dark:bg-card">
       <DialogHeader>
         <DialogTitle className="text-lg font-semibold">
           {mode === 'compact' ? 'Registrar Interacción' : 'Registrar Pedido'}
         </DialogTitle>
-        <DialogDescription>
+        <DialogDescription className="text-sm text-muted-foreground">
           {mode === 'compact'
             ? 'Añade una llamada, email o visita. Si es venta, pasa a Pedido.'
-            : 'Revisa datos de cliente, dirección, productos y confirma.'}
+            : 'Revisa los datos del cliente, añade los productos y confirma el pedido.'}
         </DialogDescription>
       </DialogHeader>
     </div>

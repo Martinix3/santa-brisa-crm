@@ -1,12 +1,11 @@
-
 "use client";
 
 import * as React from "react";
 import { TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import StatusBadge from "@/components/app/status-badge";
-import { Eye, Trash2, Check, PlusCircle, ChevronRight, Flame, Edit, CheckCircle } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Eye, Trash2, Check, PlusCircle, ChevronRight, Flame, Edit, CheckCircle, MoreHorizontal, FileText, CalendarClock } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import Link from 'next/link';
@@ -17,6 +16,9 @@ import { useAuth } from "@/contexts/auth-context";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { getInteractionType } from '@/lib/interaction-utils';
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
+import { InteractionEditor } from "./interaction-inline-form";
+import StatusBadge from "./status-badge";
+
 
 interface AccountTableRowProps {
     account: EnrichedAccount;
@@ -25,9 +27,10 @@ interface AccountTableRowProps {
     onDeleteAccount: (account: EnrichedAccount) => void;
     isExpanded: boolean;
     onToggleExpand: () => void;
+    onSaveInteraction: (accountId: string, data: any) => Promise<void>;
 }
 
-const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembers, onResponsibleUpdate, onDeleteAccount, isExpanded, onToggleExpand }) => {
+const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembers, onResponsibleUpdate, onDeleteAccount, isExpanded, onToggleExpand, onSaveInteraction }) => {
     const { userRole } = useAuth();
     const isAdmin = userRole === 'Admin';
     const salesAndAdminMembers = allTeamMembers.filter(m => m.role === 'Admin' || m.role === 'SalesRep');
@@ -107,7 +110,14 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                             </div>
                         </div>
                     ) : (
-                        <span className="text-muted-foreground">—</span>
+                         <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" size="sm"><FileText className="mr-2 h-4 w-4"/>Registrar</Button>
+                            </PopoverTrigger>
+                            <PopoverContent align="start" className="w-96">
+                                <InteractionEditor account={account} onSave={onSaveInteraction} />
+                            </PopoverContent>
+                        </Popover>
                     )}
                 </TableCell>
                 <TableCell className="py-3 px-2 text-right w-[10%]">
@@ -124,13 +134,14 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                             </TooltipTrigger>
                             <TooltipContent><p>Puntuación de Prioridad (Lead Score)</p></TooltipContent>
                         </Tooltip>
+                         {account.lastOrder && <StatusBadge type="order" status={account.lastOrder.status} className="mt-1"/>}
                      </div>
                 </TableCell>
                 <TableCell className="py-3 px-2 text-right pr-4 w-[10%]">
                      <div className="flex items-center justify-end gap-1">
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                               <Button variant="ghost" size="icon" className="h-8 w-8"><Edit className="h-4 w-4" /></Button>
+                               <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                                <DropdownMenuItem asChild><Link href={`/accounts/${account.id}`}><Eye className="mr-2 h-4 w-4"/>Ver Ficha Completa</Link></DropdownMenuItem>

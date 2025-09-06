@@ -1,4 +1,3 @@
-
 import { Timestamp, FieldValue } from "firebase/firestore";
 
 export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista' | 'Líder Clavadista';
@@ -328,6 +327,7 @@ export interface EnrichedAccount extends Account {
   responsableId: string;
   responsableName?: string;
   responsableAvatar?: string;
+  lastOrder?: Order; // Last successful order
 }
 
 export type OrderStatus = 'Pendiente' | 'Confirmado' | 'Procesando' | 'Enviado' | 'Entregado' | 'Cancelado' | 'Fallido' | 'Seguimiento' | 'Programada' | 'Facturado' | 'Completado' | 'Pagado';
@@ -610,8 +610,10 @@ export interface Supplier {
 }
 
 export type Stage = 'Active'|'Potential'|'Pending';
-export type InteractionType = 'Visita'|'Llamada'|'Email'|'Pedido'|'Cobro'|'Otro';
-export type InteractionResult = 'Completado'|'Seguimiento'|'No_contactado'|'Fallido';
+
+export type InteractionType = 'Visita'|'Llamada'|'Email'|'Incidencia'|'Otro';
+export type InteractionResult = 'Completado'|'Seguimiento'|'Fallido'|'Pedido';
+
 export interface Interaction {
   id: string;
   accountId: string;
@@ -625,7 +627,6 @@ export interface Interaction {
   nextAction?: { type: InteractionType; date?: Timestamp };
   createdBy: string; createdAt: Timestamp;
 }
-
 
 export type Step = "client" | "outcome" | "details" | "verify";
 
@@ -842,3 +843,13 @@ export interface HoldedProject {
     billed?: number;
     pending?: number;
 }
+export type InteractionOutcome = 'Pedido' | 'Seguimiento' | 'Visita' | 'Llamada' | 'Email' | 'Incidencia' | 'Otro';
+export type InlineEditorFormValues = {
+  outcome: InteractionOutcome;
+  date: Date;
+  value?: number;
+  notes?: string;
+  producto?: string;
+  unidades?: number;
+  precioUnitario?: number;
+};

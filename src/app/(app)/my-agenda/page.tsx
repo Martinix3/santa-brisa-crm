@@ -38,6 +38,8 @@ import { Separator } from "@/components/ui/separator";
 import type { DayContentProps } from "react-day-picker";
 import { DayDots } from "@/components/app/DayDots";
 import { StickyNotesWidget } from '@/components/app/dashboard/sticky-notes-widget';
+import { getInteractionType } from '@/lib/interaction-utils';
+import { MODIFIER_NAMES, COLOR_MAP } from "@/lib/agenda-colors";
 
 
 // --- TYPE DEFINITIONS ---
@@ -74,12 +76,6 @@ const getAgendaItemIcon = (item: AgendaItem) => {
   return <ClipboardList className="h-5 w-5 text-brand-yellow flex-shrink-0" />;
 };
 
-const getInteractionType = (interaction: Order): string => {
-    if (interaction.status === 'Programada' && interaction.taskCategory === 'Commercial') return "Visita Programada";
-    if (interaction.status === 'Programada' && interaction.taskCategory === 'General') return "Tarea Administrativa";
-    if (interaction.status === 'Seguimiento') return `Seguimiento: ${interaction.nextActionType || 'N/D'}`;
-    return "Tarea Comercial";
-}
 
 
 // --- DND COMPONENTS ---
@@ -915,7 +911,7 @@ export default function MyAgendaPage() {
               ) : null}
           </DragOverlay>
         </DndContext>
-        <SheetContent open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
+        <SheetContent>
             {selectedItem && (
             <>
                 <SheetHeader>
@@ -975,9 +971,7 @@ export default function MyAgendaPage() {
             </AlertDialogHeader>
             <AlertDialogFooter>
                 <AlertDialogCancel onClick={() => setItemToDelete(null)}>Cancelar</AlertDialogCancel>
-                <AlertDialogAction asChild>
-                  <Button onClick={confirmDeleteItem} variant="destructive">Sí, eliminar</Button>
-                </AlertDialogAction>
+                <AlertDialogAction onClick={confirmDeleteItem} variant="destructive">Sí, eliminar</AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>
@@ -1025,5 +1019,4 @@ export default function MyAgendaPage() {
     </>
   );
 }
-
 

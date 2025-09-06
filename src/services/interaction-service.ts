@@ -1,3 +1,4 @@
+
 'use server';
 
 import { db } from '@/lib/firebase';
@@ -15,21 +16,14 @@ import {
   type DocumentSnapshot,
   runTransaction,
 } from 'firebase/firestore';
-import type { Interaction, InteractionResult, InteractionType, InteractionOutcome, Order } from '@/types';
+import type { Interaction, InteractionResult, InteractionType, InteractionOutcome, Order, InlineEditorFormValues } from '@/types';
 
 const INTERACTIONS_COLLECTION = 'orders'; // We keep using 'orders' for now to avoid a big migration
 
 export async function saveInteractionFS(
   accountId: string, 
   interactionId: string | undefined,
-  data: {
-    outcome: InteractionOutcome;
-    date: Date;
-    value?: number;
-    notes?: string;
-    unidades?: number;
-    precioUnitario?: number;
-  }, 
+  data: InlineEditorFormValues, 
   userId: string,
   userName: string,
 ): Promise<{ success: boolean; error?: string }> {

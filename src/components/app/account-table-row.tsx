@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -11,13 +12,15 @@ import { cn } from "@/lib/utils";
 import Link from 'next/link';
 import { parseISO, isBefore, startOfDay, format, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
-import type { EnrichedAccount, TeamMember, Order, AccountStatus, Interaction } from "@/types";
+import type { EnrichedAccount, TeamMember, Order, AccountStatus, Interaction, InlineEditorFormValues } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { getInteractionType } from '@/lib/interaction-utils';
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { InteractionEditor } from "./interaction-inline-form";
 import StatusBadge from "./status-badge";
+import { saveInteractionFS } from "@/services/interaction-service";
+import { useToast } from "@/hooks/use-toast";
 
 
 interface AccountTableRowProps {
@@ -27,11 +30,11 @@ interface AccountTableRowProps {
     onDeleteAccount: (account: EnrichedAccount) => void;
     isExpanded: boolean;
     onToggleExpand: () => void;
-    onSaveInteraction: (accountId: string, data: any) => Promise<void>;
 }
 
-const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembers, onResponsibleUpdate, onDeleteAccount, isExpanded, onToggleExpand, onSaveInteraction }) => {
-    const { userRole } = useAuth();
+const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembers, onResponsibleUpdate, onDeleteAccount, isExpanded, onToggleExpand }) => {
+    const { userRole, teamMember, refreshDataSignature } = useAuth();
+    const { toast } = useToast();
     const isAdmin = userRole === 'Admin';
     const salesAndAdminMembers = allTeamMembers.filter(m => m.role === 'Admin' || m.role === 'SalesRep');
 
@@ -53,6 +56,18 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
     }
 
     const lastInteraction = account.interactions.length > 0 ? account.interactions[0] : null;
+
+    const handleSaveInteraction = async (accountId: string, data: InlineEditorFormValues) => {
+        if (!teamMember) return;
+        try {
+            await saveInteractionFS(accountId, undefined, data, teamMember.id, teamMember.name);
+            toast({ title: "Interacción Guardada", description: "Se ha registrado la nueva interacción." });
+            refreshDataSignature();
+        } catch (error: any) {
+            toast({ title: "Error", description: `No se pudo guardar la interacción: ${error.message}`, variant: "destructive" });
+        }
+    };
+
 
     return (
         <TooltipProvider>
@@ -115,7 +130,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                                 <Button variant="outline" size="sm"><FileText className="mr-2 h-4 w-4"/>Registrar</Button>
                             </PopoverTrigger>
                             <PopoverContent align="start" className="w-96">
-                                <InteractionEditor account={account} onSave={onSaveInteraction} />
+                                <InteractionEditor account={account} onSave={handleSaveInteraction} />
                             </PopoverContent>
                         </Popover>
                     )}
@@ -134,7 +149,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                             </TooltipTrigger>
                             <TooltipContent><p>Puntuación de Prioridad (Lead Score)</p></TooltipContent>
                         </Tooltip>
-                         {account.lastOrder && <StatusBadge type="order" status={account.lastOrder.status} className="mt-1"/>}
+                        {account.lastOrder && <StatusBadge type="order" status={account.lastOrder.status} className="mt-1"/>}
                      </div>
                 </TableCell>
                 <TableCell className="py-3 px-2 text-right pr-4 w-[10%]">

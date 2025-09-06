@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import type { EnrichedAccount, TeamMember, Order, NextActionType, UserRole, OrderStatus, FollowUpResultFormValues, AccountStatus, Interaction } from "@/types";
+import type { EnrichedAccount, TeamMember, Order, NextActionType, UserRole, OrderStatus, FollowUpResultFormValues, AccountStatus, Interaction, InlineEditorFormValues } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, Loader2, Search, AlertTriangle, ChevronDown, Trash2 } from "lucide-react";
 import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
@@ -296,7 +296,7 @@ export default function AccountsPage() {
                         <TableRow className="bg-muted/30 hover:bg-muted/30">
                             <TableHead className="w-[20%]">Cuenta</TableHead>
                             <TableHead className="w-[15%]">Responsable</TableHead>
-                            <TableHead className="w-[20%]">Última Interacción</TableHead>
+                            <TableHead className="w-[20%]">Última Interacción + Resultado</TableHead>
                             <TableHead className="w-[15%]">Próxima Tarea</TableHead>
                             <TableHead className="w-[10%] text-right">Valor</TableHead>
                             <TableHead className="w-[10%] text-center">Prioridad</TableHead>

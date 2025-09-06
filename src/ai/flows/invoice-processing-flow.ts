@@ -66,7 +66,10 @@ const processInvoiceFlow = ai.defineFlow(
     }
     
     const matches = input.invoiceDataUri.match(/^data:(.+);base64,(.*)$/);
-    if (!matches || matches.length !== 3) {
+    if (!matches) {
+      throw new Error('Formato de data URI inválido.');
+    }
+    if (matches.length !== 3) {
       throw new Error('Formato de data URI inválido.');
     }
     const mimeType = matches[1];

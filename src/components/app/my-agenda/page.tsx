@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -719,7 +720,6 @@ export default function MyAgendaPage() {
   
   return (
     <>
-    <Sheet open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -908,7 +908,6 @@ export default function MyAgendaPage() {
             ) : null}
         </DragOverlay>
       </DndContext>
-
       <Sheet open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
         <SheetContent>
             <SheetHeader>
@@ -954,7 +953,7 @@ export default function MyAgendaPage() {
                 </>
             )}
         </SheetContent>
-      </Sheet>
+    </Sheet>
     
     <AlertDialog open={!!itemToDelete} onOpenChange={(open) => !open && setItemToDelete(null)}>
         <AlertDialogContent>
@@ -1014,3 +1013,4 @@ export default function MyAgendaPage() {
     </>
   );
 }
+

@@ -297,8 +297,7 @@ export interface Account {
   
   status: AccountStatus;
   leadScore: number;
-firebase deploy --only functions
-
+  
   legalName?: string;
   cif?: string; 
   type: AccountType;

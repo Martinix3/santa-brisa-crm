@@ -3,331 +3,101 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: var(--font-body), sans-serif;
+/* ======= TOKENS DE MARCA ======= */
+:root{
+  /* Paleta base (tu marca) */
+  --sb-primary-50:#FFF7DA;
+  --sb-primary-100:#FDEEA8;
+  --sb-primary-200:#FAE57D;
+  --sb-primary-300:#F9DA64;
+  --sb-primary-400:#F8D459;
+  --sb-primary-500:#F7D15F; /* PRINCIPAL */
+  --sb-primary-600:#DDB043;
+  --sb-primary-700:#B58D31;
+  --sb-primary-800:#8C6C25;
+  --sb-primary-900:#6B501A;
+
+  --sb-tang-50:#FBE7DB;
+  --sb-tang-100:#F6C4A9;
+  --sb-tang-200:#F1A27E;
+  --sb-tang-300:#EB845C;
+  --sb-tang-400:#E37546;
+  --sb-tang-500:#D7713E;   /* Secundario 1 (tangerine) */
+  --sb-tang-600:#B85C34;
+  --sb-tang-700:#944A2A;
+  --sb-tang-800:#733A21;
+  --sb-tang-900:#572B19;
+
+  --sb-aqua-50:#EDF8F8;
+  --sb-aqua-100:#D3EFF0;
+  --sb-aqua-200:#BCE7E8;
+  --sb-aqua-300:#A7D8D9;   /* Secundario 2 (aqua) */
+  --sb-aqua-400:#8FC6C8;
+  --sb-aqua-500:#76B0B2;
+  --sb-aqua-600:#5E9B9D;
+  --sb-aqua-700:#4D8B8D;
+  --sb-aqua-800:#3E7A7C;
+  --sb-aqua-900:#31696C;
+
+  --sb-teal-50:#E9F0F1;
+  --sb-teal-100:#CAD8D9;
+  --sb-teal-200:#AFC3C4;
+  --sb-teal-300:#97B0B1;
+  --sb-teal-400:#7E9B9D;
+  --sb-teal-500:#6F9394;
+  --sb-teal-600:#618E8F;   /* Secundario 3 (teal/gris) */
+  --sb-teal-700:#4F7576;
+  --sb-teal-800:#405D5E;
+  --sb-teal-900:#314648;
+
+  /* Neutros */
+  --sb-n-25:#FAFBFC;
+  --sb-n-50:#F4F6F8;
+  --sb-n-100:#E9EDF2;
+  --sb-n-200:#DCE2EA;
+  --sb-n-300:#C7CFDA;
+  --sb-n-400:#A6B2C1;
+  --sb-n-500:#8493A6;
+  --sb-n-600:#66778E;
+  --sb-n-700:#49576B;
+  --sb-n-800:#2E3947;
+  --sb-n-900:#14191F;
+
+  /* Semánticos (derivados de marca, no verdes/rojos aleatorios) */
+  --sb-ok-500:   var(--sb-teal-700);   /* “correcto” = teal profundo de tu paleta */
+  --sb-warn-500: var(--sb-primary-700);/* “aviso”   = dorado más oscuro */
+  --sb-err-500:  var(--sb-tang-600);   /* “error”   = tangerine profundo */
+  --sb-info-500: var(--sb-aqua-700);   /* “info”    = aqua/teal marca */
+
+  /* Semánticos claros para fondos */
+  --sb-ok-50:   var(--sb-teal-50);
+  --sb-warn-50: var(--sb-primary-50);
+  --sb-err-50:  var(--sb-tang-50);
+  --sb-info-50: var(--sb-aqua-50);
+
+  /* Alias de uso */
+  --sb-primary: var(--sb-primary-500);
+  --sb-accent:  var(--sb-teal-600);
+
+  /* Bordes y sombras */
+  --sb-border: 1px solid rgba(20,25,31,.12);
+  --sb-shadow-1: 0 1px 2px rgba(0,0,0,.06);
+  --sb-shadow-2: 0 6px 18px rgba(0,0,0,.12);
+
+  /* Tipografía */
+  --sb-font-sans: ui-sans-serif, system-ui, "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
+  --sb-h1: 28px; --sb-h2: 22px; --sb-h3: 18px; --sb-text: 14px; --sb-small:12px;
+
+  /* Motion (micro) */
+  --sb-fast: 120ms;
+  --sb-med:  200ms;
+  --sb-slow: 320ms;
 }
 
-/* 
-  ===== Nueva Paleta de Colores - Santa Brisa Refresh =====
-  Inspirado en la Brand Guide. 
-  - Primario: Amarillo cálido (#F7D15F)
-  - Secundario: Verde azulado oscuro (#618E8F)
-  - Superficies: Blancos rotos y grises muy claros para dar limpieza.
-  - Menú Lateral: Negro profundo para un contraste elegante.
-*/
-
-@layer base {
-  :root {
-    /* Tokens de Marca (Primitivos) */
-    --brand-black: 240 10% 3.9%;
-    --brand-yellow: 45 92% 67%;
-    --brand-orange: 18 65% 54%;
-    --brand-teal-light: 182 25% 76%;
-    --brand-teal-dark: 181 18% 47%;
-    --brand-white: 0 0% 100%;
-    --brand-off-white: 240 5% 96.1%;
-    --brand-gray: 0 0% 92.2%;
-
-    /* Tokens de UI (Semánticos) */
-    --background: var(--brand-off-white); /* surface-background */
-    --foreground: var(--brand-black); /* text-primary */
-
-    --card: var(--brand-white); /* surface-default */
-    --card-foreground: var(--brand-black);
-
-    --popover: var(--brand-white);
-    --popover-foreground: var(--brand-black);
-
-    --primary: var(--brand-yellow); /* action-primary */
-    --primary-foreground: 25 84% 30%; /* Contraste para amarillo */
-
-    --secondary: var(--brand-teal-dark); /* action-secondary */
-    --secondary-foreground: var(--brand-white); /* text-on-color */
-    
-    --muted: var(--brand-gray); /* surface-subtle */
-    --muted-foreground: 240 4% 46%;
-
-    --accent: var(--brand-teal-light); /* status-info */
-    --accent-foreground: var(--brand-black);
-
-    --destructive: var(--brand-orange); /* action-destructive */
-    --destructive-foreground: 0 0% 100%;
-
-    --border: var(--brand-gray); /* border-default */
-    --input: var(--brand-white);
-    --ring: var(--brand-yellow);
-
-    /* --- Brand & Status Palette (NEW) --- */
-    --brand-success-hsl: var(--brand-teal-dark);
-    --brand-info-hsl: var(--brand-teal-light);
-    --brand-warning-hsl: var(--brand-yellow);
-    --brand-danger-hsl: var(--brand-orange);
-
-    /* --- Sidebar Theme --- */
-    --sidebar-background: var(--brand-black);
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: var(--brand-yellow);
-    --sidebar-primary-foreground: 25 84% 30%;
-    --sidebar-accent: 240 5% 18%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 240 5% 18%;
-    --sidebar-ring: var(--brand-yellow);
-    
-    /* --- Radios y Sombras --- */
-    --radius: 0.5rem; /* 8px */
-
-    /* Tokens del Brand Guide */
-    --sb-radius-sm: 8px;
-    --sb-radius-md: 12px;
-    --sb-radius-lg: 16px;
-    --sb-radius-2xl: 20px;
-
-    --sb-shadow-xs: 0 1px 2px rgba(9,11,15,.06);
-    --sb-shadow-sm: 0 2px 8px rgba(9,11,15,.08);
-    --sb-shadow-md: 0 6px 20px rgba(9,11,15,.12);
-    --sb-shadow-lg: 0 16px 40px rgba(9,11,15,.16);
-
-    --sb-glass-bg: color-mix(in srgb, hsl(var(--card)), transparent 30%);
-    --sb-glass-border: color-mix(in srgb, hsl(var(--border)), white 50%);
-    --sb-glass-blur: 10px;
-
-    --sb-z-nav: 50;
-    --sb-z-popover: 60;
-    --sb-z-modal: 70;
-    --sb-z-toast: 80;
-  }
-
-  .dark {
-    /* Mantenemos una paleta similar, ajustando brillo y saturación para pantallas oscuras */
-    --brand-black: 0 0% 7%;
-    --brand-yellow: 45 90% 65%;
-    --brand-orange: 18 70% 58%;
-    --brand-teal-light: 182 15% 40%;
-    --brand-teal-dark: 181 25% 65%;
-    --brand-white: 0 0% 100%;
-    --brand-off-white: 240 4% 10%;
-    --brand-gray: 240 4% 15%;
-
-    --background: var(--brand-off-white);
-    --foreground: var(--brand-white);
-
-    --card: var(--brand-gray);
-    --card-foreground: var(--brand-white);
-    
-    --popover: var(--brand-black);
-    --popover-foreground: var(--brand-white);
-
-    --primary: var(--brand-yellow);
-    --primary-foreground: 25 84% 30%;
-    
-    --secondary: var(--brand-teal-dark);
-    --secondary-foreground: var(--brand-black);
-    
-    --muted: 240 4% 15%;
-    --muted-foreground: 240 4% 65%;
-    
-    --accent: var(--brand-teal-light);
-    --accent-foreground: var(--brand-white);
-    
-    --destructive: var(--brand-orange);
-    --destructive-foreground: var(--brand-white);
-    
-    --border: 240 4% 20%;
-    --input: 240 4% 18%;
-    --ring: var(--brand-yellow);
-
-    /* --- Sidebar Theme (Dark) --- */
-    --sidebar-background: var(--brand-black);
-    /* El resto de colores de sidebar pueden heredar de :root si el diseño es consistente */
-  }
-}
-
-
-@layer components {
-  /* Style for table headers */
-  .table-header-std {
-    @apply h-12 px-3 text-left align-middle text-sm font-medium text-muted-foreground;
-  }
-  
-  /* Style for table rows */
-  .table-row-std {
-    @apply border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted;
-  }
-
-  /* Style for table cells */
-  .table-cell-std {
-    @apply p-3 align-middle;
-  }
-
-  /* Style for primary text within a cell (e.g., account name) */
-  .table-cell-main-text {
-    @apply font-semibold text-foreground;
-  }
-
-  .table-cell-primary-link {
-    @apply font-medium text-primary hover:underline;
-  }
-
-  /* New classes for the header/sidebar layout */
-  .header-full-width {
-      @apply fixed top-0 left-0 right-0;
-  }
-  .sidebar-under-header {
-      @apply fixed top-24 left-0 h-[calc(100vh-6rem)]; /* 6rem = h-24 */
-  }
-  .main-under-header {
-      @apply pt-24;
-  }
-
-  .sb-chart-tooltip {
-    backdrop-filter: blur(var(--sb-glass-blur));
-    -webkit-backdrop-filter: blur(var(--sb-glass-blur));
-    background: var(--sb-glass-bg);
-    border: 1px solid var(--sb-glass-border);
-    border-radius: var(--sb-radius-md);
-    box-shadow: var(--sb-shadow-sm);
-    padding: .5rem .75rem;
-  }
-}
-
-
-@media print {
-  body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    font-size: 10pt;
-    color: #000;
-    background-color: #fff !important; /* Ensure white background */
-    margin: 0;
-    padding: 0;
-    height: auto;
-    overflow: visible;
-  }
-
-  html {
-    background-color: #fff !important;
-    height: auto;
-    overflow: visible;
-  }
-
-  /* Hide major non-printable UI elements */
-  [data-sidebar="sidebar"],
-  header.sticky, /* App's top header */
-  .print-hide { /* Generic class for buttons, etc. */
-    display: none !important;
-  }
-
-  /* Reset main content wrapper for printing */
-  main.flex-1 {
-    display: block !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    width: auto !important;
-    max-width: none !important;
-    overflow: visible !important;
-    box-shadow: none !important;
-    border: none !important;
-  }
-
-  /* Style the specific section we want to print */
-  #printable-account-details {
-    display: block !important;
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 1cm !important;
-    box-shadow: none !important;
-    border: none !important;
-    visibility: visible !important;
-  }
-
-  /* Ensure all children of the printable section are visible and styled for print */
-  #printable-account-details * {
-    visibility: visible !important;
-    color: #000 !important;
-    background-color: transparent !important;
-    box-shadow: none !important; /* Remove shadows from children too */
-  }
-
-  /* Style cards and sections within the printable area */
-  #printable-account-details .card,
-  #printable-account-details .print-section {
-    border: 1px solid #ccc !important;
-    page-break-inside: avoid !important;
-    margin-bottom: 0.5cm !important;
-    padding: 0.5cm !important;
-  }
-  #printable-account-details .card-header,
-  #printable-account-details .card-content,
-  #printable-account-details .card-footer {
-    padding: 0.2cm !important;
-  }
-  #printable-account-details .separator {
-    background-color: #ccc !important;
-  }
-
-  /* Table styles within the printable area */
-  #printable-account-details table {
-    width: 100% !important;
-    border-collapse: collapse !important;
-  }
-  #printable-account-details th,
-  #printable-account-details td {
-    border: 1px solid #ddd !important;
-    padding: 0.2cm !important;
-    text-align: left !important;
-  }
-  #printable-account-details th {
-    background-color: #f0f0f0 !important;
-    font-weight: bold !important;
-  }
-
-  /* Link styles within the printable area */
-  #printable-account-details a {
-    text-decoration: none !important;
-    color: #000 !important;
-  }
-  #printable-account-details a[href^="http"]:after,
-  #printable-account-details a[href^="mailto"]:after {
-    content: "" !important;
-  }
-
-  .print-dialog, .print-dialog * {
-    visibility: visible !important;
-    background-color: white !important;
-    color: black !important;
-  }
-
-  body > *:not(.print-dialog) {
-      display: none !important;
-  }
-  
-  .print-dialog {
-      position: absolute !important;
-      left: 0 !important;
-      top: 0 !important;
-      width: 100% !important;
-      height: 100% !important;
-      overflow: visible !important;
-      box-shadow: none !important;
-      border: none !important;
-      padding: 1.5cm !important;
-      margin: 0 !important;
-      font-size: 10pt;
-  }
-
-  .print-dialog .print-hide-in-dialog {
-    display: none !important;
-  }
-  
-  .print-dialog table {
-      width: 100% !important;
-      border-collapse: collapse !important;
-  }
-  .print-dialog th, .print-dialog td {
-      border: 1px solid #ddd !important;
-      padding: 0.2cm !important;
-      text-align: left !important;
-  }
-  .print-dialog th {
-      background-color: #f2f2f2 !important;
-  }
-}
+/* Base app */
+html,body{background:var(--sb-n-25); color:var(--sb-n-900); font-family:var(--sb-font-sans);}
+h1{font-size:var(--sb-h1); font-weight:700;}
+h2{font-size:var(--sb-h2); font-weight:600;}
+h3{font-size:var(--sb-h3); font-weight:600;}
+p,li,span,button,input{font-size:var(--sb-text);}
+small{font-size:var(--sb-small); color:var(--sb-n-600);}

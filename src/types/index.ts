@@ -320,11 +320,12 @@ export interface Account {
 export interface EnrichedAccount extends Account {
   status: AccountStatus;
   leadScore: number;
-  nextInteraction?: Interaction;
+  nextInteraction?: Order;
   totalSuccessfulOrders: number;
   totalValue: number;
   lastInteractionDate?: Date;
-  interactions: Interaction[];
+  interactions: Order[];
+  responsableId: string;
   responsableName?: string;
   responsableAvatar?: string;
 }
@@ -473,8 +474,10 @@ export interface CrmEvent {
 
 // --- NEW EXPENSE TYPES ---
 export type DocumentStatus = 'proforma' | 'factura_pendiente' | 'factura_recibida' | 'factura_validada';
+export type PurchaseStatus = 'proforma' | 'factura_pendiente' | 'factura_recibida';
 export type PaymentStatus = 'pendiente' | 'parcial' | 'pagado' | 'pagado_adelantado';
 export type Currency = "EUR" | "USD" | "MXN";
+export type PurchaseCategory = 'Materia Prima' | 'Material Embalaje' | 'Material Promocional' | 'Servicios' | 'General';
 
 export interface ExpenseItem {
     productoId: string;
@@ -620,8 +623,7 @@ export interface Interaction {
   notes?: string;
   managed?: boolean;
   nextAction?: { type: InteractionType; date?: Timestamp };
-  createdBy: string;
-  createdAt: Timestamp;
+  createdBy: string; createdAt: Timestamp;
 }
 
 

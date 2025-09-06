@@ -293,13 +293,13 @@ export default function AccountsPage() {
                 <Table>
                     <TableHeader>
                         <TableRow className="bg-muted/30 hover:bg-muted/30">
-                            <TableHead className="w-[1%] p-0"></TableHead>
-                            <TableHead className="uppercase text-xs tracking-wider w-[24%]">Cuenta</TableHead>
-                            <TableHead className="uppercase text-xs tracking-wider w-[15%]">Responsable</TableHead>
-                            <TableHead className="uppercase text-xs tracking-wider w-[15%]">Última Interacción</TableHead>
-                            <TableHead className="uppercase text-xs tracking-wider w-[20%]">Próxima Tarea</TableHead>
-                            <TableHead className="uppercase text-xs tracking-wider w-[5%] text-center">Prioridad</TableHead>
-                            <TableHead className="uppercase text-xs tracking-wider w-[10%] text-right pr-4">Acciones</TableHead>
+                            <TableHead className="w-[20%]">Cuenta</TableHead>
+                            <TableHead className="w-[15%]">Responsable</TableHead>
+                            <TableHead className="w-[20%]">Última Interacción</TableHead>
+                            <TableHead className="w-[15%]">Próxima Tarea</TableHead>
+                            <TableHead className="w-[10%] text-right">Valor</TableHead>
+                            <TableHead className="w-[10%] text-center">Estado/Prioridad</TableHead>
+                            <TableHead className="w-[10%] text-right pr-4">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -390,13 +390,12 @@ const AccountGroup: React.FC<AccountGroupProps> = ({ title, accounts, teamMember
                         allTeamMembers={teamMembers}
                         onResponsibleUpdate={onResponsibleUpdate}
                         onDeleteAccount={onDeleteAccount}
-                        lineColor={groupColor}
                         isExpanded={expandedRowId === account.id}
                         onToggleExpand={() => onToggleExpand(account.id)}
                     />
-                    {expandedRowId === account.id && (
+                     {expandedRowId === account.id && (
                         <TableRow className="bg-background hover:bg-background">
-                            <TableCell colSpan={7} className="p-0 border-l-4 border-primary">
+                            <TableCell colSpan={7} className="p-0">
                                 {account.interactions ? (
                                     <AccountHistoryTable interactions={account.interactions} />
                                 ) : (

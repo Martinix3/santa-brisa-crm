@@ -16,18 +16,18 @@ import type { EnrichedAccount, TeamMember, Order, AccountStatus, Interaction } f
 import { useAuth } from "@/contexts/auth-context";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { getInteractionType } from '@/lib/interaction-utils';
+import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 
 interface AccountTableRowProps {
     account: EnrichedAccount;
     allTeamMembers: TeamMember[];
     onResponsibleUpdate: (accountId: string, newResponsibleId: string | null) => Promise<void>;
     onDeleteAccount: (account: EnrichedAccount) => void;
-    lineColor: string;
     isExpanded: boolean;
     onToggleExpand: () => void;
 }
 
-const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembers, onResponsibleUpdate, onDeleteAccount, lineColor, isExpanded, onToggleExpand }) => {
+const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembers, onResponsibleUpdate, onDeleteAccount, isExpanded, onToggleExpand }) => {
     const { userRole } = useAuth();
     const isAdmin = userRole === 'Admin';
     const salesAndAdminMembers = allTeamMembers.filter(m => m.role === 'Admin' || m.role === 'SalesRep');
@@ -54,9 +54,6 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
     return (
         <TooltipProvider>
             <TableRow className={cn("transition-colors hover:bg-secondary/10", isExpanded && "bg-secondary/10", isOverdue && "bg-rose-50/50 dark:bg-rose-900/10")}>
-                <TableCell className="p-0 w-2">
-                    <div className={cn("w-1.5 h-full min-h-[4rem] transition-all", isExpanded ? lineColor : 'bg-transparent')}></div>
-                </TableCell>
                 <TableCell className="font-medium text-base py-3 px-2">
                    <div className="flex items-center gap-1">
                      <Button variant="ghost" size="icon" className="h-8 w-8 -ml-2" onClick={onToggleExpand}>
@@ -90,7 +87,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                 <TableCell className="py-3 px-2 text-xs">
                     {lastInteraction ? (
                         <div>
-                            <p className="text-muted-foreground truncate" title={getInteractionType(lastInteraction)}>{getInteractionType(lastInteraction)}</p>
+                            <p className="truncate" title={getInteractionType(lastInteraction)}>{getInteractionType(lastInteraction)}</p>
                             <p className="text-muted-foreground/80">{isValid(parseISO(lastInteraction.createdAt)) ? format(parseISO(lastInteraction.createdAt), "dd MMM yyyy", { locale: es }) : 'N/D'}</p>
                         </div>
                     ) : (
@@ -101,7 +98,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                     {account.nextInteraction ? (
                         <div className="flex items-center justify-between gap-2">
                             <div>
-                                <p className="text-muted-foreground truncate" title={getInteractionType(account.nextInteraction)}>{getInteractionType(account.nextInteraction)}</p>
+                                <p className="truncate" title={getInteractionType(account.nextInteraction)}>{getInteractionType(account.nextInteraction)}</p>
                                 {nextActionDate && isValid(nextActionDate) && (
                                     <p className={cn("font-semibold", isOverdue ? "text-red-600" : "text-muted-foreground/80")}>
                                         {format(nextActionDate, "dd MMM yyyy", { locale: es })}
@@ -113,22 +110,28 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                         <span className="text-muted-foreground">—</span>
                     )}
                 </TableCell>
+                <TableCell className="py-3 px-2 text-right">
+                    <FormattedNumericValue value={account.totalValue} options={{style: 'currency', currency: 'EUR'}} placeholder="—" />
+                </TableCell>
                 <TableCell className="py-3 px-2 text-center">
-                     <Tooltip>
-                        <TooltipTrigger asChild>
-                           <div className="flex items-center justify-center gap-1">
+                     <div className="flex flex-col items-center justify-center gap-1">
+                        {lastInteraction && <StatusBadge type="order" status={lastInteraction.status} />}
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                            <div className="flex items-center justify-center gap-1">
                                 {priorityIcon}
                                 <span className="font-semibold text-sm">{account.leadScore}</span>
-                           </div>
-                        </TooltipTrigger>
-                        <TooltipContent><p>Puntuación de Prioridad (Lead Score)</p></TooltipContent>
-                    </Tooltip>
+                            </div>
+                            </TooltipTrigger>
+                            <TooltipContent><p>Puntuación de Prioridad (Lead Score)</p></TooltipContent>
+                        </Tooltip>
+                     </div>
                 </TableCell>
                 <TableCell className="py-3 px-2 text-right pr-4">
                      <div className="flex items-center justify-end gap-1">
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                               <Button variant="ghost" size="icon" className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
+                               <Button variant="ghost" size="icon" className="h-8 w-8"><Edit className="h-4 w-4" /></Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                                <DropdownMenuItem asChild><Link href={`/accounts/${account.id}`}><Eye className="mr-2 h-4 w-4"/>Ver Ficha Completa</Link></DropdownMenuItem>

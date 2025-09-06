@@ -141,7 +141,7 @@ export default function AccountsPage() {
                 if (!dateB) return -1;
                 if (!isValid(dateA)) return 1;
                 if (!isValid(dateB)) return -1;
-                return dateB.getTime() - dateA.getTime();
+                return dateB.getTime() - a.getTime();
             }
             case 'leadScore_desc':
             default:
@@ -294,13 +294,12 @@ export default function AccountsPage() {
                     <TableHeader>
                         <TableRow className="bg-muted/30 hover:bg-muted/30">
                             <TableHead className="w-[1%] p-0"></TableHead>
-                            <TableHead className="table-header-std w-[24%]">Cuenta</TableHead>
-                            <TableHead className="table-header-std w-[10%] text-center">Estado</TableHead>
-                            <TableHead className="table-header-std w-[15%]">Responsable</TableHead>
-                            <TableHead className="table-header-std w-[15%]">Última Interacción</TableHead>
-                            <TableHead className="table-header-std w-[20%]">Próxima Tarea</TableHead>
-                            <TableHead className="table-header-std w-[5%] text-center">Prioridad</TableHead>
-                            <TableHead className="table-header-std w-[10%] text-right pr-4">Acciones</TableHead>
+                            <TableHead className="uppercase text-xs tracking-wider w-[24%]">Cuenta</TableHead>
+                            <TableHead className="uppercase text-xs tracking-wider w-[15%]">Responsable</TableHead>
+                            <TableHead className="uppercase text-xs tracking-wider w-[15%]">Última Interacción</TableHead>
+                            <TableHead className="uppercase text-xs tracking-wider w-[20%]">Próxima Tarea</TableHead>
+                            <TableHead className="uppercase text-xs tracking-wider w-[5%] text-center">Prioridad</TableHead>
+                            <TableHead className="uppercase text-xs tracking-wider w-[10%] text-right pr-4">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -312,7 +311,7 @@ export default function AccountsPage() {
                         
                         {(activeAccounts.length + potentialAccounts.length + pendingAccounts.length + inactiveAccounts.length + failedAccounts.length) === 0 && (
                             <TableRow>
-                                <TableCell colSpan={8} className="text-center h-24 text-muted-foreground">
+                                <TableCell colSpan={7} className="text-center h-24 text-muted-foreground">
                                     No se encontraron cuentas con los filtros actuales.
                                 </TableCell>
                             </TableRow>
@@ -375,7 +374,7 @@ const AccountGroup: React.FC<AccountGroupProps> = ({ title, accounts, teamMember
     return (
         <>
             <TableRow className="bg-muted/30 hover:bg-muted/30 sticky top-0 z-10">
-                <TableCell colSpan={8} className="p-0">
+                <TableCell colSpan={7} className="p-0">
                    <div className="py-2 px-2 flex justify-between items-center">
                         <div className="flex items-center gap-2">
                            <div className={cn("w-2 h-6 rounded-r-full", groupColor)}></div>
@@ -397,7 +396,7 @@ const AccountGroup: React.FC<AccountGroupProps> = ({ title, accounts, teamMember
                     />
                     {expandedRowId === account.id && (
                         <TableRow className="bg-background hover:bg-background">
-                            <TableCell colSpan={8} className="p-0 border-l-4 border-primary">
+                            <TableCell colSpan={7} className="p-0 border-l-4 border-primary">
                                 {account.interactions ? (
                                     <AccountHistoryTable interactions={account.interactions} />
                                 ) : (

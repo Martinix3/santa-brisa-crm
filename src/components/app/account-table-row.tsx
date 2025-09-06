@@ -57,7 +57,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                 <TableCell className="p-0 w-2">
                     <div className={cn("w-1.5 h-full min-h-[4rem] transition-all", isExpanded ? lineColor : 'bg-transparent')}></div>
                 </TableCell>
-                <TableCell className="table-cell-main-text">
+                <TableCell className="font-medium text-base py-3 px-2">
                    <div className="flex items-center gap-1">
                      <Button variant="ghost" size="icon" className="h-8 w-8 -ml-2" onClick={onToggleExpand}>
                         <ChevronRight className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-90")} />
@@ -67,10 +67,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                      </Link>
                    </div>
                 </TableCell>
-                <TableCell className="table-cell-std text-center">
-                    <StatusBadge type="account" status={account.status} />
-                </TableCell>
-                <TableCell className="table-cell-std text-left">
+                <TableCell className="py-3 px-2 text-left">
                     {isAdmin ? (
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -90,7 +87,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                         <div className="flex items-center gap-2"><Avatar className="h-7 w-7"><AvatarImage src={account.responsableAvatar} data-ai-hint="person face" /><AvatarFallback className="text-xs">{account.responsableName?.split(' ').map(n => n[0]).join('') || 'S/A'}</AvatarFallback></Avatar><span className="text-sm truncate">{account.responsableName || 'Sin Asignar'}</span></div>
                     )}
                 </TableCell>
-                <TableCell className="table-cell-std text-xs">
+                <TableCell className="py-3 px-2 text-xs">
                     {lastInteraction ? (
                         <div>
                             <p className="text-muted-foreground truncate" title={getInteractionType(lastInteraction)}>{getInteractionType(lastInteraction)}</p>
@@ -100,7 +97,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                         <span className="text-muted-foreground">—</span>
                     )}
                 </TableCell>
-                 <TableCell className="table-cell-std text-xs">
+                 <TableCell className="py-3 px-2 text-xs">
                     {account.nextInteraction ? (
                         <div className="flex items-center justify-between gap-2">
                             <div>
@@ -116,7 +113,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                         <span className="text-muted-foreground">—</span>
                     )}
                 </TableCell>
-                <TableCell className="table-cell-std text-center">
+                <TableCell className="py-3 px-2 text-center">
                      <Tooltip>
                         <TooltipTrigger asChild>
                            <div className="flex items-center justify-center gap-1">
@@ -127,7 +124,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                         <TooltipContent><p>Puntuación de Prioridad (Lead Score)</p></TooltipContent>
                     </Tooltip>
                 </TableCell>
-                <TableCell className="table-cell-std text-right pr-4">
+                <TableCell className="py-3 px-2 text-right pr-4">
                      <div className="flex items-center justify-end gap-1">
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>

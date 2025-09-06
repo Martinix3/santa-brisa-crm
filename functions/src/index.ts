@@ -1,25 +1,30 @@
 import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
-import axios from "axios";
 import * as logger from "firebase-functions/logger";
+import { listProjects, createProject } from "./holdedClient";
 
 const HOLDED_API_KEY = defineSecret("HOLDED_API_KEY");
 
-// Región: ajusta si usabas otra (antes pusiste europe-west1)
-export const holdedListProjects = onRequest(
+// --- UTILITY FOR CORS ---
+function setCorsHeaders(res: any) {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.set("Access-control-allow-headers", "Content-Type, Authorization");
+}
+
+
+// --- PROJECTS ENDPOINT ---
+export const holdedProjects = onRequest(
   { region: "europe-west1", secrets: [HOLDED_API_KEY], cors: true },
-  async (_req, res) => {
-    // This handles the preflight OPTIONS request for CORS
-    if (_req.method === "OPTIONS") {
-        res.set("Access-Control-Allow-Origin", "*");
-        res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-        res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-        res.status(204).send("");
-        return;
-    }
-    // Set CORS headers for actual requests
-    res.set("Access-Control-Allow-Origin", "*");
+  async (req, res) => {
+    setCorsHeaders(res);
     
+    // Handle preflight OPTIONS request
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+
     try {
       const apiKey = HOLDED_API_KEY.value();
       if (!apiKey) {
@@ -27,41 +32,34 @@ export const holdedListProjects = onRequest(
         res.status(500).json({ ok: false, error: "Falta la configuración de la clave de API de Holded en el servidor." });
         return;
       }
-      
-      logger.info("Successfully loaded Holded API Key.");
 
-      const url = "https://api.holded.com/api/invoicing/v1/projects";
-      logger.info(`Making GET request to: ${url}`);
+      if (req.method === 'GET') {
+          logger.info("Handling GET /holdedProjects");
+          const projects = await listProjects(apiKey);
+          logger.info("Successfully fetched projects from Holded.");
+          res.status(200).json({ ok: true, data: projects });
+
+      } else if (req.method === 'POST') {
+          logger.info("Handling POST /holdedProjects");
+          const projectData = req.body;
+          if (!projectData || !projectData.name) {
+              return res.status(400).json({ ok: false, error: "El nombre del proyecto ('name') es obligatorio." });
+          }
+          const newProject = await createProject(apiKey, projectData);
+          logger.info(`Successfully created project "${newProject.name}" in Holded.`);
+          res.status(201).json({ ok: true, data: newProject });
       
-      const r = await axios.get(url, { 
-          headers: { 
-            "key": apiKey,
-            "Content-Type": "application/json",
-          } 
-      });
-      
-      logger.info("Successfully received response from Holded.", { status: r.status });
-      res.status(200).json({ ok: true, data: r.data });
+      } else {
+          res.setHeader('Allow', ['GET', 'POST']);
+          res.status(405).end(`Method ${req.method} Not Allowed`);
+      }
 
     } catch (e: any) {
       logger.error("ERROR during Holded API call:", {
-            isAxiosError: axios.isAxiosError(e),
-            axiosErrorData: axios.isAxiosError(e) ? {
-                code: e.code,
-                status: e.response?.status,
-                data: e.response?.data,
-            } : null,
-            errorMessage: e.message,
-            errorStack: e.stack,
-        });
-
-      if (axios.isAxiosError(e)) {
-          const status = e.response?.status || 502;
-          const errorMessage = e.response?.data?.info || e.message;
-          res.status(status).json({ ok: false, error: `Error de la API de Holded: ${errorMessage}` });
-      } else {
-          res.status(500).json({ ok: false, error: e?.message ?? "Error al consultar Holded" });
-      }
+        errorMessage: e.message,
+        errorStack: e.stack,
+      });
+      res.status(500).json({ ok: false, error: e.message || "Error al consultar Holded" });
     }
   }
 );

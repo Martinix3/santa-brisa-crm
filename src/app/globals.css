@@ -63,49 +63,6 @@
     --sb-n-800:#2E3947;
     --sb-n-900:#14191F;
 
-    /* --- SHADCN THEME MAPPING --- */
-    --background: 210 20% 98%; /* --sb-n-25 */
-    --foreground: 224 71.4% 4.1%; /* --sb-n-900 */
-    --card: 0 0% 100%; /* White */
-    --card-foreground: 224 71.4% 4.1%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 224 71.4% 4.1%;
-    --primary: 46 93% 66%; /* --sb-primary-500: #F7D15F */
-    --primary-foreground: 224 71.4% 4.1%;
-    --secondary: 220 13% 91%; /* --sb-n-100 */
-    --secondary-foreground: 224 71.4% 4.1%;
-    --muted: 220 13% 91%; /* --sb-n-100 */
-    --muted-foreground: 220 8.9% 43.1%; /* --sb-n-600 */
-    --accent: 183 26% 47%; /* --sb-teal-600 */
-    --accent-foreground: 0 0% 100%;
-    --destructive: 18 84% 53%; /* --sb-tang-500: #D7713E */
-    --destructive-foreground: 0 0% 100%;
-    --border: 220 13% 91%; /* --sb-n-100 */
-    --input: 220 13% 91%;
-    --ring: 183 26% 47%; /* --sb-teal-600 */
-    
-    --radius: 0.5rem;
-
-    /* Sidebar specific mapping */
-    --sidebar-background: hsl(224, 71.4%, 4.1%); /* --sb-n-900 */
-    --sidebar-foreground: hsl(220, 13%, 91%); /* --sb-n-100 */
-    --sidebar-primary: hsl(46, 93%, 66%); /* --sb-primary-500 */
-    --sidebar-primary-foreground: hsl(224, 71.4%, 4.1%);
-    --sidebar-accent: hsl(46, 93%, 66%, 0.1);
-    --sidebar-accent-foreground: hsl(46, 93%, 66%);
-    --sidebar-border: hsl(220, 8.9%, 43.1%, 0.3);
-    --sidebar-ring: hsl(183, 26%, 47%);
-
-    /* Radios, Shadows etc. from Guide */
-    --sb-radius-sm: 8px;
-    --sb-radius-md: 12px;
-    --sb-radius-lg: 16px;
-    --sb-radius-2xl: 20px;
-    --sb-shadow-xs: 0 1px 2px rgba(9,11,15,.06);
-    --sb-shadow-sm: 0 2px 8px rgba(9,11,15,.08);
-    --sb-shadow-md: 0 6px 20px rgba(9,11,15,.12);
-    --sb-shadow-lg: 0 16px 40px rgba(9,11,15,.16);
-
     /* Brand semantic colors as HSL for potential use */
     --brand-success-hsl: 183 31% 43%; /* --sb-teal-700 */
     --brand-warning-hsl: 42 65% 45%; /* --sb-primary-700 */
@@ -124,6 +81,7 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
   }
 }
 
@@ -179,4 +137,70 @@
     size: A4 portrait;
     margin: 1cm;
   }
+}
+
+/* === SB → Shadcn Bridge: activa la marca + bordes rectos === */
+:root {
+  /* Colores del sistema (shadcn) mapeados a tu paleta */
+  --background: 210 20% 98%;           /* ≈ #FAFBFC */
+  --foreground: 210 17% 15%;           /* ≈ #14191F */
+
+  --card: 210 20% 98%;
+  --card-foreground: 210 17% 15%;
+
+  --popover: 210 20% 98%;
+  --popover-foreground: 210 17% 15%;
+
+  --primary: 46 93% 66%;               /* ≈ #F7D15F (Amarillo SB) */
+  --primary-foreground: 210 17% 15%;
+
+  --secondary: 184 18% 47%;            /* ≈ #618E8F */
+  --secondary-foreground: 210 20% 98%;
+
+  --muted: 216 17% 95%;                /* ≈ #F4F6F8 */
+  --muted-foreground: 214 11% 41%;     /* ≈ #66778E */
+
+  --accent: 184 25% 95%;               /* ≈ #E9F0F1 */
+  --accent-foreground: 184 22% 31%;    /* ≈ #405D5E */
+
+  --destructive: 18 56% 48%;           /* ≈ #B85C34 */
+  --destructive-foreground: 210 20% 98%;
+
+  --border: 216 17% 91%;               /* ≈ #E9EDF2 */
+  --input: 216 17% 91%;
+  --ring: 184 18% 47%;                 /* foco en teal SB */
+
+  /* Bordes rectos por defecto en todo el sistema shadcn */
+  --radius: 0px;  /* << clave para quitar redondeos globales */
+}
+
+/* Modo oscuro coherente (opcional; si usas .dark) */
+.dark {
+  --background: 210 17% 15%;
+  --foreground: 210 20% 98%;
+
+  --card: 210 17% 15%;
+  --card-foreground: 210 20% 98%;
+
+  --popover: 210 17% 15%;
+  --popover-foreground: 210 20% 98%;
+
+  --primary: 46 93% 66%;
+  --primary-foreground: 210 17% 15%;
+
+  --secondary: 184 18% 47%;
+  --secondary-foreground: 210 20% 98%;
+
+  --muted: 214 11% 25%;
+  --muted-foreground: 214 11% 60%;
+
+  --accent: 184 22% 21%;
+  --accent-foreground: 210 20% 98%;
+
+  --destructive: 18 56% 48%;
+  --destructive-foreground: 210 20% 98%;
+
+  --border: 214 11% 25%;
+  --input: 214 11% 25%;
+  --ring: 46 93% 66%;
 }

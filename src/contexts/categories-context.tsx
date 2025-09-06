@@ -1,10 +1,10 @@
 
+
 "use client";
 
 import React, { createContext, useState, useEffect, useContext, useMemo } from 'react';
 import { getCategoriesFS } from '@/services/category-service';
 import type { Category } from '@/types';
-import { useAuth } from './auth-context';
 
 interface CategoriesContextType {
     allCategories: Category[];
@@ -22,10 +22,9 @@ export const CategoriesContext = createContext<CategoriesContextType>({
     costCategories: [],
 });
 
-export function CategoriesProvider({ children }: { children: React.ReactNode }) {
+export function CategoriesProvider({ children, dataSignature }: { children: React.ReactNode, dataSignature: number }) {
   const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const { dataSignature } = useAuth();
 
   useEffect(() => {
     setIsLoading(true);

@@ -9,23 +9,26 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { crmEventTypeList, crmEventStatusList } from "@/lib/data";
-import type { CrmEvent, CrmEventType, CrmEventStatus, TeamMember, UserRole } from "@/types";
+import type { CrmEvent, CrmEventType, CrmEventStatus, TeamMember, UserRole, Account } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { PlusCircle, Edit, Trash2, MoreHorizontal, PartyPopper, Filter, ChevronDown, Eye, Loader2 } from "lucide-react";
+import { PlusCircle, Edit, Trash2, MoreHorizontal, PartyPopper, Filter, ChevronDown, Eye, Loader2, Building2 } from "lucide-react";
 import EventDialog, { type EventFormValues } from "@/components/app/event-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format, parseISO } from "date-fns";
 import { es } from 'date-fns/locale';
 import StatusBadge from "@/components/app/status-badge";
 import { getTeamMembersFS } from "@/services/team-member-service";
+import { getAccountsFS } from "@/services/account-service";
 import { getEventsFS, addEventFS, updateEventFS, deleteEventFS, initializeMockEventsInFirestore } from "@/services/event-service";
 import { mockCrmEvents as initialMockEventsForSeeding } from "@/lib/data"; 
+import Link from 'next/link';
 
 export default function EventsPage() {
   const { toast } = useToast();
   const { userRole, teamMember } = useAuth(); // Added teamMember
   const [events, setEvents] = React.useState<CrmEvent[]>([]);
   const [allTeamMembers, setAllTeamMembers] = React.useState<TeamMember[]>([]);
+  const [allAccounts, setAllAccounts] = React.useState<Account[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [editingEvent, setEditingEvent] = React.useState<CrmEvent | null>(null);
   const [isEventDialogOpen, setIsEventDialogOpen] = React.useState(false);
@@ -43,9 +46,10 @@ export default function EventsPage() {
         setIsLoading(true);
         try {
             await initializeMockEventsInFirestore(initialMockEventsForSeeding); 
-            const [fetchedEvents, fetchedTeamMembers] = await Promise.all([
+            const [fetchedEvents, fetchedTeamMembers, fetchedAccounts] = await Promise.all([
                 getEventsFS(),
-                getTeamMembersFS() 
+                getTeamMembersFS(),
+                getAccountsFS(),
             ]);
             
             if (userRole === 'Clavadista' && teamMember) {
@@ -54,6 +58,7 @@ export default function EventsPage() {
                 setEvents(fetchedEvents);
             }
             setAllTeamMembers(fetchedTeamMembers);
+            setAllAccounts(fetchedAccounts);
 
         } catch (error) {
             console.error("Failed to load events or team members:", error);
@@ -237,9 +242,9 @@ export default function EventsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[25%]">Nombre del Evento</TableHead>
-                    <TableHead className="w-[15%]">Tipo</TableHead>
                     <TableHead className="w-[15%]">Fechas</TableHead>
-                    <TableHead className="w-[20%]">Responsables</TableHead>
+                    <TableHead className="w-[20%]">Cuenta Vinculada</TableHead>
+                    <TableHead className="w-[15%]">Responsables</TableHead>
                     <TableHead className="text-center w-[10%]">Estado</TableHead>
                     <TableHead className="text-right w-[15%]">Acciones</TableHead>
                   </TableRow>
@@ -248,10 +253,18 @@ export default function EventsPage() {
                   {filteredEvents.length > 0 ? filteredEvents.map((event) => (
                     <TableRow key={event.id}>
                       <TableCell className="font-medium">{event.name}</TableCell>
-                      <TableCell>{event.type}</TableCell>
                       <TableCell>
                         {format(parseISO(event.startDate), "dd/MM/yy", { locale: es })}
                         {event.endDate && event.endDate !== event.startDate ? ` - ${format(parseISO(event.endDate), "dd/MM/yy", { locale: es })}` : ''}
+                      </TableCell>
+                      <TableCell>
+                        {event.accountId && event.accountName ? (
+                          <Link href={`/accounts/${event.accountId}`} className="hover:underline text-primary flex items-center gap-1.5 text-xs">
+                             <Building2 className="h-3 w-3"/>{event.accountName}
+                          </Link>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">N/A</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-xs truncate max-w-[200px]" title={getAssignedTeamMemberNames(event.assignedTeamMemberIds)}>
                           {getAssignedTeamMemberNames(event.assignedTeamMemberIds)}
@@ -341,6 +354,7 @@ export default function EventsPage() {
         onSave={handleSaveEvent}
         isReadOnly={isReadOnlyDialog || (!isAdmin && !!editingEvent)} // Clavadistas y SalesRep no pueden editar
         allTeamMembers={allTeamMembers}
+        allAccounts={allAccounts}
       />
     </div>
   );

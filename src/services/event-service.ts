@@ -1,15 +1,14 @@
-
-'use server';
-
 import { db } from '@/lib/firebase';
 import {
   collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
-  type DocumentSnapshot, writeBatch, runTransaction
+  type DocumentSnapshot, writeBatch, runTransaction, where,
 } from "firebase/firestore";
-import type { CrmEvent, EventFormValues } from '@/types';
+import type { CrmEvent, EventFormValues, InventoryItem, Category } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
+import { getInventoryItemByIdFS } from './inventory-item-service';
 
 const EVENTS_COLLECTION = 'events';
+const PURCHASES_COLLECTION = 'purchases';
 
 const fromFirestoreEvent = (docSnap: DocumentSnapshot): CrmEvent => {
   const data = docSnap.data();
@@ -29,6 +28,14 @@ const fromFirestoreEvent = (docSnap: DocumentSnapshot): CrmEvent => {
     createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : (typeof data.createdAt === 'string' ? data.createdAt : format(new Date(), "yyyy-MM-dd")),
     updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : (typeof data.updatedAt === 'string' ? data.updatedAt : format(new Date(), "yyyy-MM-dd")),
     orderIndex: data.orderIndex ?? 0,
+    budget: data.budget,
+    currency: data.currency,
+    isCashflowForecast: data.isCashflowForecast,
+    salesTarget: data.salesTarget,
+    salesActual: data.salesActual,
+    accountId: data.accountId,
+    accountName: data.accountName,
+    costCenterId: data.costCenterId,
   };
 };
 
@@ -45,6 +52,14 @@ const toFirestoreEvent = (data: EventFormValues, isNew: boolean): any => {
     assignedMaterials: data.assignedMaterials || [],
     notes: data.notes || null,
     orderIndex: data.orderIndex ?? 0,
+    budget: data.budget ?? null,
+    currency: data.currency || null,
+    isCashflowForecast: data.isCashflowForecast || false,
+    salesTarget: data.salesTarget ?? null,
+    salesActual: data.salesActual ?? null,
+    accountId: data.accountId || null,
+    accountName: data.accountName || null,
+    costCenterId: data.costCenterId || null,
   };
 
   if (isNew) {
@@ -54,10 +69,10 @@ const toFirestoreEvent = (data: EventFormValues, isNew: boolean): any => {
   firestoreData.updatedAt = Timestamp.fromDate(new Date());
 
   Object.keys(firestoreData).forEach(key => {
-    if (firestoreData[key] === undefined || firestoreData[key] === '') {
-      if (['description', 'location', 'notes', 'endDate'].includes(key)) {
+    if (firestoreData[key] === undefined) {
+      if (['description', 'location', 'notes', 'endDate', 'budget', 'currency', 'salesTarget', 'salesActual', 'accountId', 'accountName', 'costCenterId'].includes(key)) {
         firestoreData[key] = null;
-      } else if (!['assignedTeamMemberIds', 'assignedMaterials'].includes(key)) {
+      } else if (!['assignedTeamMemberIds', 'assignedMaterials', 'isCashflowForecast'].includes(key)) {
         delete firestoreData[key];
       }
     }
@@ -84,6 +99,19 @@ export const getEventsFS = async (): Promise<CrmEvent[]> => {
   return eventList;
 };
 
+export const getEventsForAccountFS = async (accountId: string): Promise<CrmEvent[]> => {
+    if (!accountId) return [];
+    // The query now only filters by accountId. The ordering is done client-side to avoid the composite index requirement.
+    const q = query(collection(db, EVENTS_COLLECTION), where("accountId", "==", accountId));
+    const snapshot = await getDocs(q);
+    const events = snapshot.docs.map(fromFirestoreEvent);
+    
+    // Sort in application code
+    events.sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
+    
+    return events;
+};
+
 export const getEventByIdFS = async (id: string): Promise<CrmEvent | null> => {
   if (!id) return null;
   const eventDocRef = doc(db, EVENTS_COLLECTION, id);
@@ -91,31 +119,61 @@ export const getEventByIdFS = async (id: string): Promise<CrmEvent | null> => {
   return docSnap.exists() ? fromFirestoreEvent(docSnap) : null;
 };
 
-const updateStockForEvent = async (materialId: string, quantityChange: number) => {
-    const materialDocRef = doc(db, 'inventoryItems', materialId);
-    try {
-        await runTransaction(db, async (transaction) => {
-            const materialDoc = await transaction.get(materialDocRef);
-            if (!materialDoc.exists()) {
-                throw new Error(`Inventory Item ${materialId} not found.`);
-            }
-            const currentStock = materialDoc.data().stock || 0;
-            transaction.update(materialDocRef, { stock: currentStock + quantityChange });
-        });
-    } catch (e) {
-        console.error(`Stock update for material ${materialId} failed:`, e);
-        // In a real app, you might want more sophisticated error handling
+const updateStockAndCreateExpenseForMaterials = async (
+  materials: { materialId: string; quantity: number }[],
+  referenceText: string,
+  marketingCategoryId: string,
+  isRemoval: boolean = false
+) => {
+  if (!materials || materials.length === 0) return;
+
+  const batch = writeBatch(db);
+  let totalCost = 0;
+
+  for (const item of materials) {
+    const materialDoc = await getInventoryItemByIdFS(item.materialId);
+    if (!materialDoc) {
+      console.warn(`Material with ID ${item.materialId} not found. Skipping stock update.`);
+      continue;
     }
+
+    const materialRef = doc(db, 'inventoryItems', item.materialId);
+    const change = isRemoval ? item.quantity : -item.quantity;
+    batch.update(materialRef, { stock: increment(change) });
+    
+    totalCost += (materialDoc.latestPurchase?.calculatedUnitCost || 0) * item.quantity;
+  }
+  
+  if (totalCost > 0) {
+    const expenseData = {
+      concepto: referenceText,
+      categoriaId: marketingCategoryId,
+      isInventoryPurchase: false,
+      estadoDocumento: 'factura_validada',
+      estadoPago: 'pagado',
+      monto: totalCost,
+      moneda: 'EUR',
+      fechaEmision: Timestamp.now(),
+      creadoPor: 'system_auto',
+      fechaCreacion: Timestamp.now(),
+    };
+    const newExpenseRef = doc(collection(db, PURCHASES_COLLECTION));
+    batch.set(newExpenseRef, expenseData);
+  }
+
+  await batch.commit();
 };
 
 export const addEventFS = async (data: EventFormValues): Promise<string> => {
   const firestoreData = toFirestoreEvent(data, true);
   const docRef = await addDoc(collection(db, EVENTS_COLLECTION), firestoreData);
   
+  const mktCatQuery = query(collection(db, 'categories'), where('name', '==', 'Ventas & Marketing'));
+  const mktCatSnapshot = await getDocs(mktCatQuery);
+  const marketingCategoryId = mktCatSnapshot.empty ? 'MKT' : mktCatSnapshot.docs[0].id;
+
   if (data.assignedMaterials && data.assignedMaterials.length > 0) {
-    for (const item of data.assignedMaterials) {
-        await updateStockForEvent(item.materialId, -item.quantity);
-    }
+    await updateStockAndCreateExpenseForMaterials(data.assignedMaterials, `Consumo PLV para Evento: ${data.name}`, marketingCategoryId);
   }
 
   return docRef.id;
@@ -124,27 +182,47 @@ export const addEventFS = async (data: EventFormValues): Promise<string> => {
 export const updateEventFS = async (id: string, data: EventFormValues): Promise<void> => {
   const eventDocRef = doc(db, EVENTS_COLLECTION, id);
   const existingEventDoc = await getDoc(eventDocRef);
-  if (!existingEventDoc.exists()) throw new Error("Event not found to update stock");
+  if (!existingEventDoc.exists()) throw new Error("Event not found to update");
   const oldData = fromFirestoreEvent(existingEventDoc);
 
   const firestoreData = toFirestoreEvent(data, false);
   await updateDoc(eventDocRef, firestoreData);
+
+  const mktCatQuery = query(collection(db, 'categories'), where('name', '==', 'Ventas & Marketing'));
+  const mktCatSnapshot = await getDocs(mktCatQuery);
+  const marketingCategoryId = mktCatSnapshot.empty ? 'MKT' : mktCatSnapshot.docs[0].id;
 
   const stockChanges = new Map<string, number>();
   const oldMaterials = oldData.assignedMaterials || [];
   const newMaterials = data.assignedMaterials || [];
 
   for (const oldItem of oldMaterials) {
-    stockChanges.set(oldItem.materialId, (stockChanges.get(oldItem.materialId) || 0) + oldItem.quantity);
+    if (oldItem.materialId && oldItem.quantity > 0) {
+      stockChanges.set(oldItem.materialId, (stockChanges.get(oldItem.materialId) || 0) + oldItem.quantity);
+    }
   }
   for (const newItem of newMaterials) {
-    stockChanges.set(newItem.materialId, (stockChanges.get(newItem.materialId) || 0) - newItem.quantity);
+    if (newItem.materialId && newItem.quantity > 0) {
+      stockChanges.set(newItem.materialId, (stockChanges.get(newItem.materialId) || 0) - newItem.quantity);
+    }
+  }
+
+  const materialsToExpense: { materialId: string; quantity: number }[] = [];
+  const materialsToReturn: { materialId: string; quantity: number }[] = [];
+
+  for (const [materialId, quantityChange] of stockChanges.entries()) {
+    if (quantityChange < 0) { // New materials were added or quantity increased
+      materialsToExpense.push({ materialId, quantity: -quantityChange });
+    } else if (quantityChange > 0) { // Materials were removed or quantity decreased
+      materialsToReturn.push({ materialId, quantity: quantityChange });
+    }
   }
   
-  for (const [materialId, quantityChange] of stockChanges.entries()) {
-    if (quantityChange !== 0) {
-      await updateStockForEvent(materialId, quantityChange);
-    }
+  if (materialsToExpense.length > 0) {
+    await updateStockAndCreateExpenseForMaterials(materialsToExpense, `Ajuste PLV para Evento: ${data.name}`, marketingCategoryId, false);
+  }
+  if (materialsToReturn.length > 0) {
+    await updateStockAndCreateExpenseForMaterials(materialsToReturn, `Devolución PLV de Evento: ${eventData.name}`, marketingCategoryId, true);
   }
 };
 
@@ -155,9 +233,10 @@ export const deleteEventFS = async (id: string): Promise<void> => {
   if (existingEventDoc.exists()) {
     const eventData = fromFirestoreEvent(existingEventDoc);
     if (eventData.assignedMaterials && eventData.assignedMaterials.length > 0) {
-        for (const item of eventData.assignedMaterials) {
-            await updateStockForEvent(item.materialId, item.quantity);
-        }
+      const mktCatQuery = query(collection(db, 'categories'), where('name', '==', 'Ventas & Marketing'));
+      const mktCatSnapshot = await getDocs(mktCatQuery);
+      const marketingCategoryId = mktCatSnapshot.empty ? 'MKT' : mktCatSnapshot.docs[0].id;
+      await updateStockAndCreateExpenseForMaterials(eventData.assignedMaterials, `Cancelación/Devolución PLV Evento: ${eventData.name}`, marketingCategoryId, true);
     }
   }
   await deleteDoc(eventDocRef);
@@ -167,7 +246,7 @@ export const initializeMockEventsInFirestore = async (mockEventsData: CrmEvent[]
     const eventsCol = collection(db, EVENTS_COLLECTION);
     const snapshot = await getDocs(query(eventsCol, orderBy('createdAt', 'desc')));
     if (snapshot.empty && mockEventsData.length > 0) {
-        for (const event of mockEventsData) {
+        for(const event of mockEventsData) {
             const { id, createdAt, updatedAt, startDate, endDate, ...eventData } = event;
             
             const firestoreReadyData: any = { ...eventData };
@@ -182,7 +261,7 @@ export const initializeMockEventsInFirestore = async (mockEventsData: CrmEvent[]
             firestoreReadyData.description = event.description || null;
             firestoreReadyData.location = event.location || null;
             firestoreReadyData.notes = event.notes || null;
-
+            
             await addDoc(eventsCol, firestoreReadyData);
         }
         console.log('Mock events initialized in Firestore.');

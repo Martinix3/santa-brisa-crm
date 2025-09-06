@@ -1,3 +1,7 @@
+> [!WARNING]
+> **Aviso para Desarrolladores y Colaboradores IA**
+> Este proyecto se gestiona con la asistencia de una IA que sigue un conjunto estricto de reglas. Antes de realizar cualquier cambio o ejecutar comandos, por favor, consulta las [**Reglas de Colaboración con IA (`docs/AI_RULES.md`)**](./docs/AI_RULES.md).
+
 # Santa Brisa CRM - Documentación Técnica
 
 ## 1. Arquitectura General
@@ -11,7 +15,9 @@ Este proyecto es un CRM (Customer Relationship Management) y ERP ligero construi
     -   **Firebase Authentication:** Gestiona la autenticación de usuarios por email/contraseña y roles.
     -   **Firestore:** Base de datos NoSQL utilizada para toda la información persistente (cuentas, pedidos, inventario, etc.).
     -   **Firebase Storage:** Almacena archivos subidos, como facturas de proveedores.
--   **Funcionalidades de IA:** Se utiliza **Genkit**, el framework de IA de código abierto de Google, para orquestar las llamadas a los modelos de **Google AI (Gemini)**. Esto permite funcionalidades como el procesamiento de documentos y asistentes conversacionales.
+-   **Funcionalidades de IA:** 
+    -   **Procesamiento de Facturas:** Se utiliza **Google Cloud Document AI** (Invoice Parser) para extraer datos estructrados de facturas. Este es un modelo especializado y altamente preciso.
+    -   **Asistente de Marketing y otras tareas:** Se utiliza **Genkit**, el framework de IA de código abierto de Google, para orquestar las llamadas a los modelos de **Google AI (Gemini)**.
 -   **Despliegue:** La aplicación se despliega en **Firebase Hosting**, que está configurado para soportar aplicaciones Next.js. Esto aprovecha las **Cloud Functions for Firebase** para ejecutar el código del lado del servidor de Next.js de forma serverless.
 
 ---
@@ -70,20 +76,63 @@ Firestore se organiza en colecciones de alto nivel que representan las entidades
 Los servicios en `src/services/` contienen la lógica más importante de la aplicación.
 
 -   **`cartera-service.ts`**: Orquesta la lógica para el panel de "Cuentas y Seguimiento". Combina datos de `accounts` y `orders` para calcular dinámicamente el **estado comercial** de una cuenta (`Activo`, `Repetición`, `Seguimiento`, etc.) y su **Lead Score** (puntuación de prioridad), basándose en la recencia y el valor de las interacciones.
--   **`production-run-service.ts`**: Gestiona el ciclo de vida de las órdenes de producción. Su función más crítica, `closeProductionRunFS`, implementa la lógica de consumo de lotes (por defecto FIFO - First-In, First-Out) para las materias primas, calcula el coste real del producto terminado y actualiza el stock de todos los artículos involucrados de forma transaccional.
+-   **`production-run-service.ts`**: Gestiona el ciclo de vida de las órdenes de producción. Su función más crítica, `closeProductionRun`, implementa la lógica de consumo de lotes (por defecto FIFO - First-In, First-Out) para las materias primas, calcula el coste real del producto terminado y actualiza el stock de todos los artículos involucrados de forma transaccional.
 -   **`purchase-service.ts`**: Maneja la recepción de stock. Al registrar una compra como "Factura Recibida", este servicio crea un nuevo `ItemBatch` para cada artículo, registrando su coste y cantidad específicos, y actualiza el stock general del `inventoryItem` correspondiente.
 -   **`auth-context.tsx`**: Aunque es un contexto de frontend, maneja lógica de negocio crucial. Escucha los cambios de estado de Firebase Auth y, al iniciar sesión un usuario, busca su perfil en `teamMembers` para obtener su rol y permisos, que luego se distribuyen por toda la aplicación.
 
 ---
 
-## 5. Funcionalidades de IA (Genkit)
+## 5. Configuración de Variables de Entorno y APIs
 
-Las capacidades de IA se definen en `src/ai/flows/` y se exponen a la aplicación a través de funciones de servidor.
+### 5.1. APIs de IA (Document AI, Google AI)
 
--   **`invoice-processing-flow.ts`**: Utiliza un modelo multimodal (Gemini) para procesar una imagen o PDF de una factura. El prompt está cuidadosamente diseñado para que el modelo extraiga información estructurada (proveedor, fechas, líneas de artículo, importes) y la devuelva en formato JSON.
--   **`traceability-report-flow.ts`**: Orquesta una serie de lecturas en Firestore para seguir la pista de un `ItemBatch`. Recopila su origen (compra o producción) y su destino (consumo en otra producción o venta directa) y luego utiliza un LLM para formatear estos datos en un informe de trazabilidad legible en formato Markdown.
--   **`material-matching-flow.ts`**: Ayuda al usuario a asociar un texto libre (ej: "cubiteras metalicas") de una factura con un `inventoryItem` ya existente en el sistema, evitando la creación de duplicados.
--   **`marketing-assistant-flow.ts`**: Implementa un patrón RAG (Retrieval-Augmented Generation). El prompt está "aumentado" con información de producto y argumentos de venta clave. Cuando un vendedor hace una pregunta, el LLM responde basándose únicamente en ese contexto proporcionado, actuando como un experto de la marca.
+Para que las funcionalidades de IA (Procesador de Facturas, Asistente) funcionen, es **imprescindible** configurar las variables de entorno en un fichero llamado `.env.local` en la raíz del proyecto.
+
+1.  **Crea un fichero llamado `.env.local`** en la raíz del proyecto (al mismo nivel que `package.json`).
+2.  **Copia y pega el siguiente contenido** en el fichero:
+
+    ```
+    # Información del Proyecto de Google Cloud
+    GCLOUD_PROJECT=santa-brisa-crm
+    GCLOUD_LOCATION=eu
+
+    # Google Cloud Document AI (Procesador de Facturas)
+    DOCUMENTAI_PROCESSOR_ID=YOUR_PROCESSOR_ID_HERE
+    ```
+
+3.  **Rellena el valor** de `DOCUMENTAI_PROCESSOR_ID` con tu ID de procesador.
+
+4.  **(Solo para Desarrollo Local) Autenticación de Servicios de Google Cloud:**
+    Para que servicios como Document AI y Google AI (Gemini) funcionen en tu máquina local, necesitas autenticarte con las **Credenciales Predeterminadas de la Aplicación (ADC)**. Ejecuta el siguiente comando en tu terminal **una sola vez**:
+    ```bash
+    gcloud auth application-default login
+    ```
+    Sigue las instrucciones que aparecerán en el navegador para completar el proceso. Esto permitirá a tu entorno local usar tu identidad para acceder a las APIs de Google Cloud de forma segura.
+
+### 5.2. API de Holded (Integración de Terceros)
+
+Para conectar con la API de Holded, la clave de API debe guardarse de forma segura usando **Firebase Secret Manager**. Sigue estos tres pasos en tu terminal:
+
+1.  **Crear el secreto en Google Cloud:**
+    Reemplaza `tu_api_key_real_de_holded` por tu clave real y ejecuta:
+    ```bash
+    echo "tu_api_key_real_de_holded" | gcloud secrets create HOLDED_API_KEY --data-file=-
+    ```
+
+2.  **Conceder permisos a la Cuenta de Servicio:**
+    La Cloud Function necesita permiso para leer el secreto. El siguiente comando usa la cuenta de servicio de tu proyecto (`santa-brisa-crm@appspot.gserviceaccount.com`):
+    ```bash
+    gcloud secrets add-iam-policy-binding HOLDED_API_KEY \
+      --member="serviceAccount:santa-brisa-crm@appspot.gserviceaccount.com" \
+      --role="roles/secretmanager.secretAccessor"
+    ```
+
+3.  **Hacer que el secreto esté disponible para Firebase Functions:**
+    Finalmente, ejecuta este comando para que tu función sepa que debe usar este secreto:
+    ```bash
+    firebase functions:secrets:set HOLDED_API_KEY
+    ```
+    Confirma cuando te lo pida la CLI. Tras estos pasos, tu función podrá acceder a la clave de forma segura a través de `process.env.HOLDED_API_KEY` al ser desplegada.
 
 ---
 
@@ -106,14 +155,8 @@ Las capacidades de IA se definen en `src/ai/flows/` y se exponen a la aplicació
     ```
 3.  **Configurar Firebase:**
     -   Asegúrate de tener un proyecto de Firebase creado.
-    -   En la raíz del proyecto, crea un archivo `.env.local`.
-    -   Copia la configuración del SDK web de tu proyecto de Firebase en este archivo. La estructura debe ser similar a la que se encuentra en `src/lib/firebase.ts`. **No incluyas las claves de Admin SDK aquí**.
-4.  **Configurar Google AI (Genkit):**
-    -   Asegúrate de tener una API Key para Google AI Studio.
-    -   Añade esta clave a tu archivo `.env.local`:
-        ```
-        GOOGLE_API_KEY=AIzaSy...
-        ```
+    -   En la raíz del proyecto, asegúrate de que el archivo `src/lib/firebase.ts` contiene la configuración del SDK web de tu proyecto de Firebase.
+4.  **Configurar las APIs:** Sigue los pasos de la sección 5 para crear y configurar tu fichero `.env.local` y los secretos de Holded.
 
 ### Ejecutar la Aplicación
 La aplicación requiere dos procesos para funcionar completamente: el servidor de desarrollo de Next.js y el inspector de flujos de Genkit.
@@ -147,3 +190,10 @@ El despliegue está automatizado a través de **GitHub Actions**.
     5.  Despliega a **Firebase Hosting** usando la acción `FirebaseExtended/action-hosting-deploy@v0`.
 -   **Secretos de GitHub:** El workflow requiere que el secreto `FIREBASE_TOKEN` esté configurado en los secretos del repositorio de GitHub para autorizar el despliegue.
 -   **Backend Serverless:** La configuración de `firebase.json` utiliza la propiedad `frameworksBackend`, que le indica a Firebase que despliegue el backend de Next.js (Server Components, API Routes, etc.) a Cloud Functions de forma automática.
+-   **Cuenta de Servicio:** Para que servicios como Document AI y los secretos funcionen en producción, la Cloud Function debe ejecutarse con una cuenta de servicio que tenga los permisos adecuados (ej. "Usuario de la API de Document AI", "Acceso a Secretos de Secret Manager"). Esto se configura en `firebase.json` con la propiedad `serviceAccount`.
+
+---
+
+## 8. Solución de Problemas
+
+Consulta el fichero `TROUBLESHOOTING.md` para ver una guía detallada de los errores más comunes y sus soluciones.

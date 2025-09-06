@@ -6,9 +6,9 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Send, Loader2 } from "lucide-react";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-import type { useOrderWizard } from "@/hooks/use-order-form-wizard";
+import type { useOrderFormWizard } from "@/hooks/use-order-form-wizard";
 
-type WizardHookReturn = ReturnType<typeof useOrderWizard>;
+type WizardHookReturn = ReturnType<typeof useOrderFormWizard>;
 type StepVerifyProps  = Pick<
   WizardHookReturn,
   "form" | "client" | "handleBack" | "availableMaterials" | "teamMember" | "userRole"
@@ -25,6 +25,8 @@ export const StepVerify: React.FC<StepVerifyProps> = ({
   const total      = subtotal * 1.21;
   
   const canSubmit = !form.formState.isSubmitting && !!teamMember && !!userRole;
+
+  const distributorName = 'distributorId' in (client || {}) ? (client as any).nombre : "Venta Directa";
 
   return (
     <>
@@ -49,6 +51,7 @@ export const StepVerify: React.FC<StepVerifyProps> = ({
 
             {isSuccess && (
               <>
+                <p><strong>Gestionado por:</strong> <span className="font-medium">{distributorName}</span></p>
                 <p><strong>Unidades:</strong> {v.numberOfUnits}</p>
                 <p><strong>Forma de Pago:</strong> {v.paymentMethod}{v.paymentMethod === "Giro Bancario" && ` – ${v.iban}`}</p>
                 <p><strong>Valor Total (IVA incl.):</strong>{" "}

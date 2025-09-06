@@ -1,9 +1,7 @@
 
+import { Timestamp, FieldValue } from "firebase/firestore";
 
-
-import { Timestamp } from "firebase/firestore";
-
-export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista';
+export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista' | 'Líder Clavadista' | 'finance';
 
 export interface Kpi {
   id: string;
@@ -18,6 +16,15 @@ export interface StrategicObjective {
   id: string;
   text: string;
   completed: boolean;
+}
+
+export interface StickyNote {
+  id: string;
+  content: string;
+  creatorId: string;
+  assignedToId: string;
+  isCompleted: boolean;
+  createdAt: string; // ISO String
 }
 
 export interface TeamMember {
@@ -35,6 +42,44 @@ export interface TeamMember {
   performanceData?: { month: string; bottles: number }[]; 
   createdAt?: string; 
   updatedAt?: string; 
+  // Ambassador Program Fields
+  liderId?: string;
+  equipoIds?: string[];
+  condiciones_personalizadas?: AmbassadorSettings;
+  total_comisiones?: number;
+  total_bonus?: number;
+  total_pedidos?: number;
+  // Distributor link
+  accountId?: string;
+}
+
+// --- EARNINGS CONFIG TYPES ---
+export interface HorecaRule {
+  stage: 'openAccount' | 'repeat45d' | 'months1to3' | 'afterMonth4';
+  label: string;
+  condition?: string;
+  minOrderCases?: number;
+  fixedFee?: number;
+  days?: number;
+  percentage?: number;
+}
+
+export interface DistributorRule {
+  tier: 'medium' | 'large' | 'top';
+  label: string;
+  initialMinCases: number;
+  activationFee: number;
+  secondOrderMinCases: number;
+  consolidationBonus: number;
+  percentageFirst3M: number;
+  percentageAfter: number;
+}
+
+export interface EarningsConfig {
+  horecaRules: HorecaRule[];
+  distributorRules: DistributorRule[];
+  lastEdited?: Timestamp;
+  editedBy?: string;
 }
 
 // --- ERP DATA MODELS ---
@@ -42,9 +87,11 @@ export interface TeamMember {
 export type CategoryKind = 'inventory' | 'cost';
 export interface Category {
   id: string;
+  idOverride?: string; // For seeding specific IDs
   name: string;
   kind: CategoryKind;
   isConsumable: boolean;
+  costType?: 'fixed' | 'variable';
   parentId?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -60,6 +107,7 @@ export interface CostCenter {
 }
 
 export type UoM = 'unit' | 'kg' | 'g' | 'l' | 'ml';
+export type QcStatus = 'Pending' | 'Released' | 'Rejected';
 
 export interface ItemBatch {
   id: string;
@@ -74,10 +122,14 @@ export interface ItemBatch {
   locationId?: string;
   isClosed: boolean;
   createdAt: string; 
+  updatedAt?: string;
+  qcStatus: QcStatus;
+  isLegacy?: boolean;
+  costLayers?: { qty: number; cost: number }[];
 }
 
 export type StockTxnType = 'recepcion' | 'consumo' | 'produccion' | 'ajuste' | 'desperdicio' | 'venta';
-export type StockTxnRefCollection = 'purchases' | 'productionRuns' | 'directSales' | 'inventoryAdjustments';
+export type StockTxnRefCollection = 'purchases' | 'productionRuns' | 'directSales' | 'inventoryAdjustments' | 'expenses';
 
 export interface StockTxn {
   id: string;
@@ -95,58 +147,102 @@ export interface StockTxn {
 }
 
 
-export type ProductionRunStatus = 'Borrador' | 'En Progreso' | 'Finalizada' | 'Cancelada';
+export type RunType   = "blend" | "fill";
+export type RunStatus = "Draft" | "Programada" | "En curso" | "Pausada" | "Finalizada" | "Cancelada";
+export type BomKind = "blend" | "fill";
+
+export interface Reservation {
+  componentId: string;
+  batchId: string;
+  qtyReserved: number;
+  uom: "l" | "u";
+}
+
+export interface Shortage {
+  componentId: string;
+  qtyShort: number;
+  supplierSuggested?: string;
+}
+
+export interface CleaningLog {
+  date: string; // ISO
+  type: "initial" | "final";
+  userId: string;
+  runId?: string;
+  material?: string;
+}
 
 export interface ProductionRun {
-    id: string;
-    productSku: string;
-    productName: string;
-    batchNumber: string; // The P... code for the OP
-    outputBatchId?: string; // The ID of the ItemBatch created for the finished product
-    qtyPlanned: number;
-    qtyProduced?: number;
-    status: ProductionRunStatus;
-    startDate: string; // ISO
-    endDate?: string; // ISO
-    unitCost?: number;
-    consumedComponents: {
-      componentId: string;
-      batchId: string;
-      componentName: string;
-      componentSku?: string;
-      quantity: number;
-      supplierBatchCode?: string; // The original supplier batch for this component
-    }[];
-    createdAt?: string;
-    updatedAt?: string;
-}
-
-
-export interface ProductCostSnapshot {
-    id: string;
-    date: Timestamp;
-    inventoryItemId: string;
-    unitCost: number;
-    productionRunId: string;
-}
-
-
-export type CashTxnDirection = 'in' | 'out';
-
-export interface CashTxn {
   id: string;
-  date: string; // ISO String
-  amount: number;
-  currency: Currency;
-  amountEq: number; // Value in base currency (e.g., EUR)
-  direction: CashTxnDirection;
-  refCollection: 'purchases' | 'directSales' | 'payrolls' | 'incentives';
-  refId: string;
-  costCenterIds?: string[];
-  notes?: string;
+  opCode: string;
+  type: RunType;
+  status: RunStatus;
+  productSku: string;
+  productName: string;
+  qtyPlanned: number;
+  qtyActual?: number;
+  lineId: string;
+  tankId?: string;
+  startPlanned: string; // ISO
+  startActual?: string; // ISO
+  endActual?: string; // ISO
+  lastPausedAt?: string; // ISO
+  totalPauseDuration?: number; // Total milliseconds in pause
+  reservations: Reservation[];
+  shortages: Shortage[];
+  consumedComponents?: {
+    componentId: string;
+    batchId: string;
+    componentName: string;
+    componentSku?: string;
+    quantity: number;
+    supplierBatchCode?: string;
+    unitCost?: number;
+  }[];
+  outputBatchId?: string;
+  cleaningLogs: CleaningLog[];
+  yieldPct?: number;
+  bottlesPerHour?: number;
+  cost?: { 
+    total: number; 
+    unit: number; 
+  };
+  notesPlan?: string;
+  notesProd?: string;
+  createdAt: string; // ISO
+  updatedAt: string; // ISO
+  maquilaCost?: number;
+  maquilaTax?: number;
 }
 
-export type PaidStatus = 'Pendiente' | 'Pagado' | 'Cobrado' | 'Parcial';
+export type TankStatus = "Libre" | "Ocupado" | "Limpieza";
+export interface Tank {
+  id: string;
+  name: string;
+  capacity: number;
+  status: TankStatus;
+  currentBatchId?: string;
+  currentQuantity?: number;
+  currentUom?: UoM;
+  location: string;
+  createdAt: string; // ISO
+  updatedAt: string; // ISO
+}
+
+export interface BomLine {
+  id: string;
+  productSku: string;
+  componentId: string;
+  componentName: string;
+  componentSku?: string;
+  quantity: number;
+  uom: UoM;
+  type: BomKind;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type PaidStatus = 'Pendiente' | 'Pagado' | 'Parcial';
 
 export interface IncentiveTxn {
     id: string;
@@ -159,11 +255,36 @@ export interface IncentiveTxn {
     paidStatus: PaidStatus;
 }
 
+export interface ProductCostSnapshot {
+  id: string;
+  date: Timestamp;
+  productionRunId: string;
+  productSku: string;
+  unitCost: number;
+}
+
+export interface AmbassadorCondition {
+    pago_apertura: number;
+    bonus_segundo_pedido: number;
+    comision_inicial: number;
+    comision_indefinida: number;
+    min_pedido: number;
+    segundo_pedido_plazo_dias: number;
+}
+
+export interface AmbassadorSettings {
+    horeca: AmbassadorCondition;
+    distribuidor_mediano: AmbassadorCondition;
+    distribuidor_grande: AmbassadorCondition;
+    distribuidor_top: AmbassadorCondition;
+}
+
 
 // --- EXISTING TYPES WITH EXTENSIONS ---
 
 export type PotencialType = 'alto' | 'medio' | 'bajo';
-export type AccountStatus = 'Repetición' | 'Activo' | 'Programada' | 'Seguimiento' | 'Fallido';
+export type AccountStatus = 'Repetición' | 'Activo' | 'Inactivo' | 'Programada' | 'Seguimiento' | 'Fallido' | 'Pendiente';
+
 
 export interface Account {
   id: string;
@@ -172,12 +293,14 @@ export interface Account {
   potencial: PotencialType;
   responsableId: string; // FK to TeamMember
   brandAmbassadorId?: string; // FK to TeamMember (Clavadista)
+  distributorId?: string; // FK to another Account of type 'Distributor'
   
   status: AccountStatus;
   leadScore: number;
+firebase deploy --only functions
 
   legalName?: string;
-  cif: string; 
+  cif?: string; 
   type: AccountType;
   addressBilling?: AddressDetails;
   addressShipping?: AddressDetails;
@@ -188,8 +311,11 @@ export interface Account {
   notes?: string; 
   internalNotes?: string;
   salesRepId?: string;
+  embajadorId?: string;
   createdAt: string; 
-  updatedAt: string; 
+  updatedAt: string;
+  primer_pedido_fecha?: string; // ISO Date String
+  segundo_pedido_fecha?: string; // ISO Date String
 }
 
 export interface EnrichedAccount extends Account {
@@ -204,8 +330,8 @@ export interface EnrichedAccount extends Account {
   responsableAvatar?: string;
 }
 
-export type OrderStatus = 'Pendiente' | 'Confirmado' | 'Procesando' | 'Enviado' | 'Entregado' | 'Cancelado' | 'Fallido' | 'Seguimiento' | 'Programada' | 'Facturado' | 'Completado';
-export type ClientType = 'Distribuidor' | 'HORECA' | 'Retail' | 'Cliente Final';
+export type OrderStatus = 'Pendiente' | 'Confirmado' | 'Procesando' | 'Enviado' | 'Entregado' | 'Cancelado' | 'Fallido' | 'Seguimiento' | 'Programada' | 'Facturado' | 'Completado' | 'Pagado';
+export type ClientType = 'Distribuidor' | 'HORECA' | 'Retail' | 'Cliente Final' | 'Otro';
 export type NextActionType = 'Llamar al responsable de compras' | 'Mandar información' | 'Visitar de nuevo' | 'Enviar muestra' | 'Esperar decisión' | 'Opción personalizada';
 export type FailureReasonType = 'No interesado' | 'Ya trabaja con otro proveedor' | 'Sin presupuesto' | 'Producto no encaja' | 'Otro (especificar)';
 
@@ -225,9 +351,10 @@ export interface InventoryItem {
   categoryId: string;
   latestPurchase?: LatestPurchaseInfo; 
   stock: number;
+  safetyStock?: number;
   sku?: string;
   uom: UoM;
-  createdAt?: string | Timestamp;
+  createdAt?: string | Timestamp | FieldValue;
 }
 
 export interface AssignedPromotionalMaterial {
@@ -238,11 +365,11 @@ export interface AssignedPromotionalMaterial {
 export type CanalOrigenColocacion = 'Equipo Santa Brisa' | 'Iniciativa Importador' | 'Marketing Digital' | 'Referido' | 'Otro';
 
 export interface AddressDetails {
-  street: string | null;
+  street?: string | null;
   number?: string | null;
-  city: string | null;
-  province: string | null;
-  postalCode: string | null;
+  city?: string | null;
+  province?: string | null;
+  postalCode?: string | null;
   country?: string | null; 
 }
 
@@ -257,6 +384,7 @@ export interface Order {
   status: OrderStatus;
   salesRep: string; 
   lastUpdated: string; 
+  distributorId?: string; // NEW: Link to the distributor account
   clavadistaId?: string; 
   assignedMaterials?: AssignedPromotionalMaterial[]; 
   canalOrigenColocacion?: CanalOrigenColocacion;
@@ -264,16 +392,20 @@ export interface Order {
   iban?: string;
   invoiceUrl?: string;
   invoiceFileName?: string;
+
   clientType?: ClientType;
   numberOfUnits?: number; 
   unitPrice?: number; 
   clientStatus?: "new" | "existing"; 
+  
   notes?: string; 
+
   nextActionType?: NextActionType;
   nextActionCustom?: string;
   nextActionDate?: string; 
   failureReasonType?: FailureReasonType;
   failureReasonCustom?: string;
+  
   accountId?: string; 
   createdAt: string; 
   originatingTaskId?: string;
@@ -282,6 +414,13 @@ export interface Order {
   orderIndex?: number;
   costOfGoods?: number; // Extension
   paidStatus?: PaidStatus; // Extension
+  embajadorId?: string;
+  comision?: Record<string, any>;
+  bonus?: number;
+  es_segundo_pedido?: boolean;
+  liberado_para_pago?: boolean;
+  cif?: string;
+  saleType?: 'propia' | 'distribuidor';
 }
 
 export type MarketingResourceType = 'Folleto' | 'Presentación' | 'Imagen' | 'Guía';
@@ -300,7 +439,7 @@ export interface MarketingResourceCategory {
   resources: MarketingResource[];
 }
 
-export type AccountType = 'HORECA' | 'Distribuidor' | 'Retail Minorista' | 'Gran Superficie' | 'Evento Especial' | 'Cliente Final Directo' | 'Importador' | 'Otro';
+export type AccountType = 'HORECA' | 'Distribuidor' | 'Retail Minorista' | 'Gran Superficie' | 'Evento Especial' | 'Cliente Final Directo' | 'Importador' | 'Otro' | 'distribuidor_mediano' | 'distribuidor_grande' | 'distribuidor_top';
 
 export type CrmEventType = 'Activación en Tienda' | 'Feria Comercial' | 'Evento Corporativo' | 'Degustación' | 'Patrocinio' | 'Activación' | 'Otro';
 export type CrmEventStatus = 'Planificado' | 'Confirmado' | 'En Curso' | 'Completado' | 'Cancelado' | 'Pospuesto';
@@ -320,85 +459,118 @@ export interface CrmEvent {
   createdAt: string; 
   updatedAt: string; 
   orderIndex?: number;
+  // Financials
+  budget?: number;
+  currency?: Currency;
+  isCashflowForecast?: boolean;
+  // KPIs
+  salesTarget?: number;
+  salesActual?: number;
+  // Relation
+  accountId?: string;
+  accountName?: string;
+  costCenterId?: string;
 }
 
-export type PurchaseStatus = 'Borrador' | 'Proforma Recibida' | 'Pagado' | 'Pago a 30 días' | 'Factura Recibida' | 'Completado' | 'Cancelado';
-export type PurchaseCategory = 'Materia Prima (COGS)' | 'Material de Embalaje (COGS)' | 'Material Promocional' | 'Gastos de Eventos' | 'Publicidad y Promoción' | 'Gastos de Logística' | 'Gastos Operativos' | 'Otro';
+// --- NEW EXPENSE TYPES ---
+export type DocumentStatus = 'proforma' | 'factura_pendiente' | 'factura_recibida' | 'factura_validada';
+export type PaymentStatus = 'pendiente' | 'parcial' | 'pagado' | 'pagado_adelantado';
 export type Currency = "EUR" | "USD" | "MXN";
 
-export interface PurchaseItem {
-  materialId?: string | null;
-  description: string;
-  quantity: number | null;
-  unitPrice: number | null;
-  batchNumber?: string;
-  destSku?: string;
-  total?: number;
-  uom?: UoM;
-  landedUnitCost?: number;
-  categoryId: string;
+export interface ExpenseItem {
+    productoId: string;
+    productoNombre?: string;
+    cantidad: number;
+    costeUnitario: number;
+    costeUnitarioProrrateado?: number;
+    proveedorLote?: string;
+    caducidad?: string;
 }
 
-export interface Purchase {
-  id: string;
-  supplier: string;
-  supplierId?: string;
-  costCenterIds?: string[];
-  items: PurchaseItem[];
-  currency: Currency;
-  subtotal: number;
-  tax: number;
-  taxRate: number;
-  shippingCost?: number;
-  totalAmount: number;
-  orderDate: string;
-  status: PurchaseStatus;
-  invoiceUrl?: string; 
-  invoiceContentType?: string;
-  storagePath?: string;
-  notes?: string;
-  createdAt: string;
-  updatedAt: string;
-  batchesSeeded: boolean;
+export interface ExpenseAttachment {
+  url: string;
+  tipo: 'factura' | 'proforma' | 'albaran' | 'otro';
+  fileName: string;
 }
+
+export interface Expense {
+  id: string;
+  concepto: string;
+  proveedorId?: string; // FK to suppliers
+  proveedorNombre?: string;
+  categoriaId: string;
+  categoria: string; // The NAME of the category at the time of creation
+  isInventoryPurchase: boolean;
+  
+  // States
+  estadoDocumento: DocumentStatus;
+  estadoPago: PaymentStatus;
+  recepcionCompleta?: boolean;
+
+  // Amounts
+  monto: number;
+  moneda: Currency;
+  gastosEnvio?: number;
+  impuestos?: number;
+  montoPagado?: number;
+
+  // Dates
+  fechaEmision?: string; // ISO
+  fechaVencimiento?: string; // ISO
+  fechaPago?: string; // ISO
+  
+  // Details
+  items?: ExpenseItem[];
+  invoiceNumber?: string; 
+  notes?: string | null;
+  adjuntos?: ExpenseAttachment[];
+
+  // Audit
+  creadoPor: string; // User ID
+  fechaCreacion: string; // ISO
+}
+
 
 export type SampleRequestStatus = 'Pendiente' | 'Aprobada' | 'Rechazada' | 'Enviada';
 export type SampleRequestPurpose = 'Captación Cliente Nuevo' | 'Seguimiento Cliente Existente' | 'Material para Evento' | 'Uso Interno/Formación' | 'Otro';
 
-export interface SampleRequestFormValues {
-  requesterId?: string;
-  clientStatus: 'new' | 'existing';
+export interface SampleRequest {
+  id: string;
+  requesterId: string;
+  requesterName: string;
   accountId?: string;
   clientName: string;
   purpose: SampleRequestPurpose;
   numberOfSamples: number;
   justificationNotes: string;
-  shippingAddress_street?: string;
-  shippingAddress_number?: string;
-  shippingAddress_city?: string;
-  shippingAddress_province?: string;
-  shippingAddress_postalCode?: string;
-  shippingAddress_country?: string;
+  status: SampleRequestStatus;
+  requestDate: string; // ISO String
+  decisionDate?: string; // ISO String
+  adminNotes?: string;
+  shippingAddress?: AddressDetails;
 }
 
-export type DirectSaleStatus = 'Borrador' | 'Confirmada' | 'Facturada' | 'Pagada' | 'Cancelada';
-export type DirectSaleChannel = 'Importador' | 'Online' | 'Estratégica' | 'Otro';
+
+export type OrderType = 'directa' | 'deposito';
+export type DirectSaleChannel = 'Importador' | 'Online' | 'Estratégica' | 'Depósito/Consigna' | 'Otro';
+export type DirectSaleStatus = 'borrador' | 'confirmado' | 'enviado' | 'entregado' | 'facturado' | 'pagado' | 'cancelado' | 'en depósito' | 'Confirmada' | 'En Depósito' | 'Facturada' | 'Pagada' | 'Cancelada';
 
 export interface DirectSaleItem {
   productId: string;
   productName: string;
+  batchId?: string;
+  batchNumber?: string;
   quantity: number;
   netUnitPrice: number; 
   total: number;
-  batchId: string;
-  batchNumber?: string;
 }
 
 export interface DirectSale {
   id: string;
+  type: OrderType;
+  channel?: DirectSaleChannel;
   customerId: string;
   customerName: string;
-  channel: DirectSaleChannel;
   items: DirectSaleItem[];
   subtotal: number;
   tax: number;
@@ -407,17 +579,23 @@ export interface DirectSale {
   dueDate?: string; 
   invoiceNumber?: string;
   status: DirectSaleStatus;
+  paymentMethod?: PaymentMethod;
   relatedPlacementOrders?: string[];
   notes?: string;
   createdAt: string;
   updatedAt: string;
-  costOfGoods?: number;
   paidStatus?: PaidStatus;
+  costOfGoods?: number;
+  // Consignment fields
+  originalConsignmentId?: string;
+  regularizedUnits?: Record<string, number>; // { productId: totalRegularized }
+  qtyRemainingInConsignment?: Record<string, number>; // { productId: remaining }
 }
 
 export interface Supplier {
   id: string;
   name: string;
+  code?: string;
   cif?: string;
   contactName?: string;
   contactEmail?: string;
@@ -448,70 +626,6 @@ export interface Interaction {
 export type Step = "client" | "outcome" | "details" | "verify";
 
 // --- FORM VALUE TYPES ---
-
-export interface PurchaseFormValues {
-  supplier: string;
-  supplierCif?: string;
-  supplierAddress_street?: string;
-  supplierAddress_number?: string;
-  supplierAddress_city?: string;
-  supplierAddress_province?: string;
-  supplierAddress_postalCode?: string;
-  supplierAddress_country?: string;
-
-  orderDate: Date;
-  status: PurchaseStatus;
-  costCenterIds?: string[];
-  currency: Currency;
-  items: {
-    materialId?: string;
-    description: string;
-    quantity: number | null;
-    unitPrice: number | null;
-    batchNumber?: string;
-    categoryId: string;
-  }[];
-  shippingCost?: number | null;
-  taxRate: number;
-  notes?: string;
-  invoiceFile?: File | null;
-  invoiceDataUri?: string | null;
-  invoiceUrl?: string;
-  invoiceContentType?: string;
-  storagePath?: string;
-}
-
-export interface PurchaseFirestorePayload {
-  supplier: string;
-  supplierId: string | null;
-  costCenterIds: string[];
-  currency: Currency;
-  orderDate: Timestamp;
-  status: PurchaseStatus;
-  items: {
-    materialId: string | null;
-    description?: string;
-    quantity: number;
-    unitPrice: number;
-    batchNumber: string | null;
-    total: number;
-    categoryId: string;
-  }[];
-  subtotal: number;
-  tax: number;
-  taxRate: number;
-  shippingCost: number;
-  totalAmount: number;
-  notes: string | null;
-  invoiceUrl: string | null;
-  invoiceContentType: string | null;
-  storagePath: string | null;
-  createdAt?: Timestamp;
-  updatedAt: Timestamp;
-  batchesSeeded?: boolean;
-}
-
-
 export interface TeamMemberFormValues {
   name: string;
   email: string; 
@@ -519,7 +633,11 @@ export interface TeamMemberFormValues {
   monthlyTargetAccounts?: number;
   monthlyTargetVisits?: number;
   avatarUrl?: string;
-  authUid?: string; 
+  authUid?: string;
+  liderId?: string;
+  uses_custom_conditions?: boolean;
+  condiciones_personalizadas?: AmbassadorSettings;
+  accountId?: string; // Link to distributor account
 }
 
 export interface FollowUpResultFormValues {
@@ -536,24 +654,9 @@ export interface FollowUpResultFormValues {
   assignedSalesRepId?: string;
 }
 
-export interface SampleRequestFormValues {
-  requesterId?: string;
-  clientStatus: 'new' | 'existing';
-  accountId?: string;
-  clientName: string;
-  purpose: SampleRequestPurpose;
-  numberOfSamples: number;
-  justificationNotes: string;
-  shippingAddress_street?: string;
-  shippingAddress_number?: string;
-  shippingAddress_city?: string;
-  shippingAddress_province?: string;
-  shippingAddress_postalCode?: string;
-  shippingAddress_country?: string;
-}
-
 export interface SupplierFormValues {
   name: string;
+  code?: string;
   cif?: string;
   contactName?: string;
   contactEmail?: string;
@@ -571,21 +674,17 @@ export interface InventoryItemFormValues {
   name: string;
   description?: string;
   categoryId: string;
-  sku?: string;
   uom?: UoM;
-  latestPurchaseQuantity?: number;
-  latestPurchaseTotalCost?: number;
-  latestPurchaseDate?: Date;
-  latestPurchaseNotes?: string;
-  latestPurchaseBatchNumber?: string;
+  safetyStock?: number;
 }
 
 export interface AccountFormValues {
   name: string;
   legalName?: string;
-  cif: string;
+  cif?: string;
   type: AccountType;
   iban?: string;
+  distributorId?: string;
   addressBilling_street?: string;
   addressBilling_number?: string;
   addressBilling_city?: string;
@@ -617,29 +716,125 @@ export interface NewScheduledTaskData {
 }
 
 export interface EventFormValues {
-    name: string;
-    type: CrmEventType;
-    status: CrmEventStatus;
-    startDate: Date;
-    endDate?: Date;
-    description?: string;
-    location?: string;
-    assignedTeamMemberIds: string[];
-    assignedMaterials: AssignedPromotionalMaterial[];
-    notes?: string;
-    orderIndex?: number;
+  name: string;
+  type: CrmEventType;
+  status: CrmEventStatus;
+  startDate: Date;
+  endDate?: Date;
+  description?: string;
+  location?: string;
+  assignedTeamMemberIds: string[];
+  assignedMaterials: AssignedPromotionalMaterial[];
+  notes?: string;
+  orderIndex?: number;
+  // Financials
+  budget?: number;
+  currency?: Currency;
+  isCashflowForecast?: boolean;
+  // KPIs
+  salesTarget?: number;
+  salesActual?: number;
+  // Relation
+  accountId?: string;
+  accountName?: string;
+  costCenterId?: string;
 }
 
-export interface BomLine {
-    id: string;
+export interface ProductionRunFormValues {
+    type: RunType;
     productSku: string;
+    productName: string;
+    qtyPlanned: number;
+    startPlanned: Date;
+    lineId: string;
+    tankId?: string;
+    notesPlan?: string;
+    shortages?: Shortage[];
+    maquilaCost?: number;
+    maquilaTax?: number;
+}
+
+export interface FinishProductionRunFormValues {
+  qtyActual: number;
+  notesProd?: string;
+  cleaningConfirmed?: boolean;
+  cleaningMaterial?: string;
+}
+
+
+export type DirectSaleWithExtras = import('./schemas/direct-sale-schema').GenerateOrderFormValues & { issueDate: Date; customerId?: string };
+
+export interface BatchFormValues {
+  qcStatus: QcStatus;
+  expiryDate?: Date | null;
+  locationId?: string;
+}
+
+export interface ConsumptionPlanItem {
     componentId: string;
     componentName: string;
     componentSku?: string;
-    quantity: number;
     uom: UoM;
-    createdAt?: string;
-    updatedAt?: string;
+    quantityToConsume: number;
+    batchId: string;
+    batchInternalCode: string;
+    unitCost: number;
+    supplierBatchCode?: string;
+    batchData: ItemBatch;
 }
 
-export type DirectSaleWithExtras = DirectSaleWizardFormValues & { issueDate: Date; customerId?: string };
+export interface TankFormValues {
+    name: string;
+    capacity: number;
+    location: string;
+    status: TankStatus;
+    currentBatchId?: string | null;
+    currentQuantity?: number | null;
+    currentUom?: UoM | null;
+}
+
+// Mail Type for Trigger Email Extension
+export interface Mail {
+  to: string[];
+  cc?: string[];
+  bcc?: string[];
+  message: {
+    subject: string;
+    html: string;
+  };
+}
+
+
+// Purchase Type, derived from form schema
+export type PurchaseFormValues = import('./schemas/purchase-schema').PurchaseFormValues;
+export type ExpenseType = import('./schemas/purchase-schema').PurchaseFormValues;
+
+export interface SampleRequestFormValues {
+  requesterId?: string;
+  clientStatus: 'new' | 'existing';
+  accountId?: string;
+  clientName: string;
+  purpose: SampleRequestPurpose;
+  numberOfSamples: number;
+  justificationNotes: string;
+  shippingAddress_street?: string;
+  shippingAddress_number?: string;
+  shippingAddress_city?: string;
+  shippingAddress_province?: string;
+  shippingAddress_postalCode?: string;
+  shippingAddress_country?: string;
+}
+
+// From Holded API
+export interface HoldedProject {
+    id: string;
+    name: string;
+    contactName: string;
+    status: 0 | 1 | 2; // 0: Pending, 1: Active, 2: Finished
+    startedAt: string; // "YYYY-MM-DD"
+    dueDate?: string; // "YYYY-MM-DD"
+    progress?: number; // 0-100
+    total?: number;
+    billed?: number;
+    pending?: number;
+}

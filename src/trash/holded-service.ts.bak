@@ -1,0 +1,2 @@
+// This file has been intentionally left blank as the Holded integration has been removed.
+// It will be used in the future to house the client-side logic for fetching data from Holded via the Firebase Function proxy.

@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -9,16 +8,13 @@ import { useToast } from "@/hooks/use-toast";
 import type { BomLine, InventoryItem } from "@/types";
 import { PlusCircle, Edit, Wrench, Loader2, PackageOpen } from "lucide-react";
 import BomDialog from "@/components/app/bom-dialog";
-import type { BomRecipeFormValues } from "@/components/app/bom-dialog";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-import { getBomLinesFS, saveRecipeFS, deleteRecipeFS } from "@/services/bom-service";
-import { getInventoryItemsFS, addInventoryItemFS } from "@/services/inventory-item-service";
-import { useCategories } from "@/contexts/categories-context";
+import { getBomLinesFS, deleteRecipeFS } from "@/services/bom-service";
+import { getInventoryItemsFS } from "@/services/inventory-item-service";
 import { useAuth } from "@/contexts/auth-context";
 
 export default function BomManagementPage() {
   const { toast } = useToast();
-  const { categoriesMap } = useCategories();
   const { dataSignature } = useAuth();
 
   const [bomLines, setBomLines] = React.useState<BomLine[]>([]);
@@ -56,89 +52,9 @@ export default function BomManagementPage() {
     setIsDialogOpen(true);
   };
   
-  const handleSaveRecipe = async (data: BomRecipeFormValues) => {
-    setIsLoading(true);
-    try {
-      let finalProductSku = data.productSku;
-
-      if (data.isNewProduct && data.newProductName && data.newProductSku) {
-        let finishedGoodsCategoryId = '';
-        const targetCategoryName = "producto terminado";
-
-        for (const [id, name] of categoriesMap.entries()) {
-          if (name.trim().toLowerCase() === targetCategoryName) {
-            finishedGoodsCategoryId = id;
-            break;
-          }
-        }
-        
-        if (!finishedGoodsCategoryId) {
-          toast({
-            title: "Error de Configuración",
-            description: "No se encontró la categoría 'Producto Terminado'. Por favor, créala o revisa su nombre en la configuración de categorías.",
-            variant: "destructive",
-            duration: 9000,
-          });
-          setIsLoading(false);
-          return;
-        }
-        
-        await addInventoryItemFS({
-          name: data.newProductName,
-          sku: data.newProductSku,
-          categoryId: finishedGoodsCategoryId,
-          stock: 0,
-        });
-        finalProductSku = data.newProductSku;
-        toast({ title: "Producto Creado", description: `Se ha creado "${data.newProductName}" en el inventario.`});
-      }
-
-      if (!finalProductSku) {
-        toast({
-          title: "Error de Datos",
-          description: "No se ha definido un producto final para la receta. Selecciona uno existente o crea uno nuevo.",
-          variant: "destructive",
-        });
-        setIsLoading(false);
-        return;
-      }
-      
-      // Pre-validation loop
-      for (const component of data.components) {
-        const material = inventoryItems.find(item => item.id === component.materialId);
-        if (!material) {
-          toast({
-            title: "Error en Componente",
-            description: `El componente "${component.description}" no está correctamente asociado a un artículo del inventario. Por favor, vuelve a buscarlo.`,
-            variant: "destructive",
-          });
-          setIsLoading(false);
-          return;
-        }
-      }
-      
-      const componentsToSave = data.components.map(c => {
-        const material = inventoryItems.find(item => item.id === c.materialId)!;
-        return {
-            componentId: material.id,
-            componentName: material.name,
-            componentSku: material.sku,
-            quantity: c.quantity,
-            uom: c.uom,
-        };
-      });
-
-      await saveRecipeFS(finalProductSku, componentsToSave);
-
-      toast({ title: "Receta Guardada", description: "La receta ha sido guardada correctamente." });
-      await fetchBomData(); // Refresh data from server
-      setIsDialogOpen(false);
-    } catch (error: any) {
-      console.error("Error saving BOM recipe:", error);
-      toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
-    } finally {
-      setIsLoading(false);
-    }
+  const handleSaveRecipe = async () => {
+    setIsDialogOpen(false);
+    await fetchBomData();
   };
 
   const groupedBoms = React.useMemo(() => {

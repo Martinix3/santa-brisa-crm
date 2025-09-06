@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -7,31 +8,35 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-// mockTeamMembers removed
-import type { TeamMember, Order } from "@/types";
+import type { TeamMember, Order, Account } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { ArrowLeft, Mail, Award, TrendingUp, AlertTriangle, Eye, Loader2 } from "lucide-react";
+import { ArrowLeft, Mail, Award, AlertTriangle, Loader2, FileText, CalendarDays, DollarSign, Briefcase } from "lucide-react";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import StatusBadge from "@/components/app/status-badge";
 import { format, parseISO, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Link from "next/link";
 import { getOrdersFS } from "@/services/order-service";
-import { getTeamMemberByIdFS } from "@/services/team-member-service"; // For fetching clavadista details
+import { getAccountsFS } from "@/services/account-service";
+import { getTeamMemberByIdFS } from "@/services/team-member-service";
 import { useToast } from "@/hooks/use-toast";
+import { VALID_SALE_STATUSES } from '@/lib/constants';
 
 export default function ClavadistaProfilePage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
+  const { teamMember } = useAuth();
   
   const [clavadista, setClavadista] = React.useState<TeamMember | null>(null);
   const [participatedOrders, setParticipatedOrders] = React.useState<Order[]>([]);
-  const [totalParticipations, setTotalParticipations] = React.useState<number>(0);
+  const [assignedAccounts, setAssignedAccounts] = React.useState<Account[]>([]);
   const [totalValueParticipated, setTotalValueParticipated] = React.useState<number>(0);
+  const [totalNewAccounts, setTotalNewAccounts] = React.useState<number>(0);
   const [isLoading, setIsLoading] = React.useState(true);
   
   const clavadistaId = params.clavadistaId as string;
+  const isOwnProfile = teamMember?.id === clavadistaId;
 
   React.useEffect(() => {
     async function loadClavadistaData() {
@@ -41,21 +46,35 @@ export default function ClavadistaProfilePage() {
       }
       setIsLoading(true);
       try {
-        const foundClavadista = await getTeamMemberByIdFS(clavadistaId);
+        const [foundClavadista, allOrders, allAccounts] = await Promise.all([
+            getTeamMemberByIdFS(clavadistaId),
+            getOrdersFS(),
+            getAccountsFS(),
+        ]);
         
-        if (foundClavadista && foundClavadista.role === 'Clavadista') {
+        if (foundClavadista && (foundClavadista.role === 'Clavadista' || foundClavadista.role === 'Líder Clavadista')) {
           setClavadista(foundClavadista);
-          const allOrders = await getOrdersFS();
+
           const ordersWithClavadista = allOrders
-            .filter(order => order.clavadistaId === foundClavadista.id && isValid(parseISO(order.visitDate)))
-            .sort((a,b) => parseISO(b.visitDate).getTime() - parseISO(a.visitDate).getTime());
+            .filter(order => order.embajadorId === foundClavadista.id)
+            .sort((a,b) => {
+                const dateA = parseISO(a.visitDate || a.createdAt || '1970-01-01');
+                const dateB = parseISO(b.visitDate || b.createdAt || '1970-01-01');
+                if (!isValid(dateA)) return 1;
+                if (!isValid(dateB)) return -1;
+                return dateB.getTime() - dateA.getTime();
+            });
           
           setParticipatedOrders(ordersWithClavadista);
-          setTotalParticipations(ordersWithClavadista.length);
-          setTotalValueParticipated(ordersWithClavadista.reduce((sum, order) => sum + (order.value || 0), 0));
+          setTotalValueParticipated(ordersWithClavadista.filter(o => VALID_SALE_STATUSES.includes(o.status)).reduce((sum, order) => sum + (order.value || 0), 0));
+          
+          const accountsForClavadista = allAccounts.filter(acc => acc.embajadorId === foundClavadista.id);
+          setAssignedAccounts(accountsForClavadista);
+          setTotalNewAccounts(accountsForClavadista.length);
+
         } else {
           setClavadista(null);
-          if (foundClavadista && foundClavadista.role !== 'Clavadista') {
+          if (foundClavadista) {
              toast({ title: "Perfil Inválido", description: "Este perfil no corresponde a un Clavadista.", variant: "destructive" });
           }
         }
@@ -111,76 +130,111 @@ export default function ClavadistaProfilePage() {
             </div>
           </div>
         </div>
+        {isOwnProfile && (
+            <div className="flex gap-2">
+                <Button asChild>
+                    <Link href="/order-form">
+                        <FileText className="mr-2 h-4 w-4" /> Registrar Interacción
+                    </Link>
+                </Button>
+                <Button asChild variant="secondary">
+                    <Link href="/events">
+                        <CalendarDays className="mr-2 h-4 w-4" /> Ver Eventos
+                    </Link>
+                </Button>
+            </div>
+        )}
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+        <Card className="shadow-subtle"><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Facturación Total</CardTitle><DollarSign className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold"><FormattedNumericValue value={totalValueParticipated} locale="es-ES" options={{ style: 'currency', currency: 'EUR' }} /></div><p className="text-xs text-muted-foreground">Suma del valor de todos los pedidos exitosos.</p></CardContent></Card>
+        <Card className="shadow-subtle"><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total Cuentas Abiertas</CardTitle><Briefcase className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold"><FormattedNumericValue value={totalNewAccounts}/></div><p className="text-xs text-muted-foreground">Cuentas nuevas con primer pedido exitoso.</p></CardContent></Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="shadow-subtle">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Participaciones Totales</CardTitle>
-                <Award className="h-4 w-4 text-muted-foreground" />
+            <CardHeader>
+            <CardTitle>Pedidos/Visitas Recientes</CardTitle>
+            <CardDescription>Listado de las últimas interacciones donde has participado.</CardDescription>
             </CardHeader>
-            <CardContent><div className="text-2xl font-bold"><FormattedNumericValue value={totalParticipations} /></div>
-             <p className="text-xs text-muted-foreground">Número total de pedidos/visitas con participación.</p>
+            <CardContent>
+            {participatedOrders.length > 0 ? (
+                <div className="overflow-x-auto">
+                <Table>
+                    <TableHeader>
+                    <TableRow>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead>Fecha</TableHead>
+                        <TableHead className="text-right">Valor</TableHead>
+                        <TableHead className="text-center">Estado</TableHead>
+                    </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                    {participatedOrders.slice(0, 10).map(order => { 
+                        const displayDate = order.visitDate || order.createdAt;
+                        return (
+                        <TableRow key={order.id}>
+                        <TableCell>
+                            <Link href={`/orders-dashboard`} className="hover:underline text-primary">
+                                {order.clientName}
+                            </Link>
+                        </TableCell>
+                        <TableCell>{displayDate && isValid(parseISO(displayDate)) ? format(parseISO(displayDate), "dd/MM/yy", { locale: es }) : 'N/D'}</TableCell>
+                        <TableCell className="text-right">
+                           <FormattedNumericValue value={order.value} options={{style: 'currency', currency: 'EUR'}} placeholder="—"/>
+                        </TableCell>
+                        <TableCell className="text-center">
+                            <StatusBadge type="order" status={order.status} />
+                        </TableCell>
+                        </TableRow>
+                    )})}
+                    </TableBody>
+                </Table>
+                {participatedOrders.length > 10 && <p className="text-xs text-muted-foreground mt-2 text-center">Mostrando las 10 interacciones más recientes.</p>}
+                </div>
+            ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">No hay participaciones registradas para {clavadista.name}.</p>
+            )}
             </CardContent>
         </Card>
         <Card className="shadow-subtle">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Valor Total en Pedidos Participados</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <CardHeader>
+            <CardTitle>Cuentas Asignadas</CardTitle>
+            <CardDescription>Directorio de las cuentas de clientes asignadas a ti.</CardDescription>
             </CardHeader>
-            <CardContent><div className="text-2xl font-bold"><FormattedNumericValue value={totalValueParticipated} locale="es-ES" options={{ style: 'currency', currency: 'EUR' }} /></div>
-            <p className="text-xs text-muted-foreground">Suma del valor de los pedidos donde participó.</p>
-            </CardContent>
+            <CardContent>
+            {assignedAccounts.length > 0 ? (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nombre Cuenta</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead className="text-center">Estado</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {assignedAccounts.slice(0, 10).map(account => ( 
+                      <TableRow key={account.id}>
+                        <TableCell>
+                          <Link href={`/accounts/${account.id}`} className="font-medium hover:underline text-primary">
+                            {account.nombre}
+                          </Link>
+                        </TableCell>
+                        <TableCell>{account.type}</TableCell>
+                        <TableCell className="text-center"><StatusBadge type="account" status={account.status} /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                {assignedAccounts.length > 10 && <p className="text-xs text-muted-foreground mt-2 text-center">Mostrando 10 de {assignedAccounts.length} cuentas.</p>}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-8">{clavadista.name} no tiene cuentas asignadas actualmente.</p>
+            )}
+          </CardContent>
         </Card>
       </div>
-      
-      <Card className="shadow-subtle">
-        <CardHeader>
-          <CardTitle>Pedidos/Visitas con Participación de {clavadista.name}</CardTitle>
-          <CardDescription>Listado de las interacciones donde {clavadista.name} ha participado como Brand Ambassador.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {participatedOrders.length > 0 ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[15%]">ID Pedido/Visita</TableHead>
-                    <TableHead className="w-[25%]">Cliente</TableHead>
-                    <TableHead className="w-[15%]">Fecha</TableHead>
-                    <TableHead className="w-[20%]">Comercial Asignado</TableHead>
-                    <TableHead className="text-right w-[15%]">Valor Pedido</TableHead>
-                    <TableHead className="text-center w-[10%]">Estado</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {participatedOrders.slice(0, 15).map(order => ( 
-                    <TableRow key={order.id}>
-                      <TableCell className="font-medium">
-                        <Link href={`/orders-dashboard`} className="hover:underline text-primary">
-                            {order.id}
-                        </Link>
-                      </TableCell>
-                      <TableCell>{order.clientName}</TableCell>
-                      <TableCell>{format(parseISO(order.visitDate), "dd/MM/yy", { locale: es })}</TableCell>
-                      <TableCell>{order.salesRep}</TableCell>
-                      <TableCell className="text-right">
-                         {order.value !== undefined && ['Confirmado', 'Procesando', 'Enviado', 'Entregado'].includes(order.status) ? (
-                           <FormattedNumericValue value={order.value} locale="es-ES" options={{ style: 'currency', currency: 'EUR' }} />
-                        ) : "—"}
-                      </TableCell>
-                      <TableCell className="text-center"><StatusBadge type="order" status={order.status} /></TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              {participatedOrders.length > 15 && <p className="text-xs text-muted-foreground mt-2 text-center">Mostrando 15 de {participatedOrders.length} participaciones.</p>}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground text-center py-8">No hay participaciones registradas para {clavadista.name}.</p>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }

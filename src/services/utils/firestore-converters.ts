@@ -2,282 +2,265 @@
 
 import { Timestamp, type DocumentSnapshot } from "firebase/firestore";
 import { format, parseISO, isValid } from "date-fns";
-import type { Purchase, PurchaseFormValues, PurchaseFirestorePayload, Supplier, SupplierFormValues, BomLine, ProductionRun, DirectSaleWithExtras, DirectSale, ItemBatch } from '@/types';
+import type { Order, TeamMember, CrmEvent, Account, Supplier, Purchase, Expense, BomLine, ItemBatch, Tank, DirectSale, DirectSaleItem, DirectSaleChannel } from '@/types';
 
-// --- PURCHASE CONVERTERS ---
+const toDateString = (ts: any, defaultNow = true): string | undefined => {
+    if (ts === null || ts === undefined) {
+      return defaultNow ? new Date().toISOString() : undefined;
+    }
+    
+    if (ts instanceof Timestamp) return ts.toDate().toISOString();
+    
+    if (typeof ts === 'string') {
+        const parsed = parseISO(ts);
+        if (isValid(parsed)) return parsed.toISOString();
+    }
+    
+    if (ts.toDate && typeof ts.toDate === 'function') {
+        const date = ts.toDate();
+        if(isValid(date)) return date.toISOString();
+    }
 
-export const fromFirestorePurchase = (docSnap: DocumentSnapshot): Purchase => {
-  const data = docSnap.data();
-  if (!data) throw new Error("Document data is undefined.");
+    if (typeof ts === 'object' && ts.seconds !== undefined && ts.nanoseconds !== undefined) {
+        const date = new Timestamp(ts.seconds, ts.nanoseconds).toDate();
+        if (isValid(date)) return date.toISOString();
+    }
 
-  return {
-    id: docSnap.id,
-    supplier: data.supplier || '',
-    supplierId: data.supplierId || undefined,
-    costCenterIds: data.costCenterIds || [],
-    currency: data.currency || 'EUR',
-    items: data.items?.map((item: any) => ({ 
-        materialId: item.materialId,
-        description: item.description,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        batchNumber: item.batchNumber || undefined,
-        categoryId: item.categoryId,
-        total: item.total
-    })) || [],
-    subtotal: data.subtotal || 0,
-    tax: data.tax || 0,
-    taxRate: data.taxRate ?? 21,
-    shippingCost: data.shippingCost,
-    totalAmount: data.totalAmount || 0,
-    orderDate: data.orderDate instanceof Timestamp ? format(data.orderDate.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
-    status: data.status || 'Borrador',
-    invoiceUrl: data.invoiceUrl || undefined,
-    invoiceContentType: data.invoiceContentType || undefined,
-    storagePath: data.storagePath || undefined,
-    notes: data.notes || undefined,
-    createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
-    updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
-    batchesSeeded: data.batchesSeeded || false,
-  };
+    const directParsed = new Date(ts);
+    if(isValid(directParsed)) return directParsed.toISOString();
+
+    return defaultNow ? new Date().toISOString() : undefined;
 };
 
-export const toFirestorePurchase = (data: Partial<PurchaseFormValues>, isNew: boolean, supplierId?: string | null): PurchaseFirestorePayload => {
-  const subtotal = data.items?.reduce((sum, item) => sum + (item.quantity || 0) * (item.unitPrice || 0), 0) || 0;
-  const shippingCost = data.shippingCost || 0;
-  const subtotalWithShipping = subtotal + shippingCost;
-  const taxRate = data.taxRate !== undefined ? data.taxRate : 21;
-  const tax = subtotalWithShipping * (taxRate / 100);
-  const totalAmount = subtotalWithShipping + tax;
-
-  const firestoreData: PurchaseFirestorePayload = {
-    supplier: data.supplier!,
-    supplierId: supplierId || null,
-    costCenterIds: data.costCenterIds || [],
-    currency: data.currency || 'EUR',
-    orderDate: data.orderDate instanceof Date && isValid(data.orderDate) ? Timestamp.fromDate(data.orderDate) : Timestamp.fromDate(new Date()),
-    status: data.status!,
-    items: data.items?.map(item => ({ 
-        materialId: item.materialId || null,
-        description: item.description, 
-        quantity: item.quantity || 0, 
-        unitPrice: item.unitPrice || 0,
-        batchNumber: item.batchNumber || null,
-        total: (item.quantity || 0) * (item.unitPrice || 0),
-        categoryId: item.categoryId,
-    })) || [],
-    subtotal,
-    tax,
-    taxRate,
-    shippingCost,
-    totalAmount,
-    notes: data.notes || null,
-    invoiceUrl: data.invoiceUrl || null,
-    invoiceContentType: data.invoiceContentType || null,
-    storagePath: data.storagePath || null,
-    updatedAt: Timestamp.fromDate(new Date()),
-  };
-  
-  if (isNew) {
-    firestoreData.createdAt = Timestamp.fromDate(new Date());
-    firestoreData.batchesSeeded = false;
-  }
-
-  return firestoreData;
-};
-
-
-// --- SUPPLIER CONVERTERS ---
-
-export const fromFirestoreSupplier = (docSnap: DocumentSnapshot): Supplier => {
-  const data = docSnap.data();
-  if (!data) throw new Error("Document data is undefined.");
-  return {
-    id: docSnap.id,
-    name: data.name || '',
-    cif: data.cif,
-    address: data.address,
-    contactName: data.contactName,
-    contactEmail: data.contactEmail,
-    contactPhone: data.contactPhone,
-    notes: data.notes,
-    createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
-    updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
-  };
-};
-
-export const toFirestoreSupplier = (data: Partial<SupplierFormValues>, isNew: boolean): any => {
-  const firestoreData: { [key: string]: any } = {
-    name: data.name,
-    cif: data.cif || null,
-    contactName: data.contactName || null,
-    contactEmail: data.contactEmail || null,
-    contactPhone: data.contactPhone || null,
-    notes: data.notes || null,
-  };
-
-  if (data.address_street || data.address_city || data.address_province || data.address_postalCode) {
-    firestoreData.address = {
-      street: data.address_street || null,
-      number: data.address_number || null,
-      city: data.address_city || null,
-      province: data.address_province || null,
-      postalCode: data.address_postalCode || null,
-      country: data.address_country || "España",
-    };
-    Object.keys(firestoreData.address).forEach(key => {
-      if (firestoreData.address[key as keyof typeof firestoreData.address] === undefined) {
-        firestoreData.address[key as keyof typeof firestoreData.address] = null;
-      }
-    });
-  } else {
-    firestoreData.address = null;
-  }
-
-  if (isNew) {
-    firestoreData.createdAt = Timestamp.fromDate(new Date());
-  }
-  firestoreData.updatedAt = Timestamp.fromDate(new Date());
-  
-  return firestoreData;
-};
-
-
-// --- BOM LINE CONVERTER ---
 
 export const fromFirestoreBomLine = (snapshot: DocumentSnapshot): BomLine => {
   const data = snapshot.data();
-  if (!data) throw new Error("BOM Line data is undefined.");
+  if (!data) throw new Error("Document data is undefined.");
   return {
-    id: snapshot.id,
-    productSku: data.productSku,
-    componentId: data.componentId,
-    componentName: data.componentName,
-    componentSku: data.componentSku,
-    quantity: data.quantity,
-    uom: data.uom,
-    createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : undefined,
-    updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : undefined,
+      id: snapshot.id,
+      productSku: data.productSku,
+      componentId: data.componentId,
+      componentName: data.componentName,
+      componentSku: data.componentSku,
+      quantity: data.quantity,
+      uom: data.uom,
+      type: data.type,
+      createdAt: toDateString(data.createdAt),
+      updatedAt: toDateString(data.updatedAt),
   };
 };
 
-// --- ITEM BATCH CONVERTER ---
 export const fromFirestoreItemBatch = (snapshot: DocumentSnapshot): ItemBatch => {
     const data = snapshot.data();
-    if (!data) throw new Error("ItemBatch data is undefined.");
+    if (!data) throw new Error("Document data is undefined.");
     return {
         id: snapshot.id,
-        inventoryItemId: data.inventoryItemId,
-        supplierBatchCode: data.supplierBatchCode,
-        internalBatchCode: data.internalBatchCode,
+        inventoryItemId: data.inventoryItemId, // FK to inventoryItems
+        supplierBatchCode: data.supplierBatchCode, // The original batch code from the supplier's invoice
+        internalBatchCode: data.internalBatchCode, // Our own generated code (M... or B...)
         qtyInitial: data.qtyInitial,
         qtyRemaining: data.qtyRemaining,
         uom: data.uom,
         unitCost: data.unitCost,
-        expiryDate: data.expiryDate, // Already a string
+        expiryDate: toDateString(data.expiryDate, false), // ISO String
         locationId: data.locationId,
-        isClosed: data.isClosed,
-        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+        isClosed: !!data.isClosed,
+        createdAt: toDateString(data.createdAt)!, 
+        updatedAt: toDateString(data.updatedAt),
+        qcStatus: data.qcStatus || 'Pending',
+        isLegacy: !!data.isLegacy,
+        costLayers: data.costLayers || [],
     };
 };
 
-// --- PRODUCTION RUN CONVERTER ---
-export const fromFirestoreProductionRun = (snapshot: DocumentSnapshot): ProductionRun => {
-  const data = snapshot.data();
-  if (!data) throw new Error("Production run data is undefined.");
-  return {
-    id: snapshot.id,
-    productSku: data.productSku,
-    productName: data.productName,
-    batchNumber: data.batchNumber,
-    outputBatchId: data.outputBatchId,
-    qtyPlanned: data.qtyPlanned,
-    qtyProduced: data.qtyProduced,
-    status: data.status,
-    startDate: data.startDate instanceof Timestamp ? format(data.startDate.toDate(), "yyyy-MM-dd") : new Date().toISOString(),
-    endDate: data.endDate instanceof Timestamp ? format(data.endDate.toDate(), "yyyy-MM-dd") : undefined,
-    unitCost: data.unitCost,
-    consumedComponents: data.consumedComponents || [],
-    createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : undefined,
-    updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : undefined,
-  };
-};
-
-// --- DIRECT SALE CONVERTER ---
-
 export const fromFirestoreDirectSale = (docSnap: DocumentSnapshot): DirectSale => {
-  const data = docSnap.data();
-  if (!data) throw new Error("Document data is undefined.");
-
+  const data = docSnap.data()!;
   return {
     id: docSnap.id,
-    customerId: data.customerId || '',
-    customerName: data.customerName || '',
-    channel: data.channel || 'Otro',
+    customerId: data.customerId,
+    customerName: data.customerName,
+    channel: data.channel as DirectSaleChannel | undefined,
     items: data.items || [],
-    subtotal: data.subtotal || 0,
-    tax: data.tax || 0,
-    totalAmount: data.totalAmount || 0,
-    issueDate: data.issueDate instanceof Timestamp ? format(data.issueDate.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
-    dueDate: data.dueDate instanceof Timestamp ? format(data.dueDate.toDate(), "yyyy-MM-dd") : undefined,
-    invoiceNumber: data.invoiceNumber || undefined,
-    status: data.status || 'Borrador',
-    relatedPlacementOrders: data.relatedPlacementOrders || [],
-    notes: data.notes || undefined,
-    createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
-    updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+    subtotal: data.subtotal,
+    tax: data.tax,
+    totalAmount: data.totalAmount,
+    issueDate: toDateString(data.issueDate)!,
+    dueDate: toDateString(data.dueDate, false),
+    invoiceNumber: data.invoiceNumber,
+    status: data.status,
+    relatedPlacementOrders: data.relatedPlacementOrders,
+    notes: data.notes,
+    createdAt: toDateString(data.createdAt)!,
+    updatedAt: toDateString(data.updatedAt)!,
+    paidStatus: data.paidStatus || 'Pendiente',
+    paymentMethod: data.paymentMethod,
+    costOfGoods: data.costOfGoods,
+    type: data.type || 'directa', // Fallback for old data
+    qtyRemainingInConsignment: data.qtyRemainingInConsignment,
+    originalConsignmentId: data.originalConsignmentId,
   };
 };
 
-export const toFirestoreDirectSale = (data: Partial<DirectSaleWithExtras>, isNew: boolean): any => {
-  const subtotal = data.items?.reduce((sum, item) => sum + (item.quantity || 0) * (item.netUnitPrice || 0), 0) || 0;
-  const tax = subtotal * 0.21;
-  const totalAmount = subtotal + tax;
+export const toFirestoreDirectSale = (data: any, isNew: boolean): any => {
+    const firestoreData: { [key: string]: any } = {
+        updatedAt: Timestamp.now(),
+    };
 
-  const firestoreData: { [key: string]: any } = {
-      customerId: data.customerId || null,
-      customerName: data.customerName,
-      channel: data.channel,
-      items: data.items?.map(item => ({
-          productId: item.productId,
-          productName: item.productName,
-          quantity: item.quantity,
-          netUnitPrice: item.netUnitPrice,
-          total: (item.quantity || 0) * (item.netUnitPrice || 0),
-          batchId: item.batchId,
-          batchNumber: item.batchNumber || null
-      })) || [],
-      subtotal,
-      tax,
-      totalAmount,
-      status: data.status,
-      invoiceNumber: data.invoiceNumber || null,
-      relatedPlacementOrders: data.relatedPlacementOrders ? data.relatedPlacementOrders.split(',').map(s => s.trim()) : [],
-      notes: data.notes || null,
-  };
-  
-  if (data.issueDate && isValid(data.issueDate)) {
-    firestoreData.issueDate = Timestamp.fromDate(data.issueDate);
-  } else {
-    firestoreData.issueDate = Timestamp.fromDate(new Date());
-  }
+    // Only map fields that are actually present in the `data` object
+    if (data.customerId !== undefined) firestoreData.customerId = data.customerId || null;
+    if (data.customerName !== undefined) firestoreData.customerName = data.customerName;
+    if (data.channel !== undefined) firestoreData.channel = data.channel || null;
+    if (data.subtotal !== undefined) firestoreData.subtotal = data.subtotal || 0;
+    if (data.tax !== undefined) firestoreData.tax = data.tax || 0;
+    if (data.totalAmount !== undefined) firestoreData.totalAmount = data.totalAmount || 0;
+    if (data.issueDate) firestoreData.issueDate = data.issueDate instanceof Date ? Timestamp.fromDate(data.issueDate) : Timestamp.fromDate(new Date(data.issueDate));
+    if (data.dueDate !== undefined) firestoreData.dueDate = data.dueDate ? (data.dueDate instanceof Date ? Timestamp.fromDate(data.dueDate) : Timestamp.fromDate(new Date(data.dueDate))) : null;
+    if (data.invoiceNumber !== undefined) firestoreData.invoiceNumber = data.invoiceNumber || null;
+    if (data.status !== undefined) firestoreData.status = data.status || 'borrador';
+    if (data.paymentMethod !== undefined) firestoreData.paymentMethod = data.paymentMethod || null;
+    if (data.notes !== undefined) firestoreData.notes = data.notes || null;
+    if (data.type !== undefined) firestoreData.type = data.type || 'directa';
 
-  if (data.dueDate && isValid(data.dueDate)) {
-    firestoreData.dueDate = Timestamp.fromDate(data.dueDate);
-  } else {
-    firestoreData.dueDate = null;
-  }
-
-  if (isNew) {
-    firestoreData.createdAt = Timestamp.fromDate(new Date());
-  }
-  firestoreData.updatedAt = Timestamp.fromDate(new Date());
-  
-  Object.keys(firestoreData).forEach(key => {
-    if (firestoreData[key] === undefined) {
-      firestoreData[key] = null;
+    if (data.items) {
+      firestoreData.items = data.items.map((item: DirectSaleItem) => ({ 
+            productId: item.productId,
+            productName: item.productName,
+            batchId: item.batchId,
+            batchNumber: item.batchNumber,
+            quantity: item.quantity,
+            netUnitPrice: item.netUnitPrice,
+            total: (item.quantity || 0) * (item.netUnitPrice || 0),
+        }));
     }
-  });
 
-  return firestoreData;
+    if (data.relatedPlacementOrders) {
+      firestoreData.relatedPlacementOrders = Array.isArray(data.relatedPlacementOrders) 
+          ? data.relatedPlacementOrders 
+          : data.relatedPlacementOrders.split(',').map((s:string) => s.trim());
+    } else if (data.relatedPlacementOrders !== undefined) {
+      firestoreData.relatedPlacementOrders = [];
+    }
+
+    if (isNew) {
+        firestoreData.createdAt = Timestamp.now();
+        firestoreData.paidStatus = 'Pendiente';
+    }
+    
+    return firestoreData;
+};
+
+
+export const fromFirestoreExpense = (docSnap: DocumentSnapshot): Expense => {
+    const data = docSnap.data()!;
+    
+    const items = (data.items || []).map((item: any) => ({
+      ...item,
+      caducidad: toDateString(item.caducidad, false)
+    }));
+
+    return {
+        id: docSnap.id,
+        categoriaId: data.categoriaId,
+        categoria: data.categoria, 
+        isInventoryPurchase: !!data.isInventoryPurchase,
+        estadoDocumento: data.estadoDocumento,
+        estadoPago: data.estadoPago,
+        recepcionCompleta: !!data.recepcionCompleta,
+        concepto: data.concepto,
+        monto: data.monto,
+        moneda: data.moneda || 'EUR',
+        fechaEmision: toDateString(data.fechaEmision, false),
+        fechaVencimiento: toDateString(data.fechaVencimiento, false),
+        fechaPago: toDateString(data.fechaPago, false),
+        items: items,
+        gastosEnvio: data.gastosEnvio,
+        impuestos: data.impuestos,
+        proveedorId: data.proveedorId,
+        proveedorNombre: data.proveedorNombre,
+        invoiceNumber: data.invoiceNumber,
+        notes: data.notes,
+        adjuntos: data.adjuntos,
+        fileUrl: data.fileUrl,
+        fileName: data.fileName,
+        creadoPor: data.creadoPor,
+        fechaCreacion: toDateString(data.fechaCreacion)!,
+    }
+};
+
+export const toFirestoreExpense = (data: any, isNew: boolean, creatorId?: string): any => {
+    const payload: { [key: string]: any } = {
+        ...data,
+        updatedAt: Timestamp.now(),
+    };
+    if (isNew) {
+        payload.fechaCreacion = Timestamp.now();
+        if(creatorId) payload.creadoPor = creatorId;
+    }
+    
+    ['fechaEmision', 'fechaVencimiento'].forEach(key => {
+        if (data[key]) {
+            payload[key] = Timestamp.fromDate(new Date(data[key]));
+        } else {
+            payload[key] = null;
+        }
+    });
+
+    if (data.items) {
+      payload.items = data.items.map((item: any) => ({
+        ...item,
+        caducidad: item.caducidad ? Timestamp.fromDate(new Date(item.caducidad)) : null
+      }));
+    }
+
+    Object.keys(payload).forEach(key => {
+        if (payload[key] === undefined) {
+            payload[key] = null;
+        }
+    });
+
+    return payload;
+};
+
+export const fromFirestoreSupplier = (docSnap: DocumentSnapshot): Supplier => {
+    const data = docSnap.data()!;
+    return {
+        id: docSnap.id,
+        name: data.name,
+        code: data.code,
+        cif: data.cif,
+        contactName: data.contactName,
+        contactEmail: data.contactEmail,
+        contactPhone: data.contactPhone,
+        address: data.address,
+        iban: data.iban,
+        notes: data.notes,
+        createdAt: toDateString(data.createdAt)!,
+        updatedAt: toDateString(data.updatedAt)!,
+    };
+};
+
+export const toFirestoreSupplier = (data: any, isNew: boolean): any => {
+    const payload: { [key: string]: any } = {
+        name: data.name,
+        code: data.code || null,
+        cif: data.cif || null,
+        contactName: data.contactName || null,
+        contactEmail: data.contactEmail || null,
+        contactPhone: data.contactPhone || null,
+        address: {
+            street: data.address_street || null,
+            number: data.address_number || null,
+            city: data.address_city || null,
+            province: data.address_province || null,
+            postalCode: data.address_postalCode || null,
+            country: data.address_country || "España",
+        },
+        iban: data.iban || null,
+        notes: data.notes || null,
+        updatedAt: Timestamp.now(),
+    };
+    if (isNew) {
+        payload.createdAt = Timestamp.now();
+    }
+    return payload;
 };

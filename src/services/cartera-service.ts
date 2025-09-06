@@ -1,9 +1,6 @@
 
-
-'use server';
-
 import type { Account, Order, TeamMember, EnrichedAccount, AccountStatus } from '@/types';
-import { parseISO, isValid, isAfter, subDays } from 'date-fns';
+import { parseISO, isValid, isAfter, subDays, differenceInDays } from 'date-fns';
 import { calculateCommercialStatus, calculateLeadScore } from '@/lib/account-logic';
 import { VALID_SALE_STATUSES } from '@/lib/constants';
 
@@ -20,6 +17,8 @@ export async function processCarteraData(
     
     const ordersByAccountId = new Map<string, Order[]>();
     const ordersByClientName = new Map<string, Order[]>();
+    const ordersByCif = new Map<string, Order[]>();
+
 
     for (const order of orders) {
         if (order.accountId) {
@@ -29,21 +28,31 @@ export async function processCarteraData(
             ordersByAccountId.get(order.accountId)!.push(order);
         }
         
-        const clientNameKey = order.clientName.toLowerCase().trim();
+        const clientNameKey = order.clientName?.toLowerCase().trim();
         if (clientNameKey) {
              if (!ordersByClientName.has(clientNameKey)) {
                 ordersByClientName.set(clientNameKey, []);
             }
             ordersByClientName.get(clientNameKey)!.push(order);
         }
+        
+        // Fallback for orders that might have CIF but not other identifiers
+        const cifKey = (order as any).cif?.toLowerCase().trim();
+        if (cifKey) {
+            if (!ordersByCif.has(cifKey)) {
+                ordersByCif.set(cifKey, []);
+            }
+            ordersByCif.get(cifKey)!.push(order);
+        }
     }
     
     const enrichedAccountsPromises = accounts.map(async (account): Promise<EnrichedAccount> => {
         const ordersById = ordersByAccountId.get(account.id) || [];
-        const ordersByName = ordersByClientName.get(account.nombre.toLowerCase().trim()) || [];
+        const ordersByName = account.nombre ? ordersByClientName.get(account.nombre.toLowerCase().trim()) || [] : [];
+        const ordersByAccountCif = account.cif ? ordersByCif.get(account.cif.toLowerCase().trim()) || [] : [];
         
         const combinedOrdersMap = new Map<string, Order>();
-        [...ordersById, ...ordersByName].forEach(order => combinedOrdersMap.set(order.id, order));
+        [...ordersById, ...ordersByName, ...ordersByAccountCif].forEach(order => combinedOrdersMap.set(order.id, order));
         const accountOrders = Array.from(combinedOrdersMap.values());
         
         accountOrders.sort((a, b) => {
@@ -70,10 +79,16 @@ export async function processCarteraData(
         const nextInteraction = openTasks[0] || undefined;
         
         let status: AccountStatus;
-        if (nextInteraction) {
+        const historicalStatus = await calculateCommercialStatus(accountOrders);
+
+        if (historicalStatus === 'Activo' || historicalStatus === 'Repetición' || historicalStatus === 'Inactivo') {
+            status = historicalStatus;
+        } else if (nextInteraction) {
             status = nextInteraction.status as 'Programada' | 'Seguimiento';
+        } else if (accountOrders.length === 0) {
+            status = 'Pendiente';
         } else {
-            status = await calculateCommercialStatus(accountOrders);
+            status = historicalStatus;
         }
 
         const lastInteractionOrder = accountOrders[0];
@@ -82,7 +97,7 @@ export async function processCarteraData(
         const recentOrderValue = accountOrders
             .filter(o => VALID_SALE_STATUSES.includes(o.status) && o.createdAt && isValid(parseISO(o.createdAt)) && isAfter(parseISO(o.createdAt), subDays(new Date(), 30)))
             .reduce((sum, o) => sum + (o.value || 0), 0);
-        const leadScore = calculateLeadScore(status, account.potencial, lastInteractionDate, recentOrderValue);
+        const leadScore = await calculateLeadScore(status, account.potencial, lastInteractionDate, recentOrderValue);
 
         const successfulOrders = accountOrders.filter(o => VALID_SALE_STATUSES.includes(o.status));
         const totalSuccessfulOrders = successfulOrders.length;

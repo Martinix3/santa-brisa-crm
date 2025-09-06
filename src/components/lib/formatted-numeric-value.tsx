@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -9,9 +10,9 @@ interface FormattedNumericValueProps {
   placeholder?: string;
 }
 
-const FormattedNumericValue: React.FC<FormattedNumericValueProps> = ({ value, options, locale = 'en-US', placeholder = "N/D" }) => {
-  const [isClient, setIsClient] = useState(false);
+const FormattedNumericValue: React.FC<FormattedNumericValueProps> = ({ value, options, locale = 'es-ES', placeholder = "—" }) => {
 
+  const [isClient, setIsClient] = useState(false);
   useEffect(() => {
     setIsClient(true);
   }, []);
@@ -20,15 +21,19 @@ const FormattedNumericValue: React.FC<FormattedNumericValueProps> = ({ value, op
     return <>{placeholder}</>;
   }
 
+  // During SSR or before hydration on the client, return a simple, non-locale-specific format
+  // to prevent hydration mismatches.
   if (!isClient) {
-    // For SSR and initial client render, use a basic format that's locale-neutral or less prone to mismatch.
-    // Using toFixed(0) for whole numbers or toFixed(2) for numbers that might have decimals.
-    // This depends on the expected nature of 'value'. Assuming they might have decimals based on usage.
-    const precision = (value % 1 === 0) ? 0 : 2; // Basic check for whole number
-    return <>{value.toFixed(precision)}</>;
+    const hasDecimals = (options?.style === 'currency' || (options?.minimumFractionDigits && options.minimumFractionDigits > 0) || (options?.maximumFractionDigits && options.maximumFractionDigits > 0));
+    let numStr = value.toFixed(hasDecimals ? (options?.minimumFractionDigits || 2) : 0);
+    // Simple replacement for basic currency formatting. This is not perfect but avoids locale issues.
+    if (options?.style === 'currency') {
+      numStr = `${numStr} ${options.currency || ''}`.trim();
+    }
+    return <>{numStr}</>;
   }
-
-  // Client-side, use the specified locale and options
+  
+  // Client-side, use the full locale-aware formatting.
   return <>{value.toLocaleString(locale, options)}</>;
 };
 

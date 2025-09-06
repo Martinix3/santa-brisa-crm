@@ -53,7 +53,7 @@ const NO_CLAVADISTA_VALUE = "##NONE##";
 const editOrderFormSchema = z.object({
   clientName: z.string().optional(),
   products: z.string().optional(),
-  value: z.number({ invalid_type_error: "Debe ser un número" }).positive("El valor debe ser positivo.").optional().nullable(),
+  value: z.coerce.number({ invalid_type_error: "Debe ser un número" }).positive("El valor debe ser positivo.").optional().nullable(),
   status: z.enum(orderStatusesList as [OrderStatus, ...OrderStatus[]]),
   salesRep: z.string().optional(),
   clavadistaId: z.string().optional().nullable(),
@@ -66,8 +66,8 @@ const editOrderFormSchema = z.object({
     quantity: z.coerce.number().min(1, "La cantidad debe ser al menos 1."),
   })).optional().default([]),
   clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
-  numberOfUnits: z.number({ invalid_type_error: "Debe ser un número." }).positive("El número de unidades debe ser positivo.").optional().nullable(),
-  unitPrice: z.number({ invalid_type_error: "Debe ser un número." }).positive("El precio unitario debe ser positivo.").optional().nullable(),
+  numberOfUnits: z.coerce.number({ invalid_type_error: "Debe ser un número." }).positive("El número de unidades debe ser positivo.").optional().nullable(),
+  unitPrice: z.coerce.number({ invalid_type_error: "Debe ser un número." }).positive("El precio unitario debe ser positivo.").optional().nullable(),
   notes: z.string().optional(),
   nextActionType: z.enum(nextActionTypeList as [NextActionType, ...NextActionType[]]).optional(),
   nextActionCustom: z.string().optional(),
@@ -165,7 +165,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     if (isOpen) {
         setIsLoadingDropdownData(true);
         Promise.all([
-            getTeamMembersFS(['Clavadista']),
+            getTeamMembersFS(['Clavadista', 'Líder Clavadista']),
             getTeamMembersFS(['SalesRep', 'Admin']),
             getInventoryItemsFS()
         ]).then(([fetchedClavadistas, fetchedSalesReps, fetchedMaterials]) => {
@@ -253,18 +253,6 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     window.print();
   };
   
-  const handleNumericChange = (e: React.ChangeEvent<HTMLInputElement>, field: any) => {
-    const value = e.target.value.replace(",", ".");
-    if (value === "") {
-        field.onChange(undefined);
-    } else {
-        const numericValue = Number(value);
-        if (!isNaN(numericValue)) {
-            field.onChange(numericValue);
-        }
-    }
-  };
-
   const isSalesRep = currentUserRole === 'SalesRep';
   
   const canEditOrderDetailsOverall = isAdmin;
@@ -422,9 +410,9 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 <FormField control={form.control} name="clientType" render={({ field }) => (<FormItem><FormLabel>Tipo de Cliente</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={productRelatedFieldsDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione tipo cliente" /></SelectTrigger></FormControl><SelectContent>{clientTypeList.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
                 <FormField control={form.control} name="products" render={({ field }) => (<FormItem><FormLabel>Productos Pedidos</FormLabel><FormControl><Textarea placeholder="Listar productos y cantidades..." className="min-h-[80px]" {...field} disabled={productRelatedFieldsDisabled} /></FormControl><FormDescription>Separe múltiples productos con comas, punto y coma o saltos de línea.</FormDescription><FormMessage /></FormItem>)}/>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Nº Unidades Totales</FormLabel><FormControl><Input type="text" inputMode="decimal" {...field} onChange={(e) => handleNumericChange(e, field)} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
-                    <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario Medio (€ sin IVA)</FormLabel><FormControl><Input type="text" inputMode="decimal" {...field} onChange={(e) => handleNumericChange(e, field)} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
-                    <FormField control={form.control} name="value" render={({ field }) => (<FormItem><FormLabel>Valor Total Pedido (€ IVA incl.)</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? ""} onChange={(e) => handleNumericChange(e, field)} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Nº Unidades Totales</FormLabel><FormControl><Input type="number" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario Medio (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="value" render={({ field }) => (<FormItem><FormLabel>Valor Total Pedido (€ IVA incl.)</FormLabel><FormControl><Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
                 </div>
               </>
             ) : (

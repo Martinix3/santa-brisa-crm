@@ -18,10 +18,11 @@ import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
-import { getOrdersFS, addScheduledTaskFS, deleteOrderFS, updateScheduledTaskFS, reorderTasksBatchFS, updateOrderFS } from "@/services/order-service";
+import { getOrdersFS, addScheduledTaskFS, deleteOrderFS, updateScheduledTaskFS, reorderTasksBatchFS, updateOrderStatusFS } from "@/services/order-service";
 import { getEventsFS, addEventFS, deleteEventFS, updateEventFS, reorderEventsBatchFS } from "@/services/event-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
-import type { Order, CrmEvent, TeamMember, UserRole, OrderStatus, FollowUpResultFormValues, NewScheduledTaskData, EventFormValues } from "@/types";
+import { getAllNotesFS, getNotesForUserFS } from "@/services/note-service";
+import type { Order, CrmEvent, TeamMember, UserRole, OrderStatus, FollowUpResultFormValues, NewScheduledTaskData, EventFormValues, StickyNote } from "@/types";
 import StatusBadge from "@/components/app/status-badge";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -36,6 +37,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Separator } from "@/components/ui/separator";
 import type { DayContentProps } from "react-day-picker";
 import { DayDots } from "@/components/app/DayDots";
+import { StickyNotesWidget } from '@/components/app/dashboard/sticky-notes-widget';
 
 
 // --- TYPE DEFINITIONS ---
@@ -61,15 +63,15 @@ type ViewMode = 'day' | 'week' | 'month';
 // --- HELPER FUNCTIONS ---
 const getAgendaItemIcon = (item: AgendaItem) => {
   if (item.type === 'evento') {
-    return <PartyPopper className="h-4 w-4 text-brand-purple flex-shrink-0" />;
+    return <PartyPopper className="h-5 w-5 text-brand-purple flex-shrink-0" />;
   }
   if (item.type === 'tarea_comercial') {
-    return <ClipboardList className="h-4 w-4 text-brand-yellow flex-shrink-0" />;
+    return <ClipboardList className="h-5 w-5 text-brand-yellow flex-shrink-0" />;
   }
   if (item.type === 'tarea_administrativa') {
-    return <Briefcase className="h-4 w-4 text-brand-blue flex-shrink-0" />;
+    return <Briefcase className="h-5 w-5 text-brand-blue flex-shrink-0" />;
   }
-  return <ClipboardList className="h-4 w-4 text-brand-yellow flex-shrink-0" />;
+  return <ClipboardList className="h-5 w-5 text-brand-yellow flex-shrink-0" />;
 };
 
 const getInteractionType = (interaction: Order): string => {
@@ -98,56 +100,62 @@ function SortableAgendaItem({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : 'auto',
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="flex items-center gap-2">
-      <Card 
-        className="shadow-sm w-full hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing"
-      >
-        <CardContent 
-          className="p-3 flex items-center gap-3"
-          onClick={() => handleItemClick(item)} 
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleItemClick(item); }}
-          role="button"
-          tabIndex={0}
-        >
-          <div className="flex-grow flex items-center gap-3 min-w-0">
-            {getAgendaItemIcon(item)}
-            <div className="flex-grow">
-              <h4 className="font-semibold text-base">{item.title}</h4>
-              <p className="text-sm text-muted-foreground">{item.description}</p>
+    <div ref={setNodeRef} style={style}>
+      <Card className="shadow-sm w-full hover:shadow-md transition-shadow group/item">
+        <CardContent className="p-3 flex items-center justify-between gap-3">
+          {/* Draggable handle + main content */}
+          <div 
+            className="flex items-center gap-3 flex-grow min-w-0"
+          >
+            <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-2 text-muted-foreground" aria-label="Arrastrar para reordenar">
+              {getAgendaItemIcon(item)}
             </div>
+            <div 
+                className="flex-grow cursor-pointer" 
+                onClick={() => handleItemClick(item)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleItemClick(item); }}
+                role="button"
+                tabIndex={0}
+             >
+              <h4 className="font-semibold text-base truncate group-hover/item:text-primary" title={item.title}>{item.title}</h4>
+              <p className="text-sm text-muted-foreground truncate" title={item.description}>{item.description}</p>
+            </div>
+          </div>
+          
+          {/* Actions */}
+          <div className="flex flex-col items-end gap-1.5 flex-shrink-0 w-32 text-right">
+              {(item.type === 'tarea_comercial' || item.type === 'tarea_administrativa') && <StatusBadge type="order" status={(item.rawItem as Order).status}/>}
+              {item.type === 'evento' && <StatusBadge type="event" status={(item.rawItem as CrmEvent).status}/>}
+
+              {item.type === 'tarea_comercial' && (
+                  <Button 
+                      size="sm" 
+                      variant="default" 
+                      className="w-full mt-1"
+                      onClick={(e) => { e.stopPropagation(); onFollowUpClick(item.rawItem as Order); }}
+                  >
+                      <Send className="mr-2 h-3 w-3" />
+                      Registrar
+                  </Button>
+              )}
+              {item.type === 'tarea_administrativa' && (
+                  <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="w-full mt-1"
+                      onClick={(e) => { e.stopPropagation(); onCompleteClick(item); }}
+                  >
+                      <Check className="mr-2 h-4 w-4" />
+                      Completar
+                  </Button>
+              )}
           </div>
         </CardContent>
       </Card>
-       <div className="flex flex-col items-center justify-center gap-1 ml-auto flex-shrink-0">
-        {(item.type === 'tarea_comercial' || item.type === 'tarea_administrativa') && <StatusBadge type="order" status={(item.rawItem as Order).status}/>}
-        {item.type === 'evento' && <StatusBadge type="event" status={(item.rawItem as CrmEvent).status}/>}
-        
-        {item.type === 'tarea_comercial' && (
-            <Button 
-                size="sm" 
-                variant="outline" 
-                className="w-full"
-                onClick={(e) => { e.stopPropagation(); onFollowUpClick(item.rawItem as Order); }}
-            >
-                <Send className="mr-2 h-3 w-3" />
-                Registrar
-            </Button>
-        )}
-        {item.type === 'tarea_administrativa' && (
-              <Button 
-                size="sm" 
-                variant="outline" 
-                className="w-full"
-                onClick={(e) => { e.stopPropagation(); onCompleteClick(item); }}
-            >
-                <Check className="mr-2 h-4 w-4" />
-                Completar
-            </Button>
-        )}
-      </div>
     </div>
   );
 }
@@ -176,6 +184,9 @@ export default function MyAgendaPage() {
   const [allAgendaItems, setAllAgendaItems] = React.useState<AgendaItem[]>([]);
   const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([]);
   const [selectedItem, setSelectedItem] = React.useState<AgendaItem | null>(null);
+  const [notes, setNotes] = React.useState<StickyNote[]>([]);
+  const [assignableUsers, setAssignableUsers] = React.useState<TeamMember[]>([]);
+
 
   // State for filters and selection
   const [selectedDate, setSelectedDate] = React.useState<Date>(new Date());
@@ -220,10 +231,11 @@ export default function MyAgendaPage() {
     async function loadAgendaData() {
       setIsLoading(true);
       try {
-        const [orders, events, members] = await Promise.all([
+        const [orders, events, members, notesData] = await Promise.all([
           getOrdersFS(),
           getEventsFS(),
-          getTeamMembersFS(['SalesRep', 'Clavadista', 'Admin'])
+          getTeamMembersFS(['SalesRep', 'Clavadista', 'Admin']),
+          userRole === 'Admin' ? getAllNotesFS() : (teamMember ? getNotesForUserFS(teamMember.id) : Promise.resolve([]))
         ]);
 
         const tareaItems: AgendaItem[] = orders
@@ -252,6 +264,8 @@ export default function MyAgendaPage() {
         
         setAllAgendaItems([...tareaItems, ...eventItems].map(item => ({ ...item, orderIndex: item.orderIndex ?? 0 })));
         setTeamMembers(members);
+        setNotes(notesData);
+        setAssignableUsers(members.filter(m => m.role === 'Admin' || m.role === 'SalesRep'));
 
       } catch (error) {
         console.error("Error loading agenda data:", error);
@@ -261,7 +275,7 @@ export default function MyAgendaPage() {
       }
     }
     loadAgendaData();
-  }, [dataSignature, toast]);
+  }, [dataSignature, toast, userRole, teamMember]);
   
   const teamMembersMap = React.useMemo(() => new Map(teamMembers.map(m => [m.id, m])), [teamMembers]);
   
@@ -363,18 +377,23 @@ export default function MyAgendaPage() {
           .filter(item => isSameDay(item.date, selectedDate))
           .sort((a,b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0));
     }, [selectedDate, filteredItemsForHighlight]);
-
+  
   const itemsGroupedByDay = React.useMemo(() => {
-      const grouped = new Map<string, AgendaItem[]>();
-      itemsForView.forEach(item => {
-          const dayKey = format(item.date, 'yyyy-MM-dd');
-          if (!grouped.has(dayKey)) {
-              grouped.set(dayKey, []);
-          }
-          grouped.get(dayKey)!.push(item);
-      });
-      return Array.from(grouped.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [itemsForView]);
+    if (viewMode === 'day') return []; // Not used in day view
+
+    const grouped = itemsForView.reduce((acc, item) => {
+      const dayKey = format(item.date, 'yyyy-MM-dd');
+      if (!acc[dayKey]) {
+        acc[dayKey] = [];
+      }
+      acc[dayKey].push(item);
+      return acc;
+    }, {} as Record<string, AgendaItem[]>);
+    
+    // Sort by date string key
+    return Object.entries(grouped).sort(([dateA], [dateB]) => new Date(dateA).getTime() - new Date(dateB).getTime());
+  }, [itemsForView, viewMode]);
+
 
   const handleDateChange = (direction: 'prev' | 'next') => {
     const newDate = new Date(selectedDate);
@@ -400,11 +419,11 @@ export default function MyAgendaPage() {
   const handleMarkTaskAsComplete = async (item: AgendaItem) => {
     if (item.type !== 'tarea_administrativa') return;
     try {
-        await updateOrderFS(item.id, { status: "Completado" });
+        await updateOrderStatusFS(item.id, "Completado");
         toast({ title: "Tarea Completada", description: `"${item.title}" ha sido marcada como completada.` });
         refreshDataSignature();
-    } catch (error) {
-        toast({ title: "Error", description: "No se pudo marcar la tarea como completada.", variant: "destructive" });
+    } catch (error: any) {
+        toast({ title: "Error", description: `No se pudo marcar la tarea como completada: ${error.message}`, variant: "destructive" });
     }
   };
   
@@ -538,7 +557,7 @@ export default function MyAgendaPage() {
       refreshDataSignature();
       setIsEventDialogOpen(false);
       setEventToEdit(null);
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error saving event:", error);
         toast({ title: "Error al Guardar Evento", description: "No se pudo guardar el evento.", variant: "destructive"});
     }
@@ -615,21 +634,23 @@ export default function MyAgendaPage() {
     if (typeof over.id === 'string' && over.id.startsWith('drop-')) {
         if (active.id === over.id) return;
         const newDateStr = over.id.replace('drop-', '');
-        const newDate = parseISO(newDateStr);
         
-        if (!isValid(newDate) || isSameDay(activeItem.date, newDate)) return;
+        const parsedDate = new Date(newDateStr);
+        parsedDate.setHours(12, 0, 0, 0);
+
+        if (!isValid(parsedDate) || isSameDay(activeItem.date, parsedDate)) return;
 
         const originalItems = [...allAgendaItems];
-        setAllAgendaItems(prev => prev.map(item => item.id === active.id ? { ...item, date: newDate, orderIndex: 0 } : item));
+        setAllAgendaItems(prev => prev.map(item => item.id === active.id ? { ...item, date: parsedDate, orderIndex: 0 } : item));
 
         try {
-            const updates = [{ id: active.id, orderIndex: 0, date: newDate }];
+            const updates = [{ id: active.id, orderIndex: 0, date: parsedDate }];
             if (activeItem.type === 'evento') {
                 await reorderEventsBatchFS(updates);
             } else {
                 await reorderTasksBatchFS(updates);
             }
-            toast({ title: "Tarea Movida", description: `"${activeItem.title}" movida al ${format(newDate, 'dd/MM/yyyy')}.` });
+            toast({ title: "Tarea Movida", description: `"${activeItem.title}" movida al ${format(parsedDate, 'dd/MM/yyyy')}.` });
             refreshDataSignature();
         } catch (error) {
             console.error("Error moving task to new date:", error);
@@ -699,6 +720,8 @@ export default function MyAgendaPage() {
     event: eventDays,
     admin: adminTaskDays,
   };
+
+  const showStickyNotes = (userRole === 'Admin' || userRole === 'SalesRep') && teamMember;
   
   return (
     <>
@@ -720,95 +743,33 @@ export default function MyAgendaPage() {
             </div>
           </header>
           
-          <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Filter className="h-5 w-5 text-muted-foreground"/>Filtros de Agenda</CardTitle>
-                <CardDescription>Utiliza los filtros para personalizar la vista de tu agenda.</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col sm:flex-row gap-4">
-                {isAdmin && (
-                    <div className="flex-1 min-w-[180px]">
-                        <p className="text-sm font-medium mb-1">Comercial / Clavadista</p>
-                        <Select value={userFilter} onValueChange={setUserFilter}>
-                            <SelectTrigger><SelectValue placeholder="Filtrar por usuario..." /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">Todos</SelectItem>
-                                {teamMembers.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                )}
-                <div className="flex-1 min-w-[180px]">
-                    <p className="text-sm font-medium mb-1">Tipo de Entrada</p>
-                    <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as TypeFilter)}>
-                        <SelectTrigger><SelectValue placeholder="Filtrar por tipo..." /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">Todo</SelectItem>
-                            <SelectItem value="tareas_comerciales">Tareas Comerciales</SelectItem>
-                            <SelectItem value="tareas_administrativas">Tareas Administrativas</SelectItem>
-                            <SelectItem value="eventos">Eventos</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-            </CardContent>
-          </Card>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-grow">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 flex-grow">
               <div className="lg:col-span-1">
-                  <Card>
-                       <CardHeader className="flex flex-row items-center justify-between gap-4 pb-4">
-                            <CardTitle>Calendario</CardTitle>
-                             <Button onClick={handleOpenNewEntryDialog} size="icon" className="rounded-full h-8 w-8">
-                                <PlusCircle className="h-4 w-4" />
-                                <span className="sr-only">Añadir Entrada</span>
-                            </Button>
-                        </CardHeader>
-                      <CardContent className="p-2 flex justify-center">
-                          <Calendar
-                              mode="single"
-                              selected={selectedDate}
-                              onSelect={(day) => { if(day) { setSelectedDate(day); setViewMode('day'); } }}
-                              locale={es}
-                              modifiers={modifiers}
-                              components={{ DayContent: DroppableDay }}
-                              classNames={{
-                                today: "bg-muted/50",
-                                selected:
-                                    "bg-primary text-primary-foreground hover:bg-primary/90 focus:bg-primary focus:text-primary-foreground",
-                              }}
-                              className="p-0"
-                          />
-                      </CardContent>
-                      <CardFooter className="flex-col items-start p-4 pt-0">
-                            <Separator className="mb-2"/>
-                            <div className="space-y-2 text-xs text-muted-foreground w-full">
-                                <div className="flex items-center justify-between">
-                                    <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-yellow"/> Tarea Comercial</span>
-                                    <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-purple"/> Evento</span>
-                                    <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-blue"/> Tarea Admin.</span>
-                                </div>
-                            </div>
-                      </CardFooter>
-                  </Card>
-              </div>
-              
-              <div className="lg:col-span-2">
                   <Card className="h-full flex flex-col">
                       <CardHeader>
-                          <div className="flex flex-wrap items-center justify-between gap-4">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
                             <CardTitle className="text-lg font-semibold">
                                 Actividades para {viewMode === 'day' ? format(selectedDate, 'dd MMMM, yyyy', {locale: es}) : `${format(interval.start, 'dd MMM', {locale: es})} - ${format(interval.end, 'dd MMM, yyyy', {locale: es})}`}
                             </CardTitle>
-                            <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-1 rounded-md bg-muted p-1">
-                                    <Button variant={viewMode === 'day' ? 'primary' : 'ghost'} className="h-8 px-3" onClick={() => setViewMode('day')}>Día</Button>
-                                    <Button variant={viewMode === 'week' ? 'primary' : 'ghost'} className="h-8 px-3" onClick={() => setViewMode('week')}>Semana</Button>
-                                    <Button variant={viewMode === 'month' ? 'primary' : 'ghost'} className="h-8 px-3" onClick={() => setViewMode('month')}>Mes</Button>
-                                </div>
-                                <div className="flex gap-2">
-                                    <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => handleDateChange('prev')}><ChevronLeft className="h-4 w-4"/></Button>
-                                    <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => handleDateChange('next')}><ChevronRight className="h-4 w-4"/></Button>
-                                </div>
+                             <div className="flex items-center gap-2 flex-wrap">
+                                {isAdmin && (
+                                    <Select value={userFilter} onValueChange={setUserFilter}>
+                                        <SelectTrigger className="w-auto h-8 text-xs"><SelectValue placeholder="Usuario..." /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Todos</SelectItem>
+                                            {teamMembers.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                )}
+                                <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as TypeFilter)}>
+                                    <SelectTrigger className="w-auto h-8 text-xs"><SelectValue placeholder="Tipo..." /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todo</SelectItem>
+                                        <SelectItem value="tareas_comerciales">T. Comerciales</SelectItem>
+                                        <SelectItem value="tareas_administrativas">T. Admin.</SelectItem>
+                                        <SelectItem value="eventos">Eventos</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                           </div>
                       </CardHeader>
@@ -841,7 +802,7 @@ export default function MyAgendaPage() {
                                                 <div key={day}>
                                                     <h3 className="font-semibold mb-2">{format(parseISO(day), "EEEE dd 'de' MMMM", { locale: es })}</h3>
                                                     <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
-                                                        <div className="space-y-3">
+                                                        <div className="space-y-4">
                                                             {items.map(item => (
                                                                 <SortableAgendaItem 
                                                                     key={item.id} 
@@ -866,22 +827,75 @@ export default function MyAgendaPage() {
                       </CardContent>
                   </Card>
               </div>
+
+              <div className="lg:col-span-1 space-y-8">
+                  <Card>
+                       <CardHeader className="flex flex-row items-center justify-between gap-4 pb-4">
+                           <div className="flex items-center gap-1 rounded-md bg-muted p-1">
+                                <Button variant={viewMode === 'day' ? 'primary' : 'ghost'} className="h-8 px-3" onClick={() => setViewMode('day')}>Día</Button>
+                                <Button variant={viewMode === 'week' ? 'primary' : 'ghost'} className="h-8 px-3" onClick={() => setViewMode('week')}>Semana</Button>
+                                <Button variant={viewMode === 'month' ? 'primary' : 'ghost'} className="h-8 px-3" onClick={() => setViewMode('month')}>Mes</Button>
+                            </div>
+                            <div className="flex gap-2">
+                                <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => handleDateChange('prev')}><ChevronLeft className="h-4 w-4"/></Button>
+                                <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => handleDateChange('next')}><ChevronRight className="h-4 w-4"/></Button>
+                            </div>
+                             <Button onClick={handleOpenNewEntryDialog} size="icon" className="rounded-full h-8 w-8">
+                                <PlusCircle className="h-4 w-4" />
+                                <span className="sr-only">Añadir Entrada</span>
+                            </Button>
+                        </CardHeader>
+                      <CardContent className="p-2 flex justify-center">
+                          <Calendar
+                              mode="single"
+                              selected={selectedDate}
+                              onSelect={(day) => { if(day) { setSelectedDate(day); setViewMode('day'); } }}
+                              locale={es}
+                              modifiers={modifiers}
+                              components={{ DayContent: DroppableDay }}
+                              classNames={{
+                                today: "bg-muted/50",
+                                selected:
+                                    "bg-primary text-primary-foreground hover:bg-primary/90 focus:bg-primary focus:text-primary-foreground",
+                              }}
+                              className="p-0"
+                          />
+                      </CardContent>
+                      <CardFooter className="flex-col items-start p-4 pt-0">
+                            <Separator className="mb-2"/>
+                            <div className="space-y-2 text-xs text-muted-foreground w-full">
+                                <div className="flex items-center justify-between">
+                                    <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-yellow"/> Tarea Comercial</span>
+                                    <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-purple"/> Evento</span>
+                                    <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-brand-blue"/> Tarea Admin.</span>
+                                </div>
+                            </div>
+                      </CardFooter>
+                  </Card>
+                   {showStickyNotes && (
+                        <StickyNotesWidget
+                            initialNotes={notes}
+                            currentUserId={teamMember!.id}
+                            isAdmin={isAdmin}
+                            onNotesChange={refreshDataSignature}
+                            allAssignableUsers={assignableUsers}
+                            teamMembersMap={teamMembersMap}
+                        />
+                    )}
+              </div>
           </div>
         </div>
 
-        <DragOverlay dropAnimation={{ duration: 250, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}
-           modifiers={overlayMode === 'icon' ? [{
-              name: 'center-in-viewport',
-              options: {},
-              fn: ({transform, activeNodeRect, draggingNodeRect}) => {
+        <DragOverlay 
+            dropAnimation={{ duration: 250, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}
+            modifiers={overlayMode === 'icon' ? [({transform, activeNodeRect, draggingNodeRect}) => {
                 if (!activeNodeRect || !draggingNodeRect) return transform;
                 return {
                   ...transform,
                   x: transform.x - (draggingNodeRect.width / 2),
                   y: transform.y - (draggingNodeRect.height / 2),
                 };
-              }
-            }] : []}
+              }] : []}
         >
             {activeAgendaItem ? (
                 overlayMode === 'card' ? (
@@ -1001,14 +1015,9 @@ export default function MyAgendaPage() {
             onSave={handleSaveEvent}
             isReadOnly={false}
             allTeamMembers={teamMembers}
+            allAccounts={[]}
         />
         )}
     </>
   );
 }
-
-    
-
-
-
-

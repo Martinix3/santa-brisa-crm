@@ -1,72 +1,101 @@
+
 // To run this script: npx tsx src/scripts/migrate-categories.ts
-// IMPORTANT: This is a one-time script. Backup your Firestore data before running.
+// IMPORTANT: This script will reset and seed the categories collection based on the definitions in src/lib/data.ts
+// It is idempotent and safe to run multiple times, but it will overwrite existing categories.
 
-import { db } from '../lib/firebase';
-import { collection, getDocs, writeBatch, query, where, limit, updateDoc } from 'firebase/firestore';
+import { initializeApp, getApps, App, type AppOptions, cert, applicationDefault } from 'firebase-admin/app';
+import { getFirestore, Timestamp, WriteBatch, CollectionReference } from 'firebase-admin/firestore';
+import { mockCategories } from '../lib/data';
 
-const INVENTORY_COLLECTION = 'inventoryItems';
-const CATEGORIES_COLLECTION = 'categories';
-
-// Helper function to find a category by name, ignoring case and extra spaces.
-async function findCategoryByName(name: string) {
-    const categoriesRef = collection(db, CATEGORIES_COLLECTION);
-    const snapshot = await getDocs(categoriesRef);
-    const normalizedName = name.trim().toLowerCase();
-    
-    for (const doc of snapshot.docs) {
-        const categoryData = doc.data();
-        if (categoryData.name && categoryData.name.trim().toLowerCase() === normalizedName) {
-            return { id: doc.id, ...categoryData };
-        }
-    }
-    return null;
+// --- Admin SDK Initialization ---
+let db: FirebaseFirestore.Firestore;
+try {
+  const ADMIN_APP_NAME = 'firebase-admin-script-runner';
+  const existingApp = getApps().find(app => app.name === ADMIN_APP_NAME);
+  if (existingApp) {
+    db = getFirestore(existingApp);
+  } else {
+    const appOptions: AppOptions = {
+      credential: applicationDefault(),
+      projectId: process.env.GCLOUD_PROJECT || 'santa-brisa-crm',
+    };
+    const newApp = initializeApp(appOptions, ADMIN_APP_NAME);
+    db = getFirestore(newApp);
+  }
+} catch (error: any) {
+  console.error("Firebase Admin SDK initialization error:", error);
+  throw new Error("Failed to initialize Firebase Admin SDK for script execution.");
 }
 
-async function migrate() {
-    console.log("Starting script to assign categories to uncategorized inventory items...");
 
-    // Find the ID for "Materia Prima (COGS)". This is a safer default.
-    const defaultCategory = await findCategoryByName("Materia Prima (COGS)");
+const CATEGORIES_COLLECTION = 'categories';
+const MIGRATION_FLAG_DOC = 'migrateCategories_v2_2024_07_31';
 
-    if (!defaultCategory) {
-        console.error("CRITICAL ERROR: Default category 'Materia Prima (COGS)' not found.");
-        console.error("Please ensure this category exists in your 'categories' collection before running the script.");
+async function deleteCollection(collectionRef: CollectionReference) {
+    let snapshot;
+    do {
+      snapshot = await collectionRef.limit(500).get();
+      if (snapshot.size === 0) {
+        break; // Exit loop if collection is empty
+      }
+      const batch = db.batch();
+      snapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+      console.log(`  - Deleting batch of ${snapshot.size} documents...`);
+      await batch.commit();
+    } while (snapshot.size > 0);
+    
+    console.log(`  - Finished wiping "${collectionRef.id}".`);
+}
+
+async function seedCategories() {
+    console.log("Starting script to reset and seed categories...");
+    
+    const flagRef = db.collection('migrationFlags').doc(MIGRATION_FLAG_DOC);
+    const flagSnap = await flagRef.get();
+    if (flagSnap.exists) {
+        console.log(`-> This script version (${MIGRATION_FLAG_DOC}) has been run before. To re-run, delete the flag document in Firestore.`);
         return;
     }
-
-    console.log(`Found default category: ${defaultCategory.name} (ID: ${defaultCategory.id})`);
-
-    const batch = writeBatch(db);
-    let updatedCount = 0;
-
-    // Query for all inventory items that DO NOT have a categoryId or it is null/empty.
-    const inventoryQuery = query(collection(db, INVENTORY_COLLECTION));
-    const inventorySnapshot = await getDocs(inventoryQuery);
-
-    console.log(`Found ${inventorySnapshot.size} total inventory items. Checking for uncategorized items...`);
     
-    inventorySnapshot.forEach(doc => {
-        const data = doc.data();
-        if (!data.categoryId) {
-            console.log(`  - Updating item: "${data.name}" (ID: ${doc.id}) with default category.`);
-            batch.update(doc.ref, { categoryId: defaultCategory.id });
-            updatedCount++;
-        }
+    const categoriesRef = db.collection(CATEGORIES_COLLECTION);
+
+    // 1. Delete all existing documents in the collection
+    console.log(`Wiping collection: "${CATEGORIES_COLLECTION}"...`);
+    await deleteCollection(categoriesRef);
+    console.log("Collection wiped.");
+
+    // 2. Add new categories from mockCategories in data.ts
+    const seedBatch = db.batch();
+    console.log(`Seeding ${mockCategories.length} new categories...`);
+    mockCategories.forEach(category => {
+        const { idOverride, ...categoryData } = category;
+        const docRef = categoriesRef.doc(idOverride!);
+        
+        const dataToSave = {
+            ...categoryData,
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
+        };
+        seedBatch.set(docRef, dataToSave);
     });
 
-    if (updatedCount === 0) {
-        console.log("No uncategorized items found. Migration is not needed.");
-        return;
-    }
-
+    // 3. Commit the seed batch
     try {
-        await batch.commit();
-        console.log(`Migration successful! ${updatedCount} inventory items were updated.`);
+        await seedBatch.commit();
+        console.log("✅ Successfully reset and seeded the categories collection.");
+        
+        // 4. Set migration flag
+        await flagRef.set({
+            runAt: Timestamp.now(),
+            seededCount: mockCategories.length
+        });
+        console.log(`Migration flag "${MIGRATION_FLAG_DOC}" set.`);
+        
     } catch (error) {
-        console.error("Error committing batch:", error);
+        console.error("❌ Error committing seed batch:", error);
     }
 }
 
-migrate().catch(error => {
-    console.error("An unexpected error occurred during migration:", error);
-});
+seedCategories().catch(console.error);

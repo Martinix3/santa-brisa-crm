@@ -55,7 +55,7 @@ const renderProgress = (current: number, target: number, unit: string, targetAch
 
 export default function TeamTrackingPage() {
   const { toast } = useToast();
-  const { dataSignature } = useAuth(); 
+  const { userRole, teamMember, dataSignature } = useAuth(); 
   const [teamStats, setTeamStats] = useState<TeamMember[]>([]);
   const [salesTeamMembersBase, setSalesTeamMembersBase] = useState<TeamMember[]>([]);
   const [isLoadingBaseMembers, setIsLoadingBaseMembers] = useState(true);
@@ -65,7 +65,14 @@ export default function TeamTrackingPage() {
     async function loadBaseTeamMembers() {
       setIsLoadingBaseMembers(true);
       try {
-        const members = await getTeamMembersFS(['SalesRep']);
+        let members;
+        if (userRole === 'Líder Clavadista' && teamMember && teamMember.equipoIds && teamMember.equipoIds.length > 0) {
+            const fetchedMembers = await getTeamMembersFS();
+            const teamIdsSet = new Set(teamMember.equipoIds);
+            members = fetchedMembers.filter(m => teamIdsSet.has(m.id));
+        } else {
+            members = await getTeamMembersFS(['SalesRep', 'Líder Clavadista']);
+        }
         setSalesTeamMembersBase(members);
       } catch (error) {
         console.error("Error loading sales team members:", error);
@@ -75,7 +82,7 @@ export default function TeamTrackingPage() {
       }
     }
     loadBaseTeamMembers();
-  }, [toast, dataSignature]); 
+  }, [toast, dataSignature, userRole, teamMember]); 
 
 
   useEffect(() => {
@@ -235,7 +242,7 @@ export default function TeamTrackingPage() {
                            <Link href={`/team-tracking/${member.id}`} className="font-medium hover:underline text-primary">
                             {member.name}
                           </Link>
-                           <p className="text-xs text-muted-foreground">{member.role === 'SalesRep' ? 'Rep. Ventas' : member.role}</p>
+                           <p className="text-xs text-muted-foreground">{member.role}</p>
                         </div>
                       </div>
                     </TableCell>

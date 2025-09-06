@@ -1,4 +1,5 @@
 
+'use server';
 
 import type { Account, Order, AccountStatus, PotencialType } from '@/types';
 import { parseISO, differenceInDays, isValid } from 'date-fns';
@@ -16,29 +17,43 @@ export async function calculateCommercialStatus(
 ): Promise<Exclude<AccountStatus, 'Programada' | 'Seguimiento'>> {
     
     // Check for successful sales.
-    const successfulOrders = ordersForAccount.filter(o => VALID_SALE_STATUSES.includes(o.status));
+    const successfulOrders = ordersForAccount
+        .filter(o => VALID_SALE_STATUSES.includes(o.status) && o.createdAt && isValid(parseISO(o.createdAt)))
+        .sort((a,b) => parseISO(b.createdAt).getTime() - parseISO(a.createdAt).getTime());
     
     const count = successfulOrders.length;
 
+    if (count === 0) {
+        // If there are no successful orders, check for failed attempts.
+        const hasInteractions = ordersForAccount.some(o => o.status === 'Fallido' || o.status === 'Cancelado');
+        return hasInteractions ? 'Fallido' : 'Pendiente';
+    }
+
+    const lastOrderDate = parseISO(successfulOrders[0].createdAt);
+    const daysSinceLastOrder = differenceInDays(new Date(), lastOrderDate);
+
+    if (daysSinceLastOrder > 90) {
+        return 'Inactivo';
+    }
+    
     if (count >= 2) {
         return 'Repetición';
-    } else if (count === 1) {
-        return 'Activo';
-    } else {
-        return 'Fallido';
     }
+    
+    // If there's at least one successful order and it's recent, it's active.
+    return 'Activo';
 }
 
 
 /**
  * Calculates the lead score for an account based on its calculated status and potential.
  */
-export function calculateLeadScore(
+export async function calculateLeadScore(
     accountStatus: AccountStatus, 
     potencial: PotencialType, 
     lastInteractionDate?: Date,
     recentOrderValue: number = 0
-): number {
+): Promise<number> {
     let score = 0;
     const now = new Date();
 
@@ -48,6 +63,7 @@ export function calculateLeadScore(
         case 'Activo': score = 75; break;
         case 'Seguimiento': score = 60; break;
         case 'Programada': score = 50; break;
+        case 'Inactivo': score = 40; break; 
         case 'Fallido': score = 10; break;
         default: score = 0;
     }

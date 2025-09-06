@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -6,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Waypoints, Loader2, Search } from 'lucide-react';
+import { Waypoints, Loader2, Search, PowerOff } from 'lucide-react';
 import { getTraceabilityReport, type TraceabilityReportInput, type TraceabilityReportOutput } from '@/ai/flows/traceability-report-flow';
 
 export default function TraceabilityPage() {
@@ -14,9 +15,20 @@ export default function TraceabilityPage() {
   const [batchId, setBatchId] = React.useState('');
   const [reportHtml, setReportHtml] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
+  const isApiDisabled = true; // API is disabled
 
   const handleSearch = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    if (isApiDisabled) {
+      toast({
+        title: 'Función Desactivada',
+        description: 'La trazabilidad con IA está temporalmente desactivada.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     if (!batchId.trim()) {
       toast({
         title: 'Lote Vacío',
@@ -55,7 +67,15 @@ export default function TraceabilityPage() {
 
       <Card className="shadow-subtle">
         <CardHeader>
-          <CardTitle>Buscar Lote</CardTitle>
+            <CardTitle className="flex justify-between items-center">
+                <span>Buscar Lote</span>
+                {isApiDisabled && (
+                    <span className="flex items-center text-sm font-medium text-destructive bg-destructive/10 px-3 py-1 rounded-full">
+                        <PowerOff className="mr-2 h-4 w-4" />
+                        DESACTIVADO
+                    </span>
+                )}
+            </CardTitle>
           <CardDescription>
             Introduce un ID de lote interno (ej: generado en una producción) o un ID de documento para generar un informe de trazabilidad completo.
           </CardDescription>
@@ -65,14 +85,14 @@ export default function TraceabilityPage() {
             <div className="relative flex-grow">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                placeholder="Ej: B240726-TEQU-ABCD..."
+                placeholder="El servicio de trazabilidad está desactivado."
                 value={batchId}
                 onChange={(e) => setBatchId(e.target.value)}
                 className="pl-9"
-                disabled={isLoading}
+                disabled={isLoading || isApiDisabled}
                 />
             </div>
-            <Button type="submit" disabled={isLoading || !batchId.trim()}>
+            <Button type="submit" disabled={isLoading || !batchId.trim() || isApiDisabled}>
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

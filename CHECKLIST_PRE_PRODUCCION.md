@@ -254,6 +254,28 @@ Este es un flujo de prueba secuencial. Es crucial realizar los pasos en orden pa
         - Los detalles de su recepción desde la compra.
         - La información de consumo en la orden de producción "PROD-XXXX".
         
+## VIII. Pruebas de Migración de Categorías
+
+Este checklist valida que el reseteo y siembra de categorías ha funcionado correctamente.
+
+- **[ ] Verificación en UI (Filtros):**
+    - [ ] Ir a `Administrativo > Inventario`.
+    - [ ] Hacer clic en el desplegable de "Categoría".
+    - [ ] **Verificar** que la lista contiene las nuevas categorías de inventario (ej: "Materia Prima (COGS)", "Producto Terminado", etc.) y no las antiguas.
+- **[ ] Verificación en UI (Creación de Artículo):**
+    - [ ] En la página de Inventario, hacer clic en "Añadir Nuevo Artículo".
+    - [ ] En el diálogo, hacer clic en el desplegable "Categoría de Inventario".
+    - [ ] **Verificar** que la lista es la correcta y está actualizada.
+- **[ ] Verificación en UI (Creación de Gasto):**
+    - [ ] Ir a `Administrativo > Gestión de Gastos`.
+    - [ ] Hacer clic en "Registrar Gasto Manual".
+    - [ ] En el diálogo, hacer clic en el desplegable de "Categoría".
+    - [ ] **Verificar** que el desplegable ahora muestra correctamente los dos grupos: "Gastos Generales" y "Compras de Inventario", con sus respectivas categorías dentro.
+- **[ ] Creación de un Artículo de prueba:**
+    - [ ] Crear un "Artículo de Inventario" de prueba asignándolo a una de las nuevas categorías.
+    - [ ] **Verificar** que el artículo se crea correctamente y su SKU se genera con el prefijo correcto (ej: `RM-` para Materia Prima).
+        
 Este checklist es bastante exhaustivo. ¡Mucha suerte con la revisión!
 
     
+```

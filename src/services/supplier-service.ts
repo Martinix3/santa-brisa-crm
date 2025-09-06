@@ -1,9 +1,6 @@
-
-'use server';
-
 import { db } from '@/lib/firebase';
 import {
-  collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy
+  collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, collectionGroup
 } from "firebase/firestore";
 import type { Supplier, SupplierFormValues } from '@/types';
 import { fromFirestoreSupplier, toFirestoreSupplier } from './utils/firestore-converters';
@@ -44,11 +41,20 @@ export const getSupplierByCifFS = async (cif: string): Promise<Supplier | null> 
     return null;
 }
 
-export const addSupplierFS = async (data: SupplierFormValues): Promise<string> => {
+export const addSupplierFS = async (data: SupplierFormValues): Promise<Supplier | null> => {
   const firestoreData = toFirestoreSupplier(data, true);
+  // Check for duplicates before adding
+  const q = query(collection(db, SUPPLIERS_COLLECTION), where('name', '==', firestoreData.name));
+  const snapshot = await getDocs(q);
+  if(!snapshot.empty) {
+    throw new Error(`Ya existe un proveedor con el nombre "${firestoreData.name}".`);
+  }
+
   const docRef = await addDoc(collection(db, SUPPLIERS_COLLECTION), firestoreData);
-  return docRef.id;
+  const newDoc = await getDoc(docRef);
+  return fromFirestoreSupplier(newDoc);
 };
+
 
 export const updateSupplierFS = async (id: string, data: Partial<SupplierFormValues>): Promise<void> => {
   const docRef = doc(db, SUPPLIERS_COLLECTION, id);

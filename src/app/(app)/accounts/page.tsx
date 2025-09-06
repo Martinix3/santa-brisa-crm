@@ -7,12 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import type { EnrichedAccount, TeamMember, Order, NextActionType, UserRole, OrderStatus, FollowUpResultFormValues } from "@/types";
+import type { EnrichedAccount, TeamMember, Order, NextActionType, UserRole, OrderStatus, FollowUpResultFormValues, AccountStatus } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, Loader2, Search, AlertTriangle, ChevronDown, Trash2 } from "lucide-react";
 import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
 import { getAccountsFS, addAccountFS, updateAccountFS, deleteAccountFS } from "@/services/account-service";
-import { getOrdersFS, updateOrderFS } from "@/services/order-service";
+import { getOrdersFS, updateFullOrderFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { processCarteraData } from "@/services/cartera-service";
 import AccountTableRow from "@/components/app/account-table-row";
@@ -21,6 +21,8 @@ import { db } from "@/lib/firebase";
 import { runTransaction, doc, collection } from "firebase/firestore";
 import FollowUpResultDialog from "@/components/app/follow-up-result-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import AccountHistoryTable from "@/components/app/account-history-table";
 
 
 type BucketFilter = "Todos" | "Vencidas" | "Para Hoy" | "Pendientes";
@@ -56,7 +58,18 @@ export default function AccountsPage() {
           getOrdersFS(),
           getTeamMembersFS(['SalesRep', 'Admin', 'Clavadista'])
         ]);
-        const processedData = await processCarteraData(accounts, orders, members);
+        let processedData = await processCarteraData(accounts, orders, members);
+
+        if (userRole === 'Clavadista' && teamMember?.id) {
+            const relevantAccountIds = new Set<string>();
+            orders.forEach(order => {
+                if (order.clavadistaId === teamMember.id && order.accountId) {
+                    relevantAccountIds.add(order.accountId);
+                }
+            });
+            processedData = processedData.filter(acc => relevantAccountIds.has(acc.id));
+        }
+
         setEnrichedAccounts(processedData);
         setTeamMembers(members);
       } catch (error) {
@@ -67,9 +80,9 @@ export default function AccountsPage() {
       }
     }
     loadData();
-  }, [toast, dataSignature]);
+  }, [toast, dataSignature, userRole, teamMember]);
   
-  const { activeAccounts, potentialAccounts, failedAccounts } = React.useMemo(() => {
+  const { activeAccounts, potentialAccounts, pendingAccounts, failedAccounts, inactiveAccounts } = React.useMemo(() => {
     const todayStart = startOfDay(new Date());
     const todayEnd = endOfDay(new Date());
 
@@ -90,7 +103,9 @@ export default function AccountsPage() {
 
     const applyBucketFilter = (acc: EnrichedAccount) => {
         if (bucketFilter === 'Todos') return true;
-        if (acc.status !== 'Programada' && acc.status !== 'Seguimiento') return false;
+        const validStatusesForBucketFilter: AccountStatus[] = ['Programada', 'Seguimiento'];
+        if (!validStatusesForBucketFilter.includes(acc.status)) return false;
+
         const nextActionDate = acc.nextInteraction?.status === 'Programada'
             ? (acc.nextInteraction.visitDate ? parseISO(acc.nextInteraction.visitDate) : null)
             : (acc.nextInteraction?.nextActionDate ? parseISO(acc.nextInteraction.nextActionDate) : null);
@@ -131,13 +146,19 @@ export default function AccountsPage() {
     };
     
     const baseFiltered = enrichedAccounts.filter(applyFilters).filter(applyResponsibleFilter).filter(applyBucketFilter);
-    const hasOrder = (acc: EnrichedAccount) => ['Activo', 'Repetición'].includes(acc.status);
-    const isPotential = (acc: EnrichedAccount) => ['Programada', 'Seguimiento'].includes(acc.status);
+    const hasActiveOrder = (acc: EnrichedAccount) => ['Activo', 'Repetición'].includes(acc.status);
+    const isInactive = (acc: EnrichedAccount) => acc.status === 'Inactivo';
+    const isPotential = (acc: EnrichedAccount) => acc.status === 'Seguimiento';
+    const isPending = (acc: EnrichedAccount) => acc.status === 'Programada' || acc.status === 'Pendiente';
+    const isFailed = (acc: EnrichedAccount) => acc.status === 'Fallido';
+
 
     return {
-      activeAccounts: baseFiltered.filter(acc => hasOrder(acc)).sort(sortFunction),
+      activeAccounts: baseFiltered.filter(acc => hasActiveOrder(acc)).sort(sortFunction),
       potentialAccounts: baseFiltered.filter(acc => isPotential(acc)).sort(sortFunction),
-      failedAccounts: baseFiltered.filter(acc => !hasOrder(acc) && !isPotential(acc)).sort(sortFunction),
+      pendingAccounts: baseFiltered.filter(acc => isPending(acc)).sort(sortFunction),
+      failedAccounts: baseFiltered.filter(acc => isFailed(acc)).sort(sortFunction),
+      inactiveAccounts: baseFiltered.filter(acc => isInactive(acc)).sort(sortFunction),
     };
 
   }, [searchTerm, enrichedAccounts, responsibleFilter, bucketFilter, isAdmin, sortOption]);
@@ -270,12 +291,19 @@ export default function AccountsPage() {
   
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-3xl font-headline font-semibold">Cuentas y Seguimiento</h1>
-        <CardDescription>Gestiona tus cuentas, programa visitas y haz seguimiento de tus tareas comerciales.</CardDescription>
+      <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-headline font-semibold">Cuentas y Seguimiento</h1>
+          <p className="text-muted-foreground">Gestiona tus cuentas, programa visitas y haz seguimiento de tus tareas comerciales.</p>
+        </div>
+        {isAdmin && (
+          <Button onClick={handleAddNewAccount} disabled={isLoading}>
+            <PlusCircle className="mr-2 h-4 w-4" /> Añadir Cuenta Manual
+          </Button>
+        )}
       </header>
 
-      <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
+      <Card className="shadow-subtle">
         <CardHeader>
           <div className="flex flex-col sm:flex-row items-center gap-4 flex-wrap">
               <div className="relative flex-grow w-full sm:w-auto">
@@ -316,13 +344,6 @@ export default function AccountsPage() {
                         <SelectItem value="lastInteraction_desc">Fecha Última Interacción</SelectItem>
                     </SelectContent>
                 </Select>
-                <div className="flex-grow flex justify-end gap-2 w-full sm:w-auto">
-                  {isAdmin && (
-                    <Button onClick={handleAddNewAccount} disabled={isLoading}>
-                      <PlusCircle className="mr-2 h-4 w-4" /> Añadir Cuenta Manual
-                    </Button>
-                  )}
-               </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -332,23 +353,35 @@ export default function AccountsPage() {
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
               </div>
             ) : (
-                <table className="min-w-full">
-                    <thead>
-                        <tr className="border-b-0">
-                        <th className="w-6 p-1 text-left"></th> 
-                        <th className="w-[20%] text-left font-medium text-muted-foreground p-2">Cuenta</th>
-                        <th className="w-[15%] text-left font-medium text-muted-foreground p-2">Responsable</th>
-                        <th className="w-[12%] text-center font-medium text-muted-foreground p-2">Estado</th>
-                        <th className="w-[20%] text-left font-medium text-muted-foreground p-2">Próxima Acción</th>
-                        <th className="w-[10%] text-center font-medium text-muted-foreground p-2">Lead Score</th>
-                        <th className="w-[10%] text-left font-medium text-muted-foreground p-2">Ciudad</th>
-                        <th className="w-[13%] text-right pr-4 font-medium text-muted-foreground p-2">Acciones</th>
-                        </tr>
-                    </thead>
-                    <AccountGroup title="Activos" accounts={activeAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onOpenFollowUpDialog={handleOpenFollowUpDialog} onDeleteAccount={handleDeleteAccountClick} />
-                    <AccountGroup title="Potenciales" accounts={potentialAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onOpenFollowUpDialog={handleOpenFollowUpDialog} onDeleteAccount={handleDeleteAccountClick} />
-                    <AccountGroup title="Fallidos" accounts={failedAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onOpenFollowUpDialog={handleOpenFollowUpDialog} onDeleteAccount={handleDeleteAccountClick}/>
-                </table>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead className="w-[1%]"></TableHead>
+                            <TableHead className="table-header-std w-[24%]">Cuenta</TableHead>
+                            <TableHead className="table-header-std w-[10%] text-center">Estado</TableHead>
+                            <TableHead className="table-header-std w-[15%]">Responsable</TableHead>
+                            <TableHead className="table-header-std w-[15%]">Última Interacción</TableHead>
+                            <TableHead className="table-header-std w-[20%]">Próxima Tarea</TableHead>
+                            <TableHead className="table-header-std w-[5%] text-center">Prioridad</TableHead>
+                            <TableHead className="table-header-std w-[10%] text-right pr-4">Acciones</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        <AccountGroup title="Cuentas Activas y en Repetición" accounts={activeAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onOpenFollowUpDialog={handleOpenFollowUpDialog} onDeleteAccount={handleDeleteAccountClick} groupColor="bg-emerald-500" />
+                        <AccountGroup title="Potenciales (en seguimiento)" accounts={potentialAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onOpenFollowUpDialog={handleOpenFollowUpDialog} onDeleteAccount={handleDeleteAccountClick} groupColor="bg-amber-500" />
+                        <AccountGroup title="Pendientes (Nuevas y Programadas)" accounts={pendingAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onOpenFollowUpDialog={handleOpenFollowUpDialog} onDeleteAccount={handleDeleteAccountClick} groupColor="bg-sky-500" />
+                        <AccountGroup title="Cuentas Inactivas" accounts={inactiveAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onOpenFollowUpDialog={handleOpenFollowUpDialog} onDeleteAccount={handleDeleteAccountClick} groupColor="bg-orange-500"/>
+                        <AccountGroup title="Fallidos / Descartados" accounts={failedAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onOpenFollowUpDialog={handleOpenFollowUpDialog} onDeleteAccount={handleDeleteAccountClick} groupColor="bg-rose-500"/>
+                        
+                        {(activeAccounts.length + potentialAccounts.length + pendingAccounts.length + inactiveAccounts.length + failedAccounts.length) === 0 && (
+                            <TableRow>
+                                <TableCell colSpan={8} className="text-center h-24 text-muted-foreground">
+                                    No se encontraron cuentas con los filtros actuales.
+                                </TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
             )}
           </div>
         </CardContent>
@@ -404,42 +437,65 @@ interface AccountGroupProps {
   onResponsibleUpdate: (accountId: string, newResponsibleId: string | null) => Promise<void>;
   onOpenFollowUpDialog: (task: Order) => void;
   onDeleteAccount: (account: EnrichedAccount) => void;
+  groupColor: string;
 }
 
-const AccountGroup: React.FC<AccountGroupProps> = ({ title, accounts, teamMembers, onResponsibleUpdate, onOpenFollowUpDialog, onDeleteAccount }) => {
+const AccountGroup: React.FC<AccountGroupProps> = ({ title, accounts, teamMembers, onResponsibleUpdate, onOpenFollowUpDialog, onDeleteAccount, groupColor }) => {
     const [isExpanded, setIsExpanded] = React.useState(false);
-    const visibleAccounts = isExpanded ? accounts : accounts.slice(0, 5);
+    const [expandedRows, setExpandedRows] = React.useState<Set<string>>(new Set());
 
+    const toggleRowExpansion = (accountId: string) => {
+        setExpandedRows(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(accountId)) {
+                newSet.delete(accountId);
+            } else {
+                newSet.add(accountId);
+            }
+            return newSet;
+        });
+    };
+    
     if (accounts.length === 0) return null;
 
+    const visibleAccounts = isExpanded ? accounts : accounts.slice(0, 4);
+
     return (
-        <tbody className="group/tbody">
-            <tr className="bg-muted/30 hover:bg-muted/30">
-                <td colSpan={8} className="p-0">
-                   <div className="py-3 px-2">
-                        <h3 className="text-lg font-semibold text-gray-700">{title} ({accounts.length})</h3>
+        <>
+            <TableRow className="bg-muted/30 hover:bg-muted/30 sticky top-0 z-10">
+                <TableCell colSpan={8} className="p-0">
+                   <div className="py-2 px-2 flex justify-between items-center">
+                        <h3 className="text-base font-semibold text-gray-800">{title} ({accounts.length})</h3>
+                         {accounts.length > 4 && (
+                            <Button variant="ghost" size="sm" onClick={() => setIsExpanded(!isExpanded)}>
+                                {isExpanded ? 'Ocultar' : `Ver más (${accounts.length - 4})`}
+                                <ChevronDown className={`h-4 w-4 ml-2 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                            </Button>
+                         )}
                    </div>
-                </td>
-            </tr>
+                </TableCell>
+            </TableRow>
             {visibleAccounts.map(account => (
-                <AccountTableRow 
-                    key={account.id} 
-                    account={account}
-                    allTeamMembers={teamMembers}
-                    onResponsibleUpdate={onResponsibleUpdate}
-                    onOpenFollowUpDialog={onOpenFollowUpDialog}
-                    onDeleteAccount={onDeleteAccount}
-                />
+                <React.Fragment key={account.id}>
+                    <AccountTableRow 
+                        account={account}
+                        allTeamMembers={teamMembers}
+                        onResponsibleUpdate={onResponsibleUpdate}
+                        onOpenFollowUpDialog={onOpenFollowUpDialog}
+                        onDeleteAccount={onDeleteAccount}
+                        lineColor={groupColor}
+                        isExpanded={expandedRows.has(account.id)}
+                        onToggleExpand={() => toggleRowExpansion(account.id)}
+                    />
+                    {expandedRows.has(account.id) && (
+                        <TableRow>
+                            <TableCell colSpan={8} className="p-0 bg-muted/20">
+                                <AccountHistoryTable interactions={account.interactions} />
+                            </TableCell>
+                        </TableRow>
+                    )}
+                </React.Fragment>
             ))}
-            {accounts.length > 5 && (
-                 <tr className="bg-transparent hover:bg-transparent">
-                    <td colSpan={8} className="text-center py-2">
-                        <Button variant="link" onClick={() => setIsExpanded(!isExpanded)}>
-                            {isExpanded ? 'Ver menos' : `Ver ${accounts.length - 5} más...`}
-                        </Button>
-                    </td>
-                </tr>
-            )}
-        </tbody>
+        </>
     )
 }

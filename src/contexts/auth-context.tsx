@@ -11,14 +11,16 @@ import {
   signOut as firebaseSignOut 
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import type { TeamMember, UserRole, TeamMemberFormValues } from '@/types';
+import type { TeamMember, TeamMemberFormValues, UserRole } from '@/types';
 import { useToast } from "@/hooks/use-toast";
-import { getTeamMemberByAuthUidFS, addTeamMemberFS, getTeamMemberByEmailFS, updateTeamMemberFS, getTeamMembersFS } from '@/services/team-member-service';
+import { addTeamMemberFS } from '@/services/team-member-service';
+import { getTeamMemberByAuthUidFS } from '@/services/client/team-member-service.client';
+
 
 interface AuthContextType {
-  user: FirebaseUser | null; 
-  teamMember: TeamMember | null; 
-  userRole: UserRole | null; 
+  user: FirebaseUser | null;
+  teamMember: TeamMember | null;
+  userRole: UserRole | null;
   loading: boolean;
   login: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -32,7 +34,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [teamMember, setTeamMember] = useState<TeamMember | null>(null);
-  const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [dataSignature, setDataSignature] = useState(0);
   const { toast } = useToast();
@@ -42,80 +43,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       if (firebaseUser) {
         setUser(firebaseUser);
-        console.log(`AuthContext: Firebase user authenticated. UID: ${firebaseUser.uid}, Email: ${firebaseUser.email}`);
-        
         try {
-          console.log(`AuthContext: Attempting to fetch profile by authUid: ${firebaseUser.uid}`);
-          let memberDetails = await getTeamMemberByAuthUidFS(firebaseUser.uid);
-          
-          if (memberDetails) {
-            console.log(`AuthContext: Profile found by authUid ${firebaseUser.uid}:`, JSON.stringify(memberDetails));
-            setTeamMember(memberDetails);
-            setUserRole(memberDetails.role);
+          const profile = await getTeamMemberByAuthUidFS(firebaseUser.uid);
+          if (profile) {
+            setTeamMember(profile);
           } else {
-            console.warn(`AuthContext: No profile found in Firestore for authUid: ${firebaseUser.uid}.`);
-            if (firebaseUser.email) {
-                const lowerCaseEmail = firebaseUser.email.toLowerCase();
-                console.log(`AuthContext: Attempting fallback to email: ${lowerCaseEmail}`);
-                let memberByEmail = await getTeamMemberByEmailFS(lowerCaseEmail);
-
-                if (!memberByEmail) {
-                    console.log(`AuthContext: Standard email search failed. Trying manual case-insensitive find.`);
-                    const allMembers = await getTeamMembersFS();
-                    const foundMember = allMembers.find(m => m.email.toLowerCase() === lowerCaseEmail);
-                    if (foundMember) {
-                        console.log(`AuthContext: Found user ${foundMember.email} via manual search. Proceeding with self-heal.`);
-                        memberByEmail = foundMember;
-                    }
-                }
-                
-                if (memberByEmail) {
-                    console.log(`AuthContext: Profile found via email fallback for ${lowerCaseEmail}:`, JSON.stringify(memberByEmail));
-                    setTeamMember(memberByEmail);
-                    setUserRole(memberByEmail.role);
-                    
-                    if (!memberByEmail.authUid || memberByEmail.authUid !== firebaseUser.uid || memberByEmail.email !== lowerCaseEmail) {
-                        console.log(`AuthContext: Firestore record ${memberByEmail.id} needs authUid/email update. Current authUid: ${memberByEmail.authUid}, Current email: ${memberByEmail.email}. Updating with authUid: ${firebaseUser.uid}, email: ${lowerCaseEmail}`);
-                        try {
-                          const updateData: Partial<TeamMemberFormValues> = { 
-                            authUid: firebaseUser.uid, 
-                            email: lowerCaseEmail 
-                          };
-                          await updateTeamMemberFS(memberByEmail.id, updateData);
-                          setTeamMember({ ...memberByEmail, authUid: firebaseUser.uid, email: lowerCaseEmail }); 
-                           console.log(`AuthContext: Firestore record ${memberByEmail.id} updated successfully.`);
-                        } catch (updateError) {
-                          console.error("AuthContext: Error updating authUid/email in Firestore during fallback:", updateError);
-                        }
-                    }
-                } else {
-                    console.error(`AuthContext: CRITICAL - User ${lowerCaseEmail} (UID: ${firebaseUser.uid}) authenticated but no profile found by UID or email fallback.`);
-                    toast({ title: "Error de Perfil", description: `No se encontró el perfil para ${lowerCaseEmail}. Contacte al administrador.`, variant: "destructive", duration: 10000 });
-                    setTeamMember(null);
-                    setUserRole(null);
-                }
-            } else {
-                 console.error(`AuthContext: CRITICAL - User UID ${firebaseUser.uid} authenticated but has no email associated in Firebase Auth. Cannot perform email fallback.`);
-                 toast({ title: "Error de Autenticación", description: "El usuario no tiene un email asociado. Contacte al administrador.", variant: "destructive", duration: 10000 });
-                 setTeamMember(null);
-                 setUserRole(null);
-            }
+            console.error("AuthContext: Profile not found for UID:", firebaseUser.uid);
+            setTeamMember(null);
+            toast({ title: "Error de Perfil", description: "No se pudo encontrar tu perfil de usuario. Contacta con el administrador.", variant: "destructive" });
+            await firebaseSignOut(auth);
+            setUser(null);
           }
-        } catch (err) {
-          console.error("AuthContext: Error fetching/processing team member details from Firestore:", err);
-          toast({ title: "Error de Perfil", description: "No se pudo cargar la información del perfil de usuario.", variant: "destructive" });
+        } catch (error) {
+          console.error("AuthContext: Error fetching profile:", error);
           setTeamMember(null);
-          setUserRole(null);
+          toast({ title: "Error de Carga de Perfil", description: "Ocurrió un error al cargar tu perfil.", variant: "destructive" });
         }
       } else {
-        console.log("AuthContext: No Firebase user authenticated. Clearing user state.");
         setUser(null);
         setTeamMember(null);
-        setUserRole(null);
       }
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, [toast]);
 
@@ -123,7 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, pass);
-      // User state will be set by onAuthStateChanged
+      // onAuthStateChanged will handle the rest
     } catch (error: any) {
       console.error("AuthContext: Login error:", error);
       let description = "Credenciales incorrectas o usuario no encontrado.";
@@ -132,29 +81,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else if (error.code === 'auth/too-many-requests') {
         description = "Demasiados intentos fallidos. Por favor, inténtalo más tarde o restablece tu contraseña.";
       }
-      toast({
-        title: "Error de Inicio de Sesión",
-        description: description,
-        variant: "destructive",
-      });
+      toast({ title: "Error de Inicio de Sesión", description: description, variant: "destructive" });
       setLoading(false); 
-      throw error; 
+      throw error;
     }
   };
 
   const logout = async () => {
-    setLoading(true);
     try {
       await firebaseSignOut(auth);
-      // User state will be cleared by onAuthStateChanged
     } catch (error: any) {
       console.error("AuthContext: Logout error:", error);
-       toast({
-        title: "Error al Cerrar Sesión",
-        description: error.message || "Ocurrió un problema.",
-        variant: "destructive",
-      });
-       setLoading(false); 
+       toast({ title: "Error al Cerrar Sesión", description: error.message || "Ocurrió un problema.", variant: "destructive" });
     }
   };
 
@@ -167,11 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       firebaseUser = userCredential.user;
       
       if (firebaseUser) {
-        const memberDataForFirestore: TeamMemberFormValues = {
-          ...userData,
-          email: lowerCaseEmail, 
-          authUid: firebaseUser.uid, 
-        };
+        const memberDataForFirestore: TeamMemberFormValues = { ...userData, email: lowerCaseEmail, authUid: firebaseUser.uid };
         teamMemberId = await addTeamMemberFS(memberDataForFirestore);
         console.log(`AuthContext: User ${memberDataForFirestore.email} created in Auth and Firestore. Firestore ID: ${teamMemberId}`);
       }
@@ -180,39 +114,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error: any) {
       console.error("AuthContext: Error creating user in Firebase Auth or Firestore:", error);
       let description = "No se pudo crear el usuario.";
-      if (error.code === 'auth/email-already-in-use') {
-        description = `El correo electrónico ${lowerCaseEmail} ya está registrado en Firebase Authentication.`;
-      } else if (error.code === 'auth/weak-password') {
-        description = "La contraseña es demasiado débil. Debe tener al menos 6 caracteres.";
-      }
-      toast({
-        title: "Error al Crear Usuario",
-        description: description,
-        variant: "destructive",
-      });
-      if (firebaseUser && !teamMemberId) {
-        console.warn(`AuthContext: User ${firebaseUser.email} created in Auth but FAILED to create in Firestore teamMembers collection.`);
-      }
+      if (error.code === 'auth/email-already-in-use') { description = `El correo electrónico ${lowerCaseEmail} ya está registrado en Firebase Authentication.`; }
+      else if (error.code === 'auth/weak-password') { description = "La contraseña es demasiado débil. Debe tener al menos 6 caracteres."; }
+      toast({ title: "Error al Crear Usuario", description: description, variant: "destructive" });
+      if (firebaseUser && !teamMemberId) { console.warn(`AuthContext: User ${firebaseUser.email} created in Auth but FAILED to create in Firestore teamMembers collection.`); }
       return { firebaseUser: null, teamMemberId: null };
     }
   };
 
   const refreshDataSignature = useCallback(() => {
     setDataSignature(prev => prev + 1);
-    console.log("AuthContext: Data signature refreshed.");
   }, []);
   
   const value = useMemo(() => ({
-    user,
+    user, 
     teamMember,
-    userRole,
-    loading,
-    login,
-    logout,
-    createUserInAuthAndFirestore,
-    dataSignature,
+    userRole: teamMember?.role || null,
+    loading, 
+    login, 
+    logout, 
+    createUserInAuthAndFirestore, 
+    dataSignature, 
     refreshDataSignature,
-  }), [user, teamMember, userRole, loading, dataSignature, refreshDataSignature, login, logout, createUserInAuthAndFirestore]); 
+  }), [user, teamMember, loading, dataSignature, refreshDataSignature]); 
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

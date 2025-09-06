@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -7,213 +8,191 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import type { Purchase, PurchaseStatus, UserRole, InventoryItem, PurchaseCategory, Currency, Category } from "@/types";
-import { purchaseStatusList, purchaseCategoryList } from "@/lib/data";
+import type { Expense, DocumentStatus, PaymentStatus } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { PlusCircle, MoreHorizontal, Filter, ChevronDown, Edit, Trash2, Receipt, Loader2, UploadCloud, Download, TestTube2 } from "lucide-react";
-import PurchaseDialog from "@/components/app/purchase-dialog";
-import type { PurchaseFormValues } from "@/components/app/purchase-dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { format, parseISO, isValid } from "date-fns";
+import { PlusCircle, MoreHorizontal, Filter, ChevronDown, Trash2, Receipt, Loader2, Sparkles, Edit, PowerOff } from "lucide-react";
+import { PurchaseDialog } from "@/components/app/purchase-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { format, parseISO } from "date-fns";
 import { es } from 'date-fns/locale';
 import StatusBadge from "@/components/app/status-badge";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-import { addPurchaseFS, updatePurchaseFS, deletePurchaseFS, getPurchasesFS } from "@/services/purchase-service";
-import Link from "next/link";
-import InvoiceUploadDialog from "@/components/app/invoice-upload-dialog";
-import { testUpload } from "@/services/test-upload-service";
+import { getExpensesFS, deleteExpenseFS, deleteExpensesBatchFS } from "@/services/purchase-service";
 import { useCategories } from "@/contexts/categories-context";
-import CategoryDialog from "@/components/app/category-dialog";
-import type { CategoryFormValues } from "@/components/app/category-dialog";
-import { addCategoryFS } from "@/services/category-service";
+import { processInvoice } from '@/ai/flows/invoice-processing-flow';
+
+const documentStatusList: DocumentStatus[] = ['proforma', 'factura_pendiente', 'factura_recibida', 'factura_validada'];
+const paymentStatusList: PaymentStatus[] = ['pendiente', 'parcial', 'pagado', 'pagado_adelantado'];
 
 
 export default function PurchasesPage() {
   const { toast } = useToast();
-  const { userRole, dataSignature, refreshDataSignature } = useAuth();
-  const { costCategories, categoriesMap, isLoading: isLoadingCategories } = useCategories();
+  const { userRole, teamMember, dataSignature, refreshDataSignature } = useAuth();
+  const { categoriesMap, isLoading: isLoadingCategories } = useCategories();
 
-  const [purchases, setPurchases] = React.useState<Purchase[]>([]);
-  const [isLoadingPurchases, setIsLoadingPurchases] = React.useState(true);
+  const [expenses, setExpenses] = React.useState<Expense[]>([]);
+  const [isLoadingExpenses, setIsLoadingExpenses] = React.useState(true);
   
-  const [editingPurchase, setEditingPurchase] = React.useState<Purchase | null>(null);
   const [isPurchaseDialogOpen, setIsPurchaseDialogOpen] = React.useState(false);
-  const [purchaseToDelete, setPurchaseToDelete] = React.useState<Purchase | null>(null);
-  const [prefilledData, setPrefilledData] = React.useState<Partial<PurchaseFormValues> | null>(null);
-  const [prefilledFile, setPrefilledFile] = React.useState<File | null>(null);
-  const [isInvoiceUploadOpen, setIsInvoiceUploadOpen] = React.useState(false);
-  const [isCategoryDialogOpen, setIsCategoryDialogOpen] = React.useState(false);
+  const [expenseToEdit, setExpenseToEdit] = React.useState<Partial<Expense> | null>(null);
+  const [isProcessingInvoice, setIsProcessingInvoice] = React.useState(false);
+
+  const [expenseToDelete, setExpenseToDelete] = React.useState<Expense | null>(null);
+  const [expensesToDelete, setExpensesToDelete] = React.useState<string[]>([]);
   
   const [searchTerm, setSearchTerm] = React.useState("");
-  const [statusFilter, setStatusFilter] = React.useState<PurchaseStatus | "Todos">("Todos");
-  const [categoryFilter, setCategoryFilter] = React.useState<string | "Todas">("Todas");
+  const [docStatusFilter, setDocStatusFilter] = React.useState<DocumentStatus | "Todos">("Todos");
+  const [paymentStatusFilter, setPaymentStatusFilter] = React.useState<PaymentStatus | "Todos">("Todos");
 
-  const [testResult, setTestResult] = React.useState<string | null>(null);
-  const [isTestingUpload, setIsTestingUpload] = React.useState(false);
+  const [selectedExpenseIds, setSelectedExpenseIds] = React.useState<string[]>([]);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const isAdmin = userRole === 'Admin';
-  const isLoading = isLoadingPurchases || isLoadingCategories;
-
+  const isLoading = isLoadingExpenses || isLoadingCategories;
+  const isAiDisabled = true; // API is disabled
+  
   React.useEffect(() => {
     async function loadInitialData() {
-        setIsLoadingPurchases(true);
+        setIsLoadingExpenses(true);
         try {
-            const fetchedPurchases = await getPurchasesFS();
-            setPurchases(fetchedPurchases);
-        } catch (error) {
-            console.error("Failed to load purchases:", error);
-            toast({ title: "Error", description: "No se pudieron cargar las órdenes de compra.", variant: "destructive" });
+            const fetchedExpenses = await getExpensesFS();
+            setExpenses(fetchedExpenses);
+        } catch (error: any) {
+            console.error("Failed to load expenses:", error);
+            toast({ title: "Error", description: "No se pudieron cargar los gastos.", variant: "destructive" });
         } finally {
-            setIsLoadingPurchases(false);
+            setIsLoadingExpenses(false);
         }
     }
     if (isAdmin) {
         loadInitialData();
     } else {
-        setIsLoadingPurchases(false);
+        setIsLoadingExpenses(false);
     }
   }, [toast, isAdmin, dataSignature]);
   
-
-  const handleAddNewPurchase = () => {
+  const handleAddNewExpenseManually = () => {
     if (!isAdmin) return;
-    setEditingPurchase(null);
-    setPrefilledData(null);
-    setPrefilledFile(null);
+    setExpenseToEdit(null);
     setIsPurchaseDialogOpen(true);
   };
   
-  const handleEditPurchase = (purchase: Purchase) => {
+  const handleEditExpense = (expense: Expense) => {
     if (!isAdmin) return;
-    setEditingPurchase(purchase);
-    setPrefilledData(null);
-    setPrefilledFile(null);
+    setExpenseToEdit(expense);
     setIsPurchaseDialogOpen(true);
   };
 
-  const handleDataFromInvoice = (extractedData: Partial<PurchaseFormValues>, file: File, shouldSaveFile: boolean) => {
-    setEditingPurchase(null);
-    setPrefilledData(extractedData);
-    setPrefilledFile(shouldSaveFile ? file : null);
-    setIsInvoiceUploadOpen(false);
-    setIsPurchaseDialogOpen(true);
+  const handleDeleteSelected = () => {
+    if (!isAdmin || selectedExpenseIds.length === 0) return;
+    setExpensesToDelete(selectedExpenseIds);
   };
 
-  const handleSavePurchase = async (data: PurchaseFormValues, purchaseId?: string) => {
-    if (!isAdmin) return;
-    setIsLoadingPurchases(true);
-    
-    try {
-      let successMessage = "";
-      if (purchaseId) {
-        await updatePurchaseFS(purchaseId, data);
-        successMessage = `El gasto a "${data.supplier}" ha sido actualizado.`;
-      } else {
-        await addPurchaseFS(data);
-        successMessage = `El gasto a "${data.supplier}" ha sido añadido.`;
-      }
-      refreshDataSignature();
-      const updatedPurchases = await getPurchasesFS();
-      setPurchases(updatedPurchases);
-      toast({ title: "¡Operación Exitosa!", description: successMessage });
-    } catch (error: any) {
-      console.error("Error saving purchase:", error);
-      toast({ title: "Error al Guardar", description: `No se pudo guardar el gasto. Error: ${error.message}`, variant: "destructive" });
-    } finally {
-      setIsLoadingPurchases(false);
-      setIsPurchaseDialogOpen(false);
-      setEditingPurchase(null);
-      setPrefilledData(null);
-      setPrefilledFile(null);
-    }
-  };
-
-  const handleDeletePurchase = (purchase: Purchase) => {
-    if (!isAdmin) return;
-    setPurchaseToDelete(purchase);
-  };
-
-  const confirmDeletePurchase = async () => {
-    if (!isAdmin || !purchaseToDelete) return;
-    setIsLoadingPurchases(true);
-    try {
-      await deletePurchaseFS(purchaseToDelete.id);
-      setPurchases(prev => prev.filter(p => p.id !== purchaseToDelete.id));
-      toast({ title: "¡Gasto Eliminado!", description: `El gasto de "${purchaseToDelete.supplier}" ha sido eliminado.`, variant: "destructive" });
-    } catch (error) {
-      console.error("Error deleting purchase:", error);
-      toast({ title: "Error al Eliminar", description: "No se pudo eliminar el gasto.", variant: "destructive" });
-    } finally {
-      setIsLoadingPurchases(false);
-      setPurchaseToDelete(null);
-    }
-  };
-  
-  const handleSaveCategory = async (data: CategoryFormValues) => {
-    if (!isAdmin) return;
-    try {
-        await addCategoryFS(data);
-        refreshDataSignature();
-        toast({ title: "Categoría Creada", description: `La categoría "${data.name}" ha sido creada.` });
-        setIsCategoryDialogOpen(false);
-    } catch (error: any) {
-        toast({ title: "Error al Crear Categoría", description: error.message, variant: "destructive" });
-    }
-  };
-
-  const handleTestUpload = async () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'text/plain,image/png,image/jpeg';
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-
-      if (file.size > 1 * 1024 * 1024) { // 1MB limit for test
-        toast({ title: 'Archivo de prueba demasiado grande', description: 'Por favor, selecciona un archivo menor de 1MB.', variant: 'destructive' });
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (isAiDisabled) {
+        toast({
+            title: "Función Desactivada",
+            description: "El procesamiento de facturas con IA está desactivado.",
+            variant: "destructive"
+        });
         return;
-      }
-      
-      setIsTestingUpload(true);
-      setTestResult(null);
+    }
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-      try {
+    setIsProcessingInvoice(true);
+    toast({ title: 'Procesando factura...', description: 'La IA está analizando el documento. Esto puede tardar unos segundos.' });
+
+    try {
         const reader = new FileReader();
         reader.readAsDataURL(file);
         reader.onload = async () => {
-          const dataUri = reader.result as string;
-          const result = await testUpload({ dataUri, contentType: file.type });
+            const dataUri = reader.result as string;
+            const result = await processInvoice({ invoiceDataUri: dataUri });
+            
+            const prefilledData: Partial<Expense> = {
+                proveedorNombre: result.supplierName,
+                invoiceNumber: result.invoiceId,
+                monto: result.total,
+                items: result.items?.map(item => ({
+                    productoId: '', 
+                    productoNombre: item.description,
+                    cantidad: item.quantity,
+                    costeUnitario: item.unitPrice,
+                })) as any,
+                gastosEnvio: result.shippingCost,
+                impuestos: result.tax,
+                fechaEmision: result.invoiceDate,
+                fechaVencimiento: result.dueDate,
+            };
+            
+            setExpenseToEdit(prefilledData);
+            setIsPurchaseDialogOpen(true);
 
-          if ('url' in result) {
-            setTestResult(`¡Éxito! Archivo subido a: ${result.url}`);
-            toast({ title: 'Prueba de subida exitosa', description: 'El archivo de prueba se ha subido correctamente.' });
-          } else {
-            setTestResult(`Error: ${result.error}`);
-            toast({ title: 'Error en la prueba de subida', description: result.error, variant: 'destructive' });
-          }
-          setIsTestingUpload(false);
+            toast({ title: '¡Factura Procesada!', description: 'Revisa y ajusta los datos extraídos por la IA.' });
         };
-        reader.onerror = () => {
-           toast({ title: 'Error', description: 'No se pudo leer el archivo.', variant: 'destructive' });
-           setIsTestingUpload(false);
-        }
-      } catch (error: any) {
-        setTestResult(`Error en el cliente: ${error.message}`);
-        toast({ title: 'Error en la prueba', description: error.message, variant: 'destructive' });
-        setIsTestingUpload(false);
-      }
-    };
-    input.click();
+        reader.onerror = (error) => { throw new Error("Error al leer el archivo."); };
+    } catch (error: any) {
+        console.error('Error processing invoice:', error);
+        toast({ title: 'Error al Procesar Factura', description: error.message, variant: 'destructive' });
+    } finally {
+        setIsProcessingInvoice(false);
+        if(fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+  
+   const confirmDeleteSelectedExpenses = async () => {
+    if (!isAdmin || expensesToDelete.length === 0) return;
+    setIsLoadingExpenses(true);
+    try {
+      await deleteExpensesBatchFS(expensesToDelete);
+      toast({ title: "¡Gastos Eliminados!", description: `${expensesToDelete.length} gastos han sido eliminados.`, variant: "destructive" });
+      refreshDataSignature();
+      setSelectedExpenseIds([]); 
+    } catch (error: any) {
+      toast({ title: "Error al Eliminar", description: error.message, variant: "destructive" });
+    } finally {
+      setIsLoadingExpenses(false);
+      setExpensesToDelete([]);
+    }
   };
 
-  const filteredPurchases = purchases
-    .filter(purchase =>
-      (purchase.supplier.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       (purchase.items && purchase.items.some(item => item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()))))
+  const filteredExpenses = expenses
+    .filter(expense =>
+      (expense.proveedorNombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+       (expense.invoiceNumber && expense.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
+       (expense.categoria.toLowerCase().includes(searchTerm.toLowerCase())))
     )
-    .filter(purchase => statusFilter === "Todos" || purchase.status === statusFilter)
-    .filter(purchase => categoryFilter === "Todas" || purchase.items.some(item => item.categoryId === categoryFilter));
+    .filter(expense => docStatusFilter === "Todos" || expense.estadoDocumento === docStatusFilter)
+    .filter(expense => paymentStatusFilter === "Todos" || expense.estadoPago === paymentStatusFilter);
+    
+  const handleSelectAllChange = (checked: boolean | 'indeterminate') => {
+    if (checked === true) {
+      setSelectedExpenseIds(filteredExpenses.map(p => p.id));
+    } else {
+      setSelectedExpenseIds([]);
+    }
+  };
+
+  const handleRowSelectChange = (expenseId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedExpenseIds(prev => [...prev, expenseId]);
+    } else {
+      setSelectedExpenseIds(prev => prev.filter(id => id !== expenseId));
+    }
+  };
+
+  const headerCheckboxState = React.useMemo(() => {
+    const filteredIds = new Set(filteredExpenses.map(p => p.id));
+    const selectedFilteredIds = selectedExpenseIds.filter(id => filteredIds.has(id));
+
+    if (selectedFilteredIds.length === 0 || filteredExpenses.length === 0) return false;
+    if (selectedFilteredIds.length === filteredExpenses.length) return true;
+    return 'indeterminate' as const;
+  }, [selectedExpenseIds, filteredExpenses]);
+
 
   if (!isAdmin) {
     return (
@@ -229,47 +208,29 @@ export default function PurchasesPage() {
       <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center space-x-2">
             <Receipt className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-headline font-semibold">Gestión de Gastos</h1>
+            <h1 className="text-3xl font-headline font-semibold">Gestión de Gastos y Compras</h1>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          <Button onClick={handleAddNewPurchase} disabled={isLoading}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Añadir Gasto Manual
-          </Button>
-           <Button onClick={() => setIsInvoiceUploadOpen(true)} disabled={isLoading} variant="outline">
-            <UploadCloud className="mr-2 h-4 w-4" /> Crear desde Factura (IA)
-          </Button>
-           <Button onClick={handleTestUpload} disabled={isLoading || isTestingUpload} variant="secondary">
-            <TestTube2 className="mr-2 h-4 w-4" />
-            {isTestingUpload ? 'Probando...' : 'Probar Subida'}
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,application/pdf" />
+             <Button onClick={() => fileInputRef.current?.click()} disabled={isLoading || isProcessingInvoice || isAiDisabled} variant="secondary" title={isAiDisabled ? "Función desactivada temporalmente" : "Subir factura para procesar con IA"}>
+                {isProcessingInvoice ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : (isAiDisabled ? <PowerOff className="mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />)}
+                Subir Factura (IA)
+            </Button>
+          <Button onClick={handleAddNewExpenseManually} disabled={isLoading || isProcessingInvoice}>
+            <PlusCircle className="mr-2 h-4 w-4" /> Registrar Gasto Manual
           </Button>
         </div>
       </header>
 
-       {testResult && (
-        <Card className="mt-4 bg-muted/50">
-          <CardHeader><CardTitle className="text-base">Resultado de la Prueba de Subida</CardTitle></CardHeader>
-          <CardContent>
-            <p className="text-sm break-all">{testResult}</p>
-            {testResult.startsWith('¡Éxito!') && (
-              <Button asChild variant="link" className="p-0 mt-1 h-auto">
-                <Link href={testResult.replace('¡Éxito! Archivo subido a: ', '')} target="_blank" rel="noopener noreferrer">
-                  Abrir archivo
-                </Link>
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
           <CardTitle>Listado de Gastos Registrados</CardTitle>
-          <CardDescription>Administra las compras a proveedores, los gastos generales y sigue el estado de los pagos y facturas.</CardDescription>
+          <CardDescription>Administra las compras, gastos generales, proformas y proyecciones.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
             <Input
-              placeholder="Buscar por proveedor o concepto..."
+              placeholder="Buscar por proveedor o N.º Factura..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="max-w-sm"
@@ -278,37 +239,44 @@ export default function PurchasesPage() {
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="w-full sm:w-auto">
                   <Filter className="mr-2 h-4 w-4" />
-                  Estado: {statusFilter} <ChevronDown className="ml-2 h-4 w-4" />
+                  Estado Doc: {docStatusFilter} <ChevronDown className="ml-2 h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
-                 <DropdownMenuCheckboxItem onSelect={() => setStatusFilter("Todos")} checked={statusFilter === "Todos"}>Todos</DropdownMenuCheckboxItem>
-                {purchaseStatusList.map(status => (
-                   <DropdownMenuCheckboxItem key={status} onSelect={() => setStatusFilter(status)} checked={statusFilter === status}>
+                 <DropdownMenuCheckboxItem onSelect={() => setDocStatusFilter("Todos")} checked={docStatusFilter === "Todos"}>Todos</DropdownMenuCheckboxItem>
+                {documentStatusList.map(status => (
+                   <DropdownMenuCheckboxItem key={status} onSelect={() => setDocStatusFilter(status)} checked={docStatusFilter === status}>
                     {status}
                   </DropdownMenuCheckboxItem>
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
-            <DropdownMenu>
+             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="w-full sm:w-auto" disabled={isLoadingCategories}>
+                <Button variant="outline" className="w-full sm:w-auto">
                   <Filter className="mr-2 h-4 w-4" />
-                  Categoría: {categoryFilter === 'Todas' ? 'Todas' : categoriesMap.get(categoryFilter) || '...'} <ChevronDown className="ml-2 h-4 w-4" />
+                  Estado Pago: {paymentStatusFilter} <ChevronDown className="ml-2 h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
-                <DropdownMenuCheckboxItem onSelect={() => setCategoryFilter("Todas")} checked={categoryFilter === "Todas"}>Todas</DropdownMenuCheckboxItem>
-                {costCategories.map(cat => (
-                  <DropdownMenuCheckboxItem key={cat.id} onSelect={() => setCategoryFilter(cat.id)} checked={categoryFilter === cat.id}>{cat.name}</DropdownMenuCheckboxItem>
+                 <DropdownMenuCheckboxItem onSelect={() => setPaymentStatusFilter("Todos")} checked={paymentStatusFilter === "Todos"}>Todos</DropdownMenuCheckboxItem>
+                {paymentStatusList.map(status => (
+                   <DropdownMenuCheckboxItem key={status} onSelect={() => setPaymentStatusFilter(status)} checked={paymentStatusFilter === status}>
+                    {status}
+                  </DropdownMenuCheckboxItem>
                 ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => setIsCategoryDialogOpen(true)}>
-                    <PlusCircle className="mr-2 h-4 w-4"/>
-                    Crear Nueva Categoría
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            {selectedExpenseIds.length > 0 && (
+                <Button
+                    variant="destructive"
+                    onClick={handleDeleteSelected}
+                    className="ml-auto"
+                >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Eliminar ({selectedExpenseIds.length})
+                </Button>
+            )}
           </div>
           {isLoading ? (
              <div className="flex justify-center items-center h-64">
@@ -320,87 +288,49 @@ export default function PurchasesPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[20%]">Proveedor</TableHead>
-                    <TableHead className="w-[15%]">Categoría</TableHead>
-                    <TableHead className="w-[15%]">Fecha Pedido</TableHead>
-                    <TableHead className="text-right w-[15%]">Importe Total</TableHead>
-                    <TableHead className="text-center w-[15%]">Estado</TableHead>
-                    <TableHead className="text-right w-[20%]">Acciones</TableHead>
+                     <TableHead className="w-[40px]">
+                        <Checkbox
+                            checked={headerCheckboxState}
+                            onCheckedChange={handleSelectAllChange}
+                            aria-label="Seleccionar todas"
+                        />
+                    </TableHead>
+                    <TableHead>Factura / Concepto</TableHead>
+                    <TableHead>Proveedor</TableHead>
+                    <TableHead>Categoría</TableHead>
+                    <TableHead className="text-right">Importe</TableHead>
+                    <TableHead>Estado Doc.</TableHead>
+                    <TableHead>Estado Pago</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredPurchases.length > 0 ? filteredPurchases.map((purchase) => (
-                    <TableRow key={purchase.id}>
-                      <TableCell className="font-medium">
-                        {purchase.supplierId ? (
-                          <Link href={`/suppliers/${purchase.supplierId}`} className="hover:underline text-primary">
-                            {purchase.supplier}
-                          </Link>
-                        ) : (
-                          purchase.supplier
-                        )}
-                      </TableCell>
-                      <TableCell>{categoriesMap.get(purchase.items[0]?.categoryId) || 'N/D'}</TableCell>
-                      <TableCell>{format(parseISO(purchase.orderDate), "dd/MM/yy", { locale: es })}</TableCell>
+                  {filteredExpenses.length > 0 ? filteredExpenses.map((expense) => (
+                    <TableRow key={expense.id} data-state={selectedExpenseIds.includes(expense.id) ? "selected" : ""}>
+                       <TableCell>
+                            <Checkbox
+                                checked={selectedExpenseIds.includes(expense.id)}
+                                onCheckedChange={(checked) => handleRowSelectChange(expense.id, !!checked)}
+                                aria-label={`Seleccionar gasto ${expense.id}`}
+                            />
+                        </TableCell>
+                      <TableCell className="font-medium">{expense.invoiceNumber || expense.concepto}</TableCell>
+                      <TableCell>{expense.proveedorNombre || "N/A"}</TableCell>
+                      <TableCell>{categoriesMap.get(expense.categoriaId) || 'Sin Categoría'}</TableCell>
                       <TableCell className="text-right">
-                        <FormattedNumericValue value={purchase.totalAmount} options={{ style: 'currency', currency: purchase.currency }} />
+                        <FormattedNumericValue value={expense.monto} options={{ style: 'currency', currency: 'EUR' }} />
                       </TableCell>
-                      <TableCell className="text-center">
-                        <StatusBadge type="purchase" status={purchase.status} />
-                      </TableCell>
+                      <TableCell><StatusBadge type="document" status={expense.estadoDocumento} /></TableCell>
+                      <TableCell><StatusBadge type="payment" status={expense.estadoPago} /></TableCell>
                       <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <span className="sr-only">Abrir menú</span>
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onSelect={() => handleEditPurchase(purchase)}>
-                              <Edit className="mr-2 h-4 w-4" /> Editar / Ver Detalles
-                            </DropdownMenuItem>
-                            {purchase.invoiceUrl && (
-                               <DropdownMenuItem asChild>
-                                <Link href={purchase.invoiceUrl} target="_blank" rel="noopener noreferrer">
-                                  <Download className="mr-2 h-4 w-4" /> Descargar Factura
-                                </Link>
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuSeparator />
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <DropdownMenuItem
-                                  className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                                  onSelect={(e) => { e.preventDefault(); handleDeletePurchase(purchase); }}
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" /> Eliminar Gasto
-                                </DropdownMenuItem>
-                              </AlertDialogTrigger>
-                              {purchaseToDelete && purchaseToDelete.id === purchase.id && (
-                                  <AlertDialogContent>
-                                      <AlertDialogHeader>
-                                      <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                          Esta acción no se puede deshacer. Esto eliminará permanentemente el gasto de:
-                                          <br />
-                                          <strong className="mt-2 block">{purchaseToDelete.supplier} - {purchaseToDelete.items[0]?.description}</strong>
-                                      </AlertDialogDescription>
-                                      </AlertDialogHeader>
-                                      <AlertDialogFooter>
-                                      <AlertDialogCancel onClick={() => setPurchaseToDelete(null)}>Cancelar</AlertDialogCancel>
-                                      <AlertDialogAction onClick={confirmDeletePurchase} variant="destructive">Sí, eliminar</AlertDialogAction>
-                                      </AlertDialogFooter>
-                                  </AlertDialogContent>
-                              )}
-                            </AlertDialog>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                         <Button variant="outline" size="sm" onClick={() => handleEditExpense(expense)}>
+                            <Edit className="mr-2 h-4 w-4" /> Ver/Editar
+                         </Button>
                       </TableCell>
                     </TableRow>
                   )) : (
                     <TableRow>
-                      <TableCell colSpan={6} className="h-24 text-center">
+                      <TableCell colSpan={8} className="text-center h-24">
                         No se encontraron gastos que coincidan con tu búsqueda.
                       </TableCell>
                     </TableRow>
@@ -410,40 +340,32 @@ export default function PurchasesPage() {
             </div>
           )}
         </CardContent>
-        {!isLoading && filteredPurchases.length > 0 && (
+        {!isLoading && filteredExpenses.length > 0 && (
             <CardFooter>
-                <p className="text-xs text-muted-foreground">Total de gastos mostrados: {filteredPurchases.length} de {purchases.length}</p>
+                <p className="text-xs text-muted-foreground">Total de gastos mostrados: {filteredExpenses.length} de {expenses.length}</p>
             </CardFooter>
         )}
       </Card>
+      
+      <AlertDialog open={expensesToDelete.length > 0} onOpenChange={(open) => !open && setExpensesToDelete([])}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar {expensesToDelete.length} gastos?</AlertDialogTitle>
+            <AlertDialogDescription>
+                Esta acción no se puede deshacer y eliminará permanentemente los gastos seleccionados.
+            </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setExpensesToDelete([])}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteSelectedExpenses} variant="destructive">Sí, eliminar</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <PurchaseDialog
-          purchase={editingPurchase}
-          prefilledData={prefilledData}
-          prefilledFile={prefilledFile}
           isOpen={isPurchaseDialogOpen}
-          onOpenChange={(open) => {
-              setIsPurchaseDialogOpen(open);
-              if (!open) {
-                setEditingPurchase(null);
-                setPrefilledData(null);
-                setPrefilledFile(null);
-              }
-          }}
-          onSave={handleSavePurchase}
-      />
-
-       <InvoiceUploadDialog
-        isOpen={isInvoiceUploadOpen}
-        onOpenChange={setIsInvoiceUploadOpen}
-        onDataExtracted={handleDataFromInvoice}
-      />
-      
-      <CategoryDialog
-        isOpen={isCategoryDialogOpen}
-        onOpenChange={setIsCategoryDialogOpen}
-        onSave={handleSaveCategory}
-        categoryKind="cost"
+          onOpenChange={setIsPurchaseDialogOpen}
+          expense={expenseToEdit}
       />
     </div>
   );

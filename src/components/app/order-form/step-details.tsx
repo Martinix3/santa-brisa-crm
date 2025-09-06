@@ -1,4 +1,3 @@
-
 import * as React from 'react';
 import { useWatch, type UseFormReturn, type FieldArrayWithId } from 'react-hook-form';
 import { CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
@@ -11,14 +10,15 @@ import { Calendar } from "@/components/ui/calendar";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, ArrowRight, Trash2, PlusCircle, Calendar as CalendarIcon, Award, Package, Info } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Trash2, PlusCircle, Calendar as CalendarIcon, Award, Package, Info, Truck } from 'lucide-react';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { format, subDays, isEqual } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { paymentMethodList, nextActionTypeList, failureReasonList, canalOrigenColocacionList, provincesSpainList } from '@/lib/data';
 import { ADMIN_SELF_REGISTER_VALUE, NO_CLAVADISTA_VALUE } from '@/lib/schemas/order-form-schema';
 import type { OrderFormValues } from '@/lib/schemas/order-form-schema';
-import type { InventoryItem, TeamMember, UserRole } from '@/types';
+import type { InventoryItem, TeamMember, UserRole, Account } from '@/types';
 
 interface StepDetailsProps {
     form: UseFormReturn<OrderFormValues>;
@@ -31,7 +31,10 @@ interface StepDetailsProps {
     userRole: UserRole | null;
     salesRepsList: TeamMember[];
     clavadistas: TeamMember[];
+    distributorAccounts: Account[];
 }
+
+const DIRECT_SALE_VALUE = "##DIRECT##";
 
 export const StepDetails: React.FC<StepDetailsProps> = ({ 
     form, 
@@ -43,7 +46,8 @@ export const StepDetails: React.FC<StepDetailsProps> = ({
     removeMaterial, 
     userRole, 
     salesRepsList,
-    clavadistas
+    clavadistas,
+    distributorAccounts
 }) => {
   const outcomeWatched = useWatch({ control: form.control, name: 'outcome' });
   const paymentMethodWatched = useWatch({ control: form.control, name: 'paymentMethod' });
@@ -53,7 +57,7 @@ export const StepDetails: React.FC<StepDetailsProps> = ({
 
   const isNewClient = useWatch({ control: form.control, name: 'isNewClient' });
   const watchSameAsBilling = useWatch({ control: form.control, name: 'sameAsBilling' });
-
+  
   React.useEffect(() => {
     if (watchedMaterials) {
         watchedMaterials.forEach((item, index) => {
@@ -82,24 +86,45 @@ export const StepDetails: React.FC<StepDetailsProps> = ({
       </CardHeader>
       <CardContent className="space-y-6">
           <div className="space-y-4">
-              <h3 className="text-md font-semibold text-primary">Detalles del Pedido</h3>
-              <div className="text-sm text-muted-foreground flex items-start gap-2 p-3 bg-secondary/30 rounded-lg">
-                <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <p>
-                  Si la visita resultó en un <strong className="text-foreground">pedido exitoso</strong>, estos campos son obligatorios. Para <strong className="text-foreground">seguimientos</strong> o <strong className="text-foreground">visitas fallidas</strong>, son opcionales.
-                </p>
-              </div>
-              <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades</FormLabel><FormControl><Input type="number" min={1} step={1} placeholder="Ej: 12" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)}/>
-              <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario (€ sin IVA)</FormLabel><FormControl><Input type="number" min={0.01} step={0.01} placeholder="Ej: 15.50" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage /></FormItem>)}/>
-              <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel>Forma de Pago</FormLabel><Select onValueChange={field.onChange} value={field.value ?? ""}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar forma de pago"/></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(m=>(<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
-               {paymentMethodWatched === 'Giro Bancario' && (
-                  <FormField control={form.control} name="iban" render={({ field }) => (
+               {outcomeWatched === 'successful' && (
+                <div className="space-y-4 pt-4 border-t">
+                  <h3 className="text-md font-semibold text-primary">Detalles del Pedido Exitoso</h3>
+                  {isNewClient && (
+                    <FormField control={form.control} name="distributorId" render={({ field }) => (
                       <FormItem>
-                          <FormLabel>IBAN</FormLabel>
-                          <FormControl><Input placeholder="ES00 0000 0000 0000 0000 0000" {...field} value={field.value ?? ""} /></FormControl>
-                          <FormMessage />
+                          <FormLabel className="flex items-center gap-1.5"><Truck className="h-4 w-4"/>Gestionado Por</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value ?? ""} >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Seleccionar distribuidor..." />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value={DIRECT_SALE_VALUE}>Venta Directa (Gestiona Santa Brisa)</SelectItem>
+                                <Separator className="my-1"/>
+                                {distributorAccounts.map(d => <SelectItem key={d.id} value={d.id}>{d.nombre}</SelectItem>)}
+                              </SelectContent>
+                          </Select>
+                          <FormDescription className="text-xs">
+                              Al ser un cliente nuevo, debes asignar quién gestionará sus pedidos.
+                          </FormDescription>
+                          <FormMessage/>
                       </FormItem>
-                  )}/>
+                    )} />
+                  )}
+                  <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Número de Unidades</FormLabel><FormControl><Input type="number" min={1} step={1} placeholder="Ej: 12" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)}/>
+                  <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario (€ sin IVA)</FormLabel><FormControl><Input type="number" min={0.01} step={0.01} placeholder="Ej: 15.50" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage /></FormItem>)}/>
+                  <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel>Forma de Pago</FormLabel><Select onValueChange={field.onChange} value={field.value ?? ""}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar forma de pago"/></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(m=>(<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
+                  {paymentMethodWatched === 'Giro Bancario' && (
+                      <FormField control={form.control} name="iban" render={({ field }) => (
+                          <FormItem>
+                              <FormLabel>IBAN</FormLabel>
+                              <FormControl><Input placeholder="ES00 0000 0000 0000 0000 0000" {...field} value={field.value ?? ""} /></FormControl>
+                              <FormMessage />
+                          </FormItem>
+                      )}/>
+                  )}
+                </div>
               )}
           </div>
           

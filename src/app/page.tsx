@@ -1,6 +1,10 @@
+
 import { redirect } from 'next/navigation';
 
+// The root page is not used, so we redirect to the dashboard.
 export default function HomePage() {
   redirect('/dashboard');
-  return null; // Or a loading spinner, but redirect is usually fast enough
+  return null;
 }
+
+    

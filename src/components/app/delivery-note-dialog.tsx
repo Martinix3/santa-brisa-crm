@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -40,9 +39,12 @@ const formatAddressForNote = (address?: AddressDetails): React.ReactNode => {
 export default function DeliveryNoteDialog({ sale, account, isOpen, onOpenChange }: DeliveryNoteDialogProps) {
   
   const handlePrint = () => {
-    setTimeout(() => { 
-        window.print();
-    }, 100);
+    const dialogContent = document.getElementById("printable-dialog-content");
+    if (dialogContent) {
+      dialogContent.classList.add("print-dialog");
+      window.print();
+      dialogContent.classList.remove("print-dialog");
+    }
   };
   
   if (!isOpen || !sale) return null;
@@ -51,17 +53,17 @@ export default function DeliveryNoteDialog({ sale, account, isOpen, onOpenChange
   
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl delivery-note-dialog">
-        <DialogHeader className="print-hide">
-          <DialogTitle>Albarán para Venta {sale.id.substring(0, 8)}...</DialogTitle>
+      <DialogContent id="printable-dialog-content" className="sm:max-w-3xl">
+        <DialogHeader className="print-hide-in-dialog">
+          <DialogTitle>Albarán para Venta {sale.id?.substring(0, 8)}...</DialogTitle>
         </DialogHeader>
         
-        <div id="delivery-note-content" className="delivery-note-dialog-content my-4 text-xs">
+        <div className="my-4 text-xs">
             {/* Header */}
             <header className="flex justify-between items-start mb-6">
                  <div className="flex items-center space-x-3">
-                    <Image src="https://firebasestorage.googleapis.com/v0/b/santa-brisa-crm.appspot.com/o/logo%20santa%20brisa_sinfondo.png?alt=media&token=069a6659-7bed-4332-ac4d-5cddf1d31e29" alt="Santa Brisa Logo" width={50} height={50} />
-                    <div>
+                    <Image src="/logo-santa-brisa-crm.png" alt="Santa Brisa Logo" width={120} height={30} unoptimized />
+                    <div className="pl-4 border-l">
                         <h2 className="font-bold text-base">Santa Brisa</h2>
                         <p>CIF: B00000000</p>
                         <p>Calle Ficticia 123, 28001 Madrid</p>
@@ -69,7 +71,7 @@ export default function DeliveryNoteDialog({ sale, account, isOpen, onOpenChange
                 </div>
                 <div className="text-right">
                     <h1 className="font-bold text-lg">ALBARÁN DE ENTREGA</h1>
-                    <p><span className="font-semibold">Nº Venta:</span> {sale.id}</p>
+                    <p><span className="font-semibold">Nº Albarán:</span> {sale.id}</p>
                     <p><span className="font-semibold">Fecha:</span> {format(parseISO(sale.issueDate), "dd/MM/yyyy", { locale: es })}</p>
                 </div>
             </header>
@@ -92,7 +94,8 @@ export default function DeliveryNoteDialog({ sale, account, isOpen, onOpenChange
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead className="w-[60%]">Producto / Descripción</TableHead>
+                            <TableHead className="w-[50%]">Producto / Descripción</TableHead>
+                            <TableHead className="w-[25%]">Lote</TableHead>
                             <TableHead className="text-right">Cantidad</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -100,6 +103,7 @@ export default function DeliveryNoteDialog({ sale, account, isOpen, onOpenChange
                         {sale.items.map((item, index) => (
                             <TableRow key={index}>
                                 <TableCell className="font-medium">{item.productName}</TableCell>
+                                <TableCell className="font-mono text-xs">{item.batchNumber}</TableCell>
                                 <TableCell className="text-right"><FormattedNumericValue value={item.quantity}/></TableCell>
                             </TableRow>
                         ))}
@@ -126,12 +130,11 @@ export default function DeliveryNoteDialog({ sale, account, isOpen, onOpenChange
                     <div className="h-12 border-b mt-1"></div>
                 </div>
             </footer>
-
         </div>
 
-        <DialogFooter className="print-hide">
+        <DialogFooter className="print-hide-in-dialog">
           <DialogClose asChild><Button type="button" variant="outline">Cerrar</Button></DialogClose>
-          <Button onClick={handlePrint} disabled={!shippingAddress}>
+          <Button onClick={handlePrint}>
               <Printer className="mr-2 h-4 w-4" /> Imprimir Albarán
           </Button>
         </DialogFooter>

@@ -12,25 +12,11 @@ import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { Send, CheckCircle } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
+import { getInteractionType } from '@/lib/interaction-utils';
+
 
 interface AccountHistoryTableProps {
   interactions: Order[];
-}
-
-const getInteractionType = (interaction: Order): string => {
-    const { status, nextActionType, failureReasonType } = interaction;
-    if (status === 'Programada') return "Visita Programada";
-    if (status === 'Seguimiento') return `Seguimiento (${nextActionType || 'N/D'})`;
-    if (status === 'Fallido') return `Visita Fallida (${failureReasonType || 'N/D'})`;
-    
-    if (status === 'Completado') {
-        if (nextActionType || failureReasonType) {
-            return `Tarea Completada`;
-        }
-        return `Interacción Completada`;
-    }
-    
-    return `Pedido (${status})`;
 }
 
 export default function AccountHistoryTable({ interactions }: AccountHistoryTableProps) {
@@ -41,7 +27,7 @@ export default function AccountHistoryTable({ interactions }: AccountHistoryTabl
   }
 
   return (
-    <div className="p-4 bg-muted/50 border-t-2 border-primary/20">
+    <div className="p-4 bg-muted/30 border-t-2 border-primary/20">
         <h4 className="font-semibold mb-2 text-base">Historial de Interacciones</h4>
         <div className="max-h-64 overflow-y-auto">
             <Table>

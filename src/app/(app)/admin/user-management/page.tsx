@@ -45,21 +45,13 @@ const userFormSchema = z.object({
 }).superRefine((data, ctx) => {
   if (data.role === "SalesRep") {
     if (data.monthlyTargetAccounts === undefined || data.monthlyTargetAccounts <= 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "El objetivo mensual de cuentas es obligatorio y debe ser positivo para un Representante de Ventas.",
-        path: ["monthlyTargetAccounts"],
-      });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El objetivo mensual de cuentas es obligatorio y debe ser positivo para un Representante de Ventas.", path: ["monthlyTargetAccounts"] });
     }
     if (data.monthlyTargetVisits === undefined || data.monthlyTargetVisits <= 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "El objetivo mensual de visitas es obligatorio y debe ser positivo para un Representante de Ventas.",
-        path: ["monthlyTargetVisits"],
-      });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El objetivo mensual de visitas es obligatorio y debe ser positivo para un Representante de Ventas.", path: ["monthlyTargetVisits"] });
     }
   }
-  if (data.role === "Clavadista" || data.role === "Distributor" || data.role === "Admin") {
+  if (['Clavadista', 'Distributor', 'Admin', 'Líder Clavadista'].includes(data.role)) {
     data.monthlyTargetAccounts = undefined;
     data.monthlyTargetVisits = undefined;
   }
@@ -69,7 +61,7 @@ type UserFormValuesInternal = z.infer<typeof userFormSchema>;
 
 export default function UserManagementPage() {
   const { toast } = useToast();
-  const { user: currentUserAuth, createUserInAuthAndFirestore } = useAuth(); 
+  const { user: currentUserAuth, createUserInAuthAndFirestore, dataSignature, refreshDataSignature } = useAuth(); 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [users, setUsers] = React.useState<TeamMember[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = React.useState(true);
@@ -100,7 +92,7 @@ export default function UserManagementPage() {
       }
     }
     loadUsers();
-  }, [toast]);
+  }, [toast, dataSignature]);
 
   async function onSubmitNewUser(values: UserFormValuesInternal) {
     setIsSubmitting(true);
@@ -131,10 +123,7 @@ export default function UserManagementPage() {
     const { firebaseUser, teamMemberId } = await createUserInAuthAndFirestore(teamMemberDataToSave, defaultPassword);
 
     if (firebaseUser && teamMemberId) {
-      const newUserFromFS = await getTeamMemberByIdFS(teamMemberId); 
-      if (newUserFromFS) {
-        setUsers(prev => [newUserFromFS, ...prev].sort((a,b) => a.name.localeCompare(b.name)));
-      }
+      refreshDataSignature();
       toast({
         title: "¡Usuario Creado!",
         description: <div className="flex items-start"><Check className="h-5 w-5 text-green-500 mr-2 mt-1" /><p>Usuario {values.name} ({values.role}) creado. Contraseña por defecto: {defaultPassword}.</p></div>,
@@ -155,8 +144,7 @@ export default function UserManagementPage() {
     setIsLoadingUsers(true); 
     try {
       await updateTeamMemberFS(userId, updatedData);
-      const updatedUsers = await getTeamMembersFS(); 
-      setUsers(updatedUsers);
+      refreshDataSignature();
       toast({ title: "¡Usuario Actualizado!", description: `Los datos de ${updatedData.name} han sido actualizados.`, variant: "default" });
     } catch (error) {
       console.error("Error updating user:", error);
@@ -182,7 +170,7 @@ export default function UserManagementPage() {
     setIsLoadingUsers(true);
     try {
       await deleteTeamMemberFS(userToDelete.id); 
-      setUsers(prevUsers => prevUsers.filter(u => u.id !== userToDelete.id));
+      refreshDataSignature();
       toast({
         title: "Usuario Eliminado de Firestore",
         description: <div><p>El usuario "{userToDelete.name}" ha sido eliminado de Firestore.</p><p className="mt-2 font-semibold text-destructive">Importante: Para revocar completamente el acceso del usuario, debes eliminarlo manualmente desde la consola de Firebase Authentication.</p></div>,
@@ -198,9 +186,14 @@ export default function UserManagementPage() {
   };
 
   const getRoleDisplayName = (role: UserRole): string => {
-    switch (role) {
-        case 'SalesRep': return 'Rep. Ventas'; case 'Clavadista': return 'Clavadista'; default: return role;
-    }
+    const roleMap: Record<UserRole, string> = {
+        'Admin': 'Admin',
+        'SalesRep': 'Rep. Ventas',
+        'Distributor': 'Distribuidor',
+        'Clavadista': 'Clavadista',
+        'Líder Clavadista': 'Líder Clavadista'
+    };
+    return roleMap[role];
   };
 
   return (

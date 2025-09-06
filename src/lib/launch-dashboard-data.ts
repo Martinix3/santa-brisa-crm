@@ -1,5 +1,5 @@
 
-import type { Kpi, StrategicObjective } from "@/types";
+import type { Kpi, StrategicObjective, OrderStatus } from "@/types";
 import { TrendingUp, Users, Briefcase, CalendarPlus, Repeat } from "lucide-react"; 
 
 // Datos de KPI para el lanzamiento del producto
@@ -23,4 +23,9 @@ export const mockStrategicObjectives: StrategicObjective[] = [
   { id: 'obj4', text: 'Alcanzar una tasa de satisfacción del cliente del 95%.', completed: false },
   { id: 'obj5', text: 'Optimizar la cadena de suministro para reducir costes de envío en un 5%.', completed: false },
   { id: 'obj6', text: 'Implementar un programa de fidelización de clientes HORECA para Q2.', completed: true },
+];
+
+export const orderStatusesList: OrderStatus[] = [
+  'Programada', 'Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado',
+  'Facturado', 'Cancelado', 'Fallido', 'Seguimiento', 'Completado'
 ];

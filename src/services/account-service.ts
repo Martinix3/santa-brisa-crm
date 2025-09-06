@@ -1,7 +1,4 @@
 
-
-'use server';
-
 import { db } from '@/lib/firebase';
 import {
   collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
@@ -27,6 +24,7 @@ const fromFirestore = (docSnap: DocumentSnapshot): Account => {
     potencial: data.potencial || 'bajo',
     responsableId: data.responsableId || data.salesRepId || '',
     brandAmbassadorId: data.brandAmbassadorId || undefined,
+    distributorId: data.distributorId || undefined,
 
     // The 'status' field from Firestore is now considered legacy.
     // The true status is calculated dynamically by cartera-service.
@@ -38,6 +36,7 @@ const fromFirestore = (docSnap: DocumentSnapshot): Account => {
     cif: data.cif || '',
     type: data.type, 
     salesRepId: data.salesRepId || data.responsableId, // Fallback for compatibility
+    embajadorId: data.embajadorId,
     iban: data.iban || undefined,
     addressBilling: data.addressBilling,
     addressShipping: data.addressShipping,
@@ -48,6 +47,8 @@ const fromFirestore = (docSnap: DocumentSnapshot): Account => {
     internalNotes: data.internalNotes || undefined,
     createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : (typeof data.createdAt === 'string' ? data.createdAt : format(new Date(), "yyyy-MM-dd")),
     updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : (typeof data.updatedAt === 'string' ? data.updatedAt : format(new Date(), "yyyy-MM-dd")),
+    primer_pedido_fecha: data.primer_pedido_fecha ? (data.primer_pedido_fecha instanceof Timestamp ? data.primer_pedido_fecha.toDate().toISOString() : data.primer_pedido_fecha) : undefined,
+    segundo_pedido_fecha: data.segundo_pedido_fecha ? (data.segundo_pedido_fecha instanceof Timestamp ? data.segundo_pedido_fecha.toDate().toISOString() : data.segundo_pedido_fecha) : undefined,
   };
 };
 
@@ -58,18 +59,23 @@ const toFirestore = (data: Partial<AccountFormValues>, isNew: boolean): any => {
   // Directly map provided fields
   if (data.name) firestoreData.nombre = data.name;
   if (data.legalName !== undefined) firestoreData.legalName = data.legalName || null;
-  if (data.cif !== undefined) firestoreData.cif = data.cif || null;
+  
+  // Handle optional 'cif' field correctly
+  firestoreData.cif = data.cif || null;
+
   if (data.type) firestoreData.type = data.type;
   if (data.iban !== undefined) firestoreData.iban = data.iban || null;
+  if (data.distributorId !== undefined) firestoreData.distributorId = data.distributorId || null;
   if (data.mainContactName !== undefined) firestoreData.mainContactName = data.mainContactName || null;
   if (data.mainContactEmail !== undefined) firestoreData.mainContactEmail = data.mainContactEmail || null;
   if (data.mainContactPhone !== undefined) firestoreData.mainContactPhone = data.mainContactPhone || null;
   if (data.notes !== undefined) firestoreData.notes = data.notes || null;
   if (data.internalNotes !== undefined) firestoreData.internalNotes = data.internalNotes || null;
   
+  // Handle salesRepId specifically. Undefined means no change, null means unassign.
   if (data.salesRepId !== undefined) {
-    firestoreData.responsableId = data.salesRepId || null; // Mapping salesRepId to responsableId
     firestoreData.salesRepId = data.salesRepId || null;
+    firestoreData.responsableId = data.salesRepId || null;
   }
   
   if (isNew) {
@@ -141,9 +147,52 @@ export const addAccountFS = async (data: AccountFormValues): Promise<string> => 
 };
 
 export const updateAccountFS = async (id: string, data: Partial<AccountFormValues>): Promise<void> => {
-  const accountDocRef = doc(db, ACCOUNTS_COLLECTION, id);
-  const firestoreData = toFirestore(data, false); 
-  await updateDoc(accountDocRef, firestoreData);
+    const batch = writeBatch(db);
+    const accountDocRef = doc(db, ACCOUNTS_COLLECTION, id);
+
+    const firestoreData = toFirestore(data, false);
+    batch.update(accountDocRef, firestoreData);
+    
+    // If the sales rep is changing (it's present in the data payload),
+    // update all open tasks for this account.
+    if ('salesRepId' in data) {
+        let newRepName: string | null = null;
+        if (data.salesRepId) {
+            const repDoc = await getDoc(doc(db, 'teamMembers', data.salesRepId));
+            if (repDoc.exists()) {
+                newRepName = repDoc.data().name;
+            } else {
+                console.warn(`Could not find team member with ID: ${data.salesRepId}`);
+                newRepName = 'Asignado a ID no válido';
+            }
+        } else {
+            // This handles the case where salesRepId is explicitly set to null or undefined
+            // in the form, meaning "Sin Asignar".
+            newRepName = null;
+        }
+
+        const openTasksQuery = query(
+            collection(db, ORDERS_COLLECTION),
+            where('accountId', '==', id),
+            where('status', 'in', ['Programada', 'Seguimiento'])
+        );
+        
+        try {
+            const openTasksSnapshot = await getDocs(openTasksQuery);
+
+            openTasksSnapshot.forEach(taskDoc => {
+                batch.update(taskDoc.ref, { 
+                    salesRep: newRepName, // Update the name
+                    lastUpdated: Timestamp.now()
+                });
+            });
+        } catch (error) {
+             console.error("Error querying for open tasks to update salesRep:", error);
+             throw new Error("Failed to query open tasks for updating.");
+        }
+    }
+
+    await batch.commit();
 };
 
 export const deleteAccountFS = async (id: string): Promise<void> => {

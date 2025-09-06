@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Sparkles, Loader2, Send } from 'lucide-react';
+import { Sparkles, Loader2, Send, PowerOff } from 'lucide-react';
 import { askMarketingAssistant, type MarketingAssistantInput, type MarketingAssistantOutput } from '@/ai/flows/marketing-assistant-flow';
 
 export default function AiAssistantPage() {
@@ -13,9 +13,19 @@ export default function AiAssistantPage() {
   const [question, setQuestion] = React.useState('');
   const [answer, setAnswer] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
+  const isApiDisabled = true; // API is disabled
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isApiDisabled) {
+      toast({
+        title: 'Función Desactivada',
+        description: 'El asistente de IA está temporalmente desactivado.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    // The rest of the logic is kept but won't be executed
     if (!question.trim()) {
       toast({
         title: 'Pregunta Vacía',
@@ -26,7 +36,7 @@ export default function AiAssistantPage() {
     }
 
     setIsLoading(true);
-    setAnswer(''); // Clear previous answer
+    setAnswer(''); 
 
     try {
       const input: MarketingAssistantInput = { question };
@@ -54,7 +64,15 @@ export default function AiAssistantPage() {
 
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
-          <CardTitle>Pregunta a Santi, tu Asistente Experto</CardTitle>
+          <CardTitle className="flex justify-between items-center">
+            <span>Pregunta a Santi, tu Asistente Experto</span>
+            {isApiDisabled && (
+                <span className="flex items-center text-sm font-medium text-destructive bg-destructive/10 px-3 py-1 rounded-full">
+                    <PowerOff className="mr-2 h-4 w-4" />
+                    DESACTIVADO
+                </span>
+            )}
+          </CardTitle>
           <CardDescription>
             Haz cualquier pregunta sobre los productos de Santa Brisa, argumentos de venta,
             o información de la empresa para obtener ayuda instantánea.
@@ -63,14 +81,14 @@ export default function AiAssistantPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <Textarea
-              placeholder="Ej: ¿Cuáles son los principales beneficios del agua Santa Brisa para deportistas?"
+              placeholder="El asistente de IA está desactivado temporalmente."
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               rows={3}
               className="focus:ring-2 focus:ring-primary"
-              disabled={isLoading}
+              disabled={isLoading || isApiDisabled}
             />
-            <Button type="submit" disabled={isLoading || !question.trim()}>
+            <Button type="submit" disabled={isLoading || !question.trim() || isApiDisabled}>
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

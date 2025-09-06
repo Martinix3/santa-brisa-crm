@@ -9,6 +9,19 @@ interface StrategicObjectivesListProps {
 }
 
 export function StrategicObjectivesList({ objectives }: StrategicObjectivesListProps) {
+  if (!objectives || !Array.isArray(objectives)) {
+    return (
+        <Card className="shadow-subtle">
+            <CardHeader>
+                <CardTitle>Objetivos Estratégicos Clave</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <p className="text-sm text-muted-foreground">Cargando objetivos...</p>
+            </CardContent>
+        </Card>
+    );
+  }
+
   const objectivesToShow = objectives.slice(0, 5);
   const remainingCount = objectives.length - objectivesToShow.length;
 

@@ -35,12 +35,15 @@ import {
 } from "@/components/ui/select";
 import type { Account, AccountType, TeamMember, AddressDetails } from "@/types";
 import { accountTypeList, provincesSpainList } from "@/lib/data"; 
-import { Loader2 } from "lucide-react";
+import { Loader2, Truck } from "lucide-react";
 import { Separator } from "../ui/separator";
 import { getTeamMembersFS } from "@/services/team-member-service";
+import { getAccountsFS } from "@/services/account-service";
 
 
 const NO_SALES_REP_VALUE = "##NONE##";
+const DIRECT_SALE_VALUE = "##DIRECT##";
+
 
 const accountFormSchemaBase = z.object({
   name: z.string().min(2, "El nombre comercial debe tener al menos 2 caracteres."),
@@ -54,6 +57,7 @@ const accountFormSchemaBase = z.object({
   }),
   type: z.enum(accountTypeList as [AccountType, ...AccountType[]], { required_error: "El tipo de cuenta es obligatorio." }),
   iban: z.string().optional(),
+  distributorId: z.string().optional(),
   
   // Campos de dirección de facturación desglosados
   addressBilling_street: z.string().optional(),
@@ -114,11 +118,12 @@ interface AccountDialogProps {
 export default function AccountDialog({ account, isOpen, onOpenChange, onSave, allAccounts, isReadOnly = false }: AccountDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   const [salesRepList, setSalesRepList] = React.useState<TeamMember[]>([]);
+  const [distributors, setDistributors] = React.useState<Account[]>([]);
   
   const accountFormSchema = React.useMemo(() => {
     return accountFormSchemaBase.refine(
       (data) => {
-        if (!data.cif) return true; 
+        if (!data.cif || data.cif.trim() === '') return true; 
         const existingAccountWithCif = allAccounts.find(
           (acc) => acc.cif && acc.cif.toLowerCase() === data.cif!.toLowerCase() && acc.id !== account?.id
         );
@@ -135,24 +140,29 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
   const form = useForm<AccountFormValues>({
     resolver: zodResolver(accountFormSchema),
     defaultValues: {
-      name: "", legalName: "", cif: "", type: undefined, iban: "",
+      name: "", legalName: "", cif: "", type: undefined, iban: "", distributorId: DIRECT_SALE_VALUE,
       addressBilling_street: "", addressBilling_number: "", addressBilling_city: "", addressBilling_province: "", addressBilling_postalCode: "", addressBilling_country: "España",
       addressShipping_street: "", addressShipping_number: "", addressShipping_city: "", addressShipping_province: "", addressShipping_postalCode: "", addressShipping_country: "España",
-      mainContactName: "", mainContactEmail: "", mainContactPhone: "", notes: "", internalNotes: "", salesRepId: NO_SALES_REP_VALUE,
+      mainContactName: "", mainContactEmail: "", mainContactPhone: "", 
+      notes: "", internalNotes: "", salesRepId: NO_SALES_REP_VALUE,
     },
   });
 
   React.useEffect(() => {
-    async function loadSalesReps() {
+    async function loadDataForDialog() {
       try {
-        const reps = await getTeamMembersFS(['SalesRep', 'Admin']);
+        const [reps, allAccountsForDistro] = await Promise.all([
+          getTeamMembersFS(['SalesRep', 'Admin']),
+          getAccountsFS()
+        ]);
         setSalesRepList(reps);
+        setDistributors(allAccountsForDistro.filter(a => a.type === 'Distribuidor' || a.type === 'Importador'));
       } catch (error) {
-        console.error("Failed to load sales reps for account dialog", error);
+        console.error("Failed to load data for account dialog", error);
       }
     }
     if (isOpen) {
-      loadSalesReps();
+      loadDataForDialog();
       if (account) {
         form.reset({
           name: account.nombre,
@@ -160,6 +170,7 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
           cif: account.cif || "", 
           type: account.type, 
           iban: account.iban || "",
+          distributorId: account.distributorId || DIRECT_SALE_VALUE,
           addressBilling_street: account.addressBilling?.street || "",
           addressBilling_number: account.addressBilling?.number || "",
           addressBilling_city: account.addressBilling?.city || "",
@@ -181,7 +192,7 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
         });
       } else {
         form.reset({ 
-          name: "", legalName: "", cif: "", type: undefined, iban: "",
+          name: "", legalName: "", cif: "", type: undefined, iban: "", distributorId: DIRECT_SALE_VALUE,
           addressBilling_street: "", addressBilling_number: "", addressBilling_city: "", addressBilling_province: "", addressBilling_postalCode: "", addressBilling_country: "España",
           addressShipping_street: "", addressShipping_number: "", addressShipping_city: "", addressShipping_province: "", addressShipping_postalCode: "", addressShipping_country: "España",
           mainContactName: "", mainContactEmail: "", mainContactPhone: "", 
@@ -199,10 +210,17 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
     if (dataToSave.salesRepId === NO_SALES_REP_VALUE) {
       dataToSave.salesRepId = undefined; 
     }
+    if (dataToSave.distributorId === DIRECT_SALE_VALUE) {
+      dataToSave.distributorId = undefined;
+    }
 
-    await new Promise(resolve => setTimeout(resolve, 500)); 
-    onSave(dataToSave); 
-    setIsSaving(false);
+    try {
+      await onSave(dataToSave); 
+    } catch (e) {
+      // Error is handled by the parent
+    } finally {
+      setIsSaving(false);
+    }
   };
   
   return (
@@ -225,8 +243,11 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
                 <FormField control={form.control} name="type" render={({ field }) => (<FormItem><FormLabel>Tipo de Cuenta</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un tipo" /></SelectTrigger></FormControl><SelectContent>{accountTypeList.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
             </div>
             
-            <Separator className="my-4"/><h3 className="text-md font-medium text-muted-foreground">Datos Financieros</h3>
-            <FormField control={form.control} name="iban" render={({ field }) => (<FormItem><FormLabel>IBAN (Opcional)</FormLabel><FormControl><Input placeholder="ES00 0000 0000 0000 0000 0000" {...field} value={field.value ?? ""} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+            <Separator className="my-4"/><h3 className="text-md font-medium text-muted-foreground">Datos Financieros y Logísticos</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField control={form.control} name="iban" render={({ field }) => (<FormItem><FormLabel>IBAN (Opcional)</FormLabel><FormControl><Input placeholder="ES00 0000 0000 0000 0000 0000" {...field} value={field.value ?? ""} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="distributorId" render={({ field }) => (<FormItem><FormLabel className="flex items-center gap-1.5"><Truck className="h-4 w-4 text-primary" />Distribuidor Asignado</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger></FormControl><SelectContent><SelectItem value={DIRECT_SALE_VALUE}>Venta Directa (Gestiona Santa Brisa)</SelectItem><Separator/>{distributors.map(d=>(<SelectItem key={d.id} value={d.id}>{d.nombre}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+            </div>
 
 
             <Separator className="my-4"/><h3 className="text-md font-medium text-muted-foreground">Dirección Fiscal/Facturación (Opcional)</h3>
@@ -257,8 +278,8 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
             <Separator className="my-4"/><h3 className="text-md font-medium text-muted-foreground">Contacto Principal (Opcional)</h3>
             <FormField control={form.control} name="mainContactName" render={({ field }) => (<FormItem><FormLabel>Nombre del Contacto</FormLabel><FormControl><Input placeholder="Ej: María López" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField control={form.control} name="mainContactEmail" render={({ field }) => (<FormItem><FormLabel>Email del Contacto</FormLabel><FormControl><Input type="email" placeholder="contacto@ejemplo.com" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="mainContactPhone" render={({ field }) => (<FormItem><FormLabel>Teléfono del Contacto</FormLabel><FormControl><Input type="tel" placeholder="+34 600 000 000" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="mainContactEmail" render={({ field }) => (<FormItem><FormLabel>Email del Contacto</FormLabel><FormControl><Input type="email" placeholder="contacto@ejemplo.com" {...field} value={field.value ?? ""} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="mainContactPhone" render={({ field }) => (<FormItem><FormLabel>Teléfono del Contacto</FormLabel><FormControl><Input type="tel" placeholder="+34 600 000 000" {...field} value={field.value ?? ""} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
             </div>
             <Separator className="my-4"/>
              <FormField control={form.control} name="salesRepId" render={({ field }) => (<FormItem><FormLabel>Representante Asignado (Opcional)</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly || salesRepList.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={salesRepList.length === 0 ? "Cargando..." : "Seleccionar representante"} /></SelectTrigger></FormControl><SelectContent><SelectItem value={NO_SALES_REP_VALUE}>Sin asignar</SelectItem>{salesRepList.map(rep => (<SelectItem key={rep.id} value={rep.id}>{rep.name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />

@@ -14,7 +14,7 @@ import { PlusCircle, Edit, Trash2, MoreHorizontal, Eye, Loader2, MapPin, Truck }
 import SupplierDialog, { type SupplierFormValues } from "@/components/app/supplier-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import Link from "next/link";
-import { getSuppliersFS, addSupplierFS, deleteSupplierFS } from "@/services/supplier-service";
+import { getSuppliersFS, addSupplierFS, deleteSupplierFS, updateSupplierFS } from "@/services/supplier-service";
 
 export default function SuppliersPage() {
   const { toast } = useToast();
@@ -65,17 +65,18 @@ export default function SuppliersPage() {
     setIsLoading(true); 
     try {
       if (editingSupplier) {
-        // Update logic is handled in the detail page, but we can keep it here for quick edits
+        await updateSupplierFS(editingSupplier.id, data);
+        toast({ title: "¡Proveedor Actualizado!" });
       } else {
         await addSupplierFS(data);
-        toast({ title: "¡Proveedor Añadido!", description: `El proveedor "${data.name}" ha sido añadido.` });
+        toast({ title: "¡Proveedor Añadido!" });
       }
       refreshDataSignature();
       setIsSupplierDialogOpen(false);
       setEditingSupplier(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving supplier:", error);
-      toast({ title: "Error al Guardar", description: "No se pudo añadir el nuevo proveedor.", variant: "destructive" });
+      toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
     } finally {
       setIsLoading(false);
     }

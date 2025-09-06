@@ -1,3 +1,5 @@
+
+
 "use client";
 
 import * as React from "react";
@@ -11,42 +13,60 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { CategoryKind } from "@/types";
 import { Loader2 } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 const categoryFormSchema = z.object({
   name: z.string().min(3, "El nombre de la categoría debe tener al menos 3 caracteres."),
+  kind: z.enum(['inventory', 'cost'], { required_error: 'Debe seleccionar un tipo de categoría.' }),
   isConsumable: z.boolean().default(true),
+  costType: z.enum(['fixed', 'variable']).optional(),
+}).superRefine((data, ctx) => {
+    if (data.kind === 'cost' && !data.costType) {
+        ctx.addIssue({ path: ['costType'], message: 'Debe seleccionar un tipo de coste.' });
+    }
 });
 
-export type CategoryFormValues = Omit<z.infer<typeof categoryFormSchema>, 'id' | 'createdAt' | 'updatedAt'> & { kind: CategoryKind };
+export type CategoryFormValues = Omit<z.infer<typeof categoryFormSchema>, 'id' | 'createdAt' | 'updatedAt' | 'idOverride'>;
 
 interface CategoryDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (data: CategoryFormValues) => void;
-  categoryKind: CategoryKind;
 }
 
-export default function CategoryDialog({ isOpen, onOpenChange, onSave, categoryKind }: CategoryDialogProps) {
+export default function CategoryDialog({ isOpen, onOpenChange, onSave }: CategoryDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
 
   const form = useForm<z.infer<typeof categoryFormSchema>>({
     resolver: zodResolver(categoryFormSchema),
     defaultValues: {
       name: "",
-      isConsumable: true,
+      kind: 'cost',
+      isConsumable: false,
+      costType: 'variable',
     },
   });
 
+  const watchKind = form.watch('kind');
+
   React.useEffect(() => {
     if (isOpen) {
-      form.reset({ name: "", isConsumable: true });
+      form.reset({ name: "", kind: 'cost', isConsumable: false, costType: 'variable' });
     }
   }, [isOpen, form]);
 
   const onSubmit = async (data: z.infer<typeof categoryFormSchema>) => {
     setIsSaving(true);
     await new Promise(resolve => setTimeout(resolve, 500));
-    onSave({ ...data, kind: categoryKind });
+    const dataToSave: CategoryFormValues = {
+        ...data,
+    };
+    if (data.kind === 'inventory') {
+        dataToSave.costType = undefined;
+    } else {
+        dataToSave.isConsumable = false; // Costs are not consumable in stock terms
+    }
+    onSave(dataToSave);
     setIsSaving(false);
   };
 
@@ -54,9 +74,9 @@ export default function CategoryDialog({ isOpen, onOpenChange, onSave, categoryK
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Nueva Categoría de {categoryKind === 'inventory' ? 'Inventario' : 'Coste'}</DialogTitle>
+          <DialogTitle>Nueva Categoría</DialogTitle>
           <DialogDescription>
-            Crea una nueva categoría para organizar tus artículos.
+            Crea una nueva categoría para organizar tus artículos o gastos.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -68,13 +88,40 @@ export default function CategoryDialog({ isOpen, onOpenChange, onSave, categoryK
                 <FormItem>
                   <FormLabel>Nombre de la Categoría</FormLabel>
                   <FormControl>
-                    <Input placeholder="Ej: Merchandising Físico" {...field} />
+                    <Input placeholder="Ej: Materia Prima (COGS)" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            {categoryKind === 'inventory' && (
+             <FormField
+                control={form.control}
+                name="kind"
+                render={({ field }) => (
+                  <FormItem className="space-y-3">
+                    <FormLabel>Tipo de Categoría</FormLabel>
+                    <FormControl>
+                      <RadioGroup
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        className="flex flex-col space-y-1"
+                      >
+                        <FormItem className="flex items-center space-x-3 space-y-0">
+                          <FormControl><RadioGroupItem value="cost" /></FormControl>
+                          <FormLabel className="font-normal">Gasto / Coste</FormLabel>
+                        </FormItem>
+                        <FormItem className="flex items-center space-x-3 space-y-0">
+                          <FormControl><RadioGroupItem value="inventory" /></FormControl>
+                          <FormLabel className="font-normal">Inventario</FormLabel>
+                        </FormItem>
+                      </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+            {watchKind === 'inventory' ? (
               <FormField
                 control={form.control}
                 name="isConsumable"
@@ -91,9 +138,36 @@ export default function CategoryDialog({ isOpen, onOpenChange, onSave, categoryK
                         Es un artículo consumible
                       </FormLabel>
                       <p className="text-sm text-muted-foreground">
-                        Marcar si el stock de este tipo de artículo se agota (ej: botellas, folletos).
+                        Marcar si el stock se agota (ej: botellas, folletos).
                       </p>
                     </div>
+                  </FormItem>
+                )}
+              />
+            ) : (
+                <FormField
+                control={form.control}
+                name="costType"
+                render={({ field }) => (
+                  <FormItem className="space-y-3">
+                    <FormLabel>Clasificación del Coste</FormLabel>
+                    <FormControl>
+                      <RadioGroup
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        className="flex flex-col space-y-1"
+                      >
+                        <FormItem className="flex items-center space-x-3 space-y-0">
+                          <FormControl><RadioGroupItem value="variable" /></FormControl>
+                          <FormLabel className="font-normal">Variable</FormLabel>
+                        </FormItem>
+                        <FormItem className="flex items-center space-x-3 space-y-0">
+                          <FormControl><RadioGroupItem value="fixed" /></FormControl>
+                          <FormLabel className="font-normal">Fijo</FormLabel>
+                        </FormItem>
+                      </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
                   </FormItem>
                 )}
               />

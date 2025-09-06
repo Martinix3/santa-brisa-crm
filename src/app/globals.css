@@ -9,47 +9,48 @@ body {
 
 @layer base {
   :root {
-    --background: 30 25% 96%;
-    --foreground: 215 25% 20%;
+    --background: 220 20% 96%;
+    --foreground: 220 15% 20%;
 
     --card: 0 0% 100%;
-    --card-foreground: 215 25% 20%;
+    --card-foreground: 220 15% 20%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 215 25% 20%;
+    --popover-foreground: 220 15% 20%;
 
-    /* --- UPDATED Corporate Yellow Theme --- */
+    /* --- Santa Brisa Official Colors --- */
     --primary: 45 95% 58%; /* Vibrant Yellow */
     --primary-foreground: 45 100% 15%; /* Dark Brown/Black for contrast */
+    
+    --secondary: 220 15% 90%; /* Cool Gray */
+    --secondary-foreground: 220 15% 25%;
 
-    --secondary: 177 70% 90%;
-    --secondary-foreground: 177 100% 20%;
+    --muted: 220 15% 94%;
+    --muted-foreground: 220 10% 45%;
 
-    --muted: 30 25% 90%;
-    --muted-foreground: 215 25% 45%;
+    --accent: 220 15% 90%; /* Using Cool Gray as Accent */
+    --accent-foreground: 220 15% 25%;
 
-    --accent: 45 95% 58%; /* Same Yellow for accent */
-    --accent-foreground: 45 100% 15%; /* Dark Brown/Black for contrast */
-    /* --- END OF UPDATE --- */
+    --destructive: 0 75% 55%;
+    --destructive-foreground: 0 0% 98%;
 
-    --destructive: 0 75% 55%; 
-    --destructive-foreground: 0 0% 98%; 
-
-    --border: 30 20% 88%;
-    --input: 0 0% 100%;
-    --ring: 45 95% 60%; /* Ring color based on new primary */
-
-    --radius: 0.5rem;
-
-    --brand-turquoise-hsl: 177 100% 35%;
-    --brand-terracotta-hsl: 45 100% 58%;
-    --brand-yellow-hsl: 45 95% 58%; /* Updated */
-    --brand-purple-hsl: 262 83% 58%;
-    --brand-blue-hsl: 217 91% 60%;
+    --border: 220 15% 88%;
+    --input: 220 20% 99%; /* Slightly off-white for inputs */
+    --ring: 45 95% 60%;
+    
+    /* --- Brand & Status Palette (NEW) --- */
+    --brand-success-hsl: 142 71% 45%; /* Green */
+    --brand-info-hsl: 217 91% 60%;    /* Blue */
+    --brand-warning-hsl: 48 96% 53%;  /* Yellow */
+    --brand-danger-hsl: 0 72% 51%;     /* Red */
+    --brand-process-hsl: 262 83% 58%; /* Purple */
+    --brand-neutral-hsl: 220 13% 47%; /* Slate Gray */
+    --brand-turquoise-hsl: 177 100% 35%; /* Teal/Turquoise */
 
 
+    /* --- Sidebar Theme --- */
     --sidebar-background: 220 15% 15%;
-    --sidebar-foreground: 30 20% 85%;
+    --sidebar-foreground: 220 20% 85%;
     --sidebar-primary: 45 100% 65%;
     --sidebar-primary-foreground: 45 100% 10%;
     --sidebar-accent: 220 15% 25%;
@@ -59,55 +60,79 @@ body {
   }
 
   .dark {
-    --background: 215 28% 17%;
-    --foreground: 210 40% 96%;
+    --background: 220 15% 12%;
+    --foreground: 220 20% 95%;
 
-    --card: 215 28% 22%;
-    --card-foreground: 210 40% 96%;
+    --card: 220 15% 18%;
+    --card-foreground: 220 20% 95%;
 
-    --popover: 215 28% 17%;
-    --popover-foreground: 210 40% 96%;
-
-    /* --- UPDATED Corporate Yellow Theme (Dark) --- */
+    --popover: 220 15% 12%;
+    --popover-foreground: 220 20% 95%;
+    
     --primary: 45 90% 60%;
     --primary-foreground: 45 100% 10%;
-    
-    --secondary: 177 80% 40%;
-    --secondary-foreground: 177 70% 85%;
 
-    --muted: 215 28% 25%;
-    --muted-foreground: 210 40% 60%; 
+    --secondary: 220 15% 25%;
+    --secondary-foreground: 220 20% 85%;
 
-    --accent: 45 90% 60%;
-    --accent-foreground: 35 90% 10%;
-    /* --- END OF UPDATE --- */
+    --muted: 220 15% 22%;
+    --muted-foreground: 220 15% 60%;
+
+    --accent: 220 15% 25%;
+    --accent-foreground: 220 20% 85%;
 
     --destructive: 0 60% 50%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 215 28% 28%;
-    --input: 215 28% 25%;
-    --ring: 45 90% 62%; /* Ring color based on new primary */
-
-    --sidebar-background: 215 30% 12%;
-    --sidebar-foreground: 210 30% 80%; 
+    --border: 220 15% 30%;
+    --input: 220 15% 20%;
+    --ring: 45 90% 62%;
+    
+     /* --- Brand & Status Palette (Dark) --- */
+    --brand-success-hsl: 142 61% 50%;
+    --brand-info-hsl: 217 81% 65%;
+    --brand-warning-hsl: 48 90% 58%;
+    --brand-danger-hsl: 0 70% 55%;
+    --brand-process-hsl: 262 75% 65%;
+    --brand-neutral-hsl: 220 10% 60%;
+    --brand-turquoise-hsl: 177 90% 40%;
+    
+    /* --- Sidebar Theme (Dark) --- */
+    --sidebar-background: 220 15% 10%;
+    --sidebar-foreground: 220 20% 80%;
     --sidebar-primary: 45 90% 68%;
     --sidebar-primary-foreground: 45 100% 5%;
-    --sidebar-accent: 215 30% 20%;
+    --sidebar-accent: 220 15% 20%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 215 30% 22%;
+    --sidebar-border: 220 15% 22%;
     --sidebar-ring: 45 90% 68%;
   }
 }
 
-@layer base {
-  * {
-    @apply border-border;
+
+@layer components {
+  /* Style for table headers */
+  .table-header-std {
+    @apply h-12 px-3 text-left align-middle text-sm font-medium text-muted-foreground;
   }
-  body {
-    @apply bg-background text-foreground;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+  
+  /* Style for table rows */
+  .table-row-std {
+    @apply border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted;
+  }
+
+  /* Style for table cells */
+  .table-cell-std {
+    @apply p-3 align-middle;
+  }
+
+  /* Style for primary text within a cell (e.g., account name) */
+  .table-cell-main-text {
+    @apply font-semibold text-foreground;
+  }
+
+  .table-cell-primary-link {
+    @apply font-medium text-primary hover:underline;
   }
 }
 
@@ -138,11 +163,11 @@ body {
   }
 
   /* Reset main content wrapper for printing */
-  main.flex-1 { 
-    display: block !important; 
+  main.flex-1 {
+    display: block !important;
     padding: 0 !important;
     margin: 0 !important;
-    width: auto !important; 
+    width: auto !important;
     max-width: none !important;
     overflow: visible !important;
     box-shadow: none !important;
@@ -151,35 +176,35 @@ body {
 
   /* Style the specific section we want to print */
   #printable-account-details {
-    display: block !important; 
-    width: 100% !important; 
+    display: block !important;
+    width: 100% !important;
     margin: 0 !important;
-    padding: 1cm !important; 
+    padding: 1cm !important;
     box-shadow: none !important;
     border: none !important;
-    visibility: visible !important; 
+    visibility: visible !important;
   }
-  
+
   /* Ensure all children of the printable section are visible and styled for print */
   #printable-account-details * {
     visibility: visible !important;
-    color: #000 !important; 
-    background-color: transparent !important; 
+    color: #000 !important;
+    background-color: transparent !important;
     box-shadow: none !important; /* Remove shadows from children too */
   }
 
   /* Style cards and sections within the printable area */
-  #printable-account-details .card, 
+  #printable-account-details .card,
   #printable-account-details .print-section {
     border: 1px solid #ccc !important;
     page-break-inside: avoid !important;
-    margin-bottom: 0.5cm !important; 
+    margin-bottom: 0.5cm !important;
     padding: 0.5cm !important;
   }
-  #printable-account-details .card-header, 
-  #printable-account-details .card-content, 
+  #printable-account-details .card-header,
+  #printable-account-details .card-content,
   #printable-account-details .card-footer {
-    padding: 0.2cm !important; 
+    padding: 0.2cm !important;
   }
   #printable-account-details .separator {
     background-color: #ccc !important;
@@ -190,7 +215,7 @@ body {
     width: 100% !important;
     border-collapse: collapse !important;
   }
-  #printable-account-details th, 
+  #printable-account-details th,
   #printable-account-details td {
     border: 1px solid #ddd !important;
     padding: 0.2cm !important;
@@ -200,90 +225,57 @@ body {
     background-color: #f0f0f0 !important;
     font-weight: bold !important;
   }
-  
+
   /* Link styles within the printable area */
   #printable-account-details a {
     text-decoration: none !important;
     color: #000 !important;
   }
-  #printable-account-details a[href^="http"]:after, 
+  #printable-account-details a[href^="http"]:after,
   #printable-account-details a[href^="mailto"]:after {
-    content: "" !important; 
-  }
-  
-  .shipping-label-dialog, .delivery-note-dialog {
-    display: block !important;
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100% !important;
-    max-width: 100% !important;
-    height: auto !important;
-    max-height: none !important;
-    box-shadow: none !important;
-    border: none !important;
-    visibility: visible !important;
-    overflow: visible !important;
-    background: white !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    transform: none !important;
-  }
-  
-  .shipping-label-dialog-content {
-     border: 2px dashed #000;
-     padding: 1.5cm;
-     margin: 1cm;
-     page-break-inside: avoid;
-  }
-  
-  .shipping-label-dialog-content * {
-    visibility: visible !important;
-    color: #000 !important;
-    background-color: transparent !important;
+    content: "" !important;
   }
 
-  .delivery-note-dialog-content {
-     padding: 1cm;
-     margin: 1cm;
-     page-break-inside: avoid;
-  }
-  
-  .delivery-note-dialog-content * {
+  .print-dialog, .print-dialog * {
     visibility: visible !important;
-    color: #000 !important;
-    background-color: transparent !important;
-    font-size: 10pt;
+    background-color: white !important;
+    color: black !important;
   }
 
-  .print-dialog-content {
-    display: block !important;
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 1cm !important;
-    box-shadow: none !important;
-    border: none !important;
-    visibility: visible !important;
-    max-height: none !important;
-    overflow-y: visible !important;
+  body > *:not(.print-dialog) {
+      display: none !important;
   }
-   .print-dialog-content * {
-    visibility: visible !important;
+  
+  .print-dialog {
+      position: absolute !important;
+      left: 0 !important;
+      top: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      overflow: visible !important;
+      box-shadow: none !important;
+      border: none !important;
+      padding: 1.5cm !important;
+      margin: 0 !important;
+      font-size: 10pt;
   }
-  .print-dialog-content .dialog-header,
-  .print-dialog-content .dialog-footer,
-  .print-dialog-content .print-hide {
+
+  .print-dialog .print-hide-in-dialog {
     display: none !important;
   }
-  .print-dialog-content > form > h3,
-  .print-dialog-content > form > .separator {
-     margin-top: 0.5cm !important;
-     margin-bottom: 0.2cm !important;
+  
+  .print-dialog table {
+      width: 100% !important;
+      border-collapse: collapse !important;
   }
-  .print-dialog-content .form-item {
-    margin-bottom: 0.3cm !important;
+  .print-dialog th, .print-dialog td {
+      border: 1px solid #ddd !important;
+      padding: 0.2cm !important;
+      text-align: left !important;
   }
-  .print-dialog-content .form-label {
-    font-weight: bold !important;
+  .print-dialog th {
+      background-color: #f2f2f2 !important;
   }
 }
+
+    

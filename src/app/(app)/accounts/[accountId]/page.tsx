@@ -6,9 +6,9 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { Account, Order, UserRole, AddressDetails, OrderStatus, TeamMember, AccountStatus } from "@/types";
+import type { Account, Order, UserRole, AddressDetails, OrderStatus, TeamMember, AccountStatus, CrmEvent } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { Building2, Edit, ArrowLeft, AlertTriangle, UserCircle, Mail, Phone, FileText, ShoppingCart, CalendarDays, Send, Info, Euro, Printer, Loader2, MapPin, Link as LinkIcon, CheckCircle } from "lucide-react";
+import { Building2, Edit, ArrowLeft, AlertTriangle, UserCircle, Mail, Phone, FileText, ShoppingCart, CalendarDays, Send, Info, Euro, Printer, Loader2, MapPin, Link as LinkIcon, CheckCircle, PartyPopper, Award, Truck } from "lucide-react";
 import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
@@ -18,10 +18,12 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { getAccountByIdFS, updateAccountFS, getAccountsFS } from "@/services/account-service";
-import { getOrdersFS } from "@/services/order-service"; 
+import { getInteractionsForAccountFS } from "@/services/order-service"; 
+import { getEventsForAccountFS } from "@/services/event-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { calculateCommercialStatus } from "@/lib/account-logic";
 
+type InteractionItem = (Order | CrmEvent) & { itemType: 'order' | 'event' };
 
 const formatAddress = (address?: AddressDetails): string => {
   if (!address) return 'No especificada';
@@ -41,7 +43,12 @@ const formatAddress = (address?: AddressDetails): string => {
   return parts.join(',\n');
 };
 
-const getInteractionType = (interaction: Order): string => {
+const getInteractionType = (item: InteractionItem): string => {
+    if (item.itemType === 'event') {
+        const eventItem = item as CrmEvent;
+        return `Evento: ${eventItem.name}`;
+    }
+    const interaction = item as Order;
     const { status, nextActionType, failureReasonType } = interaction;
     if (status === 'Programada') return "Visita Programada";
     if (status === 'Seguimiento') return `Seguimiento (${nextActionType || 'N/D'})`;
@@ -57,7 +64,6 @@ const getInteractionType = (interaction: Order): string => {
     return `Pedido (${status})`;
 }
 
-
 export default function AccountDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -70,8 +76,9 @@ export default function AccountDetailPage() {
   const [allAccountsForValidation, setAllAccountsForValidation] = React.useState<Account[]>([]);
   const [allTeamMembers, setAllTeamMembers] = React.useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [relatedInteractions, setRelatedInteractions] = React.useState<Order[]>([]);
+  const [relatedInteractions, setRelatedInteractions] = React.useState<InteractionItem[]>([]);
   const [isAccountDialogOpen, setIsAccountDialogOpen] = React.useState(false);
+  const [distributor, setDistributor] = React.useState<Account | null>(null);
   
   const accountId = params.accountId as string;
   const canEditAccount = userRole === 'Admin' || userRole === 'SalesRep';
@@ -87,51 +94,75 @@ export default function AccountDetailPage() {
       }
       setIsLoading(true);
       try {
-        const [foundAccount, allOrders, allFsAccounts, allMembers] = await Promise.all([
+        // OPTIMIZED: Fetch only the necessary data.
+        const [foundAccount, allMembers] = await Promise.all([
           getAccountByIdFS(accountId),
-          getOrdersFS(),
-          getAccountsFS(),
-          getTeamMembersFS()
+          getTeamMembersFS() // This is usually small and needed for dropdowns
         ]);
         
+        if (!foundAccount) {
+            setAccount(null);
+            setIsLoading(false);
+            toast({ title: "Cuenta no encontrada", variant: "destructive" });
+            return;
+        }
+
         setAccount(foundAccount);
         setAllTeamMembers(allMembers);
 
-        if (foundAccount) {
-          const interactions = allOrders.filter(order => {
-            if (order.accountId && order.accountId === foundAccount.id) return true;
-            if (!order.accountId && order.cif && foundAccount.cif && order.cif.trim().toLowerCase() === foundAccount.cif.trim().toLowerCase()) return true;
-            if (!order.accountId && !order.cif && order.clientName && foundAccount.nombre && order.clientName.trim().toLowerCase() === foundAccount.nombre.trim().toLowerCase()) return true;
-            return false;
-          }).sort((a,b) => parseISO(b.createdAt || b.visitDate).getTime() - parseISO(a.createdAt || a.visitDate).getTime());
-          
-          setRelatedInteractions(interactions);
-          
-          const openTasks = interactions.filter(o => o.status === 'Programada' || o.status === 'Seguimiento');
-          openTasks.sort((a, b) => {
-              const dateAString = (a.status === 'Programada' ? a.visitDate : a.nextActionDate);
-              const dateBString = (b.status === 'Programada' ? b.visitDate : b.nextActionDate);
-              if(!dateAString) return 1; if(!dateBString) return -1;
-              const dateA = parseISO(dateAString);
-              const dateB = parseISO(dateBString);
-              if (!isValid(dateA)) return 1; if (!isValid(dateB)) return -1;
-              if (dateA.getTime() !== dateB.getTime()) return dateA.getTime() - dateB.getTime();
-              if (a.status === 'Programada' && b.status !== 'Programada') return -1;
-              if (b.status === 'Programada' && a.status !== 'Programada') return 1;
-              return 0;
-          });
-          const nextInteraction = openTasks[0];
-          
-          if (nextInteraction) {
-              setCalculatedStatus(nextInteraction.status as 'Programada' | 'Seguimiento');
-          } else {
-              const commercialStatus = await calculateCommercialStatus(interactions);
-              setCalculatedStatus(commercialStatus);
-          }
+        // Fetch related data only after confirming the account exists
+        const [ordersForAccount, eventsForAccount] = await Promise.all([
+            getInteractionsForAccountFS(accountId, foundAccount.nombre),
+            getEventsForAccountFS(accountId)
+        ]);
+
+        if (foundAccount.distributorId) {
+            const foundDistributor = await getAccountByIdFS(foundAccount.distributorId);
+            setDistributor(foundDistributor || null);
+        } else {
+            setDistributor(null);
+        }
+
+        const combinedInteractions: InteractionItem[] = [
+            ...ordersForAccount.map(o => ({ ...o, itemType: 'order' as const })),
+            ...eventsForAccount.map(e => ({ ...e, itemType: 'event' as const }))
+        ];
+        
+        combinedInteractions.sort((a, b) => {
+            const dateAValue = (a as any).createdAt || (a as any).startDate;
+            const dateBValue = (b as any).createdAt || (b as any).startDate;
+            const dateA = dateAValue ? parseISO(dateAValue) : new Date(0);
+            const dateB = dateBValue ? parseISO(dateBValue) : new Date(0);
+            return dateB.getTime() - dateA.getTime();
+        });
+
+        setRelatedInteractions(combinedInteractions);
+        
+        const openTasks = ordersForAccount.filter(o => o.status === 'Programada' || o.status === 'Seguimiento');
+        openTasks.sort((a, b) => {
+            const dateAString = (a.status === 'Programada' ? a.visitDate : a.nextActionDate);
+            const dateBString = (b.status === 'Programada' ? b.visitDate : b.nextActionDate);
+            if(!dateAString) return 1; if(!dateBString) return -1;
+            const dateA = parseISO(dateAString);
+            const dateB = parseISO(dateBString);
+            if (!isValid(dateA)) return 1; if (!isValid(dateB)) return -1;
+            if (dateA.getTime() !== dateB.getTime()) return dateA.getTime() - dateB.getTime();
+            if (a.status === 'Programada' && b.status !== 'Programada') return -1;
+            if (b.status === 'Programada' && a.status !== 'Programada') return 1;
+            return 0;
+        });
+        const nextInteraction = openTasks[0];
+        
+        if (nextInteraction) {
+            setCalculatedStatus(nextInteraction.status as 'Programada' | 'Seguimiento');
+        } else {
+            const commercialStatus = await calculateCommercialStatus(ordersForAccount || []);
+            setCalculatedStatus(commercialStatus);
         }
 
         if (canEditAccount) {
-          setAllAccountsForValidation(allFsAccounts);
+          // OPTIMIZED: We only fetch all accounts if the edit dialog is likely to be opened
+          getAccountsFS().then(setAllAccountsForValidation);
         }
 
       } catch (error) {
@@ -159,18 +190,16 @@ export default function AccountDetailPage() {
 
   const handleSaveAccountDetails = async (data: AccountFormValues) => {
     if (!canEditAccount || !account) return;
-    setIsLoading(true);
+    
     try {
       await updateAccountFS(account.id, data); 
       refreshDataSignature(); // This will trigger a full data reload via useEffect
       toast({ title: "¡Cuenta Actualizada!", description: `La cuenta "${data.name}" ha sido actualizada.` });
       setIsAccountDialogOpen(false);
-      router.replace(`/accounts/${accountId}`, undefined); 
+      router.replace(`/accounts/${accountId}`); 
     } catch (error) {
       console.error("Error updating account:", error);
       toast({ title: "Error al Actualizar", description: "No se pudo actualizar la cuenta.", variant: "destructive" });
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -201,10 +230,11 @@ export default function AccountDetailPage() {
   }
 
   const salesRepAssigned = account.salesRepId ? allTeamMembers.find(tm => tm.id === account.salesRepId) : null;
+  const embajadorAssigned = account.embajadorId ? allTeamMembers.find(tm => tm.id === account.embajadorId) : null;
   const creationDate = account.createdAt && isValid(parseISO(account.createdAt)) ? format(parseISO(account.createdAt), "dd/MM/yyyy", { locale: es }) : 'N/D';
   const updateDate = account.updatedAt && isValid(parseISO(account.updatedAt)) ? format(parseISO(account.updatedAt), "dd/MM/yyyy HH:mm", { locale: es }) : 'N/D';
 
-  const isOpenTask = (status: OrderStatus) => ['Programada', 'Seguimiento', 'Fallido'].includes(status);
+  const isOpenTask = (item: InteractionItem) => item.itemType === 'order' && ['Programada', 'Seguimiento', 'Fallido'].includes((item as Order).status);
 
   return (
     <div className="space-y-6" id="printable-account-details">
@@ -244,7 +274,13 @@ export default function AccountDetailPage() {
               <Separator />
               <div className="flex justify-between items-center"><span>Estado:</span> {calculatedStatus ? <StatusBadge type="account" status={calculatedStatus} /> : <span className="text-muted-foreground">Calculando...</span>}</div>
               <Separator />
+              <div className="flex justify-between items-center">
+                  <span className="flex items-center gap-1.5"><Truck className="h-4 w-4"/>Distribuidor:</span>
+                  <strong className="font-medium text-right">{distributor ? distributor.nombre : 'Venta Directa SB'}</strong>
+              </div>
+              <Separator />
               <div className="flex justify-between"><span>Comercial:</span> <strong className="font-medium">{salesRepAssigned ? salesRepAssigned.name : 'No asignado'}</strong></div>
+              {embajadorAssigned && <><Separator /><div className="flex justify-between"><span>Clavadista:</span> <strong className="font-medium flex items-center gap-1"><Award size={14}/>{embajadorAssigned.name}</strong></div></>}
               <Separator />
               <div className="flex justify-between"><span>Creada:</span> <span className="text-muted-foreground">{creationDate}</span></div>
               <div className="flex justify-between"><span>Actualizada:</span> <span className="text-muted-foreground">{updateDate}</span></div>
@@ -317,6 +353,7 @@ export default function AccountDetailPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[5%]"></TableHead>
                     <TableHead className="w-[15%]">Fecha</TableHead>
                     <TableHead className="w-[20%]">Tipo / Próxima Acción</TableHead>
                     <TableHead className="w-[10%] text-right">Valor</TableHead>
@@ -329,25 +366,36 @@ export default function AccountDetailPage() {
                 <TableBody>
                   {relatedInteractions.map(interaction => {
                     const interactionType = getInteractionType(interaction);
-                    const canRegisterResult = userRole === 'Admin' || (userRole === 'SalesRep' && teamMember?.name === interaction.salesRep) || (userRole === 'Clavadista' && interaction.clavadistaId === teamMember?.id);
+                    const canRegisterResult = userRole === 'Admin' || (interaction.itemType === 'order' && ((userRole === 'SalesRep' && teamMember?.name === (interaction as Order).salesRep) || (userRole === 'Clavadista' && (interaction as Order).clavadistaId === teamMember?.id)));
+                    const isOrder = interaction.itemType === 'order';
+                    const orderData = isOrder ? (interaction as Order) : null;
+                    const eventData = interaction.itemType === 'event' ? (interaction as CrmEvent) : null;
+                    
+                    const displayDateRaw = orderData?.createdAt || eventData!.startDate;
+                    const displayDate = displayDateRaw && isValid(parseISO(displayDateRaw)) ? format(parseISO(displayDateRaw), "dd/MM/yy HH:mm", { locale: es }) : 'N/A';
+
                     return (
-                      <TableRow key={interaction.id} className={interaction.status === 'Completado' ? 'bg-muted/40' : ''}>
-                        <TableCell>{interaction.createdAt && isValid(parseISO(interaction.createdAt)) ? format(parseISO(interaction.createdAt), "dd/MM/yy HH:mm", { locale: es }) : 'N/D'}</TableCell>
+                      <TableRow key={interaction.id} className={orderData?.status === 'Completado' ? 'bg-muted/40' : ''}>
+                        <TableCell>
+                           {interaction.itemType === 'order' ? <ShoppingCart className="h-4 w-4 text-muted-foreground" /> : <PartyPopper className="h-4 w-4 text-muted-foreground" />}
+                        </TableCell>
+                        <TableCell>{displayDate}</TableCell>
                         <TableCell>{interactionType}</TableCell>
                         <TableCell className="text-right">
-                          {interaction.value !== undefined ? (
-                             <FormattedNumericValue value={interaction.value} locale="es-ES" options={{ style: 'currency', currency: 'EUR' }} />
+                          {orderData?.value !== undefined ? (
+                             <FormattedNumericValue value={orderData.value} locale="es-ES" options={{ style: 'currency', currency: 'EUR' }} />
                           ) : "—"}
                         </TableCell>
                         <TableCell className="text-center">
-                          <StatusBadge type="order" status={interaction.status} />
+                          {interaction.itemType === 'order' && <StatusBadge type="order" status={orderData!.status} />}
+                          {interaction.itemType === 'event' && <StatusBadge type="event" status={eventData!.status} />}
                         </TableCell>
-                        <TableCell>{interaction.salesRep}</TableCell>
+                        <TableCell>{orderData?.salesRep || 'N/A'}</TableCell>
                         <TableCell className="text-xs max-w-[200px] truncate" title={interaction.notes}>
                           {interaction.notes || 'N/D'}
                         </TableCell>
                         <TableCell className="text-right print-hide">
-                           {isOpenTask(interaction.status) && canRegisterResult ? (
+                           {isOpenTask(interaction) && canRegisterResult ? (
                                 <Button asChild variant="outline" size="sm">
                                   <Link href={`/order-form?originatingTaskId=${interaction.id}`}>
                                     <Send className="mr-1 h-3 w-3" /> Registrar Resultado

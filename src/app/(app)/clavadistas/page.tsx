@@ -2,48 +2,69 @@
 "use client";
 
 import React, { useMemo, useEffect, useState } from 'react';
+import { redirect } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { TeamMember, Order } from "@/types";
-// mockTeamMembers removed, will fetch from Firestore
-import { Award, Eye, TrendingUp, Users, Loader2 } from 'lucide-react';
+import type { TeamMember, Order, Account } from "@/types";
+import { Award, Eye, TrendingUp, Users, Loader2, Briefcase, DollarSign } from 'lucide-react';
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { getOrdersFS } from '@/services/order-service';
-import { getTeamMembersFS } from '@/services/team-member-service'; // For fetching clavadistas
+import { getTeamMembersFS } from '@/services/team-member-service';
+import { getAccountsFS } from '@/services/account-service';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/auth-context';
+import { VALID_SALE_STATUSES } from '@/lib/constants';
 
 interface ClavadistaStat extends TeamMember {
-  totalParticipations: number;
   totalValueParticipated: number;
+  newAccountsOpened: number;
 }
 
 export default function ClavadistasPage() {
   const { toast } = useToast();
+  const { userRole, teamMember, loading } = useAuth();
   const [clavadistaStats, setClavadistaStats] = useState<ClavadistaStat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  if (!loading && userRole === 'Clavadista' && teamMember?.id) {
+    redirect(`/clavadistas/${teamMember.id}`);
+  }
+
   useEffect(() => {
+    if (userRole === 'Clavadista') {
+        setIsLoading(false);
+        return;
+    }
+
     async function loadClavadistaData() {
       setIsLoading(true);
       try {
-        const [allOrders, allTeamMembers] = await Promise.all([
+        const [allOrders, allTeamMembers, allAccounts] = await Promise.all([
           getOrdersFS(),
-          getTeamMembersFS(['Clavadista']) // Fetch only clavadistas
+          getTeamMembersFS(['Clavadista', 'Líder Clavadista']),
+          getAccountsFS()
         ]);
         
-        const clavadistasBase = allTeamMembers.filter(m => m.role === 'Clavadista');
+        const clavadistasBase = allTeamMembers.filter(m => m.role === 'Clavadista' || m.role === 'Líder Clavadista');
 
         const stats = clavadistasBase.map(clavadista => {
-          const participations = allOrders.filter(order => order.clavadistaId === clavadista.id);
-          const totalParticipations = participations.length;
+          const participations = allOrders.filter(order => order.clavadistaId === clavadista.id && VALID_SALE_STATUSES.includes(order.status));
           const totalValueParticipated = participations.reduce((sum, order) => sum + (order.value || 0), 0);
+          
+          const openedAccountIds = new Set<string>();
+          allAccounts.forEach(account => {
+            if (account.embajadorId === clavadista.id) {
+                openedAccountIds.add(account.id);
+            }
+          });
+          
           return {
             ...clavadista,
-            totalParticipations,
             totalValueParticipated,
+            newAccountsOpened: openedAccountIds.size,
           };
         });
         setClavadistaStats(stats);
@@ -55,13 +76,13 @@ export default function ClavadistasPage() {
       }
     }
     loadClavadistaData();
-  }, [toast]);
+  }, [toast, userRole]);
 
-  const overallTotalParticipations = useMemo(() => clavadistaStats.reduce((sum, m) => sum + m.totalParticipations, 0), [clavadistaStats]);
   const overallTotalValueParticipated = useMemo(() => clavadistaStats.reduce((sum, m) => sum + m.totalValueParticipated, 0), [clavadistaStats]);
+  const overallTotalAccountsOpened = useMemo(() => clavadistaStats.reduce((sum, m) => sum + m.newAccountsOpened, 0), [clavadistaStats]);
 
 
-  if (isLoading) {
+  if (isLoading || loading || userRole === 'Clavadista') {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -79,16 +100,16 @@ export default function ClavadistasPage() {
       
       <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
         <CardHeader>
-          <CardTitle>Rendimiento y Participaciones de Clavadistas</CardTitle>
-          <CardDescription>Visualiza las participaciones y el valor generado en pedidos por los Clavadistas.</CardDescription>
+          <CardTitle>Rendimiento de Clavadistas</CardTitle>
+          <CardDescription>Visualiza la facturación y cuentas nuevas generadas por los Clavadistas.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[30%]">Clavadista</TableHead>
-                <TableHead className="text-right w-[25%]">Participaciones en Pedidos/Visitas (Total)</TableHead>
-                <TableHead className="text-right w-[25%]">Valor Generado en Pedidos (Total)</TableHead>
+                <TableHead className="text-right w-[25%]">Facturación Total Generada</TableHead>
+                <TableHead className="text-right w-[25%]">Cuentas Nuevas Abiertas</TableHead>
                 <TableHead className="text-right w-[20%]">Acciones</TableHead>
               </TableRow>
             </TableHeader>
@@ -110,10 +131,10 @@ export default function ClavadistasPage() {
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-medium">
-                    <FormattedNumericValue value={clavadista.totalParticipations} locale="es-ES" />
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
                     <FormattedNumericValue value={clavadista.totalValueParticipated} locale="es-ES" options={{ style: 'currency', currency: 'EUR' }} />
+                  </TableCell>
+                   <TableCell className="text-right font-medium">
+                    <FormattedNumericValue value={clavadista.newAccountsOpened} locale="es-ES" />
                   </TableCell>
                   <TableCell className="text-right">
                     <Button variant="outline" size="sm" asChild>
@@ -138,26 +159,26 @@ export default function ClavadistasPage() {
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Participaciones del Equipo Clavadista</CardTitle> 
-            <Users className="h-5 w-5 text-muted-foreground" /> 
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              <FormattedNumericValue value={overallTotalParticipations} locale="es-ES" />
-            </div>
-            <p className="text-xs text-muted-foreground">Suma de todas las participaciones de los clavadistas.</p>
-          </CardContent>
-        </Card>
-        <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Valor Total Generado con Clavadistas</CardTitle>
-            <TrendingUp className="h-5 w-5 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Facturación Total del Equipo Clavadista</CardTitle> 
+            <DollarSign className="h-5 w-5 text-muted-foreground" /> 
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               <FormattedNumericValue value={overallTotalValueParticipated} locale="es-ES" options={{ style: 'currency', currency: 'EUR' }} />
             </div>
             <p className="text-xs text-muted-foreground">Suma del valor de pedidos donde participaron clavadistas.</p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Cuentas Abiertas por Clavadistas</CardTitle>
+            <Briefcase className="h-5 w-5 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              <FormattedNumericValue value={overallTotalAccountsOpened} locale="es-ES" />
+            </div>
+            <p className="text-xs text-muted-foreground">Suma de todas las cuentas nuevas generadas por clavadistas.</p>
           </CardContent>
         </Card>
       </div>

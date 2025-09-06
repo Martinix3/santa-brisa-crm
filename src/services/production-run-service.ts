@@ -1,255 +1,361 @@
-
-'use server';
-
 import { db } from '@/lib/firebase';
-import { collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, runTransaction, where, limit, type DocumentReference, type DocumentSnapshot, setDoc } from "firebase/firestore";
-import type { ProductionRun, ProductionRunFormValues, InventoryItem, BomLine, ItemBatch } from '@/types';
-import { format, parseISO, isValid } from 'date-fns';
-import { fromFirestoreProductionRun, fromFirestoreBomLine } from './utils/firestore-converters';
+import { collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, runTransaction, where, limit, type DocumentReference, type DocumentSnapshot, setDoc, increment, FieldValue, arrayUnion } from "firebase/firestore";
+import type { ProductionRun, ProductionRunFormValues, InventoryItem, BomLine, ItemBatch, RunType, Shortage, ConsumptionPlanItem, FinishProductionRunFormValues, CleaningLog } from '@/types';
+import { format, parseISO, isValid, differenceInMilliseconds } from 'date-fns';
+import { fromFirestoreBomLine } from './utils/firestore-converters';
 import { addStockTxnFSTransactional } from './stock-txn-service';
 import { addProductCostSnapshotFSTransactional } from './product-cost-snapshot-service';
-import { createItemBatchTransactional, planBatchConsumption } from './batch-service';
+import { createFinishedGoodBatchFSTransactional, planBatchConsumption } from './batch-service';
+import { generateProductionRunCode } from '@/lib/coding';
 
 const PRODUCTION_RUNS_COLLECTION = 'productionRuns';
 const INVENTORY_ITEMS_COLLECTION = 'inventoryItems';
 const BOM_LINES_COLLECTION = 'bomLines';
 const BATCHES_COLLECTION = 'itemBatches';
+const TANKS_COLLECTION = 'tanks';
 
-const toFirestore = (data: ProductionRunFormValues, isNew: boolean): any => {
-  const firestoreData: Partial<ProductionRun> & { productSearchTerm?: string } = { ...data };
-  delete firestoreData.productSearchTerm;
+const toFirestore = (data: ProductionRunFormValues, isNew: boolean): Partial<ProductionRun> & { [key: string]: any } => {
+  const firestoreData: Partial<ProductionRun> & { [key: string]: any } = {
+    type: data.type,
+    productSku: data.productSku,
+    productName: data.productName,
+    qtyPlanned: data.qtyPlanned,
+    lineId: data.lineId,
+    tankId: data.tankId || null,
+    startPlanned: data.startPlanned.toISOString(),
+    notesPlan: data.notesPlan || null,
+    updatedAt: new Date().toISOString(),
+    maquilaCost: data.maquilaCost ?? null,
+    maquilaTax: data.maquilaTax ?? null,
+  };
+
   if (isNew) {
-    firestoreData.createdAt = format(new Date(), "yyyy-MM-dd");
-    firestoreData.status = 'Borrador';
-    firestoreData.startDate = format(new Date(), "yyyy-MM-dd");
-    firestoreData.batchNumber = `PROD-${format(new Date(), 'yyyyMMddHHmmss')}`;
+    firestoreData.createdAt = new Date().toISOString();
+    firestoreData.status = 'Draft';
+    firestoreData.reservations = [];
+    firestoreData.shortages = data.shortages || [];
+    firestoreData.cleaningLogs = [];
   }
-  firestoreData.updatedAt = format(new Date(), "yyyy-MM-dd");
+  
   return firestoreData;
 };
 
+const fromFirestoreProductionRun = (snapshot: DocumentSnapshot): ProductionRun => {
+  const data = snapshot.data();
+  if (!data) throw new Error("Production run data is undefined.");
+
+  const toDateString = (ts: any): string => {
+      if (!ts) return new Date().toISOString();
+      if (ts instanceof Timestamp) return ts.toDate().toISOString();
+      if(typeof ts === 'string' && isValid(parseISO(ts))) return ts;
+      if (typeof ts === 'object' && ts.seconds) {
+        return new Timestamp(ts.seconds, ts.nanoseconds).toDate().toISOString();
+      }
+      return new Date(ts).toISOString();
+  };
+  
+  return {
+    id: snapshot.id,
+    opCode: data.opCode,
+    type: data.type,
+    status: data.status,
+    productSku: data.productSku,
+    productName: data.productName,
+    qtyPlanned: data.qtyPlanned,
+    qtyActual: data.qtyActual,
+    lineId: data.lineId,
+    tankId: data.tankId,
+    startPlanned: toDateString(data.startPlanned),
+    startActual: data.startActual ? toDateString(data.startActual) : undefined,
+    endActual: data.endActual ? toDateString(data.endActual) : undefined,
+    lastPausedAt: data.lastPausedAt ? toDateString(data.lastPausedAt) : undefined,
+    totalPauseDuration: data.totalPauseDuration,
+    reservations: data.reservations || [],
+    shortages: data.shortages || [],
+    consumedComponents: data.consumedComponents || [],
+    outputBatchId: data.outputBatchId,
+    cleaningLogs: data.cleaningLogs || [],
+    yieldPct: data.yieldPct,
+    bottlesPerHour: data.bottlesPerHour,
+    cost: data.cost,
+    notesPlan: data.notesPlan,
+    notesProd: data.notesProd,
+    createdAt: toDateString(data.createdAt),
+    updatedAt: toDateString(data.updatedAt),
+    maquilaCost: data.maquilaCost,
+    maquilaTax: data.maquilaTax,
+  };
+};
+
 export const getProductionRunsFS = async (): Promise<ProductionRun[]> => {
-  const q = query(collection(db, PRODUCTION_RUNS_COLLECTION), orderBy('startDate', 'desc'));
+  const q = query(collection(db, PRODUCTION_RUNS_COLLECTION), orderBy('startPlanned', 'desc'));
   const snapshot = await getDocs(q);
   return snapshot.docs.map(fromFirestoreProductionRun);
 };
 
 export const addProductionRunFS = async (data: ProductionRunFormValues): Promise<string> => {
-  const firestoreData = toFirestore(data, true);
+  const lineAsNumber = parseInt((data.lineId || '1').replace(/[^0-9]/g, ''), 10) || 1;
+  const opCode = await generateProductionRunCode(lineAsNumber, data.type === 'blend' ? 'M' : 'E', data.startPlanned);
+  const firestoreData = { ...toFirestore(data, true), opCode };
   const docRef = await addDoc(collection(db, PRODUCTION_RUNS_COLLECTION), firestoreData);
   return docRef.id;
 };
 
 export const updateProductionRunFS = async (id: string, data: Partial<ProductionRunFormValues>): Promise<void> => {
   const docRef = doc(db, PRODUCTION_RUNS_COLLECTION, id);
-  await updateDoc(docRef, { ...data, updatedAt: Timestamp.now() });
+  const firestoreData = toFirestore(data as ProductionRunFormValues, false);
+  await updateDoc(docRef, firestoreData);
 };
 
 export const deleteProductionRunFS = async (id: string): Promise<void> => {
   const docRef = doc(db, PRODUCTION_RUNS_COLLECTION, id);
+  // The check for draft status has been removed to allow deletion of any run.
+  // In a more complex scenario, you might want to reverse stock transactions here.
+  // For now, we'll allow a direct deletion.
   await deleteDoc(docRef);
 };
 
-/**
- * Creates a "Legacy Stock" batch if the stock in InventoryItem is greater
- * than the sum of stock in all existing batches for that item.
- * This is a lazy migration helper to reconcile pre-existing stock.
- */
-async function reconcileLegacyStock(item: InventoryItem): Promise<void> {
-    const canonicalStock = item.stock || 0;
-    if (canonicalStock <= 0) {
-      return; // No legacy stock to reconcile
-    }
-  
-    const batchesQuery = query(
-      collection(db, BATCHES_COLLECTION),
-      where('inventoryItemId', '==', item.id)
-    );
-    const batchesSnapshot = await getDocs(batchesQuery);
-    
-    const batchedStock = batchesSnapshot.docs.reduce(
-      (sum, doc) => sum + (doc.data().qtyRemaining || 0),
-      0
-    );
-  
-    const discrepancy = canonicalStock - batchedStock;
-  
-    if (discrepancy > 0.001) { // Use a small tolerance for floating point
-      console.log(`Reconciling legacy stock for ${item.name}. Discrepancy: ${discrepancy}`);
-      const newBatchRef = doc(collection(db, BATCHES_COLLECTION));
-      const skuPart = (item.sku ?? 'NA').substring(0,4).toUpperCase();
-      const internalBatchCode = `LEGACY_${skuPart}_${newBatchRef.id.slice(0,4)}`;
-      
-      const createdAtTimestamp = item.createdAt instanceof Timestamp
-        ? item.createdAt
-        : (typeof item.createdAt === 'string' && isValid(parseISO(item.createdAt))
-            ? Timestamp.fromMillis(parseISO(item.createdAt).getTime())
-            : Timestamp.fromMillis(Date.now() - 31536000000)); // Default to 1 year ago
 
-      await setDoc(newBatchRef, {
-        inventoryItemId: item.id,
-        internalBatchCode,
-        qtyInitial: discrepancy,
-        qtyRemaining: discrepancy,
-        uom: item.uom || 'unit',
-        unitCost: item.latestPurchase?.calculatedUnitCost || 0,
-        isClosed: false,
-        createdAt: createdAtTimestamp,
-      });
-    }
-}
-
-
-export const closeProductionRunFS = async (runId: string, qtyProduced: number, expiryDate?: Date) => {
-    // --- PHASE 1: PRE-TRANSACTION READS & PREPARATION ---
+export const startProductionRunFS = async (runId: string, actualConsumption: ConsumptionPlanItem[], userId: string) => {
     const runRef = doc(db, PRODUCTION_RUNS_COLLECTION, runId);
-    const initialRunDoc = await getDoc(runRef);
-    if (!initialRunDoc.exists() || (initialRunDoc.data().status !== 'En Progreso' && initialRunDoc.data().status !== 'Borrador')) {
-        throw new Error("La orden de producción no existe o no está en un estado válido para finalizarla.");
-    }
-    const runData = fromFirestoreProductionRun(initialRunDoc);
 
-    const bomLinesQuery = query(collection(db, BOM_LINES_COLLECTION), where('productSku', '==', runData.productSku));
-    const bomLinesSnapshot = await getDocs(bomLinesQuery);
-    const bomLines = bomLinesSnapshot.docs.map(fromFirestoreBomLine);
-    if (bomLines.length === 0) throw new Error(`No se encontró una receta (BOM) para el producto con SKU ${runData.productSku}`);
-    
-    const finishedGoodQuery = query(collection(db, INVENTORY_ITEMS_COLLECTION), where('sku', '==', runData.productSku), limit(1));
-    const finishedGoodSnapshot = await getDocs(finishedGoodQuery);
-    if (finishedGoodSnapshot.empty) throw new Error(`El producto a fabricar con SKU ${runData.productSku} no se encuentra en el inventario.`);
-    const finishedGoodRef = finishedGoodSnapshot.docs[0].ref;
-
-    // LAZY MIGRATION: Reconcile stock for each component before planning.
-    const componentDocs = await Promise.all(
-      bomLines.map(line => getDoc(doc(db, INVENTORY_ITEMS_COLLECTION, line.componentId)))
-    );
-    for (const [index, componentDoc] of componentDocs.entries()) {
-      if (componentDoc.exists()) {
-        const itemData = { id: componentDoc.id, ...componentDoc.data() } as InventoryItem;
-        await reconcileLegacyStock(itemData);
-      } else {
-        throw new Error(`El componente con nombre "${bomLines[index].componentName}" (ID: ${bomLines[index].componentId}) no existe en el inventario.`);
-      }
-    }
-
-    // Plan consumption for all components outside the transaction
-    const consumptionPlans = await Promise.all(
-        bomLines.map((line, index) => {
-          const componentDoc = componentDocs[index];
-          const componentName = componentDoc.exists() ? componentDoc.data().name : line.componentName;
-          return planBatchConsumption(line.componentId, line.quantity * qtyProduced, componentName, 'FIFO');
-        })
-    );
-    
-    // --- TRANSACTION START ---
     return runTransaction(db, async (transaction) => {
-        // --- PHASE 2: GATHER ALL REFS & PERFORM ALL TRANSACTIONAL READS ---
-        
-        const refsToRead = new Map<string, DocumentReference>();
-        refsToRead.set('runRef', runRef);
-        refsToRead.set('finishedGoodRef', finishedGoodRef);
-        
-        // Add component item refs to read
-        bomLines.forEach(line => {
-             refsToRead.set(`component_${line.componentId}`, doc(db, INVENTORY_ITEMS_COLLECTION, line.componentId));
-        });
-        
-        // Add batch refs to read
-        consumptionPlans.flat().forEach(plan => {
-            refsToRead.set(`batch_${plan.batchId}`, doc(db, BATCHES_COLLECTION, plan.batchId));
-        });
-        
-        const docsRead = await Promise.all(
-            Array.from(refsToRead.values()).map(ref => transaction.get(ref))
-        );
+        // --- PHASE 1: READS ---
+        const runDoc = await transaction.get(runRef);
+        if (!runDoc.exists() || runDoc.data().status !== 'Draft') {
+            throw new Error("La orden fue iniciada, modificada o no existe.");
+        }
+        const runData = fromFirestoreProductionRun(runDoc);
 
+        const refsToRead = new Map<string, DocumentReference>();
+        for (const consumedItem of actualConsumption) {
+            refsToRead.set(`item/${consumedItem.componentId}`, doc(db, INVENTORY_ITEMS_COLLECTION, consumedItem.componentId));
+            refsToRead.set(`batch/${consumedItem.batchId}`, doc(db, BATCHES_COLLECTION, consumedItem.batchId));
+            if (consumedItem.batchData?.locationId) {
+                 refsToRead.set(`tank/${consumedItem.batchData.locationId}`, doc(db, TANKS_COLLECTION, consumedItem.batchData.locationId));
+            }
+        }
+        
+        const readDocs = await Promise.all(
+             Array.from(refsToRead.values()).map(ref => transaction.get(ref))
+        );
         const docsMap = new Map<string, DocumentSnapshot>();
         Array.from(refsToRead.keys()).forEach((key, index) => {
-            docsMap.set(key, docsRead[index]);
+            docsMap.set(key, readDocs[index]);
         });
         
-        // --- PHASE 3: VALIDATE READ DATA & PREPARE WRITES ---
+        // --- PHASE 2: VALIDATION & PREPARATION ---
+        const consumedComponentsLog: ProductionRun['consumedComponents'] = [];
         
-        const freshRunDoc = docsMap.get('runRef');
-        if (!freshRunDoc || !freshRunDoc.exists() || freshRunDoc.data().status !== runData.status) {
-             throw new Error("El estado de la orden de producción ha cambiado. Por favor, inténtelo de nuevo.");
+        for (const consumedItem of actualConsumption) {
+            const itemDoc = docsMap.get(`item/${consumedItem.componentId}`);
+            const batchDoc = docsMap.get(`batch/${consumedItem.batchId}`);
+            
+            if (!batchDoc?.exists() || !itemDoc?.exists()) {
+                throw new Error(`El lote o artículo para ${consumedItem.componentName} no se encontró dentro de la transacción.`);
+            }
+
+            const batchData = batchDoc.data() as ItemBatch;
+            if (batchData.qtyRemaining < consumedItem.quantityToConsume) {
+                throw new Error(`Stock insuficiente para ${consumedItem.componentName} (Lote ${consumedItem.batchInternalCode}) detectado durante la transacción.`);
+            }
+
+            const logEntry = {
+                componentId: consumedItem.componentId,
+                batchId: consumedItem.batchId,
+                componentName: consumedItem.componentName,
+                componentSku: consumedItem.componentSku || null,
+                quantity: consumedItem.quantityToConsume,
+                supplierBatchCode: consumedItem.supplierBatchCode || null,
+                unitCost: consumedItem.unitCost || 0,
+            };
+            consumedComponentsLog.push(logEntry);
         }
-        const finishedGoodDoc = docsMap.get('finishedGoodRef');
-        if (!finishedGoodDoc || !finishedGoodDoc.exists()) throw new Error("Producto terminado no encontrado en la transacción.");
-        const finishedGoodData = { id: finishedGoodDoc.id, ...finishedGoodDoc.data() } as InventoryItem;
 
+        // --- PHASE 3: WRITES ---
+        for (const consumedItem of actualConsumption) {
+            const itemRef = doc(db, INVENTORY_ITEMS_COLLECTION, consumedItem.componentId);
+            const batchRef = doc(db, BATCHES_COLLECTION, consumedItem.batchId);
+            
+            const itemDoc = docsMap.get(`item/${consumedItem.componentId}`)!;
+            const batchDoc = docsMap.get(`batch/${consumedItem.batchId}`)!;
+            
+            const batchData = batchDoc.data() as ItemBatch;
+            const newBatchQty = batchData.qtyRemaining - consumedItem.quantityToConsume;
 
-        let totalConsumedCost = 0;
-        const consumedComponentsSnapshot: ProductionRun['consumedComponents'] = [];
-        const totalConsumedByComponent: Record<string, number> = {};
+            transaction.update(batchRef, { qtyRemaining: newBatchQty, isClosed: newBatchQty <= 0 });
+            transaction.update(itemRef, { stock: increment(-consumedItem.quantityToConsume) });
 
-        for (const [index, line] of bomLines.entries()) {
-            for (const plan of consumptionPlans[index]) {
-                const batchDoc = docsMap.get(`batch_${plan.batchId}`);
-                
-                if (!batchDoc || !batchDoc.exists()) throw new Error(`Lote ${plan.batchId} no encontrado.`);
+            if (consumedItem.batchData?.locationId) {
+                const tankRef = doc(db, TANKS_COLLECTION, consumedItem.batchData.locationId);
+                const tankDoc = docsMap.get(`tank/${consumedItem.batchData.locationId}`);
 
-                const batchData = batchDoc.data() as ItemBatch;
-
-                if (batchData.qtyRemaining < plan.quantity) {
-                    throw new Error(`El stock para el lote ${plan.batchId} (${line.componentName}) ha cambiado. La operación se reintentará.`);
+                if (tankDoc && tankDoc.exists()) {
+                    const tankData = tankDoc.data();
+                    const newTankQuantity = (tankData.currentQuantity || 0) - consumedItem.quantityToConsume;
+                    
+                    if (newTankQuantity <= 0.001) {
+                        transaction.update(tankRef, { status: 'Libre', currentBatchId: null, currentQuantity: 0, updatedAt: Timestamp.now() });
+                    } else {
+                        transaction.update(tankRef, { currentQuantity: newTankQuantity, updatedAt: Timestamp.now() });
+                    }
                 }
-                
-                const newQtyRemaining = batchData.qtyRemaining - plan.quantity;
-                totalConsumedCost += plan.quantity * batchData.unitCost;
-                
-                // Queue the write, don't execute yet.
-                const batchRef = refsToRead.get(`batch_${plan.batchId}`)!;
-                transaction.update(batchRef, { qtyRemaining: newQtyRemaining, isClosed: newQtyRemaining <= 0 });
-                
-                consumedComponentsSnapshot.push({ 
-                    componentId: line.componentId, 
-                    batchId: plan.batchId, 
-                    supplierBatchCode: batchData.supplierBatchCode,
-                    componentName: line.componentName, 
-                    componentSku: line.componentSku, 
-                    quantity: plan.quantity 
-                });
             }
-            totalConsumedByComponent[line.componentId] = (totalConsumedByComponent[line.componentId] || 0) + (line.quantity * qtyProduced);
+
+            await addStockTxnFSTransactional(transaction, {
+                inventoryItemId: consumedItem.componentId, batchId: consumedItem.batchId, qtyDelta: -consumedItem.quantityToConsume,
+                newStock: (itemDoc.data()!.stock || 0) - consumedItem.quantityToConsume, unitCost: consumedItem.unitCost,
+                refCollection: 'productionRuns', refId: runId, txnType: 'consumo',
+                notes: `Consumo para OP ${runData.opCode}`
+            });
         }
         
-        // --- PHASE 4: ALL WRITES ---
-
-        // Loop to prepare component stock updates (these are just more writes)
-        for(const componentId in totalConsumedByComponent) {
-            const componentRef = refsToRead.get(`component_${componentId}`)!;
-            const componentDoc = docsMap.get(`component_${componentId}`);
-            if(componentDoc && componentDoc.exists()){
-              const currentStock = componentDoc.data().stock || 0;
-              const consumedQty = totalConsumedByComponent[componentId];
-              const newStock = currentStock - consumedQty;
-              transaction.update(componentRef, { stock: newStock });
-              await addStockTxnFSTransactional(transaction, { inventoryItemId: componentId, batchId: 'multiple', qtyDelta: -consumedQty, newStock: newStock, txnType: 'consumo', refCollection: 'productionRuns', refId: runId, notes: `Consumo para ${runData.productName}`});
-            }
+        if (runData.type === 'blend' && runData.tankId) {
+            const tankRef = doc(db, TANKS_COLLECTION, runData.tankId);
+            transaction.update(tankRef, { status: 'Ocupado', updatedAt: Timestamp.now() });
         }
 
-        const newUnitCost = qtyProduced > 0 ? totalConsumedCost / qtyProduced : 0;
-        const newFinishedStock = (finishedGoodData.stock || 0) + qtyProduced;
-        
-        const outputBatchId = await createItemBatchTransactional(transaction, finishedGoodData, { purchaseId: runId, quantity: qtyProduced, unitCost: newUnitCost, locationId: 'produccion', expiryDate: expiryDate });
+        const newCleaningLog: CleaningLog = {
+            date: new Date().toISOString(),
+            type: 'initial' as const,
+            userId: userId,
+            runId: runId,
+            material: 'N/A'
+        };
 
-        await addStockTxnFSTransactional(transaction, { inventoryItemId: finishedGoodRef.id, batchId: outputBatchId, qtyDelta: qtyProduced, newStock: newFinishedStock, unitCost: newUnitCost, refCollection: 'productionRuns', refId: runId, txnType: 'produccion', notes: `Producción de ${runData.productName}` });
-        await addProductCostSnapshotFSTransactional(transaction, { inventoryItemId: finishedGoodRef.id, unitCost: newUnitCost, productionRunId: runId });
-        
-        transaction.update(finishedGoodRef, {
-            stock: newFinishedStock,
-            latestPurchase: { ...(finishedGoodData.latestPurchase || {}), calculatedUnitCost: newUnitCost, purchaseDate: format(new Date(), 'yyyy-MM-dd') }
-        });
         transaction.update(runRef, {
-            status: 'Finalizada',
-            qtyProduced: qtyProduced,
-            unitCost: newUnitCost,
-            endDate: Timestamp.now(),
-            consumedComponents: consumedComponentsSnapshot,
-            outputBatchId: outputBatchId,
+            status: 'En curso',
+            startActual: new Date().toISOString(),
+            consumedComponents: consumedComponentsLog,
+            cleaningLogs: arrayUnion(newCleaningLog),
+            updatedAt: new Date().toISOString()
+        });
+    });
+};
+
+
+export const pauseProductionRunFS = async (runId: string): Promise<void> => {
+    const runRef = doc(db, PRODUCTION_RUNS_COLLECTION, runId);
+    await updateDoc(runRef, {
+        status: 'Pausada',
+        lastPausedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    });
+};
+
+export const resumeProductionRunFS = async (runId: string): Promise<void> => {
+    const runRef = doc(db, PRODUCTION_RUNS_COLLECTION, runId);
+    await runTransaction(db, async (transaction) => {
+        const runDoc = await transaction.get(runRef);
+        if (!runDoc.exists()) throw new Error("Orden de producción no encontrada.");
+        const runData = fromFirestoreProductionRun(runDoc);
+        if (runData.status !== 'Pausada') throw new Error("La orden no está pausada.");
+
+        let totalPauseMs = runData.totalPauseDuration || 0;
+        if (runData.lastPausedAt) {
+            totalPauseMs += differenceInMilliseconds(new Date(), parseISO(runData.lastPausedAt));
+        }
+
+        transaction.update(runRef, {
+            status: 'En curso',
+            totalPauseDuration: totalPauseMs,
+            lastPausedAt: null, // Clear pause timestamp
+            updatedAt: new Date().toISOString()
+        });
+    });
+};
+
+export const closeProductionRunFS = async (runId: string, data: FinishProductionRunFormValues, userId: string): Promise<void> => {
+    const runRef = doc(db, PRODUCTION_RUNS_COLLECTION, runId);
+    
+    // Perform non-transactional reads first to get necessary IDs
+    const initialRunDoc = await getDoc(runRef);
+    if (!initialRunDoc.exists()) throw new Error("Orden de producción no encontrada.");
+    const runData = fromFirestoreProductionRun(initialRunDoc);
+    
+    const productQuery = query(collection(db, INVENTORY_ITEMS_COLLECTION), where('sku', '==', runData.productSku), limit(1));
+    const productSnapshot = await getDocs(productQuery);
+    if (productSnapshot.empty) throw new Error(`Producto de salida con SKU ${runData.productSku} no encontrado.`);
+    const productItemRef = productSnapshot.docs[0].ref;
+
+    return runTransaction(db, async (transaction) => {
+        // --- 1. TRANSACTIONAL READS ---
+        const runDoc = await transaction.get(runRef); // Re-read inside transaction
+        const productDoc = await transaction.get(productItemRef);
+
+        if (!runDoc.exists()) throw new Error("La orden de producción fue eliminada durante el proceso.");
+        if (!productDoc.exists()) throw new Error("El producto de salida fue eliminado durante el proceso.");
+        
+        const currentRunData = fromFirestoreProductionRun(runDoc);
+        if (currentRunData.status !== 'En curso' && currentRunData.status !== 'Pausada') {
+            throw new Error(`La orden no está en un estado válido para ser finalizada (estado actual: ${currentRunData.status}).`);
+        }
+        
+        const productData = { id: productDoc.id, ...productDoc.data() } as InventoryItem;
+
+        // --- 2. CALCULATIONS ---
+        const { qtyActual, notesProd, cleaningConfirmed, cleaningMaterial } = data;
+        const totalCost = (currentRunData.consumedComponents || []).reduce((sum, comp) => sum + ((comp.unitCost || 0) * comp.quantity), 0);
+        const unitCost = qtyActual > 0 ? totalCost / qtyActual : 0;
+        const yieldPct = currentRunData.qtyPlanned > 0 ? (qtyActual / currentRunData.qtyPlanned) * 100 : 0;
+        const endActual = new Date();
+        const startActual = currentRunData.startActual ? parseISO(currentRunData.startActual) : endActual;
+        const durationMs = differenceInMilliseconds(endActual, startActual) - (currentRunData.totalPauseDuration || 0);
+        const durationHours = durationMs > 0 ? durationMs / (1000 * 60 * 60) : 0;
+        const bottlesPerHour = durationHours > 0 && currentRunData.type === 'fill' ? qtyActual / durationHours : 0;
+
+        // --- 3. WRITES ---
+        const lineAsNumber = parseInt((currentRunData.lineId || '1').replace(/[^0-9]/g, ''), 10) || 1;
+        const { batchId, internalBatchCode } = await createFinishedGoodBatchFSTransactional(transaction, productData, {
+            productionRunId: runId, 
+            line: lineAsNumber, 
+            quantity: qtyActual, 
+            unitCost,
+            locationId: currentRunData.type === 'blend' ? currentRunData.tankId : undefined,
         });
 
-        return { success: true, newUnitCost: newUnitCost };
+        const newStock = (productData.stock || 0) + qtyActual;
+        transaction.update(productItemRef, { stock: increment(qtyActual) });
+
+        await addStockTxnFSTransactional(transaction, {
+            inventoryItemId: productData.id, batchId: batchId, qtyDelta: qtyActual, newStock, unitCost,
+            refCollection: 'productionRuns', refId: runId, txnType: 'produccion', notes: `Producción de OP ${currentRunData.opCode}`
+        });
+        
+        await addProductCostSnapshotFSTransactional(transaction, {
+            productionRunId: runId, productSku: currentRunData.productSku, unitCost,
+        });
+
+        if (currentRunData.type === 'blend' && currentRunData.tankId) {
+            const tankRef = doc(db, TANKS_COLLECTION, currentRunData.tankId);
+            transaction.update(tankRef, { 
+                status: 'Ocupado', 
+                updatedAt: Timestamp.now(), 
+                currentBatchId: internalBatchCode,
+                currentQuantity: qtyActual,
+                currentUom: productData.uom
+            });
+        }
+        
+        const updatePayload: any = {
+            status: 'Finalizada', qtyActual, endActual: endActual.toISOString(),
+            yieldPct, bottlesPerHour: bottlesPerHour || null,
+            cost: { total: totalCost, unit: unitCost }, 
+            outputBatchId: internalBatchCode,
+            notesProd: notesProd || null, updatedAt: endActual.toISOString(),
+        };
+
+        if (cleaningConfirmed && cleaningMaterial) {
+            const finalCleaningLog: CleaningLog = {
+                date: endActual.toISOString(),
+                type: 'final',
+                userId: userId,
+                runId: runId,
+                material: cleaningMaterial,
+            };
+            updatePayload.cleaningLogs = arrayUnion(finalCleaningLog);
+        }
+
+        transaction.update(runRef, updatePayload);
     });
 };

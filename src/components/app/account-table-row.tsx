@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -5,8 +6,7 @@ import { TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import StatusBadge from "@/components/app/status-badge";
-import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-import { ChevronRight, Eye, Trash2, AlertTriangle, Send, PlusCircle, Check } from "lucide-react";
+import { Eye, Trash2, Check, PlusCircle, ChevronRight, Flame } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import Link from 'next/link';
@@ -15,20 +15,7 @@ import { es } from 'date-fns/locale';
 import type { EnrichedAccount, TeamMember, Order, AccountStatus } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import AccountHistoryTable from './account-history-table';
-
-const getStatusColorClass = (status: AccountStatus) => {
-    switch (status) {
-        case 'Activo':
-        case 'Repetición':
-            return 'bg-emerald-500';
-        case 'Programada':
-        case 'Seguimiento':
-            return 'bg-amber-500';
-        default:
-            return 'bg-rose-500';
-    }
-};
+import { getInteractionType } from '@/lib/interaction-utils';
 
 interface AccountTableRowProps {
     account: EnrichedAccount;
@@ -36,62 +23,66 @@ interface AccountTableRowProps {
     onResponsibleUpdate: (accountId: string, newResponsibleId: string | null) => Promise<void>;
     onOpenFollowUpDialog: (task: Order) => void;
     onDeleteAccount: (account: EnrichedAccount) => void;
+    lineColor: string;
+    isExpanded: boolean;
+    onToggleExpand: () => void;
 }
 
-const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembers, onResponsibleUpdate, onOpenFollowUpDialog, onDeleteAccount }) => {
+const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembers, onResponsibleUpdate, onOpenFollowUpDialog, onDeleteAccount, lineColor, isExpanded, onToggleExpand }) => {
     const { userRole } = useAuth();
-    const [isExpanded, setIsExpanded] = React.useState(false);
     const isAdmin = userRole === 'Admin';
     const salesAndAdminMembers = allTeamMembers.filter(m => m.role === 'Admin' || m.role === 'SalesRep');
-
-    const handleResponsibleUpdate = async (newResponsibleId: string) => {
-        const finalId = newResponsibleId === '##NONE##' ? null : newResponsibleId;
-        await onResponsibleUpdate(account.id, finalId);
-    };
 
     const nextActionDate = account.nextInteraction?.status === 'Programada'
         ? (account.nextInteraction.visitDate ? parseISO(account.nextInteraction.visitDate) : null)
         : (account.nextInteraction?.nextActionDate ? parseISO(account.nextInteraction.nextActionDate) : null);
     
     const isOverdue = nextActionDate ? isBefore(nextActionDate, startOfDay(new Date())) : false;
-    const leadScoreColor = account.leadScore > 75 ? 'bg-green-500' : account.leadScore > 40 ? 'bg-yellow-500' : 'bg-red-500';
+    
+    let priorityIcon;
+    if (account.leadScore > 75) {
+        priorityIcon = <Flame className="h-5 w-5 text-red-500" />;
+    } else if (account.leadScore > 50) {
+        priorityIcon = <Flame className="h-5 w-5 text-orange-400" />;
+    } else if (account.leadScore > 25) {
+        priorityIcon = <Flame className="h-5 w-5 text-yellow-400" />;
+    } else {
+        priorityIcon = <Flame className="h-5 w-5 text-gray-300" />;
+    }
 
-    const accountIsActive = account.status === 'Activo' || account.status === 'Repetición';
-    const statusColorClass = getStatusColorClass(account.status);
 
-    const nextActionText = account.nextInteraction
-        ? account.nextInteraction.status === 'Programada'
-            ? 'Visita Programada'
-            : account.nextInteraction.nextActionType || 'Seguimiento'
-        : '—';
-
+    const lastInteraction = account.interactions.length > 0 ? account.interactions[0] : null;
 
     return (
         <TooltipProvider>
-        <>
-            <TableRow className={cn("border-b", isOverdue && "bg-rose-50/50 dark:bg-rose-900/10")} data-state={isExpanded ? "selected" : ""}>
-                <TableCell className="p-1 text-center align-middle">
-                     <div className={cn("w-1 h-10 rounded-full mx-auto", statusColorClass)}></div>
+            <TableRow className={cn("table-row-std align-top", isOverdue && "bg-rose-50/50 dark:bg-rose-900/10")}>
+                <TableCell className="p-0 w-2">
+                    <div className={cn("w-1.5 h-full min-h-[4rem]", lineColor)}></div>
                 </TableCell>
-                <TableCell className="font-medium align-middle">
-                     <div className="flex items-center gap-3">
-                        <Button variant="ghost" size="icon" onClick={() => setIsExpanded(!isExpanded)} aria-label="Expandir historial" className="h-8 w-8">
-                            <ChevronRight className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-90")} />
+                <TableCell className="table-cell-std font-semibold">
+                    <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onToggleExpand}>
+                            <ChevronRight className={cn("h-4 w-4 text-muted-foreground flex-shrink-0 transition-transform", isExpanded && "rotate-90")} />
                         </Button>
-                        <Link href={`/accounts/${account.id}`} className="hover:underline text-primary text-base font-semibold">{account.nombre}</Link>
+                        <Link href={`/accounts/${account.id}`} className="hover:underline text-primary text-sm">
+                            {account.nombre}
+                        </Link>
                     </div>
                 </TableCell>
-                <TableCell className="align-middle">
+                <TableCell className="table-cell-std text-center">
+                    <StatusBadge type="account" status={account.status} />
+                </TableCell>
+                <TableCell className="table-cell-std text-left">
                     {isAdmin ? (
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="h-auto p-1 -ml-1 flex items-center gap-2">
+                                <Button variant="ghost" className="h-auto p-1 -ml-1 flex items-center gap-2 text-left w-full justify-start">
                                     <Avatar className="h-7 w-7"><AvatarImage src={account.responsableAvatar} data-ai-hint="person face" /><AvatarFallback className="text-xs">{account.responsableName?.split(' ').map(n => n[0]).join('') || 'S/A'}</AvatarFallback></Avatar>
                                     <span className="text-sm truncate">{account.responsableName || 'Sin Asignar'}</span>
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent>
-                                <DropdownMenuRadioGroup value={account.responsableId || '##NONE##'} onValueChange={handleResponsibleUpdate}>
+                                <DropdownMenuRadioGroup value={account.responsableId || '##NONE##'} onValueChange={(newId) => onResponsibleUpdate(account.id, newId === '##NONE##' ? null : newId)}>
                                     <DropdownMenuRadioItem value="##NONE##">Sin Asignar</DropdownMenuRadioItem>
                                     {salesAndAdminMembers.map(m => <DropdownMenuRadioItem key={m.id} value={m.id}>{m.name}</DropdownMenuRadioItem>)}
                                 </DropdownMenuRadioGroup>
@@ -101,28 +92,23 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                         <div className="flex items-center gap-2"><Avatar className="h-7 w-7"><AvatarImage src={account.responsableAvatar} data-ai-hint="person face" /><AvatarFallback className="text-xs">{account.responsableName?.split(' ').map(n => n[0]).join('') || 'S/A'}</AvatarFallback></Avatar><span className="text-sm truncate">{account.responsableName || 'Sin Asignar'}</span></div>
                     )}
                 </TableCell>
-                <TableCell className="text-center align-middle">
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                           <div className="flex items-center justify-center gap-1">
-                                {isOverdue && <AlertTriangle className="h-4 w-4 text-red-600" />}
-                                <StatusBadge type="account" status={account.status} />
-                           </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            {isOverdue && nextActionDate ? `Caducó el ${format(nextActionDate, 'dd/MM/yyyy', { locale: es })}` : `Estado comercial de la cuenta`}
-                        </TooltipContent>
-                    </Tooltip>
+                <TableCell className="table-cell-std text-xs">
+                    {lastInteraction ? (
+                        <div>
+                            <p className="text-muted-foreground truncate" title={getInteractionType(lastInteraction)}>{getInteractionType(lastInteraction)}</p>
+                            <p className="text-muted-foreground/80">{isValid(parseISO(lastInteraction.createdAt)) ? format(parseISO(lastInteraction.createdAt), "dd MMM yyyy", { locale: es }) : 'N/D'}</p>
+                        </div>
+                    ) : (
+                        <span className="text-muted-foreground">—</span>
+                    )}
                 </TableCell>
-                <TableCell className="align-middle">
+                 <TableCell className="table-cell-std text-xs">
                     {account.nextInteraction ? (
                         <div className="flex items-center justify-between gap-2">
                             <div>
-                                <span className="text-sm text-muted-foreground truncate" title={nextActionText}>
-                                    {nextActionText}
-                                </span>
+                                <p className="text-muted-foreground truncate" title={getInteractionType(account.nextInteraction)}>{getInteractionType(account.nextInteraction)}</p>
                                 {nextActionDate && isValid(nextActionDate) && (
-                                    <p className="text-xs text-muted-foreground/80">
+                                    <p className={cn("font-semibold", isOverdue ? "text-red-600" : "text-muted-foreground/80")}>
                                         {format(nextActionDate, "dd MMM yyyy", { locale: es })}
                                     </p>
                                 )}
@@ -131,24 +117,26 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                                 <Check className="mr-1 h-4 w-4" /> Completar
                             </Button>
                         </div>
-                    ) : accountIsActive ? (
-                         <Button asChild variant="outline" size="sm">
+                    ) : (
+                         <Button asChild variant="secondary" size="sm">
                             <Link href={`/order-form?accountId=${account.id}`}>
-                                <PlusCircle className="mr-2 h-4 w-4" /> Generar Nuevo Pedido
+                                <PlusCircle className="mr-2 h-4 w-4" /> Registrar
                             </Link>
                         </Button>
-                    ) : (
-                        '—'
                     )}
                 </TableCell>
-                <TableCell className="text-center align-middle">
+                <TableCell className="table-cell-std text-center">
                      <Tooltip>
-                        <TooltipTrigger asChild><div className="flex items-center justify-center gap-1.5"><div className={cn("h-2.5 w-2.5 rounded-full", leadScoreColor)}></div><span className="font-semibold">{account.leadScore}</span></div></TooltipTrigger>
-                        <TooltipContent><p>Puntuación de Prioridad</p></TooltipContent>
+                        <TooltipTrigger asChild>
+                           <div className="flex items-center justify-center gap-1">
+                                {priorityIcon}
+                                <span className="font-semibold text-sm">{account.leadScore}</span>
+                           </div>
+                        </TooltipTrigger>
+                        <TooltipContent><p>Puntuación de Prioridad (Lead Score)</p></TooltipContent>
                     </Tooltip>
                 </TableCell>
-                <TableCell className="align-middle">{account.ciudad || 'N/D'}</TableCell>
-                <TableCell className="text-right pr-4 align-middle">
+                <TableCell className="table-cell-std text-right pr-4">
                      <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                            <Button variant="ghost" size="icon"><Eye className="h-4 w-4" /></Button>
@@ -156,11 +144,7 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                         <DropdownMenuContent align="end">
                            <DropdownMenuItem asChild><Link href={`/accounts/${account.id}`}><Eye className="mr-2 h-4 w-4"/>Ver Ficha Completa</Link></DropdownMenuItem>
                            <DropdownMenuSeparator />
-                           {accountIsActive ? (
-                                <DropdownMenuItem asChild><Link href={`/order-form?accountId=${account.id}`}><PlusCircle className="mr-2 h-4 w-4"/>Registrar Nuevo Pedido</Link></DropdownMenuItem>
-                           ) : (
-                                <DropdownMenuItem asChild><Link href={`/order-form?accountId=${account.id}`}><PlusCircle className="mr-2 h-4 w-4"/>Registrar Interacción</Link></DropdownMenuItem>
-                           )}
+                           <DropdownMenuItem asChild><Link href={`/order-form?accountId=${account.id}`}><PlusCircle className="mr-2 h-4 w-4"/>Registrar Interacción</Link></DropdownMenuItem>
                            {isAdmin && (<>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem 
@@ -175,14 +159,6 @@ const AccountTableRow: React.FC<AccountTableRowProps> = ({ account, allTeamMembe
                      </DropdownMenu>
                 </TableCell>
             </TableRow>
-            {isExpanded && (
-                <TableRow>
-                    <TableCell colSpan={8} className="p-0">
-                       <AccountHistoryTable interactions={account.interactions} />
-                    </TableCell>
-                </TableRow>
-            )}
-        </>
         </TooltipProvider>
     );
 };

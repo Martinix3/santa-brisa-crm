@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import * as React from "react";
@@ -23,7 +22,7 @@ import { getAccountsFS } from "@/services/account-service";
 import { getTeamMemberByIdFS } from "@/services/team-member-service";
 import { useToast } from "@/hooks/use-toast";
 import { calculateCommercialStatus } from "@/lib/account-logic";
-import { VALID_SALE_STATUSES, ALL_VISIT_STATUSES } from "@/lib/constants";
+import { VALID_SALE_STATUSES, ALL_VISIT_STATUSES } from '@/lib/constants';
 
 
 const chartConfig = (color: string) => ({
@@ -66,13 +65,14 @@ export default function TeamMemberProfilePage() {
       setIsLoading(true);
       try {
         const foundMember = await getTeamMemberByIdFS(memberId);
-        if (!foundMember || foundMember.role !== 'SalesRep') {
-          setMember(null);
-          if (foundMember && foundMember.role !== 'SalesRep') {
-            toast({ title: "Perfil No Válido", description: "Este perfil no corresponde a un Representante de Ventas.", variant: "destructive" });
-          }
-          setIsLoading(false);
-          return;
+        const validRoles: UserRole[] = ['SalesRep', 'Embajador Clavadista', 'Lider Embajador'];
+        if (!foundMember || !validRoles.includes(foundMember.role)) {
+            setMember(null);
+            if (foundMember && !validRoles.includes(foundMember.role)) {
+                toast({ title: "Perfil No Válido", description: "Este perfil no corresponde a un miembro del equipo de ventas.", variant: "destructive" });
+            }
+            setIsLoading(false);
+            return;
         }
         setMember(foundMember);
 
@@ -80,13 +80,16 @@ export default function TeamMemberProfilePage() {
           getOrdersFS(),
           getAccountsFS()
         ]);
-
+        
+        const isEmbajador = ['Embajador Clavadista', 'Lider Embajador'].includes(foundMember.role);
         const ordersByMember = fetchedOrders
-          .filter(order => order.salesRep === foundMember.name)
+          .filter(order => isEmbajador ? order.embajadorId === foundMember.id : order.salesRep === foundMember.name)
           .sort((a,b) => parseISO(b.createdAt || b.visitDate).getTime() - parseISO(a.createdAt || a.visitDate).getTime());
         setMemberOrders(ordersByMember);
 
-        const accountsForMember = fetchedAccounts.filter(acc => acc.salesRepId === foundMember.id);
+        const accountsForMember = fetchedAccounts.filter(acc => 
+            isEmbajador ? acc.embajadorId === foundMember.id : acc.salesRepId === foundMember.id
+        );
         
         const enrichedAccountsPromises = accountsForMember.map(async (account) => {
             const accountOrders = fetchedOrders.filter(order => order.accountId === account.id || order.clientName === account.nombre);
@@ -164,7 +167,7 @@ export default function TeamMemberProfilePage() {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground">Cargando perfil del comercial...</p>
+        <p className="mt-4 text-muted-foreground">Cargando perfil del miembro del equipo...</p>
       </div>
     );
   }
@@ -173,8 +176,8 @@ export default function TeamMemberProfilePage() {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
         <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
-        <h1 className="text-2xl font-semibold mb-2">Comercial no Encontrado</h1>
-        <p className="text-muted-foreground mb-6">El comercial que estás buscando no existe o no es un perfil válido.</p>
+        <h1 className="text-2xl font-semibold mb-2">Miembro no Encontrado</h1>
+        <p className="text-muted-foreground mb-6">El miembro del equipo que estás buscando no existe o no es un perfil válido.</p>
         <Button onClick={() => router.push('/team-tracking')}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Volver al Equipo de Ventas
         </Button>
@@ -195,7 +198,7 @@ export default function TeamMemberProfilePage() {
           </Avatar>
           <div>
             <h1 className="text-3xl font-headline font-semibold">Perfil de Rendimiento: {member.name}</h1>
-            <p className="text-sm text-muted-foreground">{member.role === 'SalesRep' ? 'Representante de Ventas' : member.role}</p>
+            <p className="text-sm text-muted-foreground">{member.role}</p>
             <div className="flex items-center space-x-2 mt-1 text-xs text-muted-foreground">
                 <Mail size={14} /> <span>{member.email}</span>
             </div>

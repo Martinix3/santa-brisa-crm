@@ -1,6 +1,3 @@
-
-'use server';
-
 import { db } from '@/lib/firebase';
 import {
   collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, limit,
@@ -27,27 +24,50 @@ const fromFirestoreTeamMember = (docSnap: DocumentSnapshot): TeamMember => {
     monthlyTargetVisits: data.monthlyTargetVisits,
     createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : (typeof data.createdAt === 'string' ? data.createdAt : undefined),
     updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : (typeof data.updatedAt === 'string' ? data.updatedAt : undefined),
+    liderId: data.liderId,
+    equipoIds: data.equipoIds,
+    condiciones_personalizadas: data.condiciones_personalizadas,
+    total_comisiones: data.total_comisiones,
+    total_bonus: data.total_bonus,
+    accountId: data.accountId,
   };
 };
 
-const toFirestoreTeamMember = (data: TeamMemberFormValues, isNew: boolean): any => {
+const toFirestoreTeamMember = (data: Partial<TeamMemberFormValues>, isNew: boolean): any => {
   const firestoreData: { [key: string]: any } = {
     authUid: data.authUid,
     name: data.name,
-    email: data.email.toLowerCase(),
+    email: data.email?.toLowerCase(),
     role: data.role,
-    avatarUrl: data.avatarUrl || `https://placehold.co/100x100.png?text=${data.name.substring(0,2).toUpperCase()}`,
-    monthlyTargetAccounts: data.role === 'SalesRep' ? (data.monthlyTargetAccounts || 0) : null,
-    monthlyTargetVisits: data.role === 'SalesRep' ? (data.monthlyTargetVisits || 0) : null,
+    avatarUrl: data.avatarUrl || `https://placehold.co/100x100.png?text=${data.name?.substring(0,2).toUpperCase()}`,
+    liderId: data.liderId || null,
+    accountId: data.accountId || null,
   };
+
+  if (data.role === 'SalesRep') {
+    firestoreData.monthlyTargetAccounts = data.monthlyTargetAccounts || 0;
+    firestoreData.monthlyTargetVisits = data.monthlyTargetVisits || 0;
+  } else {
+    firestoreData.monthlyTargetAccounts = null;
+    firestoreData.monthlyTargetVisits = null;
+  }
+  
+  if (data.uses_custom_conditions) {
+    firestoreData.condiciones_personalizadas = data.condiciones_personalizadas || null;
+  } else {
+    firestoreData.condiciones_personalizadas = null;
+  }
+
 
   if (isNew) {
     firestoreData.createdAt = Timestamp.fromDate(new Date());
+    firestoreData.total_comisiones = 0;
+    firestoreData.total_bonus = 0;
   }
   firestoreData.updatedAt = Timestamp.fromDate(new Date());
   
   Object.keys(firestoreData).forEach(key => {
-    if (firestoreData[key] === undefined && key !== 'monthlyTargetAccounts' && key !== 'monthlyTargetVisits') {
+    if (firestoreData[key] === undefined) {
       delete firestoreData[key];
     }
   });
@@ -82,17 +102,6 @@ export const getTeamMemberByIdFS = async (id: string): Promise<TeamMember | null
   return docSnap.exists() ? fromFirestoreTeamMember(docSnap) : null;
 };
 
-export const getTeamMemberByAuthUidFS = async (authUid: string): Promise<TeamMember | null> => {
-  if (!authUid) return null;
-  const membersCol = collection(db, TEAM_MEMBERS_COLLECTION);
-  const q = query(membersCol, where('authUid', '==', authUid), limit(1));
-  const snapshot = await getDocs(q);
-  if (!snapshot.empty) {
-    return fromFirestoreTeamMember(snapshot.docs[0]);
-  }
-  return null;
-};
-
 export const getTeamMemberByEmailFS = async (email: string): Promise<TeamMember | null> => {
   if (!email) return null;
   const membersCol = collection(db, TEAM_MEMBERS_COLLECTION);
@@ -112,7 +121,7 @@ export const addTeamMemberFS = async (data: TeamMemberFormValues): Promise<strin
 
 export const updateTeamMemberFS = async (id: string, data: Partial<TeamMemberFormValues>): Promise<void> => {
   const docRef = doc(db, TEAM_MEMBERS_COLLECTION, id);
-  const updateData = toFirestoreTeamMember(data as TeamMemberFormValues, false);
+  const updateData = toFirestoreTeamMember(data, false);
   await updateDoc(docRef, updateData);
 };
 

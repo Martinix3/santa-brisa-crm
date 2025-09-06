@@ -1,4 +1,5 @@
 
+
 import * as z from "zod";
 import { canalOrigenColocacionList, paymentMethodList, nextActionTypeList, failureReasonList, clientTypeList, userRolesList } from "@/lib/data";
 import type { UserRole } from "@/types";
@@ -14,19 +15,27 @@ const assignedMaterialSchema = z.object({
 });
 
 const baseOrderFormSchema = z.object({
+  // Internal state
   userRole: z.enum(userRolesList as [UserRole, ...UserRole[]]).nullable(),
   isNewClient: z.boolean().default(false),
+  
+  // Step 2: Outcome
   outcome: z.enum(["successful", "failed", "follow-up"]).optional(),
+
+  // Step 3: Details - Common
   clavadistaId: z.string().optional(),
-  selectedSalesRepId: z.string().optional(),
-  clavadistaSelectedSalesRepId: z.string().optional(),
   canalOrigenColocacion: z.enum(canalOrigenColocacionList as [string, ...string[]]).optional(),
+  notes: z.string().optional(),
+  assignedMaterials: z.array(assignedMaterialSchema).optional(),
+
+  // Step 3: Details - Pedido Exitoso
   paymentMethod: z.enum(paymentMethodList as [string, ...string[]]).optional(),
   iban: z.string().optional(),
   clientType: z.enum(clientTypeList as [string, ...string[]]).optional(),
   numberOfUnits: z.coerce.number().optional(),
   unitPrice: z.coerce.number().optional(),
   
+  // Step 3: Details - Nueva Cuenta
   nombreFiscal: z.string().optional(),
   cif: z.string().optional(),
   direccionFiscal_street: z.string().optional(),
@@ -35,7 +44,6 @@ const baseOrderFormSchema = z.object({
   direccionFiscal_province: z.string().optional(),
   direccionFiscal_postalCode: z.string().optional(),
   direccionFiscal_country: z.string().optional(),
-  
   sameAsBilling: z.boolean().optional(),
   direccionEntrega_street: z.string().optional(),
   direccionEntrega_number: z.string().optional(),
@@ -43,19 +51,21 @@ const baseOrderFormSchema = z.object({
   direccionEntrega_province: z.string().optional(),
   direccionEntrega_postalCode: z.string().optional(),
   direccionEntrega_country: z.string().optional(),
-  
   contactoNombre: z.string().optional(),
   contactoCorreo: z.string().email("Formato de correo no válido.").optional().or(z.literal('')),
   contactoTelefono: z.string().optional(),
   observacionesAlta: z.string().optional(),
 
+  // Step 3: Details - Seguimiento
   nextActionType: z.enum(nextActionTypeList as [string, ...string[]]).optional(),
   nextActionCustom: z.string().optional(),
   nextActionDate: z.date().optional(),
+  selectedSalesRepId: z.string().optional(), // For Admin to re-assign
+  clavadistaSelectedSalesRepId: z.string().optional(), // For Clavadista to assign
+  
+  // Step 3: Details - Fallido
   failureReasonType: z.enum(failureReasonList as [string, ...string[]]).optional(),
   failureReasonCustom: z.string().optional(),
-  notes: z.string().optional(),
-  assignedMaterials: z.array(assignedMaterialSchema).optional(),
 });
 
 export type OrderFormValues = z.infer<typeof baseOrderFormSchema>;

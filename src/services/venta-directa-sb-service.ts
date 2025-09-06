@@ -1,98 +1,15 @@
-
-'use server';
-
 import { db } from '@/lib/firebase';
 import {
   collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
-  type DocumentSnapshot, runTransaction
+  type DocumentSnapshot, runTransaction, FieldValue, increment, where
 } from "firebase/firestore";
-import type { DirectSale, ItemBatch, InventoryItem } from '@/types';
-import type { DirectSaleWizardFormValues } from '@/lib/schemas/direct-sale-schema';
+import type { DirectSale, ItemBatch, InventoryItem, DirectSaleItem, OrderType } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 import { addStockTxnFSTransactional } from './stock-txn-service';
+import { generateDirectSaleCode } from '@/lib/coding';
+import { fromFirestoreDirectSale, toFirestoreDirectSale } from './utils/firestore-converters';
 
-const DIRECT_SALES_COLLECTION = 'directSales';
-
-type DirectSaleWithExtras = DirectSaleWizardFormValues & { issueDate: Date; customerId?: string };
-
-
-const fromFirestoreDirectSale = (docSnap: DocumentSnapshot): DirectSale => {
-  const data = docSnap.data();
-  if (!data) throw new Error("Document data is undefined.");
-
-  return {
-    id: docSnap.id,
-    customerId: data.customerId || '',
-    customerName: data.customerName || '',
-    channel: data.channel || 'Otro',
-    items: data.items || [],
-    subtotal: data.subtotal || 0,
-    tax: data.tax || 0,
-    totalAmount: data.totalAmount || 0,
-    issueDate: data.issueDate instanceof Timestamp ? format(data.issueDate.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
-    dueDate: data.dueDate instanceof Timestamp ? format(data.dueDate.toDate(), "yyyy-MM-dd") : undefined,
-    invoiceNumber: data.invoiceNumber || undefined,
-    status: data.status || 'Borrador',
-    relatedPlacementOrders: data.relatedPlacementOrders || [],
-    notes: data.notes || undefined,
-    createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
-    updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
-  };
-};
-
-const toFirestoreDirectSale = (data: Partial<DirectSaleWithExtras>, isNew: boolean): any => {
-  const subtotal = data.items?.reduce((sum, item) => sum + (item.quantity || 0) * (item.netUnitPrice || 0), 0) || 0;
-  const tax = subtotal * 0.21;
-  const totalAmount = subtotal + tax;
-
-  const firestoreData: { [key: string]: any } = {
-      customerId: data.customerId || null,
-      customerName: data.customerName,
-      channel: data.channel,
-      items: data.items?.map(item => ({
-          productId: item.productId,
-          productName: item.productName,
-          quantity: item.quantity,
-          netUnitPrice: item.netUnitPrice,
-          total: (item.quantity || 0) * (item.netUnitPrice || 0),
-          batchId: item.batchId,
-          batchNumber: item.batchNumber || null
-      })) || [],
-      subtotal,
-      tax,
-      totalAmount,
-      status: data.status,
-      invoiceNumber: data.invoiceNumber || null,
-      relatedPlacementOrders: data.relatedPlacementOrders ? data.relatedPlacementOrders.split(',').map(s => s.trim()) : [],
-      notes: data.notes || null,
-  };
-
-  if (data.issueDate && isValid(data.issueDate)) {
-    firestoreData.issueDate = Timestamp.fromDate(data.issueDate);
-  } else {
-    firestoreData.issueDate = Timestamp.fromDate(new Date());
-  }
-
-  if (data.dueDate && isValid(data.dueDate)) {
-    firestoreData.dueDate = Timestamp.fromDate(data.dueDate);
-  } else {
-    firestoreData.dueDate = null;
-  }
-
-  if (isNew) {
-    firestoreData.createdAt = Timestamp.fromDate(new Date());
-  }
-  firestoreData.updatedAt = Timestamp.fromDate(new Date());
-  
-  Object.keys(firestoreData).forEach(key => {
-    if (firestoreData[key] === undefined) {
-      firestoreData[key] = null;
-    }
-  });
-
-  return firestoreData;
-};
-
+const DIRECT_SALES_COLLECTION = 'directSales'; 
 
 export const getDirectSalesFS = async (): Promise<DirectSale[]> => {
   const salesCol = collection(db, DIRECT_SALES_COLLECTION);
@@ -101,99 +18,224 @@ export const getDirectSalesFS = async (): Promise<DirectSale[]> => {
   return salesSnapshot.docs.map(docSnap => fromFirestoreDirectSale(docSnap));
 };
 
-
-export const addDirectSaleFS = async (data: DirectSaleWithExtras): Promise<string> => {
-  const newSaleDocRef = doc(collection(db, DIRECT_SALES_COLLECTION));
+export const addDirectSaleFS = async (data: any): Promise<string> => {
+  const saleCode = await generateDirectSaleCode();
+  const newSaleDocRef = doc(db, DIRECT_SALES_COLLECTION, saleCode);
 
   return await runTransaction(db, async (transaction) => {
-    // 1. Get all refs and do all reads first
-    const itemRefs = data.items.map(item => doc(db, 'inventoryItems', item.productId));
-    const batchRefs = data.items.map(item => doc(db, 'itemBatches', item.batchId));
+    let totalCostOfGoods = 0;
+
+    const { subtotal, tax, totalAmount } = data; // Use client-calculated totals
+
+    const itemRefs = data.items.map((item: any) => doc(db, 'inventoryItems', item.productId));
+    const batchRefs = data.items.map((item: any) => item.batchId ? doc(db, 'itemBatches', item.batchId) : null).filter(Boolean);
     
     const allRefs = [...itemRefs, ...batchRefs];
-    const allDocs = await Promise.all(allRefs.map(ref => transaction.get(ref)));
+    const allDocs = await Promise.all(allRefs.map(ref => transaction.get(ref!)));
     
-    const itemDocs = allDocs.slice(0, data.items.length);
-    const batchDocs = allDocs.slice(data.items.length);
+    const itemDocsMap = new Map(allDocs.slice(0, data.items.length).map(d => [d.id, d]));
+    const batchDocsMap = new Map(allDocs.slice(data.items.length).map(d => [d.id, d]));
 
-    // 2. Validate and prepare writes
-    for (let i = 0; i < data.items.length; i++) {
-        const item = data.items[i];
-        const itemDoc = itemDocs[i];
-        const batchDoc = batchDocs[i];
+    if (data.type === 'directa') {
+        for (let i = 0; i < data.items.length; i++) {
+            const item = data.items[i];
+            if (!item.batchId) throw new Error(`El artículo ${item.productName} debe tener un lote seleccionado para una venta directa.`);
+            
+            const itemDoc = itemDocsMap.get(item.productId);
+            const batchDoc = batchDocsMap.get(item.batchId);
 
-        if (!itemDoc.exists()) throw new Error(`Producto ${item.productName} no encontrado.`);
-        if (!batchDoc.exists()) throw new Error(`Lote para ${item.productName} no encontrado.`);
-        
-        const itemData = itemDoc.data() as InventoryItem;
-        const batchData = batchDoc.data() as ItemBatch;
-        
-        if (batchData.qtyRemaining < item.quantity) {
-            throw new Error(`Stock insuficiente para ${item.productName} (Lote ${batchData.internalBatchCode}). Disponible: ${batchData.qtyRemaining}, Solicitado: ${item.quantity}`);
+            if (!itemDoc?.exists()) throw new Error(`Producto ${item.productName} no encontrado.`);
+            if (!batchDoc?.exists()) throw new Error(`Lote para ${item.productName} no encontrado.`);
+            
+            const itemData = itemDoc.data() as InventoryItem;
+            const batchData = batchDoc.data() as ItemBatch;
+            
+            if (batchData.qtyRemaining < item.quantity) {
+                throw new Error(`Stock insuficiente para ${item.productName} (Lote ${batchData.internalBatchCode}). Disponible: ${batchData.qtyRemaining}, Solicitado: ${item.quantity}`);
+            }
+
+            const newBatchQty = batchData.qtyRemaining - item.quantity;
+            totalCostOfGoods += (batchData.unitCost || 0) * item.quantity;
+
+            transaction.update(doc(db, 'itemBatches', item.batchId), {
+                qtyRemaining: newBatchQty,
+                isClosed: newBatchQty <= 0
+            });
+            transaction.update(doc(db, 'inventoryItems', item.productId), {
+                stock: increment(-item.quantity)
+            });
+
+            await addStockTxnFSTransactional(transaction, {
+                inventoryItemId: item.productId,
+                batchId: item.batchId,
+                qtyDelta: -item.quantity,
+                newStock: (itemData.stock || 0) - item.quantity,
+                unitCost: batchData.unitCost,
+                refCollection: 'directSales',
+                refId: newSaleDocRef.id,
+                txnType: 'venta',
+                notes: `Venta Directa a ${data.customerName}`
+            });
         }
+    } else { // 'deposito'
+        for (let i = 0; i < data.items.length; i++) {
+             const item = data.items[i];
+             const itemRef = doc(db, 'inventoryItems', item.productId);
+             const itemDoc = itemDocsMap.get(item.productId);
+             if (!itemDoc?.exists()) throw new Error(`Producto ${item.productName} no encontrado.`);
 
-        const newBatchQty = batchData.qtyRemaining - item.quantity;
-        const newItemQty = (itemData.stock || 0) - item.quantity;
-
-        // Queue updates
-        transaction.update(batchRefs[i], {
-            qtyRemaining: newBatchQty,
-            isClosed: newBatchQty <= 0
-        });
-        transaction.update(itemRefs[i], {
-            stock: newItemQty
-        });
-
-        await addStockTxnFSTransactional(transaction, {
-            inventoryItemId: item.productId,
-            batchId: item.batchId,
-            qtyDelta: -item.quantity,
-            newStock: newItemQty,
-            unitCost: batchData.unitCost,
-            refCollection: 'directSales',
-            refId: newSaleDocRef.id,
-            txnType: 'venta',
-            notes: `Venta Directa a ${data.customerName}`
-        });
+             transaction.update(itemRef, { stock: increment(-item.quantity) });
+              await addStockTxnFSTransactional(transaction, {
+                inventoryItemId: item.productId,
+                batchId: item.batchId,
+                qtyDelta: -item.quantity,
+                newStock: (itemDoc.data()!.stock || 0) - item.quantity, 
+                unitCost: item.netUnitPrice, 
+                refCollection: 'directSales',
+                refId: newSaleDocRef.id,
+                txnType: 'ajuste',
+                notes: `Envío en depósito a ${data.customerName}`
+            });
+        }
     }
     
-    // Final write: create the sale document
-    const firestoreData = toFirestoreDirectSale(data, true);
+    const firestoreData = toFirestoreDirectSale({ ...data, subtotal, tax, totalAmount }, true);
+    firestoreData.costOfGoods = totalCostOfGoods;
+    firestoreData.status = data.type === 'deposito' ? 'en depósito' : (data.status || 'borrador');
     transaction.set(newSaleDocRef, firestoreData);
     
     return newSaleDocRef.id;
   });
 };
 
-export const updateDirectSaleFS = async (id: string, data: Partial<DirectSaleWithExtras>): Promise<void> => {
+export const regularizeConsignmentDirectSaleFS = async (originalSaleId: string, unitsToInvoice: number): Promise<void> => {
+  return await runTransaction(db, async (transaction) => {
+    const originalSaleRef = doc(db, DIRECT_SALES_COLLECTION, originalSaleId);
+    const originalSaleDoc = await transaction.get(originalSaleRef);
+    if (!originalSaleDoc.exists()) throw new Error("La orden de depósito original no existe.");
+    
+    const originalSaleData = originalSaleDoc.data() as DirectSale;
+    if (originalSaleData.type !== 'deposito' || originalSaleData.status !== 'en depósito') {
+      throw new Error("Esta orden no es una venta en depósito válida para regularizar.");
+    }
+    
+    const originalItem = originalSaleData.items[0];
+    if (!originalItem) throw new Error("La orden de depósito no tiene artículos.");
+
+    const qtyInConsignment = originalSaleData.qtyRemainingInConsignment?.[originalItem.productId] ?? originalItem.quantity;
+    if (unitsToInvoice > qtyInConsignment) {
+      throw new Error(`No se pueden facturar ${unitsToInvoice} unidades. Solo quedan ${qtyInConsignment} en depósito.`);
+    }
+
+    const newSaleCode = await generateDirectSaleCode();
+    const newSaleRef = doc(db, DIRECT_SALES_COLLECTION, newSaleCode);
+
+    const pricePerUnit = 8;
+    const subtotal = unitsToInvoice * pricePerUnit;
+    const tax = subtotal * 0.21;
+    const totalAmount = subtotal + tax;
+
+    const newInvoiceItem: DirectSaleItem = {
+      ...originalItem,
+      quantity: unitsToInvoice,
+      total: subtotal,
+      netUnitPrice: pricePerUnit
+    };
+    
+    const newInvoiceData: Omit<DirectSale, 'id'> = {
+        ...originalSaleData,
+        type: 'directa',
+        status: 'facturado',
+        items: [newInvoiceItem],
+        subtotal,
+        tax,
+        totalAmount,
+        issueDate: new Date().toISOString(),
+        dueDate: new Date().toISOString(),
+        invoiceNumber: newSaleCode,
+        relatedPlacementOrders: [originalSaleId],
+        notes: `Factura de regularización de depósito para orden ${originalSaleId}.`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        originalConsignmentId: originalSaleId,
+        costOfGoods: pricePerUnit * unitsToInvoice,
+        qtyRemainingInConsignment: {},
+    };
+
+    transaction.set(newSaleRef, newInvoiceData);
+
+    const newRemainingQty = qtyInConsignment - unitsToInvoice;
+    const updatedQtyRemainingMap = {
+      ...originalSaleData.qtyRemainingInConsignment,
+      [originalItem.productId]: newRemainingQty
+    };
+    
+    transaction.update(originalSaleRef, {
+      qtyRemainingInConsignment: updatedQtyRemainingMap,
+      updatedAt: Timestamp.now()
+    });
+  });
+};
+
+export const updateDirectSaleFS = async (id: string, data: Partial<any>): Promise<void> => {
   const saleDocRef = doc(db, DIRECT_SALES_COLLECTION, id);
-  // Note: This update does not handle stock changes. It assumes items are not editable after creation.
   const firestoreData = toFirestoreDirectSale(data, false);
   await updateDoc(saleDocRef, firestoreData);
 };
 
 export const deleteDirectSaleFS = async (id: string): Promise<void> => {
-  // Note: Deleting a sale does not automatically revert stock. This should be handled by a separate "return" or "adjustment" process.
-  const saleDocRef = doc(db, DIRECT_SALES_COLLECTION, id);
-  await deleteDoc(saleDocRef);
-};
+    return runTransaction(db, async (transaction) => {
+        const saleRef = doc(db, DIRECT_SALES_COLLECTION, id);
+        const saleDoc = await transaction.get(saleRef);
+        if (!saleDoc.exists()) throw new Error("El pedido que intentas eliminar no existe o ya ha sido eliminado.");
 
-
-export const initializeMockDirectSalesInFirestore = async (mockData: DirectSale[]) => {
-    const salesCol = collection(db, DIRECT_SALES_COLLECTION);
-    const snapshot = await getDocs(query(salesCol));
-    if (snapshot.empty && mockData.length > 0) {
-        for(const sale of mockData) {
-            const { id, createdAt, updatedAt, issueDate, dueDate, ...saleData } = sale;
-            
-            const firestoreReadyData: any = { ...saleData };
-            firestoreReadyData.issueDate = issueDate ? Timestamp.fromDate(parseISO(issueDate)) : Timestamp.fromDate(new Date());
-            firestoreReadyData.dueDate = dueDate ? Timestamp.fromDate(parseISO(dueDate)) : null;
-            firestoreReadyData.createdAt = createdAt ? Timestamp.fromDate(parseISO(createdAt)) : Timestamp.fromDate(new Date());
-            firestoreReadyData.updatedAt = updatedAt ? Timestamp.fromDate(parseISO(updatedAt)) : Timestamp.fromDate(new Date());
-            
-            await addDoc(salesCol, firestoreReadyData);
+        const saleData = saleDoc.data() as DirectSale;
+        
+        // --- READ PHASE ---
+        const itemRefsToRead: DocumentReference[] = [];
+        if (saleData.type === 'directa' || saleData.type === 'deposito') {
+            for (const item of saleData.items) {
+                if(item.productId) itemRefsToRead.push(doc(db, 'inventoryItems', item.productId));
+            }
         }
-        console.log('Mock direct sales initialized in Firestore.');
-    }
+        const itemDocs = await Promise.all(itemRefsToRead.map(ref => ref ? transaction.get(ref) : Promise.resolve(null)));
+        const itemDocsMap = new Map(itemDocs.map(doc => doc ? [doc.id, doc] : [null, null]).filter(entry => entry[0]));
+        // --- END READ PHASE ---
+        
+        if (saleData.type === 'directa') {
+            for (const item of saleData.items) {
+                if (!item.batchId || !item.productId) continue;
+
+                const itemDoc = itemDocsMap.get(item.productId);
+                
+                // Only update stock if the item exists
+                if (itemDoc && itemDoc.exists()) {
+                    transaction.update(itemDoc.ref, { stock: increment(item.quantity) });
+                } else {
+                    console.warn(`Item with ID ${item.productId} not found. Skipping stock reversal for this item.`);
+                }
+
+                const batchRef = doc(db, 'itemBatches', item.batchId);
+                transaction.update(batchRef, { qtyRemaining: increment(item.quantity), isClosed: false });
+
+                await addStockTxnFSTransactional(transaction, {
+                    inventoryItemId: item.productId, batchId: item.batchId,
+                    qtyDelta: item.quantity, newStock: -1, // Placeholder, new stock is not accurately available here
+                    unitCost: item.netUnitPrice / 1.21, refCollection: 'directSales', refId: id,
+                    txnType: 'ajuste', notes: `Anulación de venta directa ${id}`
+                });
+            }
+        } else if (saleData.type === 'deposito') {
+            for (const item of saleData.items) {
+                 if (!item.productId) continue;
+                 const itemDoc = itemDocsMap.get(item.productId);
+                 if (itemDoc && itemDoc.exists()) {
+                    transaction.update(itemDoc.ref, { stock: increment(item.quantity) });
+                 } else {
+                     console.warn(`Item with ID ${item.productId} not found. Skipping stock reversal for this consignment item.`);
+                 }
+            }
+        }
+        transaction.delete(saleRef);
+    });
 };

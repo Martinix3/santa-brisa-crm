@@ -1,9 +1,10 @@
 
+
 "use client";
 
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, type ControllerRenderProps } from "react-hook-form";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,52 +36,56 @@ import {
 } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import type { InventoryItem, Category, InventoryItemFormValues } from "@/types";
-import { Loader2, Calendar as CalendarIcon } from "lucide-react";
+import type { InventoryItem, Category, InventoryItemFormValues, ItemBatch } from "@/types";
+import { Loader2, Calendar as CalendarIcon, Info, Sparkles } from "lucide-react";
 import { Separator } from "../ui/separator";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid, subDays, isEqual } from "date-fns";
 import { es } from 'date-fns/locale';
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { useCategories } from "@/contexts/categories-context";
+import { Label } from "../ui/label";
 
 
 const itemFormSchema = z.object({
   name: z.string().min(3, "El nombre del artículo debe tener al menos 3 caracteres."),
   description: z.string().optional(),
   categoryId: z.string().min(1, "La categoría es obligatoria."),
-  sku: z.string().optional(),
-  latestPurchaseQuantity: z.coerce.number().min(1, "La cantidad comprada debe ser al menos 1.").optional(),
-  latestPurchaseTotalCost: z.coerce.number().min(0.01, "El coste total debe ser positivo.").optional(),
-  latestPurchaseDate: z.date().optional(),
-  latestPurchaseNotes: z.string().optional(),
-  latestPurchaseBatchNumber: z.string().optional(),
-}).superRefine((data, ctx) => {
-    if (data.latestPurchaseQuantity || data.latestPurchaseTotalCost || data.latestPurchaseDate) {
-        if (data.latestPurchaseQuantity === undefined || data.latestPurchaseQuantity <= 0) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Cantidad es obligatoria si se registran datos de compra.", path: ["latestPurchaseQuantity"]});
-        }
-        if (data.latestPurchaseTotalCost === undefined || data.latestPurchaseTotalCost <= 0) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Coste total es obligatorio si se registran datos de compra.", path: ["latestPurchaseTotalCost"]});
-        }
-        if (data.latestPurchaseDate === undefined) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Fecha de compra es obligatoria si se registran datos de compra.", path: ["latestPurchaseDate"]});
-        }
-    }
+  uom: z.enum(['unit', 'kg', 'g', 'l', 'ml']).optional(),
+  safetyStock: z.coerce.number().min(0, "El stock de seguridad no puede ser negativo.").optional(),
 });
+
+// Helper component to avoid repetition and ensure controlled inputs
+function NumberInput({ field, ...props }: { field: ControllerRenderProps<any, any>, [key: string]: any }) {
+  const { ref, ...restOfField } = field;
+  return (
+    <Input
+      type="number"
+      ref={ref}
+      {...restOfField}
+      {...props}
+      value={field.value ?? ""}
+      onChange={(e) => {
+        const value = e.target.value;
+        // Send undefined back to the form state if the input is empty
+        field.onChange(value === "" ? undefined : Number(value));
+      }}
+    />
+  );
+}
 
 
 interface InventoryItemDialogProps {
   item: InventoryItem | null;
+  itemBatches?: ItemBatch[];
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (data: InventoryItemFormValues, itemId?: string) => void;
+  onSave: (data: InventoryItemFormValues, itemId?: string) => Promise<any>;
   isReadOnly?: boolean;
 }
 
-export default function InventoryItemDialog({ item, isOpen, onOpenChange, onSave, isReadOnly = false }: InventoryItemDialogProps) {
+export default function InventoryItemDialog({ item, itemBatches = [], isOpen, onOpenChange, onSave, isReadOnly = false }: InventoryItemDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
-  const [calculatedUnitCost, setCalculatedUnitCost] = React.useState<number | null>(null);
   const { inventoryCategories, isLoading: isLoadingCategories } = useCategories();
   
   const form = useForm<InventoryItemFormValues>({
@@ -89,26 +94,18 @@ export default function InventoryItemDialog({ item, isOpen, onOpenChange, onSave
       name: "",
       description: "",
       categoryId: undefined,
-      sku: "",
-      latestPurchaseQuantity: undefined,
-      latestPurchaseTotalCost: undefined,
-      latestPurchaseDate: undefined,
-      latestPurchaseNotes: "",
-      latestPurchaseBatchNumber: "",
+      uom: 'unit',
+      safetyStock: undefined,
     },
   });
 
-  const watchedQuantity = form.watch("latestPurchaseQuantity");
-  const watchedTotalCost = form.watch("latestPurchaseTotalCost");
+  const weightedAverageCost = React.useMemo(() => {
+    if (!itemBatches || itemBatches.length === 0) return 0;
+    const totalValue = itemBatches.reduce((sum, batch) => sum + (batch.qtyRemaining * batch.unitCost), 0);
+    const totalStock = itemBatches.reduce((sum, batch) => sum + batch.qtyRemaining, 0);
+    return totalStock > 0 ? totalValue / totalStock : 0;
+  }, [itemBatches]);
 
-  React.useEffect(() => {
-    if (typeof watchedQuantity === 'number' && typeof watchedTotalCost === 'number' && watchedQuantity > 0) {
-      setCalculatedUnitCost(watchedTotalCost / watchedQuantity);
-    } else {
-      setCalculatedUnitCost(null);
-    }
-  }, [watchedQuantity, watchedTotalCost]);
-  
 
   React.useEffect(() => {
     if (isOpen) {
@@ -117,31 +114,17 @@ export default function InventoryItemDialog({ item, isOpen, onOpenChange, onSave
           name: item.name,
           description: item.description || "",
           categoryId: item.categoryId,
-          sku: item.sku || "",
-          latestPurchaseQuantity: item.latestPurchase?.quantityPurchased,
-          latestPurchaseTotalCost: item.latestPurchase?.totalPurchaseCost,
-          latestPurchaseDate: item.latestPurchase?.purchaseDate && isValid(parseISO(item.latestPurchase.purchaseDate)) ? parseISO(item.latestPurchase.purchaseDate) : undefined,
-          latestPurchaseNotes: item.latestPurchase?.notes || "",
-          latestPurchaseBatchNumber: item.latestPurchase?.batchNumber || "",
+          uom: item.uom || 'unit',
+          safetyStock: item.safetyStock,
         });
-        if (item.latestPurchase) {
-          setCalculatedUnitCost(item.latestPurchase.calculatedUnitCost);
-        } else {
-          setCalculatedUnitCost(null);
-        }
       } else {
         form.reset({
           name: "",
           description: "",
           categoryId: undefined,
-          sku: "",
-          latestPurchaseQuantity: undefined,
-          latestPurchaseTotalCost: undefined,
-          latestPurchaseDate: new Date(), 
-          latestPurchaseNotes: "",
-          latestPurchaseBatchNumber: "",
+          uom: 'unit',
+          safetyStock: undefined,
         });
-        setCalculatedUnitCost(null);
       }
     }
   }, [item, isOpen, form]);
@@ -149,9 +132,7 @@ export default function InventoryItemDialog({ item, isOpen, onOpenChange, onSave
   const onSubmit = async (data: InventoryItemFormValues) => {
     if (isReadOnly) return;
     setIsSaving(true);
-    
-    await new Promise(resolve => setTimeout(resolve, 500)); 
-    onSave(data, item?.id);
+    await onSave(data, item?.id);
     setIsSaving(false);
   };
 
@@ -161,7 +142,7 @@ export default function InventoryItemDialog({ item, isOpen, onOpenChange, onSave
         <DialogHeader>
           <DialogTitle>{isReadOnly ? "Detalles del Artículo de Inventario" : (item ? "Editar Artículo de Inventario" : "Añadir Nuevo Artículo de Inventario")}</DialogTitle>
           <DialogDescription>
-            {isReadOnly ? `Viendo detalles de "${item?.name}".` : (item ? "Modifica los detalles del artículo y/o registra la última compra." : "Introduce la información del nuevo artículo y los detalles de su adquisición.")}
+            {isReadOnly ? `Viendo detalles de "${item?.name}".` : (item ? "Modifica los detalles del artículo." : "Introduce la información del nuevo artículo.")}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -179,6 +160,30 @@ export default function InventoryItemDialog({ item, isOpen, onOpenChange, onSave
                 </FormItem>
               )}
             />
+            {item && item.sku && (
+                <div>
+                    <Label>SKU (Automático)</Label>
+                    <p className="font-mono text-sm text-muted-foreground p-2 border rounded-md bg-muted">{item.sku}</p>
+                </div>
+            )}
+             {!item && (
+                 <div className="flex flex-col space-y-2">
+                    <Label>SKU</Label>
+                    <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Se generará automáticamente al guardar
+                    </div>
+                </div>
+            )}
+            {item && (
+                 <div className="p-3 bg-muted rounded-md border">
+                    <Label>Coste Medio Ponderado (PMP)</Label>
+                    <p className="font-semibold text-lg">
+                    <FormattedNumericValue value={weightedAverageCost} options={{ style: 'currency', currency: 'EUR', minimumFractionDigits: 4 }} placeholder="Sin stock" />
+                    </p>
+                    <p className="text-xs text-muted-foreground">Calculado sobre el stock disponible en todos los lotes.</p>
+                </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                <FormField
                 control={form.control}
@@ -200,19 +205,6 @@ export default function InventoryItemDialog({ item, isOpen, onOpenChange, onSave
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="sku"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>SKU / Lote (Opcional)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Ej: SB-CUB-001" {...field} disabled={isReadOnly} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
             </div>
             <FormField
               control={form.control}
@@ -227,115 +219,22 @@ export default function InventoryItemDialog({ item, isOpen, onOpenChange, onSave
                 </FormItem>
               )}
             />
-            
-            <Separator className="my-6" />
-            <h3 className="text-md font-semibold text-primary">Detalles de la Última Compra Registrada</h3>
-            <FormDescription>
-              {item ? "Actualice los datos si ha habido una nueva compra." : "Introduzca los datos de la primera compra de este artículo."}
-              Si no introduce datos de compra, el artículo se guardará sin un coste unitario definido.
-            </FormDescription>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-              <FormField
+            <FormField
                 control={form.control}
-                name="latestPurchaseQuantity"
+                name="safetyStock"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Cantidad Comprada</FormLabel>
+                    <FormLabel>Stock Mínimo de Seguridad</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="Ej: 500" {...field} disabled={isReadOnly} 
-                             onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))}
-                             value={field.value ?? ""}
-                      />
+                      <NumberInput field={field} placeholder="Ej: 100" disabled={isReadOnly} />
                     </FormControl>
+                    <FormDescription className="text-xs">
+                        Cuando el stock sea igual o inferior a este valor, se mostrará una alerta visual.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="latestPurchaseTotalCost"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Coste Total de esta Compra (€)</FormLabel>
-                    <FormControl>
-                      <Input type="number" step="0.01" placeholder="Ej: 550.25 (incluye todo)" {...field} disabled={isReadOnly} 
-                             onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
-                             value={field.value ?? ""}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="latestPurchaseDate"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Fecha de esta Compra</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")} disabled={isReadOnly}>
-                              {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar mode="single" selected={field.value} onSelect={field.onChange} 
-                            disabled={isReadOnly || ((date: Date) => date > new Date() || date < new Date("2000-01-01"))} 
-                            initialFocus 
-                            locale={es}
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-               <FormField
-                control={form.control}
-                name="latestPurchaseBatchNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nº de Lote de esta Compra</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Ej: LT2024-42B" {...field} disabled={isReadOnly} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-             <FormField
-              control={form.control}
-              name="latestPurchaseNotes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Notas de la Compra (Opcional)</FormLabel>
-                  <FormControl>
-                    <Textarea placeholder="Ej: Lote con descuento, proveedor XYZ..." {...field} disabled={isReadOnly} className="min-h-[60px]" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {calculatedUnitCost !== null && (
-              <div className="mt-3 p-3 bg-secondary/30 rounded-md">
-                <p className="text-sm font-medium">
-                  Coste Unitario Calculado para esta Compra: 
-                  <strong className="ml-1 text-primary">
-                    <FormattedNumericValue value={calculatedUnitCost} options={{ style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4 }} />
-                  </strong>
-                </p>
-                <p className="text-xs text-muted-foreground">Este será el coste utilizado al asignar este artículo a eventos/pedidos.</p>
-              </div>
-            )}
             
             <DialogFooter className="pt-6">
               <DialogClose asChild><Button type="button" variant="outline" disabled={isSaving && !isReadOnly}>{isReadOnly ? "Cerrar" : "Cancelar"}</Button></DialogClose>

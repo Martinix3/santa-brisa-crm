@@ -16,7 +16,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { getAccountsFS } from "@/services/account-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import type { Account, TeamMember, UserRole, NewScheduledTaskData, Order } from "@/types";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { es } from 'date-fns/locale';
 
 const getNewTaskFormSchema = (taskCategory: 'Commercial' | 'General') => {
@@ -109,10 +109,10 @@ export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDa
             form.reset({
                 visitDate: taskToEdit.visitDate ? parseISO(taskToEdit.visitDate) : new Date(),
                 notes: taskToEdit.notes || '',
-                accountId: taskToEdit.accountId,
+                accountId: taskToEdit.accountId || undefined,
                 clientSelectionMode: 'existing',
-                newClientName: taskToEdit.clientName,
-                assignedToId: assignedMember?.id,
+                newClientName: taskToEdit.clientName || '',
+                assignedToId: assignedMember?.id || undefined,
             });
         } else {
             form.reset({
@@ -165,7 +165,7 @@ export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDa
                      <FormField control={form.control} name="accountId" render={({ field }) => (
                        <FormItem>
                          <FormLabel>Seleccionar Cuenta</FormLabel>
-                         <Select onValueChange={field.onChange} value={field.value}>
+                         <Select onValueChange={field.onChange} value={field.value ?? ''}>
                            <FormControl><SelectTrigger><SelectValue placeholder="Busca y selecciona una cuenta..." /></SelectTrigger></FormControl>
                            <SelectContent>
                              {accounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.nombre}</SelectItem>)}
@@ -178,7 +178,7 @@ export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDa
                     <FormField control={form.control} name="newClientName" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Nombre del Nuevo Cliente</FormLabel>
-                        <FormControl><Input placeholder="Ej: Café del Puerto" {...field} /></FormControl>
+                        <FormControl><Input placeholder="Ej: Café del Puerto" {...field} value={field.value ?? ''} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )} />
@@ -188,7 +188,7 @@ export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDa
                <FormField control={form.control} name="notes" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Objetivo / Notas de la Tarea</FormLabel>
-                  <FormControl><Textarea placeholder={taskCategory === 'Commercial' ? "Ej: Presentar nuevo producto..." : "Ej: Preparar informe trimestral..."} {...field} /></FormControl>
+                  <FormControl><Textarea placeholder={taskCategory === 'Commercial' ? "Ej: Presentar nuevo producto..." : "Ej: Preparar informe trimestral..."} {...field} value={field.value ?? ''}/></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -196,7 +196,7 @@ export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDa
                 <FormField control={form.control} name="assignedToId" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Asignar A</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value ?? ''}>
                       <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar responsable..." /></SelectTrigger></FormControl>
                       <SelectContent>
                         {teamMembers.map(tm => <SelectItem key={tm.id} value={tm.id}>{tm.name}</SelectItem>)}

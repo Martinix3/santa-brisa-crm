@@ -3,101 +3,65 @@
 
 import * as React from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Card } from "@/components/ui/card";
 import { Form } from "@/components/ui/form";
-import { FileText, Loader2 } from "lucide-react";
-import { useOrderWizard } from "@/hooks/use-order-form-wizard";
-
-// Step Components
+import { Card } from "@/components/ui/card";
+import { Loader2 } from "lucide-react";
+import { useOrderFormWizard } from "@/hooks/use-order-form-wizard";
 import { StepClient } from "@/components/app/order-form/step-client";
 import { StepOutcome } from "@/components/app/order-form/step-outcome";
 import { StepDetails } from "@/components/app/order-form/step-details";
 import { StepVerify } from "@/components/app/order-form/step-verify";
 
-export default function OrderFormWizardPage() {
-  const wizard = useOrderWizard();
+export default function OrderFormPage() {
+  const wizard = useOrderFormWizard();
+
   const {
     form,
     step,
-    client,
-    handleBack,
-    availableMaterials,
-    teamMember,
-    userRole,
-    onSubmit,
-    onFormError,
-    salesRepsList,
-    clavadistas,
-    materialFields,
-    appendMaterial,
-    removeMaterial,
-    debouncedSearchTerm,
-    searchTerm,
-    setSearchTerm,
-    filteredAccounts,
-    handleClientSelect,
     setStep,
+    handleBack,
+    handleNextStep,
+    isSubmitting,
     isLoading,
+    client,
+    originatingTask,
+    onFormError,
+    onSubmit
   } = wizard;
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-8">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground">Cargando datos para el formulario...</p>
-      </div>
+        <div className="flex flex-col items-center justify-center h-full p-8">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <p className="mt-4 text-muted-foreground">Cargando datos del formulario...</p>
+        </div>
     );
   }
-
+  
   const renderStepContent = () => {
     switch (step) {
       case "client":
         return (
           <motion.div key="client" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
-            <StepClient
-              searchTerm={searchTerm}
-              setSearchTerm={setSearchTerm}
-              filteredAccounts={filteredAccounts}
-              handleClientSelect={handleClientSelect}
-              debouncedSearchTerm={debouncedSearchTerm}
-            />
+            <StepClient {...wizard} />
           </motion.div>
         );
       case "outcome":
         return (
           <motion.div key="outcome" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
-            <StepOutcome form={form} client={client} setStep={setStep} handleBack={handleBack} />
+            <StepOutcome {...wizard} />
           </motion.div>
         );
       case "details":
         return (
           <motion.div key="details" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
-            <StepDetails
-              form={form}
-              handleBack={handleBack}
-              handleNextStep={wizard.handleNextStep}
-              availableMaterials={availableMaterials}
-              materialFields={materialFields}
-              appendMaterial={appendMaterial}
-              removeMaterial={removeMaterial}
-              userRole={userRole}
-              salesRepsList={salesRepsList}
-              clavadistas={clavadistas}
-            />
+            <StepDetails {...wizard} />
           </motion.div>
         );
-      case "verify":
+       case "verify":
         return (
           <motion.div key="verify" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}>
-            <StepVerify
-              form={form}
-              client={client}
-              handleBack={handleBack}
-              isSubmitting={form.formState.isSubmitting}
-              availableMaterials={availableMaterials}
-              teamMember={teamMember}
-              userRole={userRole}
-            />
+            <StepVerify {...wizard} />
           </motion.div>
         );
     }
@@ -105,15 +69,12 @@ export default function OrderFormWizardPage() {
 
   return (
     <div className="space-y-6">
-      <header className="flex items-center space-x-2">
-        <FileText className="h-8 w-8 text-primary" />
-        <h1 className="text-3xl font-headline font-semibold">Registrar Interacción</h1>
-      </header>
-      
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit, onFormError)} noValidate>
-          <Card className="max-w-4xl mx-auto shadow-lg mt-6 overflow-hidden">
-            <AnimatePresence mode="wait">{renderStepContent()}</AnimatePresence>
+        <form onSubmit={form.handleSubmit(onSubmit, onFormError)}>
+          <Card className="max-w-3xl mx-auto shadow-lg mt-6 overflow-hidden">
+            <AnimatePresence mode="wait">
+              {renderStepContent()}
+            </AnimatePresence>
           </Card>
         </form>
       </Form>

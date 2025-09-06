@@ -1,48 +1,83 @@
 
+
 'use server';
 
 import { db } from '@/lib/firebase';
-import { collection, doc, query, where, orderBy, getDocs, Timestamp, type Transaction, type DocumentData, type DocumentReference, type DocumentSnapshot, setDoc } from "firebase/firestore";
-import type { ItemBatch, InventoryItem } from '@/types';
-import { format, parseISO } from 'date-fns';
+import { collection, doc, query, where, orderBy, getDocs, Timestamp, type Transaction, type DocumentSnapshot, updateDoc } from "firebase/firestore";
+import type { ItemBatch, InventoryItem, UoM, BatchFormValues } from '@/types';
 import { fromFirestoreItemBatch } from './utils/firestore-converters';
+import { generateRawMaterialInternalCode, generateFinishedGoodBatchCode } from '@/lib/coding';
+import { format, parseISO, add } from 'date-fns';
 
 const BATCHES_COLLECTION = 'itemBatches';
 
-export const createItemBatchTransactional = async (
+/**
+ * Creates a batch for a received raw material within a transaction.
+ * Generates an internal code based on supplier info.
+ * @returns The ID of the newly created batch document.
+ */
+export const createRawMaterialBatchFSTransactional = async (
     transaction: Transaction,
     item: InventoryItem,
-    purchaseData: { purchaseId: string, supplierBatchCode?: string, quantity: number, unitCost: number, locationId?: string, expiryDate?: Date }
+    data: { purchaseId: string; supplierId: string; supplierCode: string; supplierBatchCode: string; quantity: number; unitCost: number; locationId?: string; expiryDate?: Date }
 ): Promise<string> => {
     const newBatchRef = doc(collection(db, BATCHES_COLLECTION));
-    const skuPart = (item.sku ?? 'NA').substring(0,4).toUpperCase();
-    const internalBatchCode = `B${format(new Date(), 'yyMMdd')}-${skuPart}-${newBatchRef.id.slice(0,4).toUpperCase()}`;
+    const internalBatchCode = await generateRawMaterialInternalCode(data.supplierCode, data.supplierBatchCode);
 
-    const newBatchData: {[key: string]: any} = {
-        id: newBatchRef.id,
+    const newBatchData: Omit<ItemBatch, 'id'> = {
         inventoryItemId: item.id,
+        supplierBatchCode: data.supplierBatchCode,
         internalBatchCode,
-        qtyInitial: purchaseData.quantity,
-        qtyRemaining: purchaseData.quantity,
+        qtyInitial: data.quantity,
+        qtyRemaining: data.quantity,
         uom: item.uom,
-        unitCost: purchaseData.unitCost,
+        unitCost: data.unitCost,
         isClosed: false,
-        createdAt: Timestamp.now(),
+        createdAt: new Date().toISOString(),
+        qcStatus: 'Pending',
+        ...(data.expiryDate && { expiryDate: data.expiryDate.toISOString() }),
+        ...(data.locationId && { locationId: data.locationId }),
     };
-
-    if (purchaseData.supplierBatchCode) {
-        newBatchData.supplierBatchCode = purchaseData.supplierBatchCode;
-    }
-    if (purchaseData.expiryDate) {
-        newBatchData.expiryDate = purchaseData.expiryDate.toISOString();
-    }
-    if (purchaseData.locationId) {
-        newBatchData.locationId = purchaseData.locationId;
-    }
 
     transaction.set(newBatchRef, newBatchData);
     return newBatchRef.id;
 };
+
+/**
+ * Creates a batch for a produced finished good within a transaction.
+ * Generates an internal code based on production info.
+ * @returns An object containing the new batch's document ID and its internal code.
+ */
+export const createFinishedGoodBatchFSTransactional = async (
+    transaction: Transaction,
+    item: InventoryItem,
+    data: { productionRunId: string; line: number; quantity: number; unitCost: number; locationId?: string; expiryDate?: Date }
+): Promise<{ batchId: string; internalBatchCode: string }> => {
+    const newBatchRef = doc(collection(db, BATCHES_COLLECTION));
+    const internalBatchCode = await generateFinishedGoodBatchCode(item.sku || 'UNKNOWN', data.line);
+    
+    const productionDate = new Date();
+    const expiryDate = add(productionDate, { months: 18 });
+    
+    const newBatchData: Omit<ItemBatch, 'id'> = {
+        inventoryItemId: item.id,
+        internalBatchCode,
+        qtyInitial: data.quantity,
+        qtyRemaining: data.quantity,
+        uom: item.uom,
+        unitCost: data.unitCost,
+        isClosed: false,
+        createdAt: productionDate.toISOString(),
+        qcStatus: 'Released',
+        expiryDate: expiryDate.toISOString(), 
+        locationId: data.locationId || "Almacén Principal",
+        costLayers: [],
+    };
+
+    transaction.set(newBatchRef, newBatchData);
+    return { batchId: newBatchRef.id, internalBatchCode };
+};
+
 
 /**
  * Calculates the consumption plan for a given quantity of an item.
@@ -62,15 +97,24 @@ export async function planBatchConsumption(
 ): Promise<{ batchId: string; quantity: number; batchData: ItemBatch }[]> {
   const batchesQuery = query(
     collection(db, BATCHES_COLLECTION),
-    where("inventoryItemId", "==", inventoryItemId),
-    where("isClosed", "==", false),
-    orderBy(strategy === 'FEFO' ? 'expiryDate' : 'createdAt', 'asc')
+    where("inventoryItemId", "==", inventoryItemId)
   );
 
   const snapshot = await getDocs(batchesQuery);
-  const availableBatches = snapshot.docs
+  
+  let availableBatches = snapshot.docs
     .map(fromFirestoreItemBatch)
-    .filter(batch => batch.qtyRemaining > 0);
+    .filter(batch => !batch.isClosed && batch.qcStatus === 'Released' && batch.qtyRemaining > 0);
+
+  availableBatches.sort((a, b) => {
+      if (strategy === 'FEFO') {
+          if (!a.expiryDate) return 1;
+          if (!b.expiryDate) return -1;
+          return parseISO(a.expiryDate).getTime() - parseISO(b.expiryDate).getTime();
+      }
+      return parseISO(a.createdAt).getTime() - parseISO(b.createdAt).getTime();
+  });
+
 
   let remainingToConsume = quantityToConsume;
   const consumptionPlan: { batchId: string; quantity: number; batchData: ItemBatch }[] = [];
@@ -92,28 +136,56 @@ export async function planBatchConsumption(
   return consumptionPlan;
 }
 
-export async function getBatchesForItemFS(inventoryItemId: string): Promise<ItemBatch[]> {
-    const q = query(
-        collection(db, BATCHES_COLLECTION),
-        where('inventoryItemId', '==', inventoryItemId),
-        where('isClosed', '==', false)
-    );
+export const getStockDetailsForItem = async (itemId: string): Promise<{ available: number; pending: number; }> => {
+    if (!itemId) return { available: 0, pending: 0 };
+    const q = query(collection(db, BATCHES_COLLECTION), where('inventoryItemId', '==', itemId));
     const snapshot = await getDocs(q);
-    const batches = snapshot.docs
-        .map(fromFirestoreItemBatch)
-        .filter(batch => batch.qtyRemaining > 0);
-
-    batches.sort((a, b) => {
-        const dateA = a.createdAt;
-        const dateB = b.createdAt;
-        return dateA.localeCompare(dateB);
-    });
     
-    return batches;
-}
+    let available = 0;
+    let pending = 0;
 
-export async function getAllBatchesFS(): Promise<ItemBatch[]> {
+    snapshot.docs.forEach(doc => {
+        const batch = doc.data() as ItemBatch;
+        if (batch.isClosed) return;
+        
+        if (batch.qcStatus === 'Released') {
+            available += batch.qtyRemaining;
+        } else if (batch.qcStatus === 'Pending') {
+            pending += batch.qtyRemaining;
+        }
+    });
+
+    return { available, pending };
+};
+
+
+export const getAllBatchesFS = async (): Promise<ItemBatch[]> => {
     const q = query(collection(db, BATCHES_COLLECTION), orderBy('createdAt', 'desc'));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(fromFirestoreItemBatch);
+};
+
+export const getBatchesForItemFS = async (itemId: string): Promise<ItemBatch[]> => {
+    if (!itemId) return [];
+    const q = query(
+        collection(db, BATCHES_COLLECTION), 
+        where('inventoryItemId', '==', itemId),
+        orderBy('createdAt', 'desc')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(fromFirestoreItemBatch);
 }
+
+export const updateBatchFS = async (id: string, data: Partial<BatchFormValues>): Promise<void> => {
+  const docRef = doc(db, BATCHES_COLLECTION, id);
+  const updateData: { [key: string]: any } = {
+    ...data,
+    updatedAt: Timestamp.now(),
+  };
+  
+  if (data.expiryDate !== undefined) {
+    updateData.expiryDate = data.expiryDate ? format(data.expiryDate, "yyyy-MM-dd") : null;
+  }
+  
+  await updateDoc(docRef, updateData);
+};

@@ -1,4 +1,5 @@
 
+
 'use server';
 /**
  * @fileOverview An AI agent for generating supply chain traceability reports.
@@ -10,7 +11,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { collection, query, where, getDocs, doc, getDoc, limit, type DocumentData, type DocumentSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, limit, type DocumentData, type DocumentSnapshot, type DocumentReference } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { ItemBatch, StockTxn, ProductionRun, DirectSale, InventoryItem } from '@/types';
 import { fromFirestoreItemBatch } from '@/services/utils/firestore-converters';
@@ -178,6 +179,9 @@ const traceabilityFlow = ai.defineFlow(
     outputSchema: TraceabilityReportOutputSchema,
   },
   async (input) => {
+    // API is disabled
+    throw new Error('El servicio de trazabilidad con IA está desactivado.');
+
     // --- DATA FETCHING & PREPARATION ---
     const batchDetails = await getBatchDetails(input.batchId);
     if (!batchDetails) throw new Error(`No se encontró ningún lote con el identificador: "${input.batchId}"`);
@@ -193,7 +197,7 @@ const traceabilityFlow = ai.defineFlow(
     const totalOut = downstreamTxns.reduce((sum, txn) => sum + Math.abs(txn.qtyDelta || 0), 0);
     
     // Read related documents
-    const refsToRead = new Map<string, DocumentReference<DocumentData>>();
+    const refsToRead = new Map<string, DocumentReference>();
     if (originTxn?.refId && originTxn.refCollection) {
         refsToRead.set(`origin_${originTxn.refId}`, doc(db, originTxn.refCollection, originTxn.refId));
     }
@@ -232,7 +236,7 @@ const traceabilityFlow = ai.defineFlow(
             if (originTxn.txnType === 'recepcion' && originDocData) {
                 promptData.reception = {
                     purchaseId: originTxn.refId,
-                    supplierName: originDocData.supplier || 'Proveedor Desconocido',
+                    supplierName: originDocData.supplierName || 'Proveedor Desconocido',
                     date: formatDDMMYYYY(originTxn.date.toDate()),
                 };
             } else if (originTxn.txnType === 'produccion' && originDocData) {
@@ -294,7 +298,8 @@ const traceabilityFlow = ai.defineFlow(
 
 
 export async function getTraceabilityReport(input: TraceabilityReportInput): Promise<TraceabilityReportOutput> {
-    const result = await traceabilityFlow(input);
-    return result;
+    // API is disabled
+    throw new Error('El servicio de trazabilidad con IA está desactivado.');
+    // const result = await traceabilityFlow(input);
+    // return result;
 }
-

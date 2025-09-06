@@ -34,8 +34,8 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { DirectSale, DirectSaleStatus, DirectSaleChannel } from "@/types";
-import { directSaleStatusList, directSaleChannelList } from "@/lib/data";
+import type { DirectSale, DirectSaleStatus, DirectSaleChannel, PaidStatus } from "@/types";
+import { directSaleChannelList } from "@/lib/data";
 import { Loader2, Calendar as CalendarIcon } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -45,16 +45,28 @@ import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 
+const paidStatusList: PaidStatus[] = ['Pendiente', 'Pagado', 'Parcial'];
+const directSaleStatusList: DirectSaleStatus[] = ['borrador', 'confirmado', 'enviado', 'entregado', 'facturado', 'pagado', 'cancelado', 'en depósito'];
 
 const editDirectSaleFormSchema = z.object({
   status: z.enum(directSaleStatusList as [DirectSaleStatus, ...DirectSaleStatus[]]),
+  paidStatus: z.enum(paidStatusList as [PaidStatus, ...PaidStatus[]]),
   channel: z.enum(directSaleChannelList as [DirectSaleChannel, ...DirectSaleChannel[]]),
   issueDate: z.date(),
   dueDate: z.date().optional(),
   invoiceNumber: z.string().optional(),
   relatedPlacementOrders: z.string().optional(),
   notes: z.string().optional(),
+}).refine(data => {
+    if (data.dueDate && data.issueDate > data.dueDate) {
+      return false;
+    }
+    return true;
+}, {
+    message: "La fecha de vencimiento no puede ser anterior a la de emisión.",
+    path: ["dueDate"],
 });
+
 
 export type EditDirectSaleFormValues = z.infer<typeof editDirectSaleFormSchema>;
 
@@ -72,7 +84,8 @@ export default function DirectSaleDialog({ sale, isOpen, onOpenChange, onSave, i
   const form = useForm<EditDirectSaleFormValues>({
     resolver: zodResolver(editDirectSaleFormSchema),
     defaultValues: {
-      status: "Borrador",
+      status: "borrador",
+      paidStatus: "Pendiente",
       channel: undefined,
       issueDate: new Date(),
       dueDate: undefined,
@@ -86,6 +99,7 @@ export default function DirectSaleDialog({ sale, isOpen, onOpenChange, onSave, i
     if (sale && isOpen) {
       form.reset({
         status: sale.status,
+        paidStatus: sale.paidStatus || 'Pendiente',
         channel: sale.channel,
         issueDate: sale.issueDate ? parseISO(sale.issueDate) : new Date(),
         dueDate: sale.dueDate ? parseISO(sale.dueDate) : undefined,
@@ -122,26 +136,18 @@ export default function DirectSaleDialog({ sale, isOpen, onOpenChange, onSave, i
                 <Label>Cliente</Label>
                 <p className="font-semibold text-sm mt-2">{sale.customerName}</p>
               </div>
-              <FormField
-                control={form.control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Estado</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}>
-                      <FormControl><SelectTrigger><SelectValue placeholder="Seleccione un estado" /></SelectTrigger></FormControl>
-                      <SelectContent>
-                        {directSaleStatusList.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid grid-cols-2 gap-2">
+                <FormField control={form.control} name="status" render={({ field }) => (
+                  <FormItem><FormLabel>Estado Logístico</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{directSaleStatusList.map((s) => (<SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>
+                )}/>
+                <FormField control={form.control} name="paidStatus" render={({ field }) => (
+                  <FormItem><FormLabel>Estado de Pago</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{paidStatusList.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>
+                )}/>
+              </div>
             </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="issueDate" render={({ field }) => (<FormItem className="flex flex-col"><FormLabel>Fecha Emisión</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("justify-start text-left font-normal", !field.value && "text-muted-foreground")} disabled={isReadOnly}>{field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={isReadOnly} initialFocus locale={es}/></PopoverContent></Popover><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="dueDate" render={({ field }) => (<FormItem className="flex flex-col"><FormLabel>Fecha Vencimiento (Opcional)</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("justify-start text-left font-normal", !field.value && "text-muted-foreground")} disabled={isReadOnly}>{field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={isReadOnly} initialFocus locale={es}/></PopoverContent></Popover><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="dueDate" render={({ field }) => (<FormItem className="flex flex-col"><FormLabel>Fecha Vencimiento</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("justify-start text-left font-normal", !field.value && "text-muted-foreground")} disabled={isReadOnly}>{field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={isReadOnly} initialFocus locale={es}/></PopoverContent></Popover><FormMessage /></FormItem>)} />
              </div>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="invoiceNumber" render={({ field }) => (<FormItem><FormLabel>Nº Factura</FormLabel><FormControl><Input {...field} value={field.value ?? ""} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
@@ -161,10 +167,10 @@ export default function DirectSaleDialog({ sale, isOpen, onOpenChange, onSave, i
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {sale.items.map((item, index) => (
+                    {sale.items && sale.items.map((item, index) => (
                         <TableRow key={index}>
                             <TableCell>{item.productName}</TableCell>
-                            <TableCell className="text-xs">{item.batchNumber}</TableCell>
+                            <TableCell className="font-mono text-xs">{item.batchNumber}</TableCell>
                             <TableCell className="text-right"><FormattedNumericValue value={item.quantity} /></TableCell>
                             <TableCell className="text-right"><FormattedNumericValue value={item.netUnitPrice} options={{style: 'currency', currency: 'EUR'}} /></TableCell>
                             <TableCell className="text-right font-medium"><FormattedNumericValue value={item.total} options={{style: 'currency', currency: 'EUR'}} /></TableCell>

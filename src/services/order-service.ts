@@ -1,401 +1,188 @@
 
-'use server';
 
 import { db } from '@/lib/firebase';
 import {
-  collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
-  type DocumentSnapshot, writeBatch, runTransaction
+  collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
+  type DocumentSnapshot, writeBatch, runTransaction, where,
 } from "firebase/firestore";
-import type { Order, AssignedPromotionalMaterial, AccountFormValues, NewScheduledTaskData, OrderStatus, TeamMember } from '@/types';
+import type { Order, Account, TeamMember, OrderStatus, NewScheduledTaskData } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
-import { getAccountByIdFS, addAccountFS } from './account-service';
-import { getTeamMemberByIdFS } from './team-member-service';
 
-
-const ORDERS_COLLECTION = 'orders';
+const ORDERS_COLLECTION = 'orders'; 
 
 const fromFirestoreOrder = (docSnap: DocumentSnapshot): Order => {
   const data = docSnap.data();
   if (!data) throw new Error("Document data is undefined.");
 
-  const parseOptionalDate = (dateField: any): string | undefined => {
-      if (!dateField) return undefined;
-      if (dateField instanceof Timestamp) return format(dateField.toDate(), "yyyy-MM-dd");
-      if (typeof dateField === 'string' && isValid(parseISO(dateField))) return dateField;
-      return undefined;
-  };
-  
-  const parseRequiredDate = (dateField: any, formatStr: string = "yyyy-MM-dd HH:mm:ss"): string => {
-      if(!dateField) return format(new Date(), formatStr);
-      if(dateField instanceof Timestamp) return format(dateField.toDate(), formatStr);
-      if(typeof dateField === 'string' && isValid(parseISO(dateField))) return dateField;
-      return format(new Date(), formatStr);
+  const toDateString = (ts: any, defaultNow = true): string | undefined => {
+      if (!ts) return defaultNow ? new Date().toISOString() : undefined;
+      if (ts instanceof Timestamp) return ts.toDate().toISOString();
+      if (typeof ts === 'string') return ts;
+      if (typeof ts === 'object' && ts.seconds) return new Timestamp(ts.seconds, ts.nanoseconds).toDate().toISOString();
+      const directParsed = new Date(ts);
+      if(isValid(directParsed)) return directParsed.toISOString();
+      return defaultNow ? new Date().toISOString() : undefined;
   };
 
-  const order: Order = {
+  return {
     id: docSnap.id,
-    clientName: data.clientName || '',
-    visitDate: parseOptionalDate(data.visitDate),
-    products: data.products || [],
+    clientName: data.clientName,
+    visitDate: toDateString(data.visitDate),
+    products: data.products,
     value: data.value,
-    status: data.status || 'Pendiente',
-    salesRep: data.salesRep || '',
-    lastUpdated: parseRequiredDate(data.lastUpdated),
-    clavadistaId: data.clavadistaId || undefined, 
-    assignedMaterials: data.assignedMaterials || [],
-    canalOrigenColocacion: data.canalOrigenColocacion || undefined,
-    paymentMethod: data.paymentMethod || undefined,
-    iban: data.iban || undefined,
-    invoiceUrl: data.invoiceUrl || undefined,
-    invoiceFileName: data.invoiceFileName || undefined,
+    status: data.status,
+    salesRep: data.salesRep,
+    lastUpdated: toDateString(data.lastUpdated),
+    distributorId: data.distributorId,
+    clavadistaId: data.clavadistaId,
+    assignedMaterials: data.assignedMaterials,
+    canalOrigenColocacion: data.canalOrigenColocacion,
+    paymentMethod: data.paymentMethod,
+    iban: data.iban,
+    invoiceUrl: data.invoiceUrl,
+    invoiceFileName: data.invoiceFileName,
 
     clientType: data.clientType,
-    numberOfUnits: data.numberOfUnits, 
-    unitPrice: data.unitPrice, 
+    numberOfUnits: data.numberOfUnits,
+    unitPrice: data.unitPrice,
     clientStatus: data.clientStatus,
-    
-    notes: data.notes || '',
-
+    notes: data.notes,
     nextActionType: data.nextActionType,
-    nextActionCustom: data.nextActionCustom || '',
-    nextActionDate: parseOptionalDate(data.nextActionDate),
+    nextActionCustom: data.nextActionCustom,
+    nextActionDate: toDateString(data.nextActionDate, false),
     failureReasonType: data.failureReasonType,
-    failureReasonCustom: data.failureReasonCustom || '',
-    
-    accountId: data.accountId || undefined,
-    createdAt: parseRequiredDate(data.createdAt),
-    originatingTaskId: data.originatingTaskId || undefined,
+    failureReasonCustom: data.failureReasonCustom,
+    accountId: data.accountId,
+    createdAt: toDateString(data.createdAt),
+    originatingTaskId: data.originatingTaskId,
     taskCategory: data.taskCategory || 'Commercial',
-    isCompleted: data.isCompleted || false,
+    isCompleted: !!data.isCompleted,
     orderIndex: data.orderIndex ?? 0,
   };
-  return order;
-};
-
-const toFirestoreOrder = (data: Partial<Order> & { visitDate?: Date | string, nextActionDate?: Date | string, accountId?: string }, isNew: boolean): any => {
-  
-  const firestoreData: { [key: string]: any } = {};
-
-  const directOrderKeys: (keyof Order)[] = [
-    'clientName', 'products', 'value', 'status', 'salesRep', 'clavadistaId', 
-    'assignedMaterials', 'canalOrigenColocacion', 'paymentMethod', 'iban', 'invoiceUrl', 'invoiceFileName', 
-    'clientType', 'numberOfUnits', 'unitPrice', 'clientStatus', 
-    'notes', 'nextActionType', 'nextActionCustom', 'failureReasonType', 
-    'failureReasonCustom', 'accountId', 'originatingTaskId',
-    'taskCategory', 'isCompleted', 'orderIndex'
-  ];
-
-  directOrderKeys.forEach(key => {
-    if (data[key] !== undefined) {
-      firestoreData[key] = data[key];
-    } else {
-      if (['clavadistaId', 'canalOrigenColocacion', 'paymentMethod', 'iban', 'invoiceUrl', 'invoiceFileName', 'clientType', 'value', 'numberOfUnits', 'unitPrice', 'clientStatus', 'notes', 'nextActionType', 'nextActionCustom', 'failureReasonType', 'failureReasonCustom', 'accountId', 'originatingTaskId'].includes(key)) {
-        firestoreData[key] = null;
-      }
-    }
-  });
-  
-  if (data.visitDate) {
-    const dateValue = typeof data.visitDate === 'string' ? parseISO(data.visitDate) : data.visitDate;
-    if (dateValue instanceof Date && isValid(dateValue)) {
-      firestoreData.visitDate = Timestamp.fromDate(dateValue);
-    }
-  }
-  if (data.nextActionDate) {
-    const dateValue = typeof data.nextActionDate === 'string' ? parseISO(data.nextActionDate) : data.nextActionDate;
-    if (dateValue instanceof Date && isValid(dateValue)) {
-      firestoreData.nextActionDate = Timestamp.fromDate(dateValue);
-    } else {
-      firestoreData.nextActionDate = null;
-    }
-  }
-
-  if (isNew) {
-    firestoreData.createdAt = Timestamp.fromDate(new Date());
-  }
-  firestoreData.lastUpdated = Timestamp.fromDate(new Date());
-
-  Object.keys(firestoreData).forEach(key => {
-    if (firestoreData[key] === undefined) {
-      firestoreData[key] = null;
-    }
-  });
-  if (!firestoreData.assignedMaterials) firestoreData.assignedMaterials = [];
-  if (!firestoreData.products) firestoreData.products = [];
-  if (!firestoreData.taskCategory) firestoreData.taskCategory = 'Commercial';
-  if (firestoreData.isCompleted === undefined) firestoreData.isCompleted = false;
-  if (firestoreData.orderIndex === undefined) firestoreData.orderIndex = 0;
-
-  return firestoreData;
-};
-
-const updateStockForOrder = async (materialId: string, quantityChange: number) => {
-    const materialDocRef = doc(db, 'inventoryItems', materialId);
-    try {
-        await runTransaction(db, async (transaction) => {
-            const materialDoc = await transaction.get(materialDocRef);
-            if (!materialDoc.exists()) {
-                throw new Error(`Inventory Item ${materialId} not found.`);
-            }
-            const currentStock = materialDoc.data().stock || 0;
-            transaction.update(materialDocRef, { stock: currentStock + quantityChange });
-        });
-    } catch (e) {
-        console.error(`Stock update for material ${materialId} failed:`, e);
-    }
 };
 
 export const getOrdersFS = async (): Promise<Order[]> => {
   const ordersCol = collection(db, ORDERS_COLLECTION);
-  const q = query(ordersCol, orderBy('createdAt', 'desc')); 
-  const orderSnapshot = await getDocs(q);
-  const orderList = orderSnapshot.docs.map(docSnap => fromFirestoreOrder(docSnap));
+  const q = query(ordersCol, orderBy('createdAt', 'desc'));
+  const salesSnapshot = await getDocs(q);
+  return salesSnapshot.docs.map(docSnap => fromFirestoreOrder(docSnap));
+};
 
-  orderList.sort((a, b) => {
-    const dateA = parseISO(a.createdAt);
-    const dateB = parseISO(b.createdAt);
-    if (dateA.getTime() !== dateB.getTime()) {
-      return dateB.getTime() - dateA.getTime();
+export const getInteractionsForAccountFS = async (accountId: string, accountName: string): Promise<Order[]> => {
+    if (!accountId && !accountName) return [];
+    
+    // Create queries for both accountId and clientName if they exist
+    const queries = [];
+    if(accountId) {
+        queries.push(query(collection(db, ORDERS_COLLECTION), where("accountId", "==", accountId)));
     }
-    return (a.orderIndex || 0) - (b.orderIndex || 0);
-  });
-  
-  return orderList;
+    if(accountName) {
+        queries.push(query(collection(db, ORDERS_COLLECTION), where("clientName", "==", accountName)));
+    }
+
+    if(queries.length === 0) return [];
+
+    const snapshots = await Promise.all(queries.map(q => getDocs(q)));
+
+    const allInteractions = new Map<string, Order>();
+    snapshots.forEach(snapshot => {
+        snapshot.docs.forEach(doc => {
+            if (!allInteractions.has(doc.id)) {
+                allInteractions.set(doc.id, fromFirestoreOrder(doc));
+            }
+        });
+    });
+
+    return Array.from(allInteractions.values());
 };
 
 export const getOrderByIdFS = async (id: string): Promise<Order | null> => {
-  if (!id) {
-    console.warn("getOrderByIdFS called with no ID.");
-    return null;
+    if (!id) return null;
+    const docRef = doc(db, ORDERS_COLLECTION, id);
+    const docSnap = await getDoc(docRef);
+    return docSnap.exists() ? fromFirestoreOrder(docSnap) : null;
+};
+
+
+export const addOrderFS = async (data: Partial<Order>, originalTaskId?: string): Promise<string> => {
+  const dataToSave = { ...data };
+  
+  if (originalTaskId) {
+      await runTransaction(db, async (transaction) => {
+          const originalTaskRef = doc(db, ORDERS_COLLECTION, originalTaskId);
+          transaction.update(originalTaskRef, { status: "Completado" as OrderStatus, lastUpdated: Timestamp.now() });
+
+          const newOrderRef = doc(collection(db, ORDERS_COLLECTION));
+          transaction.set(newOrderRef, { ...dataToSave, createdAt: Timestamp.now(), lastUpdated: Timestamp.now() });
+      });
+      return "transaction_completed";
+  } else {
+      const docRef = await addDoc(collection(db, ORDERS_COLLECTION), { ...dataToSave, createdAt: Timestamp.now(), lastUpdated: Timestamp.now() });
+      return docRef.id;
   }
+};
+
+
+export const updateFullOrderFS = async (id: string, data: Partial<Order>): Promise<void> => {
   const orderDocRef = doc(db, ORDERS_COLLECTION, id);
-  const docSnap = await getDoc(orderDocRef);
-  if (docSnap.exists()) {
-    return fromFirestoreOrder(docSnap);
-  } else {
-    console.warn(`Order with ID ${id} not found in Firestore.`);
-    return null;
-  }
+  const dataToUpdate: { [key: string]: any } = { ...data };
+  dataToUpdate.lastUpdated = Timestamp.now();
+  await updateDoc(orderDocRef, dataToUpdate);
 };
-
-export const addOrderFS = async (data: Partial<Order> & {visitDate: Date | string, accountId?: string}): Promise<string> => {
-  const firestoreData = toFirestoreOrder(data, true);
-  const docRef = await addDoc(collection(db, ORDERS_COLLECTION), firestoreData);
-  
-  if (data.assignedMaterials && data.assignedMaterials.length > 0) {
-    for (const item of data.assignedMaterials) {
-        await updateStockForOrder(item.materialId, -item.quantity);
-    }
-  }
-
-  return docRef.id;
-};
-
-export const addScheduledTaskFS = async (data: NewScheduledTaskData, creator: TeamMember): Promise<string> => {
-  let accountId = data.accountId;
-  let clientName = data.newClientName;
-  let assignedTo = creator;
-
-  if (data.taskCategory === 'Commercial') {
-      if (data.clientSelectionMode === 'existing') {
-          const account = await getAccountByIdFS(data.accountId!);
-          if (!account) throw new Error("Account not found");
-          clientName = account.nombre;
-      } else if (!clientName?.trim()) {
-          throw new Error("El nombre del nuevo cliente es obligatorio para tareas comerciales.");
-      }
-  } else {
-      clientName = data.notes.substring(0, 50) || "Tarea Administrativa"; 
-      accountId = undefined;
-  }
-  
-  if (data.assignedToId) {
-    const assignedMember = await getTeamMemberByIdFS(data.assignedToId);
-    if(assignedMember) assignedTo = assignedMember;
-  }
-  
-  const orderData = {
-    clientName: clientName,
-    accountId: accountId || null,
-    visitDate: Timestamp.fromDate(data.visitDate),
-    createdAt: Timestamp.fromDate(new Date()),
-    lastUpdated: Timestamp.fromDate(new Date()),
-    salesRep: assignedTo.name,
-    status: 'Programada' as OrderStatus,
-    notes: data.notes,
-    clientStatus: data.taskCategory === 'Commercial' ? (data.clientSelectionMode === 'new' ? 'new' : 'existing') : null,
-    taskCategory: data.taskCategory || 'Commercial',
-    isCompleted: false,
-    orderIndex: 0,
-  };
-  
-  const docRef = await addDoc(collection(db, ORDERS_COLLECTION), orderData);
-  return docRef.id;
-}
-
-
-export const updateOrderFS = async (id: string, data: Partial<Order> & {visitDate?: Date | string}): Promise<void> => { 
-  const orderDocRef = doc(db, ORDERS_COLLECTION, id);
-  const existingOrderDoc = await getDoc(orderDocRef);
-  if (!existingOrderDoc.exists()) throw new Error("Order not found to update stock");
-  const oldData = fromFirestoreOrder(existingOrderDoc);
-  
-  const firestoreData = toFirestoreOrder(data, false); 
-  await updateDoc(orderDocRef, firestoreData);
-
-  const stockChanges = new Map<string, number>();
-  const oldMaterials = oldData.assignedMaterials || [];
-  const newMaterials = data.assignedMaterials || [];
-
-  for (const oldItem of oldMaterials) {
-    stockChanges.set(oldItem.materialId, (stockChanges.get(oldItem.materialId) || 0) + oldItem.quantity);
-  }
-  for (const newItem of newMaterials) {
-    stockChanges.set(newItem.materialId, (stockChanges.get(newItem.materialId) || 0) - newItem.quantity);
-  }
-
-  for (const [materialId, quantityChange] of stockChanges.entries()) {
-    if (quantityChange !== 0) {
-      await updateStockForOrder(materialId, quantityChange);
-    }
-  }
-};
-
-export const updateScheduledTaskFS = async (taskId: string, data: NewScheduledTaskData): Promise<void> => {
-  const taskDocRef = doc(db, ORDERS_COLLECTION, taskId);
-  
-  const updatePayload: { [key: string]: any } = {
-    lastUpdated: Timestamp.fromDate(new Date())
-  };
-
-  if(data.notes) updatePayload.notes = data.notes;
-  if(data.visitDate) updatePayload.visitDate = Timestamp.fromDate(data.visitDate);
-
-  if (data.taskCategory === 'Commercial') {
-      if (data.clientSelectionMode === 'new' && data.newClientName) {
-        updatePayload.clientName = data.newClientName;
-        updatePayload.accountId = null;
-      } else if (data.clientSelectionMode === 'existing' && data.accountId) {
-          const account = await getAccountByIdFS(data.accountId);
-          if (account) {
-            updatePayload.clientName = account.nombre;
-            updatePayload.accountId = data.accountId;
-          }
-      }
-  } else {
-    updatePayload.clientName = data.notes.substring(0, 50) || "Tarea Administrativa";
-    updatePayload.accountId = null;
-  }
-  
-  if (data.assignedToId) {
-      const assignedMember = await getTeamMemberByIdFS(data.assignedToId);
-      if (assignedMember) {
-          updatePayload.salesRep = assignedMember.name;
-      }
-  }
-
-  await updateDoc(taskDocRef, updatePayload);
-};
-
 
 export const deleteOrderFS = async (id: string): Promise<void> => {
   const orderDocRef = doc(db, ORDERS_COLLECTION, id);
-  const existingOrderDoc = await getDoc(orderDocRef);
-
-  if (existingOrderDoc.exists()) {
-    const orderData = fromFirestoreOrder(existingOrderDoc);
-    if (orderData.assignedMaterials && orderData.assignedMaterials.length > 0) {
-      for (const item of orderData.assignedMaterials) {
-        await updateStockForOrder(item.materialId, item.quantity);
-      }
-    }
-  }
-  
   await deleteDoc(orderDocRef);
 };
 
-export const initializeMockOrdersInFirestore = async (mockOrdersData: Order[]) => {
-    const ordersCol = collection(db, ORDERS_COLLECTION);
-    const snapshot = await getDocs(query(ordersCol, orderBy('createdAt', 'desc')));
-    if (snapshot.empty) {
-        for(const order of mockOrdersData) {
-            const { id, createdAt, visitDate, lastUpdated, nextActionDate, ...orderData } = order; 
-            
-            const firestoreReadyData: any = { ...orderData };
-
-            if (visitDate) firestoreReadyData.visitDate = Timestamp.fromDate(parseISO(visitDate));
-            firestoreReadyData.lastUpdated = lastUpdated ? Timestamp.fromDate(parseISO(lastUpdated)) : Timestamp.fromDate(new Date());
-            firestoreReadyData.createdAt = createdAt ? Timestamp.fromDate(parseISO(createdAt)) : Timestamp.fromDate(new Date());
-            if (nextActionDate) firestoreReadyData.nextActionDate = Timestamp.fromDate(parseISO(nextActionDate));
-            else firestoreReadyData.nextActionDate = null;
-            firestoreReadyData.orderIndex = order.orderIndex ?? 0;
-
-            firestoreReadyData.clavadistaId = order.clavadistaId || null;
-            firestoreReadyData.accountId = order.accountId || null;
-            firestoreReadyData.assignedMaterials = order.assignedMaterials || [];
-            firestoreReadyData.canalOrigenColocacion = order.canalOrigenColocacion || null;
-            firestoreReadyData.paymentMethod = order.paymentMethod || null;
-            firestoreReadyData.iban = order.iban || null;
-            firestoreReadyData.invoiceUrl = order.invoiceUrl || null;
-            firestoreReadyData.invoiceFileName = order.invoiceFileName || null;
-            firestoreReadyData.originatingTaskId = order.originatingTaskId || null;
-            
-            Object.keys(firestoreReadyData).forEach(key => {
-                if (firestoreReadyData[key] === undefined) {
-                   firestoreReadyData[key] = null; 
-                } else if (typeof firestoreReadyData[key] === 'string' && firestoreReadyData[key].trim() === '' && 
-                           !['salesRep', 'clientName', 'status'].includes(key) ) { 
-                   firestoreReadyData[key] = null;
-                }
-            });
-            await addDoc(ordersCol, firestoreReadyData);
-        };
-        console.log('Mock orders initialized in Firestore.');
-    } else {
-        console.log('Orders collection is not empty. Skipping initialization.');
+export const addScheduledTaskFS = async (data: NewScheduledTaskData, currentUser: TeamMember): Promise<string> => {
+    const dataToSave: Partial<Order> = {
+        status: 'Programada',
+        visitDate: data.visitDate.toISOString(),
+        notes: data.notes,
+        createdAt: new Date().toISOString(),
+        lastUpdated: new Date().toISOString(),
+        clientName: data.newClientName || 'Tarea Administrativa',
+        accountId: data.accountId,
+        salesRep: currentUser.name,
+        taskCategory: data.taskCategory,
+        isCompleted: false,
+        orderIndex: 0,
+    };
+    if(currentUser.role === 'Clavadista') {
+      dataToSave.clavadistaId = currentUser.id;
     }
+    return addOrderFS(dataToSave);
 };
 
-export const reorderTasksBatchFS = async (
-  updates: { id: string; orderIndex: number; date?: Date }[]
-): Promise<void> => {
-  if (!updates || updates.length === 0) {
-    return;
-  }
-  const batch = writeBatch(db);
-
-  const docRefs = updates.map(u => doc(db, ORDERS_COLLECTION, u.id));
-  const docSnapshots = await Promise.all(docRefs.map(ref => getDoc(ref)));
-
-  updates.forEach((update, index) => {
-    const docSnap = docSnapshots[index];
-    if (!docSnap.exists()) {
-      console.warn(`Task with ID ${update.id} not found during batch update. Skipping.`);
-      return;
-    }
-
-    const ref = doc(db, ORDERS_COLLECTION, update.id);
-    const payload: any = {
-      orderIndex: update.orderIndex,
-      lastUpdated: Timestamp.now()
+export const updateScheduledTaskFS = async (id: string, data: NewScheduledTaskData): Promise<void> => {
+    const dataToUpdate: Partial<Order> = {
+        visitDate: data.visitDate.toISOString(),
+        notes: data.notes,
+        clientName: data.newClientName,
+        accountId: data.accountId,
     };
+    await updateFullOrderFS(id, dataToUpdate);
+};
 
-    if (update.date) {
-      const taskData = docSnap.data();
-      if (taskData.status === 'Programada') {
-        payload.visitDate = Timestamp.fromDate(update.date);
-      } else if (taskData.status === 'Seguimiento') {
-        payload.nextActionDate = Timestamp.fromDate(update.date);
-      }
-    }
-    batch.update(ref, payload);
-  });
-
-  try {
+export const reorderTasksBatchFS = async (updates: { id: string; orderIndex: number, date?: Date }[]): Promise<void> => {
+    const batch = writeBatch(db);
+    updates.forEach(update => {
+        const docRef = doc(db, ORDERS_COLLECTION, update.id);
+        const payload: any = { orderIndex: update.orderIndex, updatedAt: Timestamp.now() };
+        if(update.date) {
+            payload.visitDate = Timestamp.fromDate(update.date);
+            payload.nextActionDate = Timestamp.fromDate(update.date);
+        }
+        batch.update(docRef, payload);
+    });
     await batch.commit();
-    console.log(`Batch reorder complete for ${updates.length} tasks.`);
-  } catch (error) {
-    console.error('Error committing batch reorder for tasks:', error);
-    throw error;
-  }
+};
+
+export const updateOrderStatusFS = async (id: string, status: OrderStatus): Promise<void> => {
+  const orderDocRef = doc(db, ORDERS_COLLECTION, id);
+  await updateDoc(orderDocRef, {
+    status,
+    lastUpdated: Timestamp.now(),
+  });
 };

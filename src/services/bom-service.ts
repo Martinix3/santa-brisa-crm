@@ -1,12 +1,14 @@
 
+
 'use server';
 
 import { db } from '@/lib/firebase';
 import {
-  collection, query, getDocs, doc as firestoreDoc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, where, writeBatch
+  collection, query, getDocs, doc as firestoreDoc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, where, writeBatch, runTransaction
 } from "firebase/firestore";
-import type { BomLine, UoM } from '@/types';
+import type { BomLine, UoM, BomKind, InventoryItemFormValues, Category } from '@/types';
 import { fromFirestoreBomLine } from './utils/firestore-converters';
+import { addInventoryItemFS } from './inventory-item-service';
 
 const BOM_LINES_COLLECTION = 'bomLines';
 
@@ -18,7 +20,7 @@ interface BomComponentValues {
   uom: UoM;
 }
 
-export async function saveRecipeFS(productSku: string, components: BomComponentValues[]): Promise<void> {
+export async function saveRecipeFS(productSku: string, components: BomComponentValues[], type: BomKind): Promise<void> {
   const batch = writeBatch(db);
 
   // 1. Find and queue deletion of all existing lines for this product
@@ -38,6 +40,7 @@ export async function saveRecipeFS(productSku: string, components: BomComponentV
       componentSku: component.componentSku || null,
       quantity: component.quantity,
       uom: component.uom,
+      type: type,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
@@ -59,10 +62,65 @@ export async function deleteRecipeFS(productSku: string): Promise<void> {
 }
 
 
-export async function getBomLinesFS(productSku?: string): Promise<BomLine[]> {
-  const q = productSku 
-    ? query(collection(db, BOM_LINES_COLLECTION), where('productSku', '==', productSku))
-    : query(collection(db, BOM_LINES_COLLECTION), orderBy('productSku'));
+export const getBomLinesFS = async (productSku?: string, type?: BomKind): Promise<BomLine[]> => {
+  let q;
+  const colRef = collection(db, BOM_LINES_COLLECTION);
+  
+  if (productSku && type) {
+    q = query(colRef, where('productSku', '==', productSku), where('type', '==', type));
+  } else if (productSku) {
+    q = query(colRef, where('productSku', '==', productSku));
+  } else if (type) {
+    q = query(colRef, where('type', '==', type), orderBy('productSku'));
+  } else {
+    q = query(colRef, orderBy('productSku'));
+  }
+  
   const snapshot = await getDocs(q);
   return snapshot.docs.map(fromFirestoreBomLine);
+};
+
+// Wrapper function to handle new product creation and recipe saving
+export const createNewProductAndRecipeFS = async (
+  newProductName: string,
+  finishedGoodsCategoryId: string,
+  components: BomComponentValues[],
+  type: BomKind
+): Promise<{ id: string, sku: string }> => {
+  return await runTransaction(db, async (transaction) => {
+    // 1. Create the new inventory item, which now returns the generated SKU
+    const { id: newProductId, sku: newProductSku } = await addInventoryItemFS({
+      name: newProductName,
+      categoryId: finishedGoodsCategoryId,
+    }, transaction);
+
+    if (!newProductSku) {
+      throw new Error("Failed to generate a new SKU for the product.");
+    }
+    
+    // 2. Save the recipe using the newly generated SKU
+    // Since saveRecipeFS uses writeBatch, we cannot pass the transaction directly.
+    // Instead, we replicate its logic inside this transaction.
+    const bomColRef = collection(db, BOM_LINES_COLLECTION);
+    
+    // No need to delete since it's a new product.
+    
+    components.forEach(component => {
+      const newDocRef = firestoreDoc(bomColRef);
+      const dataToAdd = {
+        productSku: newProductSku,
+        componentId: component.componentId,
+        componentName: component.componentName,
+        componentSku: component.componentSku || null,
+        quantity: component.quantity,
+        uom: component.uom,
+        type: type,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      };
+      transaction.set(newDocRef, dataToAdd);
+    });
+
+    return { id: newProductId, sku: newProductSku };
+  });
 };

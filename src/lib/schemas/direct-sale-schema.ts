@@ -1,77 +1,41 @@
 
-"use client";
-
 import * as z from "zod";
-import { directSaleChannelList, directSaleStatusList, provincesSpainList } from "@/lib/data";
-import type { DirectSaleChannel, DirectSaleStatus } from "@/types";
+import type { OrderType, DirectSaleStatus, PaymentMethod } from "@/types";
+import { paymentMethodList, directSaleStatusList } from '@/lib/data';
 
-export type Step = "client" | "details" | "items" | "address" | "verify";
-
-const directSaleItemSchema = z.object({
-  productId: z.string().min(1, "Debe seleccionar un producto."),
-  productName: z.string(), // This is set programmatically
-  batchId: z.string().min(1, "Debe seleccionar un lote para el producto."),
-  batchNumber: z.string().optional(),
-  quantity: z.coerce.number().min(0.001, "La cantidad debe ser mayor que cero."),
-  netUnitPrice: z.coerce.number().min(0.01, "El precio neto debe ser un valor positivo."),
+const orderItemSchema = z.object({
+  productId: z.string().min(1, "Selecciona un producto."),
+  batchId: z.string().optional(),
+  quantity: z.coerce.number({ invalid_type_error: "La cantidad debe ser un número."}).positive({ message: "La cantidad debe ser positiva." }),
+  netUnitPrice: z.coerce.number({ invalid_type_error: "El precio debe ser un número."}).positive({ message: "El precio debe ser positivo." }),
 });
 
-export const directSaleWizardSchema = z.object({
-  isNewClient: z.boolean().default(false),
-  customerId: z.string().optional(),
-  customerName: z.string().min(1, "El nombre del cliente es obligatorio."),
-  channel: z.enum(directSaleChannelList as [DirectSaleChannel, ...DirectSaleChannel[]], { required_error: "El canal de venta es obligatorio." }),
-  issueDate: z.date({ required_error: "La fecha de emisión es obligatoria."}),
-  items: z.array(directSaleItemSchema).min(1, "Debe añadir al menos un producto a la venta."),
+export const generateOrderSchema = (orderType: OrderType) => z.object({
+  customerId: z.string().min(1, "Debes seleccionar un cliente."),
+  issueDate: z.date({ required_error: "La fecha es obligatoria." }),
   dueDate: z.date().optional(),
-  invoiceNumber: z.string().optional(),
-  status: z.enum(directSaleStatusList as [DirectSaleStatus, ...DirectSaleStatus[]]),
-  relatedPlacementOrders: z.string().optional(),
+  type: z.enum(['directa', 'deposito']),
+  status: z.enum(directSaleStatusList as [DirectSaleStatus, ...DirectSaleStatus[]], { required_error: "El estado es obligatorio." }),
+  paymentMethod: z.enum(paymentMethodList as [PaymentMethod, ...PaymentMethod[]], { required_error: "La forma de pago es obligatoria." }),
+  items: z.array(orderItemSchema).min(1, "Debes añadir al menos un producto."),
   notes: z.string().optional(),
-  
-  // Fields for new client address
-  nombreFiscal: z.string().optional(),
-  cif: z.string().optional(),
-  direccionFiscal_street: z.string().optional(),
-  direccionFiscal_number: z.string().optional(),
-  direccionFiscal_city: z.string().optional(),
-  direccionFiscal_province: z.string().optional(),
-  direccionFiscal_postalCode: z.string().optional(),
-  direccionFiscal_country: z.string().optional().default("España"),
-  
-  sameAsBilling: z.boolean().optional().default(true),
-  direccionEntrega_street: z.string().optional(),
-  direccionEntrega_number: z.string().optional(),
-  direccionEntrega_city: z.string().optional(),
-  direccionEntrega_province: z.string().optional(),
-  direccionEntrega_postalCode: z.string().optional(),
-  direccionEntrega_country: z.string().optional().default("España"),
-
 }).superRefine((data, ctx) => {
-    if (data.isNewClient) {
-        if (!data.nombreFiscal?.trim()) ctx.addIssue({ path: ["nombreFiscal"], message: "Nombre fiscal es obligatorio." });
-        
-        if (!data.cif?.trim()) {
-            ctx.addIssue({ path: ["cif"], message: "CIF es obligatorio." });
-        } else {
-            const cifRegex = /^([A-Z]{1}|[0-9]{1})[0-9]{7}[A-Z0-9]{1}$/i;
-            if (!cifRegex.test(data.cif)) {
-                ctx.addIssue({ path: ["cif"], message: "Formato de CIF/NIF no válido." });
-            }
+    // Both 'directa' and 'deposito' types require a batchId as the product is leaving our warehouse.
+    data.items.forEach((item, index) => {
+        if (!item.batchId) {
+            ctx.addIssue({
+                path: [`items.${index}.batchId`],
+                message: "El lote es obligatorio para cualquier salida de producto.",
+            });
         }
+    });
 
-        if (!data.direccionFiscal_street?.trim()) ctx.addIssue({ path: ["direccionFiscal_street"], message: "Calle fiscal es obligatoria." });
-        if (!data.direccionFiscal_city?.trim()) ctx.addIssue({ path: ["direccionFiscal_city"], message: "Ciudad fiscal es obligatoria." });
-        if (!data.direccionFiscal_province?.trim()) ctx.addIssue({ path: ["direccionFiscal_province"], message: "Provincia fiscal es obligatoria." });
-        if (!data.direccionFiscal_postalCode?.trim()) ctx.addIssue({ path: ["direccionFiscal_postalCode"], message: "Código postal fiscal es obligatorio." });
-        
-        if (!data.sameAsBilling) {
-          if (!data.direccionEntrega_street?.trim()) ctx.addIssue({ path: ["direccionEntrega_street"], message: "Calle de entrega es obligatoria." });
-          if (!data.direccionEntrega_city?.trim()) ctx.addIssue({ path: ["direccionEntrega_city"], message: "Ciudad de entrega es obligatoria." });
-          if (!data.direccionEntrega_province?.trim()) ctx.addIssue({ path: ["direccionEntrega_province"], message: "Provincia de entrega es obligatoria." });
-          if (!data.direccionEntrega_postalCode?.trim()) ctx.addIssue({ path: ["direccionEntrega_postalCode"], message: "Código postal de entrega es obligatorio." });
-        }
+     if (data.dueDate && data.issueDate > data.dueDate) {
+      ctx.addIssue({
+        path: ["dueDate"],
+        message: "La fecha de vencimiento no puede ser anterior a la de emisión.",
+      });
     }
 });
 
-export type DirectSaleWizardFormValues = z.infer<typeof directSaleWizardSchema>;
+export type GenerateOrderFormValues = z.infer<ReturnType<typeof generateOrderSchema>>;

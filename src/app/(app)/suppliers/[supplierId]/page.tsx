@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { Supplier, Purchase } from "@/types";
+import type { Supplier, Purchase as Expense } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { Edit, ArrowLeft, AlertTriangle, Mail, Phone, FileText, ShoppingCart, Loader2, MapPin, Truck } from "lucide-react";
 import SupplierDialog from "@/components/app/supplier-dialog";
@@ -42,7 +42,7 @@ export default function SupplierDetailPage() {
   const { toast } = useToast();
 
   const [supplier, setSupplier] = React.useState<Supplier | null>(null);
-  const [purchases, setPurchases] = React.useState<Purchase[]>([]);
+  const [purchases, setPurchases] = React.useState<Expense[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSupplierDialogOpen, setIsSupplierDialogOpen] = React.useState(false);
   
@@ -58,15 +58,14 @@ export default function SupplierDetailPage() {
       }
       setIsLoading(true);
       try {
-        const [foundSupplier, allPurchases] = await Promise.all([
+        const [foundSupplier, relatedPurchases] = await Promise.all([
           getSupplierByIdFS(supplierId),
-          getPurchasesFS()
+          getPurchasesFS(supplierId)
         ]);
         
         setSupplier(foundSupplier);
 
         if (foundSupplier) {
-          const relatedPurchases = allPurchases.filter(p => p.supplierId === foundSupplier.id);
           setPurchases(relatedPurchases);
         }
 
@@ -193,20 +192,20 @@ export default function SupplierDetailPage() {
                     <TableHead>Fecha</TableHead>
                     <TableHead>Concepto Principal</TableHead>
                     <TableHead className="text-right">Importe Total</TableHead>
-                    <TableHead className="text-center">Estado</TableHead>
+                    <TableHead className="text-center">Estado Doc.</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {purchases.map(purchase => (
                     <TableRow key={purchase.id}>
-                      <TableCell>{format(parseISO(purchase.orderDate), "dd/MM/yyyy")}</TableCell>
-                      <TableCell>{purchase.items[0]?.description || 'Varios'}</TableCell>
+                      <TableCell>{format(parseISO(purchase.fechaCreacion), "dd/MM/yyyy")}</TableCell>
+                      <TableCell>{purchase.invoiceNumber || 'Gasto General'}</TableCell>
                       <TableCell className="text-right">
-                        <FormattedNumericValue value={purchase.totalAmount} options={{ style: 'currency', currency: 'EUR' }} />
+                        <FormattedNumericValue value={purchase.monto} options={{ style: 'currency', currency: 'EUR' }} />
                       </TableCell>
                       <TableCell className="text-center">
-                        <StatusBadge type="purchase" status={purchase.status} />
+                        <StatusBadge type="document" status={purchase.estadoDocumento} />
                       </TableCell>
                       <TableCell className="text-right">
                          <Button asChild variant="outline" size="sm">

@@ -2,30 +2,25 @@
 "use client";
 
 import * as React from "react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import type { EnrichedAccount, TeamMember, Order, NextActionType, UserRole, OrderStatus, FollowUpResultFormValues, AccountStatus, Interaction, InlineEditorFormValues } from "@/types";
+import type { EnrichedAccount, TeamMember, Order, UserRole, AccountStatus } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { PlusCircle, Loader2, Search, AlertTriangle, ChevronDown, Trash2 } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
 import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
 import { getAccountsFS, addAccountFS, updateAccountFS, deleteAccountFS } from "@/services/account-service";
 import { getOrdersFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { processCarteraData } from "@/services/cartera-service";
-import AccountTableRow from "@/components/app/account-table-row";
-import { startOfDay, endOfDay, isBefore, isEqual, parseISO, isValid, format } from 'date-fns';
-import { db } from "@/lib/firebase";
-import { runTransaction, doc, collection } from "firebase/firestore";
-import FollowUpResultDialog from "@/components/app/follow-up-result-dialog";
+import { AccountTableRow } from "@/components/app/account-table-row";
+import { startOfDay, endOfDay, isBefore, isEqual, parseISO, isValid } from 'date-fns';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import AccountHistoryTable from "@/components/app/account-history-table";
 import { cn } from "@/lib/utils";
-import { saveInteractionFS } from '@/services/interaction-service';
-
 
 type BucketFilter = "Todos" | "Vencidas" | "Para Hoy" | "Pendientes";
 type SortOption = "leadScore_desc" | "nextAction_asc" | "lastInteraction_desc";
@@ -61,8 +56,9 @@ export default function AccountsPage() {
         const [accounts, orders, members] = await Promise.all([
           getAccountsFS(),
           getOrdersFS(),
-          getTeamMembersFS(['SalesRep', 'Admin', 'Clavadista'])
+          getTeamMembersFS(['SalesRep', 'Admin', 'Clavadista', 'Líder Clavadista'])
         ]);
+        
         let processedData = await processCarteraData(accounts, orders, members);
 
         if (userRole === 'Clavadista' && teamMember?.id) {
@@ -140,8 +136,6 @@ export default function AccountsPage() {
                 if (!dateA && !dateB) return 0;
                 if (!dateA) return 1;
                 if (!dateB) return -1;
-                if (!isValid(dateA)) return 1;
-                if (!isValid(dateB)) return -1;
                 return dateB.getTime() - a.getTime();
             }
             case 'leadScore_desc':
@@ -168,13 +162,11 @@ export default function AccountsPage() {
 
   }, [searchTerm, enrichedAccounts, responsibleFilter, bucketFilter, isAdmin, sortOption]);
 
-
   const handleAddNewAccount = () => {
     if (!isAdmin) return;
     setIsAccountDialogOpen(true);
   };
   
-
   const handleSaveNewAccount = async (data: AccountFormValues) => {
     if (!isAdmin) return;
     setIsLoading(true); 
@@ -234,11 +226,6 @@ export default function AccountsPage() {
           <h1 className="text-3xl font-headline font-semibold">Cuentas y Seguimiento</h1>
           <p className="text-muted-foreground">Gestiona tus cuentas, programa visitas y haz seguimiento de tus tareas comerciales.</p>
         </div>
-        {isAdmin && (
-          <Button onClick={handleAddNewAccount} disabled={isLoading}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Añadir Cuenta Manual
-          </Button>
-        )}
       </header>
 
       <Card className="shadow-subtle">
@@ -299,7 +286,7 @@ export default function AccountsPage() {
                             <TableHead className="w-[20%]">Última Interacción</TableHead>
                             <TableHead className="w-[15%]">Próxima Tarea</TableHead>
                             <TableHead className="w-[10%] text-right">Valor Total</TableHead>
-                            <TableHead className="w-[10%] text-center">Prioridad</TableHead>
+                            <TableHead className="w-[10%] text-center">Estado</TableHead>
                             <TableHead className="w-[10%] text-right pr-4">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -323,16 +310,6 @@ export default function AccountsPage() {
           </div>
         </CardContent>
       </Card>
-
-      {isAdmin && (
-        <AccountDialog
-          account={null} 
-          isOpen={isAccountDialogOpen}
-          onOpenChange={setIsAccountDialogOpen}
-          onSave={handleSaveNewAccount}
-          allAccounts={enrichedAccounts} 
-        />
-      )}
       
       {accountToDelete && (
         <AlertDialog open={!!accountToDelete} onOpenChange={(open) => !open && setAccountToDelete(null)}>
@@ -345,9 +322,7 @@ export default function AccountsPage() {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                 <AlertDialogCancel onClick={() => setAccountToDelete(null)}>Cancelar</AlertDialogCancel>
-                <AlertDialogAction asChild>
-                  <Button onClick={confirmDeleteAccount} className={cn(buttonVariants({ variant: "destructive" }))}>Sí, eliminar todo</Button>
-                </AlertDialogAction>
+                <AlertDialogAction onClick={confirmDeleteAccount} variant="destructive">Sí, eliminar todo</AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>

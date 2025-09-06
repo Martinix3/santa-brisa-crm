@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -14,9 +15,10 @@ interface EditorProps {
 export default function Editor({ value, language = 'typescript', onChange, options }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const subscriptionRef = useRef<monaco.IDisposable | null>(null);
 
   useEffect(() => {
-    if (containerRef.current && !editorRef.current) {
+    if (containerRef.current) {
       editorRef.current = monaco.editor.create(containerRef.current, {
         value,
         language,
@@ -27,7 +29,7 @@ export default function Editor({ value, language = 'typescript', onChange, optio
       });
 
       if (onChange) {
-        editorRef.current.onDidChangeModelContent(() => {
+        subscriptionRef.current = editorRef.current.onDidChangeModelContent(() => {
           const currentValue = editorRef.current?.getValue();
           if (currentValue !== undefined) {
             onChange(currentValue);
@@ -36,8 +38,10 @@ export default function Editor({ value, language = 'typescript', onChange, optio
       }
     }
 
-    // Cleanup function to dispose the editor instance
     return () => {
+      if (subscriptionRef.current) {
+        subscriptionRef.current.dispose();
+      }
       if (editorRef.current) {
         editorRef.current.dispose();
         editorRef.current = null;
@@ -46,23 +50,21 @@ export default function Editor({ value, language = 'typescript', onChange, optio
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run only once on mount
 
-  // Update editor value when the prop changes
   useEffect(() => {
     if (editorRef.current) {
       const model = editorRef.current.getModel();
-      if (model && !model.isDisposed() && model.getValue() !== value) {
+      if (model && value !== model.getValue()) {
         editorRef.current.setValue(value);
       }
     }
   }, [value]);
 
-  // Update editor language when the prop changes
   useEffect(() => {
     if (editorRef.current) {
-        const model = editorRef.current.getModel();
-        if(model && !model.isDisposed()) {
-            monaco.editor.setModelLanguage(model, language);
-        }
+      const model = editorRef.current.getModel();
+      if (model) {
+        monaco.editor.setModelLanguage(model, language);
+      }
     }
   }, [language]);
 

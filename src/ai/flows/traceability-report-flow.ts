@@ -182,6 +182,7 @@ const traceabilityFlow = ai.defineFlow(
     // API is disabled
     throw new Error('El servicio de trazabilidad con IA está desactivado.');
 
+    /*
     // --- DATA FETCHING & PREPARATION ---
     const batchDetails = await getBatchDetails(input.batchId);
     if (!batchDetails) throw new Error(`No se encontró ningún lote con el identificador: "${input.batchId}"`);
@@ -293,6 +294,7 @@ const traceabilityFlow = ai.defineFlow(
     const finalHtmlString = compiledPromptTemplate(promptData);
     
     return { html: finalHtmlString };
+    */
   }
 );
 

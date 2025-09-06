@@ -61,6 +61,7 @@ const processInvoiceFlow = ai.defineFlow(
     // API is disabled, return an error immediately.
     throw new Error('El servicio de procesamiento de facturas con IA está desactivado.');
 
+    /*
     if (!GCLOUD_PROJECT || !GCLOUD_LOCATION || !DOCUMENTAI_PROCESSOR_ID) {
       throw new Error('Variables de entorno de Document AI no configuradas en el servidor.');
     }
@@ -131,6 +132,7 @@ const processInvoiceFlow = ai.defineFlow(
         console.error('Error al llamar a Document AI:', err);
         throw new Error(`Error del servidor de Document AI: ${err.message || 'Error desconocido'}`);
     }
+    */
   }
 );
 

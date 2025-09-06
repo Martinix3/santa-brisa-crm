@@ -28,8 +28,8 @@ export async function listProjects(apiKey) {
             const errorMessage = data?.info || error.message;
             throw new Error(`Holded API error ${status}: ${errorMessage}`);
         }
-        // For non-axios errors
-        throw new Error(`An unexpected error occurred: ${error.message}`);
+        const msg = error instanceof Error ? error.message : String(error);
+        throw new Error(`An unexpected error occurred: ${msg}`);
     }
 }
 /**
@@ -58,6 +58,7 @@ export async function createProject(apiKey, projectData) {
             const errorMessage = data?.info || error.message;
             throw new Error(`Holded API error on create ${status}: ${errorMessage}`);
         }
-        throw new Error(`An unexpected error occurred during project creation: ${error.message}`);
+        const msg = error instanceof Error ? error.message : String(error);
+        throw new Error(`An unexpected error occurred during project creation: ${msg}`);
     }
 }

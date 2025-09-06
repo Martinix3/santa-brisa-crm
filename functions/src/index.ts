@@ -1,7 +1,7 @@
 import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
-import { listProjects, createProject } from "./holdedClient";
+import { listProjects, createProject } from "./holdedClient.js";
 import type { Request, Response } from "express";
 
 const HOLDED_API_KEY = defineSecret("HOLDED_API_KEY");
@@ -15,7 +15,7 @@ function setCorsHeaders(res: Response) {
 
 
 // --- PROJECTS ENDPOINT ---
-export const holdedProjects = onRequest(
+export const holdedListProjects = onRequest(
   { region: "europe-west1", secrets: [HOLDED_API_KEY], cors: true },
   async (req: Request, res: Response): Promise<void> => {
     setCorsHeaders(res);

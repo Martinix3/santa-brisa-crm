@@ -29,16 +29,19 @@ export const holdedProjects = onRequest({ region: "europe-west1", secrets: [HOLD
             const projects = await listProjects(apiKey);
             logger.info("Successfully fetched projects from Holded.");
             res.status(200).json({ ok: true, data: projects });
+            return;
         }
         else if (req.method === 'POST') {
             logger.info("Handling POST /holdedProjects");
             const projectData = req.body;
             if (!projectData || !projectData.name) {
-                return res.status(400).json({ ok: false, error: "El nombre del proyecto ('name') es obligatorio." });
+                res.status(400).json({ ok: false, error: "El nombre del proyecto ('name') es obligatorio." });
+                return;
             }
             const newProject = await createProject(apiKey, projectData);
             logger.info(`Successfully created project "${newProject.name}" in Holded.`);
             res.status(201).json({ ok: true, data: newProject });
+            return;
         }
         else {
             res.setHeader('Allow', ['GET', 'POST']);
@@ -46,10 +49,11 @@ export const holdedProjects = onRequest({ region: "europe-west1", secrets: [HOLD
         }
     }
     catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
         logger.error("ERROR during Holded API call:", {
-            errorMessage: e.message,
-            errorStack: e.stack,
+            errorMessage: msg,
+            errorStack: e instanceof Error ? e.stack : undefined,
         });
-        res.status(500).json({ ok: false, error: e.message || "Error al consultar Holded" });
+        res.status(500).json({ ok: false, error: msg || "Error al consultar Holded" });
     }
 });

@@ -1,371 +1,353 @@
-
 "use client";
 
 import * as React from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuCheckboxItem, DropdownMenuContent } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
-import { useToast } from "@/hooks/use-toast";
-import type { Expense, DocumentStatus, PaymentStatus } from "@/types";
+import { useForm, useFieldArray, useWatch } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { useRouter } from "next/navigation";
+import { addDirectSaleFS } from "@/services/venta-directa-sb-service";
+import { getAccountsFS } from "@/services/account-service";
+import { getInventoryItemsFS } from "@/services/inventory-item-service";
+import { getAllBatchesFS } from "@/services/batch-service";
 import { useAuth } from "@/contexts/auth-context";
-import { PlusCircle, MoreHorizontal, Filter, ChevronDown, Trash2, Receipt, Loader2, Sparkles, Edit, PowerOff } from "lucide-react";
-import { PurchaseDialog } from "@/components/app/purchase-dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { format, parseISO } from "date-fns";
-import { es } from 'date-fns/locale';
-import StatusBadge from "@/components/app/status-badge";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-import { getExpensesFS, deleteExpenseFS, deleteExpensesBatchFS } from "@/services/purchase-service";
+import { Loader2, Calendar as CalendarIcon, Briefcase, PlusCircle, Trash2, Check, ChevronsUpDown, CreditCard } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import type { Account, InventoryItem, ItemBatch, OrderType, DirectSaleStatus, AccountType } from "@/types";
+import { NewCustomerDialog } from "@/components/app/new-customer-dialog";
 import { useCategories } from "@/contexts/categories-context";
-import { processInvoiceAction } from '@/services/server/invoice-actions';
+import { generateOrderSchema } from '@/lib/schemas/direct-sale-schema';
+import { paymentMethodList, directSaleStatusList } from '@/lib/data';
 
-const documentStatusList: DocumentStatus[] = ['proforma', 'factura_pendiente', 'factura_recibida', 'factura_validada'];
-const paymentStatusList: PaymentStatus[] = ['pendiente', 'parcial', 'pagado', 'pagado_adelantado'];
+type GenerateOrderFormValues = z.infer<ReturnType<typeof generateOrderSchema>>;
+
+const RELEVANT_ACCOUNT_TYPES: AccountType[] = [
+    'Distribuidor', 
+    'Importador', 
+    'Gran Superficie',
+    'distribuidor_mediano',
+    'distribuidor_grande',
+    'distribuidor_top',
+];
 
 
-export default function PurchasesPage() {
+export default function NewDirectSalePage() {
+  const router = useRouter();
   const { toast } = useToast();
-  const { userRole, teamMember, dataSignature, refreshDataSignature } = useAuth();
-  const { categoriesMap, isLoading: isLoadingCategories } = useCategories();
+  const { teamMember, dataSignature } = useAuth();
+  const { allCategories, isLoading: isLoadingCategories } = useCategories();
 
-  const [expenses, setExpenses] = React.useState<Expense[]>([]);
-  const [isLoadingExpenses, setIsLoadingExpenses] = React.useState(true);
+  const [accounts, setAccounts] = React.useState<Account[]>([]);
+  const [finishedGoods, setFinishedGoods] = React.useState<InventoryItem[]>([]);
+  const [allBatches, setAllBatches] = React.useState<ItemBatch[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [isSaving, setIsSaving] = React.useState(false);
+
+  const [openCustomerPopover, setOpenCustomerPopover] = React.useState(false);
+  const [isNewCustomerDialogOpen, setIsNewCustomerDialogOpen] = React.useState(false);
   
-  const [isPurchaseDialogOpen, setIsPurchaseDialogOpen] = React.useState(false);
-  const [expenseToEdit, setExpenseToEdit] = React.useState<Partial<Expense> | null>(null);
-  const [isProcessingInvoice, setIsProcessingInvoice] = React.useState(false);
-
-  const [expenseToDelete, setExpenseToDelete] = React.useState<Expense | null>(null);
-  const [expensesToDelete, setExpensesToDelete] = React.useState<string[]>([]);
+  const form = useForm<GenerateOrderFormValues>({
+    resolver: zodResolver(generateOrderSchema('directa')), 
+    defaultValues: {
+      customerId: "",
+      issueDate: new Date(),
+      type: 'directa',
+      status: 'borrador',
+      paymentMethod: 'Adelantado',
+      items: [],
+      notes: "",
+    },
+  });
   
-  const [searchTerm, setSearchTerm] = React.useState("");
-  const [docStatusFilter, setDocStatusFilter] = React.useState<DocumentStatus | "Todos">("Todos");
-  const [paymentStatusFilter, setPaymentStatusFilter] = React.useState<PaymentStatus | "Todos">("Todos");
+  const watchedOrderType = useWatch({ control: form.control, name: 'type' });
 
-  const [selectedExpenseIds, setSelectedExpenseIds] = React.useState<string[]>([]);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
-
-  const isAdmin = userRole === 'Admin';
-  const isLoading = isLoadingExpenses || isLoadingCategories;
-  const isAiDisabled = true; // API is disabled
-  
   React.useEffect(() => {
-    async function loadInitialData() {
-        setIsLoadingExpenses(true);
+    form.trigger();
+  }, [watchedOrderType, form]);
+
+
+  React.useEffect(() => {
+    async function loadData() {
+        if (isLoadingCategories) return;
+        setIsLoading(true);
         try {
-            const fetchedExpenses = await getExpensesFS();
-            setExpenses(fetchedExpenses);
-        } catch (error: any) {
-            console.error("Failed to load expenses:", error);
-            toast({ title: "Error", description: "No se pudieron cargar los gastos.", variant: "destructive" });
+            const [fetchedAccounts, fetchedInventoryItems, fetchedBatches] = await Promise.all([
+                getAccountsFS(),
+                getInventoryItemsFS(),
+                getAllBatchesFS(),
+            ]);
+            
+            setAccounts(fetchedAccounts.filter(acc => RELEVANT_ACCOUNT_TYPES.includes(acc.type)));
+            setAllBatches(fetchedBatches);
+            
+            const normalizedTargetName = "producto terminado".normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+            const fgCategory = allCategories.find(c => c.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase() === normalizedTargetName);
+            
+            if (fgCategory) {
+                setFinishedGoods(fetchedInventoryItems.filter(i => i.categoryId === fgCategory.id));
+            } else {
+                toast({ title: "Advertencia de Configuración", description: "No se encontró la categoría 'Producto Terminado' para filtrar los productos.", variant: "destructive" });
+            }
+        } catch (error) {
+            toast({ title: "Error de Carga", description: "No se pudieron cargar los datos necesarios para el formulario.", variant: "destructive" });
         } finally {
-            setIsLoadingExpenses(false);
+            setIsLoading(false);
         }
     }
-    if (isAdmin) {
-        loadInitialData();
-    } else {
-        setIsLoadingExpenses(false);
+    loadData();
+  }, [toast, allCategories, isLoadingCategories, dataSignature]);
+
+
+  const { fields, append, remove, update } = useFieldArray({
+    control: form.control,
+    name: "items",
+  });
+
+  const watchedItems = useWatch({ control: form.control, name: 'items' });
+
+  const { subtotal, tax, totalAmount } = React.useMemo(() => {
+    const currentSubtotal = (watchedItems || []).reduce((sum, item) => {
+        const quantity = Number(item.quantity) || 0;
+        const unitPrice = Number(item.netUnitPrice) || 0;
+        return sum + quantity * unitPrice;
+    }, 0);
+    const currentTax = currentSubtotal * 0.21;
+    const currentTotalAmount = currentSubtotal + currentTax;
+    return { subtotal: currentSubtotal, tax: currentTax, totalAmount: currentTotalAmount };
+  }, [watchedItems]);
+
+  const batchesByProductId = React.useMemo(() => {
+    return allBatches.reduce((acc, batch) => {
+      if (batch.qtyRemaining > 0) {
+        if (!acc[batch.inventoryItemId]) acc[batch.inventoryItemId] = [];
+        acc[batch.inventoryItemId].push(batch);
+      }
+      return acc;
+    }, {} as Record<string, ItemBatch[]>);
+  }, [allBatches]);
+
+  const handleProductChange = (index: number, newProductId: string) => {
+    const product = finishedGoods.find(p => p.id === newProductId);
+    if(product) {
+      update(index, {
+        productId: product.id,
+        batchId: "",
+        quantity: 1,
+        netUnitPrice: 0,
+      });
     }
-  }, [toast, isAdmin, dataSignature]);
-  
-  const handleAddNewExpenseManually = () => {
-    if (!isAdmin) return;
-    setExpenseToEdit(null);
-    setIsPurchaseDialogOpen(true);
-  };
-  
-  const handleEditExpense = (expense: Expense) => {
-    if (!isAdmin) return;
-    setExpenseToEdit(expense);
-    setIsPurchaseDialogOpen(true);
   };
 
-  const handleDeleteSelected = () => {
-    if (!isAdmin || selectedExpenseIds.length === 0) return;
-    setExpensesToDelete(selectedExpenseIds);
+  const onFormError = (errors: any) => {
+    console.error("Validation Errors", errors);
+    toast({
+        title: "Error de Validación",
+        description: "Por favor, revisa los campos marcados en rojo.",
+        variant: "destructive"
+    });
   };
 
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (isAiDisabled) {
-        toast({
-            title: "Función Desactivada",
-            description: "El procesamiento de facturas con IA está desactivado.",
-            variant: "destructive"
+  const onSubmit = async (data: GenerateOrderFormValues) => {
+    setIsSaving(true);
+    try {
+        const customer = accounts.find(acc => acc.id === data.customerId);
+        if(!customer) throw new Error("Cliente no encontrado");
+        
+        const enrichedItems = data.items.map(item => {
+          const product = finishedGoods.find(p => p.id === item.productId);
+          const batch = allBatches.find(b => b.id === item.batchId);
+          return {
+            ...item,
+            productName: product?.name || 'Producto Desconocido',
+            batchNumber: batch?.internalBatchCode || 'Lote Desconocido',
+            total: (item.quantity || 0) * (item.netUnitPrice || 0),
+          };
         });
-        return;
-    }
-    const file = event.target.files?.[0];
-    if (!file) return;
 
-    setIsProcessingInvoice(true);
-    toast({ title: 'Procesando factura...', description: 'La IA está analizando el documento. Esto puede tardar unos segundos.' });
-
-    try {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = async () => {
-            const dataUri = reader.result as string;
-            const result = await processInvoiceAction({ invoiceDataUri: dataUri });
-            
-            const prefilledData: Partial<Expense> = {
-                proveedorNombre: result.supplierName,
-                invoiceNumber: result.invoiceId,
-                monto: result.total,
-                items: result.items?.map(item => ({
-                    productoId: '', 
-                    productoNombre: item.description,
-                    cantidad: item.quantity,
-                    costeUnitario: item.unitPrice,
-                })) as any,
-                gastosEnvio: result.shippingCost,
-                impuestos: result.tax,
-                fechaEmision: result.invoiceDate,
-                fechaVencimiento: result.dueDate,
-            };
-            
-            setExpenseToEdit(prefilledData);
-            setIsPurchaseDialogOpen(true);
-
-            toast({ title: '¡Factura Procesada!', description: 'Revisa y ajusta los datos extraídos por la IA.' });
-        };
-        reader.onerror = (error) => { throw new Error("Error al leer el archivo."); };
+        await addDirectSaleFS({ 
+            ...data, 
+            items: enrichedItems,
+            customerName: customer.nombre, 
+            subtotal, 
+            tax, 
+            totalAmount 
+        });
+        toast({ title: "Pedido Guardado", description: `El pedido para ${customer.nombre} se ha guardado correctamente.`});
+        router.push('/direct-sales-sb');
     } catch (error: any) {
-        console.error('Error processing invoice:', error);
-        toast({ title: 'Error al Procesar Factura', description: error.message, variant: 'destructive' });
+        toast({ title: "Error al Guardar", description: error.message, variant: "destructive" });
     } finally {
-        setIsProcessingInvoice(false);
-        if(fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
-  
-   const confirmDeleteSelectedExpenses = async () => {
-    if (!isAdmin || expensesToDelete.length === 0) return;
-    setIsLoadingExpenses(true);
-    try {
-      await deleteExpensesBatchFS(expensesToDelete);
-      toast({ title: "¡Gastos Eliminados!", description: `${expensesToDelete.length} gastos han sido eliminados.`, variant: "destructive" });
-      refreshDataSignature();
-      setSelectedExpenseIds([]); 
-    } catch (error: any) {
-      toast({ title: "Error al Eliminar", description: error.message, variant: "destructive" });
-    } finally {
-      setIsLoadingExpenses(false);
-      setExpensesToDelete([]);
+        setIsSaving(false);
     }
   };
 
-  const filteredExpenses = expenses
-    .filter(expense =>
-      (expense.proveedorNombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       (expense.invoiceNumber && expense.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
-       (expense.categoria.toLowerCase().includes(searchTerm.toLowerCase())))
-    )
-    .filter(expense => docStatusFilter === "Todos" || expense.estadoDocumento === docStatusFilter)
-    .filter(expense => paymentStatusFilter === "Todos" || expense.estadoPago === paymentStatusFilter);
-    
-  const handleSelectAllChange = (checked: boolean | 'indeterminate') => {
-    if (checked === true) {
-      setSelectedExpenseIds(filteredExpenses.map(p => p.id));
-    } else {
-      setSelectedExpenseIds([]);
-    }
-  };
-
-  const handleRowSelectChange = (expenseId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedExpenseIds(prev => [...prev, expenseId]);
-    } else {
-      setSelectedExpenseIds(prev => prev.filter(id => id !== expenseId));
-    }
-  };
-
-  const headerCheckboxState = React.useMemo(() => {
-    const filteredIds = new Set(filteredExpenses.map(p => p.id));
-    const selectedFilteredIds = selectedExpenseIds.filter(id => filteredIds.has(id));
-
-    if (selectedFilteredIds.length === 0 || filteredExpenses.length === 0) return false;
-    if (selectedFilteredIds.length === filteredExpenses.length) return true;
-    return 'indeterminate' as const;
-  }, [selectedExpenseIds, filteredExpenses]);
-
-
-  if (!isAdmin) {
+  if (isLoading) {
     return (
-      <Card className="shadow-subtle">
-        <CardHeader><CardTitle className="flex items-center">Acceso Denegado</CardTitle></CardHeader>
-        <CardContent><p>No tienes permiso para acceder a esta sección.</p></CardContent>
-      </Card>
+      <div className="flex justify-center items-center h-full">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
     );
   }
-
+  
   return (
-    <div className="space-y-8">
-      <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center space-x-2">
-            <Receipt className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-headline font-semibold">Gestión de Gastos y Compras</h1>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap justify-end">
-            <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,application/pdf" />
-             <Button onClick={() => fileInputRef.current?.click()} disabled={isLoading || isProcessingInvoice || isAiDisabled} variant="secondary" title={isAiDisabled ? "Función desactivada temporalmente" : "Subir factura para procesar con IA"}>
-                {isProcessingInvoice ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : (isAiDisabled ? <PowerOff className="mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />)}
-                Subir Factura (IA)
-            </Button>
-          <Button onClick={handleAddNewExpenseManually} disabled={isLoading || isProcessingInvoice}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Registrar Gasto Manual
-          </Button>
-        </div>
-      </header>
+    <div className="space-y-6">
+        <header className="flex items-center space-x-2">
+            <Briefcase className="h-8 w-8 text-primary" />
+            <h1 className="text-3xl font-headline font-semibold">Generar Pedido</h1>
+        </header>
 
-      <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
-        <CardHeader>
-          <CardTitle>Listado de Gastos Registrados</CardTitle>
-          <CardDescription>Administra las compras, gastos generales, proformas y proyecciones.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
-            <Input
-              placeholder="Buscar por proveedor o N.º Factura..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-sm"
-            />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="w-full sm:w-auto">
-                  <Filter className="mr-2 h-4 w-4" />
-                  Estado Doc: {docStatusFilter} <ChevronDown className="ml-2 h-4 w-4" />
+        <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit, onFormError)}>
+          <Card className="max-w-4xl mx-auto shadow-lg">
+            <CardContent className="p-6 space-y-6">
+                 <FormField
+                    control={form.control}
+                    name="customerId"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                            <FormLabel>Cliente</FormLabel>
+                            <div className="flex gap-2">
+                            <Popover open={openCustomerPopover} onOpenChange={setOpenCustomerPopover}>
+                                <PopoverTrigger asChild>
+                                <FormControl>
+                                    <Button variant="outline" role="combobox" className={cn("w-full justify-between", !field.value && "text-muted-foreground")}>
+                                        {field.value ? accounts.find((acc) => acc.id === field.value)?.nombre : "Seleccionar cliente"}
+                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                </FormControl>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                <Command>
+                                    <CommandInput placeholder="Buscar cliente..." />
+                                    <CommandList>
+                                    <CommandEmpty>No se encontraron clientes.</CommandEmpty>
+                                    <CommandGroup>
+                                        {accounts.map((acc) => (
+                                        <CommandItem value={acc.nombre} key={acc.id} onSelect={() => { form.setValue("customerId", acc.id); setOpenCustomerPopover(false); }}>
+                                            <Check className={cn("mr-2 h-4 w-4", acc.id === field.value ? "opacity-100" : "opacity-0")} />
+                                            {acc.nombre}
+                                        </CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                    </CommandList>
+                                </Command>
+                                </PopoverContent>
+                            </Popover>
+                            <Button type="button" variant="secondary" onClick={() => setIsNewCustomerDialogOpen(true)}>
+                                <PlusCircle className="h-4 w-4" />
+                                <span className="hidden sm:inline ml-2">Nuevo</span>
+                            </Button>
+                            </div>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                    <FormField control={form.control} name="type" render={({ field }) => (<FormItem><FormLabel>Tipo de venta</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar tipo..."/></SelectTrigger></FormControl><SelectContent><SelectItem value="directa">Directa</SelectItem><SelectItem value="deposito">En Depósito</SelectItem></SelectContent></Select><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="issueDate" render={({ field }) => (<FormItem className="flex flex-col"><FormLabel>Fecha Emisión</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus locale={es} /></PopoverContent></Popover><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="dueDate" render={({ field }) => (<FormItem className="flex flex-col"><FormLabel>Fecha Vencimiento</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus locale={es} /></PopoverContent></Popover><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar estado..."/></SelectTrigger></FormControl><SelectContent>{directSaleStatusList.map(s => <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                </div>
+                 <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel className="flex items-center gap-1"><CreditCard className="h-4 w-4"/>Forma de Pago</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar..."/></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(m=>(<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
+
+
+                <div className="space-y-2">
+                    <FormLabel>Productos</FormLabel>
+                    <div className="border rounded-md">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="w-[35%]">Producto</TableHead>
+                                    <TableHead className="w-[25%]">Lote</TableHead>
+                                    <TableHead className="w-[10%]">Cantidad</TableHead>
+                                    <TableHead className="w-[15%]">Precio Neto</TableHead>
+                                    <TableHead className="w-[15%] text-right">Importe</TableHead>
+                                    <TableHead className="w-[5%]"></TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {fields.map((field, index) => (
+                                    <TableRow key={field.id} className="align-top">
+                                        <TableCell className="pt-2 pb-0">
+                                            <FormField control={form.control} name={`items.${index}.productId`} render={({ field: selectField }) => (
+                                                <FormItem><Select onValueChange={(value) => handleProductChange(index, value)} value={selectField.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger></FormControl><SelectContent>{finishedGoods.map(p => (<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>))}</SelectContent></Select><FormMessage className="text-xs mt-1" /></FormItem>
+                                            )} />
+                                        </TableCell>
+                                        <TableCell className="pt-2 pb-0">
+                                            <FormField control={form.control} name={`items.${index}.batchId`} render={({ field: selectField }) => {
+                                                const selectedProductId = form.watch(`items.${index}.productId`);
+                                                const availableBatches = selectedProductId ? (batchesByProductId[selectedProductId] || []) : [];
+                                                return <FormItem><Select onValueChange={selectField.onChange} value={selectField.value ?? ""} disabled={!selectedProductId}><FormControl><SelectTrigger><SelectValue placeholder="Lote..." /></SelectTrigger></FormControl><SelectContent>{availableBatches.map(b => (<SelectItem key={b.id} value={b.id}>{b.internalBatchCode} ({b.qtyRemaining})</SelectItem>))}</SelectContent></Select><FormMessage className="text-xs mt-1" /></FormItem>
+                                            }} />
+                                        </TableCell>
+                                        <TableCell className="pt-2 pb-0">
+                                            <FormField control={form.control} name={`items.${index}.quantity`} render={({ field }) => (
+                                                <FormItem><FormControl><Input type="number" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value)} /></FormControl><FormMessage className="text-xs mt-1" /></FormItem>
+                                            )} />
+                                        </TableCell>
+                                        <TableCell className="pt-2 pb-0">
+                                            <FormField control={form.control} name={`items.${index}.netUnitPrice`} render={({ field }) => (
+                                                <FormItem><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value)} /></FormControl><FormMessage className="text-xs mt-1" /></FormItem>
+                                            )} />
+                                        </TableCell>
+                                        <TableCell className="text-right align-middle pt-4">
+                                            <FormattedNumericValue value={(form.watch(`items.${index}.quantity`) || 0) * (form.watch(`items.${index}.netUnitPrice`) || 0)} options={{ style: 'currency', currency: 'EUR' }} />
+                                        </TableCell>
+                                        <TableCell className="align-middle pt-4">
+                                            <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={() => append({ productId: "", batchId: "", quantity: 1, netUnitPrice: 0 })}><PlusCircle className="mr-2 h-4 w-4"/>Añadir producto</Button>
+                    <FormMessage>{form.formState.errors.items?.root?.message}</FormMessage>
+                </div>
+                
+                 <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+                     <FormField control={form.control} name="notes" render={({ field }) => (<FormItem><FormLabel>Notas</FormLabel><FormControl><Textarea {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                     <div className="p-4 bg-muted/50 rounded-md space-y-2">
+                        <div className="flex justify-between text-sm"><span className="text-muted-foreground">Subtotal:</span><FormattedNumericValue value={subtotal} options={{ style: 'currency', currency: 'EUR' }} /></div>
+                        <div className="flex justify-between text-sm"><span className="text-muted-foreground">IVA (21%):</span><FormattedNumericValue value={tax} options={{ style: 'currency', currency: 'EUR' }} /></div>
+                        <div className="flex justify-between text-lg font-bold"><span className="text-foreground">TOTAL:</span><FormattedNumericValue value={totalAmount} options={{ style: 'currency', currency: 'EUR' }} /></div>
+                    </div>
+                 </div>
+
+
+            </CardContent>
+            <CardFooter className="flex flex-row justify-end gap-2 border-t pt-6">
+                <Button type="button" variant="ghost" onClick={() => router.back()}>Cancelar</Button>
+                <Button type="submit" disabled={isSaving}>
+                    {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Guardando...</> : "Guardar Pedido"}
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                 <DropdownMenuCheckboxItem onSelect={() => setDocStatusFilter("Todos")} checked={docStatusFilter === "Todos"}>Todos</DropdownMenuCheckboxItem>
-                {documentStatusList.map(status => (
-                   <DropdownMenuCheckboxItem key={status} onSelect={() => setDocStatusFilter(status)} checked={docStatusFilter === status}>
-                    {status}
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="w-full sm:w-auto">
-                  <Filter className="mr-2 h-4 w-4" />
-                  Estado Pago: {paymentStatusFilter} <ChevronDown className="ml-2 h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                 <DropdownMenuCheckboxItem onSelect={() => setPaymentStatusFilter("Todos")} checked={paymentStatusFilter === "Todos"}>Todos</DropdownMenuCheckboxItem>
-                {paymentStatusList.map(status => (
-                   <DropdownMenuCheckboxItem key={status} onSelect={() => setPaymentStatusFilter(status)} checked={paymentStatusFilter === status}>
-                    {status}
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            {selectedExpenseIds.length > 0 && (
-                <Button
-                    variant="destructive"
-                    onClick={handleDeleteSelected}
-                    className="ml-auto"
-                >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Eliminar ({selectedExpenseIds.length})
-                </Button>
-            )}
-          </div>
-          {isLoading ? (
-             <div className="flex justify-center items-center h-64">
-              <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              <p className="ml-4 text-muted-foreground">Cargando gastos...</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                     <TableHead className="w-[40px]">
-                        <Checkbox
-                            checked={headerCheckboxState}
-                            onCheckedChange={handleSelectAllChange}
-                            aria-label="Seleccionar todas"
-                        />
-                    </TableHead>
-                    <TableHead>Factura / Concepto</TableHead>
-                    <TableHead>Proveedor</TableHead>
-                    <TableHead>Categoría</TableHead>
-                    <TableHead className="text-right">Importe</TableHead>
-                    <TableHead>Estado Doc.</TableHead>
-                    <TableHead>Estado Pago</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredExpenses.length > 0 ? filteredExpenses.map((expense) => (
-                    <TableRow key={expense.id} data-state={selectedExpenseIds.includes(expense.id) ? "selected" : ""}>
-                       <TableCell>
-                            <Checkbox
-                                checked={selectedExpenseIds.includes(expense.id)}
-                                onCheckedChange={(checked) => handleRowSelectChange(expense.id, !!checked)}
-                                aria-label={`Seleccionar gasto ${expense.id}`}
-                            />
-                        </TableCell>
-                      <TableCell className="font-medium">{expense.invoiceNumber || expense.concepto}</TableCell>
-                      <TableCell>{expense.proveedorNombre || "N/A"}</TableCell>
-                      <TableCell>{categoriesMap.get(expense.categoriaId) || 'Sin Categoría'}</TableCell>
-                      <TableCell className="text-right">
-                        <FormattedNumericValue value={expense.monto} options={{ style: 'currency', currency: 'EUR' }} />
-                      </TableCell>
-                      <TableCell><StatusBadge type="document" status={expense.estadoDocumento} /></TableCell>
-                      <TableCell><StatusBadge type="payment" status={expense.estadoPago} /></TableCell>
-                      <TableCell className="text-right">
-                         <Button variant="outline" size="sm" onClick={() => handleEditExpense(expense)}>
-                            <Edit className="mr-2 h-4 w-4" /> Ver/Editar
-                         </Button>
-                      </TableCell>
-                    </TableRow>
-                  )) : (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center h-24">
-                        No se encontraron gastos que coincidan con tu búsqueda.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-        {!isLoading && filteredExpenses.length > 0 && (
-            <CardFooter>
-                <p className="text-xs text-muted-foreground">Total de gastos mostrados: {filteredExpenses.length} de {expenses.length}</p>
             </CardFooter>
-        )}
-      </Card>
-      
-      <AlertDialog open={expensesToDelete.length > 0} onOpenChange={(open) => !open && setExpensesToDelete([])}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar {expensesToDelete.length} gastos?</AlertDialogTitle>
-            <AlertDialogDescription>
-                Esta acción no se puede deshacer y eliminará permanentemente los gastos seleccionados.
-            </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setExpensesToDelete([])}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteSelectedExpenses} variant="destructive">Sí, eliminar</AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <PurchaseDialog
-          isOpen={isPurchaseDialogOpen}
-          onOpenChange={setIsPurchaseDialogOpen}
-          expense={expenseToEdit}
-      />
+          </Card>
+        </form>
+        </Form>
+        <NewCustomerDialog
+            isOpen={isNewCustomerDialogOpen}
+            onOpenChange={setIsNewCustomerDialogOpen}
+            onCustomerCreated={(newAccount) => {
+                setAccounts(prev => [newAccount, ...prev]);
+                form.setValue("customerId", newAccount.id);
+                setIsNewCustomerDialogOpen(false);
+            }}
+        />
     </div>
   );
 }

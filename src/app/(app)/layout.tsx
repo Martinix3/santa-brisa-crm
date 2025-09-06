@@ -168,7 +168,6 @@ const navigationStructure: NavGroup[] = [
     label: 'CRM y Ventas',
     groupRoles: ['Admin', 'SalesRep', 'Clavadista', 'Líder Clavadista'],
     items: [
-      { href: '/order-form', label: 'Registrar Interacción', icon: FileText, roles: ['Admin', 'SalesRep', 'Clavadista', 'Líder Clavadista'] },
       { href: '/request-sample', label: 'Solicitar Muestras', icon: SendHorizonal, roles: ['Admin', 'SalesRep', 'Clavadista', 'Líder Clavadista'] },
       { href: '/team-tracking', label: 'Equipo de Ventas', icon: Users, roles: ['Admin', 'SalesRep', 'Líder Clavadista'] },
     ],

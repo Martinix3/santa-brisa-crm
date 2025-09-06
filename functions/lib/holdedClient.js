@@ -1,7 +1,14 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.listProjects = listProjects;
+exports.createProject = createProject;
 /**
  * @fileoverview A client for interacting with the Holded API.
  */
-import axios from "axios";
+const axios_1 = __importDefault(require("axios"));
 const HOLDED_API_BASE_URL = "https://api.holded.com/api";
 /**
  * Fetches a list of projects from the Holded API.
@@ -9,10 +16,10 @@ const HOLDED_API_BASE_URL = "https://api.holded.com/api";
  * @returns A promise that resolves to the JSON response from the API.
  * @throws An error if the API call fails.
  */
-export async function listProjects(apiKey) {
+async function listProjects(apiKey) {
     const url = `${HOLDED_API_BASE_URL}/invoicing/v1/projects`;
     try {
-        const response = await axios.get(url, {
+        const response = await axios_1.default.get(url, {
             headers: {
                 "key": apiKey,
                 "Content-Type": "application/json",
@@ -22,7 +29,7 @@ export async function listProjects(apiKey) {
         return response.data;
     }
     catch (error) {
-        if (axios.isAxiosError(error)) {
+        if (axios_1.default.isAxiosError(error)) {
             const status = error.response?.status;
             const data = error.response?.data;
             const errorMessage = data?.info || error.message;
@@ -39,10 +46,10 @@ export async function listProjects(apiKey) {
  * @returns A promise that resolves to the JSON response from the API.
  * @throws An error if the API call fails.
  */
-export async function createProject(apiKey, projectData) {
+async function createProject(apiKey, projectData) {
     const url = `${HOLDED_API_BASE_URL}/invoicing/v1/projects`;
     try {
-        const response = await axios.post(url, projectData, {
+        const response = await axios_1.default.post(url, projectData, {
             headers: {
                 "key": apiKey,
                 "Content-Type": "application/json",
@@ -52,7 +59,7 @@ export async function createProject(apiKey, projectData) {
         return response.data;
     }
     catch (error) {
-        if (axios.isAxiosError(error)) {
+        if (axios_1.default.isAxiosError(error)) {
             const status = error.response?.status;
             const data = error.response?.data;
             const errorMessage = data?.info || error.message;

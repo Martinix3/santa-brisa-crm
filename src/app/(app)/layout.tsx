@@ -39,6 +39,7 @@ import { CategoriesProvider } from '@/contexts/categories-context';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import type { UserRole } from '@/types';
 import { cn } from '@/lib/utils';
+import { Separator } from '@/components/ui/separator';
 
 
 // --- Auth Guard Component ---
@@ -97,7 +98,7 @@ export default function MainAppLayout({ children }: { children: React.ReactNode 
                <GlassWater size={28} />
                <Citrus size={28} />
              </div>
-             <Separator orientation="vertical" className="h-8 mx-2 hidden md:block" />
+             <div className="h-8 w-px bg-primary-foreground/30 mx-2 hidden md:block" />
              <DailyTasksWidget />
              <UserMenu userEmail={user?.email} logout={logout}/>
           </div>
@@ -107,6 +108,7 @@ export default function MainAppLayout({ children }: { children: React.ReactNode 
           <SidebarProvider defaultOpen>
             <Sidebar collapsible="icon" className="sidebar-under-header border-r border-sidebar-border shadow-lg">
               <SidebarContent>
+                <SidebarHeader />
                 <AppNavigation />
               </SidebarContent>
               <SidebarFooter className="p-2">

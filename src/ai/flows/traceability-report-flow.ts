@@ -16,7 +16,7 @@ import type { ItemBatch, StockTxn, ProductionRun, DirectSale, InventoryItem } fr
 import { fromFirestoreItemBatch } from '@/services/utils/firestore-converters';
 import { format, parseISO, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
-import Handlebars from 'handlebars';
+import { formatDDMMYYYY } from '@/lib/coding';
 
 const TraceabilityReportInputSchema = z.object({
   batchId: z.string().describe('The document ID or internal batch code of the batch to trace.'),
@@ -28,108 +28,52 @@ const TraceabilityReportOutputSchema = z.object({
 });
 export type TraceabilityReportOutput = z.infer<typeof TraceabilityReportOutputSchema>;
 
-// Helper to format dates consistently, with a fallback for invalid ones.
-const formatDDMMYYYY = (date: Date | string | null | undefined): string => {
-    if (!date) return 'N/D';
-    const d = typeof date === 'string' ? parseISO(date) : date;
-    if (!isValid(d)) return 'N/D';
-    return format(d, 'dd-MM-yyyy');
-};
+const generateReportHtml = (data: any): string => {
+    const consumptionHtml = data.consumption?.length > 0
+        ? data.consumption.map((c: any) => `
+            <tr>
+                <td style="padding: 8px; border: 1px solid #ccc;">${c.componentName}</td>
+                <td style="text-align: right; padding: 8px; border: 1px solid #ccc;">${c.quantity} ${c.uom}</td>
+                <td style="padding: 8px; border: 1px solid #ccc;">${c.supplierBatchCode}</td>
+            </tr>
+        `).join('')
+        : '<tr><td colspan="3" style="padding: 8px; border: 1px solid #ccc; color: #666;">No se registraron componentes consumidos para esta producción.</td></tr>';
 
-const reportGenerationPromptTemplateHtml = `
+    const salesHtml = data.sales?.length > 0
+        ? data.sales.map((s: any) => `
+            <tr>
+                <td style="padding: 8px; border: 1px solid #ccc;">${s.saleId}</td>
+                <td style="padding: 8px; border: 1px solid #ccc;">${s.customerName}</td>
+                <td style="padding: 8px; border: 1px solid #ccc;">${s.channel}</td>
+                <td style="text-align: right; padding: 8px; border: 1px solid #ccc;">${s.quantity} ${data.uom}</td>
+                <td style="padding: 8px; border: 1px solid #ccc;">${s.date}</td>
+            </tr>
+        `).join('')
+        : '<tr><td colspan="5" style="padding: 8px; border: 1px solid #ccc; color: #666;">No hay movimientos de salida (ventas) registrados para este lote.</td></tr>';
+
+    return `
 <div style="font-family: sans-serif; max-width: 800px; margin: auto; color: #333;">
   <h2 style="border-bottom: 2px solid #eee; padding-bottom: 10px;">Informe de Trazabilidad</h2>
-
   <h3 style="margin-top: 25px;">1. Lote Principal</h3>
-  <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px;">
-    <tbody>
-      <tr style="background-color: #f9f9f9;"><td style="padding: 8px; border: 1px solid #eee; width: 150px;"><strong>Producto:</strong></td><td style="padding: 8px; border: 1px solid #eee;">{{productName}} (SKU: {{productSku}})</td></tr>
-      <tr><td style="padding: 8px; border: 1px solid #eee;"><strong>Lote Interno:</strong></td><td style="padding: 8px; border: 1px solid #eee;">{{internalBatchCode}}</td></tr>
-      <tr style="background-color: #f9f9f9;"><td style="padding: 8px; border: 1px solid #eee;"><strong>Lote Proveedor:</strong></td><td style="padding: 8px; border: 1px solid #eee;">{{supplierBatchCode}}</td></tr>
-      <tr><td style="padding: 8px; border: 1px solid #eee;"><strong>Cantidad Inicial:</strong></td><td style="padding: 8px; border: 1px solid #eee;">{{qtyInitial}} {{uom}}</td></tr>
-      <tr style="background-color: #f9f9f9;"><td style="padding: 8px; border: 1px solid #eee;"><strong>Stock Restante:</strong></td><td style="padding: 8px; border: 1px solid #eee;">{{qtyRemaining}} {{uom}}</td></tr>
-      <tr><td style="padding: 8px; border: 1px solid #eee;"><strong>Fecha de Creación:</strong></td><td style="padding: 8px; border: 1px solid #eee;">{{formattedCreatedAt}}</td></tr>
-      <tr style="background-color: #f9f9f9;"><td style="padding: 8px; border: 1px solid #eee;"><strong>Caducidad:</strong></td><td style="padding: 8px; border: 1px solid #eee;">{{formattedExpiryDate}}</td></tr>
-    </tbody>
-  </table>
-
+  <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px;"><tbody>
+      <tr style="background-color: #f9f9f9;"><td style="padding: 8px; border: 1px solid #eee; width: 150px;"><strong>Producto:</strong></td><td style="padding: 8px; border: 1px solid #eee;">${data.productName} (SKU: ${data.productSku})</td></tr>
+      <tr><td style="padding: 8px; border: 1px solid #eee;"><strong>Lote Interno:</strong></td><td style="padding: 8px; border: 1px solid #eee;">${data.internalBatchCode}</td></tr>
+      <tr style="background-color: #f9f9f9;"><td style="padding: 8px; border: 1px solid #eee;"><strong>Lote Proveedor:</strong></td><td style="padding: 8px; border: 1px solid #eee;">${data.supplierBatchCode}</td></tr>
+      <tr><td style="padding: 8px; border: 1px solid #eee;"><strong>Cantidad Inicial:</strong></td><td style="padding: 8px; border: 1px solid #eee;">${data.qtyInitial} ${data.uom}</td></tr>
+      <tr style="background-color: #f9f9f9;"><td style="padding: 8px; border: 1px solid #eee;"><strong>Stock Restante:</strong></td><td style="padding: 8px; border: 1px solid #eee;">${data.qtyRemaining} ${data.uom}</td></tr>
+      <tr><td style="padding: 8px; border: 1px solid #eee;"><strong>Fecha de Creación:</strong></td><td style="padding: 8px; border: 1px solid #eee;">${data.formattedCreatedAt}</td></tr>
+      <tr style="background-color: #f9f9f9;"><td style="padding: 8px; border: 1px solid #eee;"><strong>Caducidad:</strong></td><td style="padding: 8px; border: 1px solid #eee;">${data.formattedExpiryDate}</td></tr>
+  </tbody></table>
   <h3 style="margin-top: 25px;">2. Origen del Lote (Upstream)</h3>
-  {{#if reception}}
-  <p style="font-weight: bold;">Recepción de Proveedor:</p>
-  <ul style="list-style-type: disc; padding-left: 20px; font-size: 14px;">
-    <li><strong>Compra ID:</strong> {{reception.purchaseId}}</li>
-    <li><strong>Proveedor:</strong> {{reception.supplierName}}</li>
-    <li><strong>Fecha de Recepción:</strong> {{reception.date}}</li>
-  </ul>
-  {{/if}}
-  {{#if production}}
-  <p style="font-weight: bold;">Producción Interna:</p>
-  <ul style="list-style-type: disc; padding-left: 20px; font-size: 14px;">
-    <li><strong>Orden de Producción:</strong> {{production.runId}}</li>
-    <li><strong>Fecha de Producción:</strong> {{production.date}}</li>
-  </ul>
-  {{#if consumption.length}}
-  <h4 style="margin-top: 15px; margin-bottom: 5px;">Componentes Consumidos</h4>
-  <table style="width: 100%; border-collapse: collapse; border: 1px solid #ccc; font-size: 14px; margin-top: 10px;">
-    <thead style="background-color: #f5f5f5;">
-      <tr>
-        <th style="text-align: left; padding: 8px; border: 1px solid #ccc;">Ingrediente</th>
-        <th style="text-align: right; padding: 8px; border: 1px solid #ccc;">Cantidad</th>
-        <th style="text-align: left; padding: 8px; border: 1px solid #ccc;">Lote Proveedor</th>
-      </tr>
-    </thead>
-    <tbody>
-      {{#each consumption}}
-      <tr>
-        <td style="padding: 8px; border: 1px solid #ccc;">{{this.componentName}}</td>
-        <td style="text-align: right; padding: 8px; border: 1px solid #ccc;">{{this.quantity}} {{this.uom}}</td>
-        <td style="padding: 8px; border: 1px solid #ccc;">{{this.supplierBatchCode}}</td>
-      </tr>
-      {{/each}}
-    </tbody>
-  </table>
-  <p style="text-align: right; font-size: 12px; margin-top: 5px;"><strong>Coste total de componentes:</strong> {{totalCostString}}</p>
-  {{else}}
-  <p style="font-size: 14px; color: #666;">No se registraron componentes consumidos para esta producción.</p>
-  {{/if}}
-  {{/if}}
-  {{#unless reception}}
-  {{#unless production}}
-  <p style="font-size: 14px; color: #666;">Origen del lote no especificado o es stock inicial.</p>
-  {{/unless}}
-  {{/unless}}
-
+  ${data.reception ? `<p style="font-weight: bold;">Recepción de Proveedor:</p><ul style="list-style-type: disc; padding-left: 20px; font-size: 14px;"><li><strong>Compra ID:</strong> ${data.reception.purchaseId}</li><li><strong>Proveedor:</strong> ${data.reception.supplierName}</li><li><strong>Fecha de Recepción:</strong> ${data.reception.date}</li></ul>` : ''}
+  ${data.production ? `<p style="font-weight: bold;">Producción Interna:</p><ul style="list-style-type: disc; padding-left: 20px; font-size: 14px;"><li><strong>Orden de Producción:</strong> ${data.production.runId}</li><li><strong>Fecha de Producción:</strong> ${data.production.date}</li></ul>` : ''}
+  ${data.production ? `<h4 style="margin-top: 15px; margin-bottom: 5px;">Componentes Consumidos</h4><table style="width: 100%; border-collapse: collapse; border: 1px solid #ccc; font-size: 14px; margin-top: 10px;"><thead style="background-color: #f5f5f5;"><tr><th style="text-align: left; padding: 8px; border: 1px solid #ccc;">Ingrediente</th><th style="text-align: right; padding: 8px; border: 1px solid #ccc;">Cantidad</th><th style="text-align: left; padding: 8px; border: 1px solid #ccc;">Lote Proveedor</th></tr></thead><tbody>${consumptionHtml}</tbody></table><p style="text-align: right; font-size: 12px; margin-top: 5px;"><strong>Coste total de componentes:</strong> ${data.totalCostString}</p>` : ''}
+  ${!data.reception && !data.production ? '<p style="font-size: 14px; color: #666;">Origen del lote no especificado o es stock inicial.</p>' : ''}
   <h3 style="margin-top: 25px;">3. Destino del Lote (Downstream)</h3>
-  {{#if sales.length}}
-  <h4 style="margin-top: 15px; margin-bottom: 5px;">Ventas Registradas</h4>
-  <table style="width: 100%; border-collapse: collapse; border: 1px solid #ccc; font-size: 14px; margin-top: 10px;">
-    <thead>
-      <tr style="background-color: #f5f5f5;">
-        <th style="text-align: left; padding: 8px; border: 1px solid #ccc;">Documento de Venta</th>
-        <th style="text-align: left; padding: 8px; border: 1px solid #ccc;">Cliente</th>
-        <th style="text-align: left; padding: 8px; border: 1px solid #ccc;">Canal</th>
-        <th style="text-align: right; padding: 8px; border: 1px solid #ccc;">Cantidad</th>
-        <th style="text-align: left; padding: 8px; border: 1px solid #ccc;">Fecha</th>
-      </tr>
-    </thead>
-    <tbody>
-      {{#each sales}}
-      <tr>
-        <td style="padding: 8px; border: 1px solid #ccc;">{{this.saleId}}</td>
-        <td style="padding: 8px; border: 1px solid #ccc;">{{this.customerName}}</td>
-        <td style="padding: 8px; border: 1px solid #ccc;">{{this.channel}}</td>
-        <td style="text-align: right; padding: 8px; border: 1px solid #ccc;">{{this.quantity}} {{../uom}}</td>
-        <td style="padding: 8px; border: 1px solid #ccc;">{{this.date}}</td>
-      </tr>
-      {{/each}}
-    </tbody>
-  </table>
-  <p style="font-size: 14px; margin-top: 10px;"><strong>Total vendido:</strong> {{totalOut}} {{uom}}</p>
-  {{else}}
-  <p style="font-size: 14px; color: #666;">No hay movimientos de salida (ventas) registrados para este lote.</p>
-  {{/if}}
+  ${data.sales?.length > 0 ? `<h4 style="margin-top: 15px; margin-bottom: 5px;">Ventas Registradas</h4><table style="width: 100%; border-collapse: collapse; border: 1px solid #ccc; font-size: 14px; margin-top: 10px;"><thead><tr style="background-color: #f5f5f5;"><th style="text-align: left; padding: 8px; border: 1px solid #ccc;">Documento de Venta</th><th style="text-align: left; padding: 8px; border: 1px solid #ccc;">Cliente</th><th style="text-align: left; padding: 8px; border: 1px solid #ccc;">Canal</th><th style="text-align: right; padding: 8px; border: 1px solid #ccc;">Cantidad</th><th style="text-align: left; padding: 8px; border: 1px solid #ccc;">Fecha</th></tr></thead><tbody>${salesHtml}</tbody></table><p style="font-size: 14px; margin-top: 10px;"><strong>Total vendido:</strong> ${data.totalOut} ${data.uom}</p>` : '<p style="font-size: 14px; color: #666;">No hay movimientos de salida (ventas) registrados para este lote.</p>'}
 </div>
-`;
+    `;
+};
 
 
 async function getBatchDetails(batchIdOrCode: string): Promise<ItemBatch | null> {
@@ -179,8 +123,9 @@ const traceabilityFlow = ai.defineFlow(
   },
   async (input) => {
     // API is disabled
-    // throw new Error('El servicio de trazabilidad con IA está desactivado.');
+    throw new Error('El servicio de trazabilidad con IA está desactivado.');
 
+    /*
     // --- DATA FETCHING & PREPARATION ---
     const batchDetails = await getBatchDetails(input.batchId);
     if (!batchDetails) throw new Error(`No se encontró ningún lote con el identificador: "${input.batchId}"`);
@@ -236,13 +181,13 @@ const traceabilityFlow = ai.defineFlow(
                 promptData.reception = {
                     purchaseId: originTxn.refId,
                     supplierName: originDocData.supplierName || 'Proveedor Desconocido',
-                    date: formatDDMMYYYY(originTxn.date.toDate()),
+                    date: formatDDMMYYYY((originTxn.date as any).toDate()),
                 };
             } else if (originTxn.txnType === 'produccion' && originDocData) {
                  const runData = originDocData as ProductionRun;
                  promptData.production = {
                     runId: originTxn.refId,
-                    date: formatDDMMYYYY(originTxn.date.toDate()),
+                    date: formatDDMMYYYY((originTxn.date as any).toDate()),
                 };
                 
                 if (runData.consumedComponents && runData.consumedComponents.length > 0) {
@@ -276,7 +221,7 @@ const traceabilityFlow = ai.defineFlow(
             if (docSnap && docSnap.exists()) {
                 const sale = docSnap.data() as DirectSale;
                 salesData.push({
-                    date: formatDDMMYYYY(txn.date.toDate()),
+                    date: formatDDMMYYYY((txn.date as any).toDate()),
                     customerName: sale.customerName || 'Cliente Desconocido',
                     saleId: txn.refId || 'N/A',
                     channel: sale.channel || 'N/D',
@@ -288,17 +233,17 @@ const traceabilityFlow = ai.defineFlow(
     promptData.sales = salesData;
     
     // --- RENDER TEMPLATE ---
-    const compiledPromptTemplate = Handlebars.compile(reportGenerationPromptTemplateHtml);
-    const finalHtmlString = compiledPromptTemplate(promptData);
+    const finalHtmlString = generateReportHtml(promptData);
     
     return { html: finalHtmlString };
+    */
   }
 );
 
 
 export async function getTraceabilityReport(input: TraceabilityReportInput): Promise<TraceabilityReportOutput> {
     // API is disabled
-    // throw new Error('El servicio de trazabilidad con IA está desactivado.');
-    const result = await traceabilityFlow(input);
-    return result;
+    throw new Error('El servicio de trazabilidad con IA está desactivado.');
+    // const result = await traceabilityFlow(input);
+    // return result;
 }

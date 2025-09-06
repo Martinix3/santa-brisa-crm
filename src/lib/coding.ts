@@ -1,7 +1,7 @@
 
 'use server';
 
-import { format } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
 import { db } from '@/lib/firebase';
 import { doc, runTransaction } from "firebase/firestore";
 import type { Category } from '@/types';
@@ -118,3 +118,11 @@ export async function generateManualBatchCode(sku: string, date: Date = new Date
     const checksum = generateChecksum(`${yymmdd}${cleanSku}${seqStr}`);
     return `MAN${yymmdd}-${cleanSku}-${seqStr}-${checksum}`;
 }
+
+// Helper to format dates consistently, with a fallback for invalid ones.
+export const formatDDMMYYYY = (date: Date | string | null | undefined): string => {
+    if (!date) return 'N/D';
+    const d = typeof date === 'string' ? parseISO(date) : date;
+    if (!isValid(d)) return 'N/D';
+    return format(d, 'dd-MM-yyyy');
+};

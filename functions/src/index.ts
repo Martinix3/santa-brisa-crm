@@ -1,7 +1,7 @@
 import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
-import { listProjects, createProject } from "./holdedClient.js";
+import { listProjects, createProject } from "./holdedClient";
 import type { Request, Response } from "express";
 
 const HOLDED_API_KEY = defineSecret("HOLDED_API_KEY");
@@ -15,7 +15,7 @@ function setCorsHeaders(res: Response) {
 
 
 // --- PROJECTS ENDPOINT ---
-export const holdedListProjects = onRequest(
+export const holdedProjects = onRequest(
   { region: "europe-west1", secrets: [HOLDED_API_KEY], cors: true },
   async (req: Request, res: Response): Promise<void> => {
     setCorsHeaders(res);
@@ -39,7 +39,6 @@ export const holdedListProjects = onRequest(
           const projects = await listProjects(apiKey);
           logger.info("Successfully fetched projects from Holded.");
           res.status(200).json({ ok: true, data: projects });
-          return;
 
       } else if (req.method === 'POST') {
           logger.info("Handling POST /holdedProjects");
@@ -51,7 +50,6 @@ export const holdedListProjects = onRequest(
           const newProject = await createProject(apiKey, projectData);
           logger.info(`Successfully created project "${newProject.name}" in Holded.`);
           res.status(201).json({ ok: true, data: newProject });
-          return;
       
       } else {
           res.setHeader('Allow', ['GET', 'POST']);

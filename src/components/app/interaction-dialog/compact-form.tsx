@@ -3,13 +3,13 @@
 
 import * as React from 'react';
 import { useFormContext } from 'react-hook-form';
-import { CardContent, CardFooter } from "@/components/ui/card";
 import { FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from "@/components/ui/form";
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowRight } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
-import type { OrderFormValues } from '@/lib/schemas/order-form-schema';
+import type { InteractionFormValues } from '@/lib/schemas/interaction-schema';
+import { DialogFooter } from '@/components/ui/dialog';
 
 interface CompactFormProps {
   onGoOrder: () => void;
@@ -26,7 +26,7 @@ const interactionOutcomes = [
 ];
 
 export function CompactForm({ onGoOrder, onClose, isSubmitting }: CompactFormProps) {
-    const { control, formState, trigger, getValues } = useFormContext<OrderFormValues>();
+    const { control, trigger } = useFormContext<InteractionFormValues>();
 
     const handleContinue = async () => {
         const result = await trigger(["outcome"]);

@@ -2,11 +2,12 @@ import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
 import { listProjects, createProject } from "./holdedClient";
+import type { Request, Response } from "express";
 
 const HOLDED_API_KEY = defineSecret("HOLDED_API_KEY");
 
 // --- UTILITY FOR CORS ---
-function setCorsHeaders(res: any) {
+function setCorsHeaders(res: Response) {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.set("Access-control-allow-headers", "Content-Type, Authorization");
@@ -16,7 +17,7 @@ function setCorsHeaders(res: any) {
 // --- PROJECTS ENDPOINT ---
 export const holdedProjects = onRequest(
   { region: "europe-west1", secrets: [HOLDED_API_KEY], cors: true },
-  async (req, res) => {
+  async (req: Request, res: Response): Promise<void> => {
     setCorsHeaders(res);
     
     // Handle preflight OPTIONS request
@@ -38,28 +39,32 @@ export const holdedProjects = onRequest(
           const projects = await listProjects(apiKey);
           logger.info("Successfully fetched projects from Holded.");
           res.status(200).json({ ok: true, data: projects });
+          return;
 
       } else if (req.method === 'POST') {
           logger.info("Handling POST /holdedProjects");
           const projectData = req.body;
           if (!projectData || !projectData.name) {
-              return res.status(400).json({ ok: false, error: "El nombre del proyecto ('name') es obligatorio." });
+              res.status(400).json({ ok: false, error: "El nombre del proyecto ('name') es obligatorio." });
+              return;
           }
           const newProject = await createProject(apiKey, projectData);
           logger.info(`Successfully created project "${newProject.name}" in Holded.`);
           res.status(201).json({ ok: true, data: newProject });
+          return;
       
       } else {
           res.setHeader('Allow', ['GET', 'POST']);
           res.status(405).end(`Method ${req.method} Not Allowed`);
       }
 
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
       logger.error("ERROR during Holded API call:", {
-        errorMessage: e.message,
-        errorStack: e.stack,
+        errorMessage: msg,
+        errorStack: e instanceof Error ? e.stack : undefined,
       });
-      res.status(500).json({ ok: false, error: e.message || "Error al consultar Holded" });
+      res.status(500).json({ ok: false, error: msg || "Error al consultar Holded" });
     }
   }
 );

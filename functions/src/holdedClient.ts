@@ -22,15 +22,15 @@ export async function listProjects(apiKey: string) {
             timeout: 8000, // 8-second timeout
         });
         return response.data;
-    } catch (error) {
-        if (axios.isAxiosError(error)) {
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
             const status = error.response?.status;
             const data = error.response?.data;
-            const errorMessage = data?.info || error.message;
+            const errorMessage = (data as any)?.info || error.message;
             throw new Error(`Holded API error ${status}: ${errorMessage}`);
         }
-        // For non-axios errors
-        throw new Error(`An unexpected error occurred: ${error.message}`);
+      const msg = error instanceof Error ? error.message : String(error);
+      throw new Error(`An unexpected error occurred: ${msg}`);
     }
 }
 
@@ -53,13 +53,14 @@ export async function createProject(apiKey: string, projectData: { name: string,
             timeout: 8000,
         });
         return response.data;
-    } catch (error) {
+    } catch (error: unknown) {
         if (axios.isAxiosError(error)) {
             const status = error.response?.status;
             const data = error.response?.data;
-            const errorMessage = data?.info || error.message;
+            const errorMessage = (data as any)?.info || error.message;
             throw new Error(`Holded API error on create ${status}: ${errorMessage}`);
         }
-        throw new Error(`An unexpected error occurred during project creation: ${error.message}`);
+        const msg = error instanceof Error ? error.message : String(error);
+        throw new Error(`An unexpected error occurred during project creation: ${msg}`);
     }
 }

@@ -6,109 +6,75 @@
 @layer base {
   :root {
     /* Brand Palette */
-    --sb-primary-50:#FFF7DA;
-    --sb-primary-100:#FDEEA8;
-    --sb-primary-200:#FAE57D;
-    --sb-primary-300:#F9DA64;
-    --sb-primary-400:#F8D459;
-    --sb-primary-500:#F7D15F;
-    --sb-primary-600:#DDB043;
-    --sb-primary-700:#B58D31;
-    --sb-primary-800:#8C6C25;
-    --sb-primary-900:#6B501A;
-
-    --sb-tang-50:#FBE7DB;
-    --sb-tang-100:#F6C4A9;
-    --sb-tang-200:#F1A27E;
-    --sb-tang-300:#EB845C;
-    --sb-tang-400:#E37546;
-    --sb-tang-500:#D7713E;
-    --sb-tang-600:#B85C34;
-    --sb-tang-700:#944A2A;
-    --sb-tang-800:#733A21;
-    --sb-tang-900:#572B19;
-
-    --sb-aqua-50:#EDF8F8;
-    --sb-aqua-100:#D3EFF0;
-    --sb-aqua-200:#BCE7E8;
-    --sb-aqua-300:#A7D8D9;
-    --sb-aqua-400:#8FC6C8;
-    --sb-aqua-500:#76B0B2;
-    --sb-aqua-600:#5E9B9D;
-    --sb-aqua-700:#4D8B8D;
-    --sb-aqua-800:#3E7A7C;
-    --sb-aqua-900:#31696C;
-
-    --sb-teal-50:#E9F0F1;
-    --sb-teal-100:#CAD8D9;
-    --sb-teal-200:#AFC3C4;
-    --sb-teal-300:#97B0B1;
-    --sb-teal-400:#7E9B9D;
-    --sb-teal-500:#6F9394;
-    --sb-teal-600:#618E8F;
-    --sb-teal-700:#4F7576;
-    --sb-teal-800:#405D5E;
-    --sb-teal-900:#314648;
-
-    /* Neutrals */
+    --sb-primary-500:#F7D15F; /* Main Yellow */
+    --sb-tang-500:#D7713E;   /* Accent Orange */
+    --sb-aqua-300:#A7D8D9;   /* Accent Aqua */
+    --sb-teal-600:#618E8F;   /* Accent Teal */
     --sb-n-25:#FAFBFC;
-    --sb-n-50:#F4F6F8; /* New Background */
+    --sb-n-50:#F4F6F8;
     --sb-n-100:#E9EDF2;
-    --sb-n-200:#DCE2EA;
-    --sb-n-300:#C7CFDA;
-    --sb-n-400:#A6B2C1;
-    --sb-n-500:#8493A6;
     --sb-n-600:#66778E;
     --sb-n-700:#49576B;
-    --sb-n-800:#2E3947;
     --sb-n-900:#14191F;
-
-    /* Brand semantic colors as HSL for potential use */
-    --brand-success-hsl: 183 31% 43%; /* --sb-teal-700 */
-    --brand-warning-hsl: 42 65% 45%; /* --sb-primary-700 */
-    --brand-danger-hsl: 18 56% 48%; /* --sb-tang-600 */
-    --brand-info-hsl: 182 31% 43%; /* --sb-aqua-700 */
-    --brand-process-hsl: 255 48% 49%; /* A purple placeholder */
-    --brand-neutral-hsl: 215 14% 34%; /* --sb-n-700 */
+    
+    /* Brand semantic colors as HSL */
+    --brand-success-hsl: 183 31% 43%; /* sb-teal-700 */
+    --brand-warning-hsl: 42 65% 45%;  /* sb-primary-700 */
+    --brand-danger-hsl: 18 56% 48%;   /* sb-tang-600 */
+    --brand-info-hsl: 182 31% 43%;    /* sb-aqua-700 */
+    --brand-process-hsl: 255 48% 49%; /* Purple placeholder */
+    --brand-neutral-hsl: 215 14% 34%; /* sb-n-700 */
     --brand-turquoise-hsl: 182 31% 43%;
     --brand-yellow-hsl: 46 93% 66%;
     --brand-purple-hsl: 255 48% 49%;
     --brand-blue-hsl: 215 80% 55%;
 
-    /* Colores del sistema (shadcn) mapeados a tu paleta */
-    --background: 216 17% 95%;           /* #F4F6F8 */
-    --foreground: 210 17% 15%;           /* ≈ #14191F */
+    /* Radios */
+    --sb-radius-sm: 4px;
+    --sb-radius-md: 8px;
+    --sb-radius-lg: 12px;
+    --sb-radius-2xl: 16px;
+
+    /* Sombras */
+    --sb-shadow-xs: 0 1px 2px rgba(9,11,15,.06);
+    --sb-shadow-sm: 0 2px 8px rgba(9,11,15,.08);
+    --sb-shadow-md: 0 6px 20px rgba(9,11,15,.12);
+    --sb-shadow-lg: 0 16px 40px rgba(9,11,15,.16);
+
+    /* --- Shadcn UI Theme Mapping --- */
+    --background: 180 25% 95%;          /* #EDF8F8 (New Aqua Light) */
+    --foreground: 215 14% 34%;          /* --sb-n-700 */
 
     --card: 0 0% 100%;                   /* Pure white */
-    --card-foreground: 210 17% 15%;      /* Dark text for white card */
+    --card-foreground: 215 14% 34%;      
 
     --popover: 0 0% 100%;
-    --popover-foreground: 210 17% 15%;
+    --popover-foreground: 215 14% 34%;
 
-    --primary: 46 93% 66%;               /* ≈ #F7D15F (Amarillo SB) */
+    --primary: 46 93% 66%;               /* --sb-primary-500 */
     --primary-foreground: 210 17% 15%;
 
-    --secondary: 184 18% 47%;            /* ≈ #618E8F */
-    --secondary-foreground: 210 20% 98%;
+    --secondary: 184 18% 47%;            /* --sb-teal-600 */
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 216 17% 95%;                /* ≈ #F4F6F8 */
-    --muted-foreground: 214 11% 41%;     /* ≈ #66778E */
+    --muted: 216 17% 95%;                /* --sb-n-50 */
+    --muted-foreground: 214 11% 41%;     /* --sb-n-600 */
 
-    --accent: 184 25% 95%;               /* ≈ #E9F0F1 */
-    --accent-foreground: 184 22% 31%;    /* ≈ #405D5E */
+    --accent: 184 25% 95%;               /* --sb-teal-50 */
+    --accent-foreground: 184 22% 31%;    
 
-    --destructive: 18 56% 48%;           /* ≈ #B85C34 */
-    --destructive-foreground: 210 20% 98%;
+    --destructive: 18 56% 48%;           /* --sb-tang-600 */
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 216 17% 91%;               /* Subtle border: #E9EDF2 */
+    --border: 216 17% 91%;               /* --sb-n-100 */
     --input: 216 17% 91%;
-    --ring: 184 18% 47%;                 /* foco en teal SB */
+    --ring: 184 18% 47%;                 
 
-    --radius: 0.5rem; /* Subtle rounded corners */
+    --radius: 0.5rem; 
   }
 
   .dark {
-    /* Keeping dark mode for consistency, though not the primary focus now */
+    /* Dark mode remains unchanged for now */
     --background: 210 17% 15%;
     --foreground: 210 20% 98%;
     --card: 210 17% 15%;
@@ -128,11 +94,8 @@
     --border: 214 11% 25%;
     --input: 214 11% 25%;
     --ring: 46 93% 66%;
-    --radius: 0.5rem;
   }
-}
 
-@layer base {
   * {
     @apply border-border;
   }

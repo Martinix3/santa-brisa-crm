@@ -4,16 +4,15 @@
 import * as React from "react";
 import { TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { format, parseISO, isValid } from "date-fns";
+import { format, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
 import StatusBadge from "@/components/app/status-badge";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-import { ChevronDown, MoreHorizontal, FileText, Send, Eye, Trash2, Edit } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import type { EnrichedAccount, TeamMember } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
 import Link from 'next/link';
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { InteractionDialog } from "./interaction-dialog"; 
 
@@ -38,10 +37,10 @@ export function AccountTableRow({ account, allTeamMembers, onResponsibleUpdate, 
     }, [allTeamMembers]);
     
     const nextActionDate = account.nextInteraction?.status === 'Programada'
-        ? (account.nextInteraction.visitDate ? parseISO(account.nextInteraction.visitDate) : null)
-        : (account.nextInteraction?.nextActionDate ? parseISO(account.nextInteraction.nextActionDate) : null);
+        ? (account.nextInteraction.visitDate ? new Date(account.nextInteraction.visitDate) : null)
+        : (account.nextInteraction?.nextActionDate ? new Date(account.nextInteraction.nextActionDate) : null);
     
-    const lastInteractionDate = account.lastInteractionDate ? parseISO(account.lastInteractionDate as unknown as string) : null;
+    const lastInteractionDate = account.lastInteractionDate ? new Date(account.lastInteractionDate) : null;
     
     const handleOpenDialog = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -99,7 +98,7 @@ export function AccountTableRow({ account, allTeamMembers, onResponsibleUpdate, 
                 open={isInteractionDialogOpen}
                 onOpenChange={setIsInteractionDialogOpen}
                 client={account}
-                originatingTask={account.nextInteraction}
+                originatingTask={account.nextInteraction || null}
             />
         </>
     );

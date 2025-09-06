@@ -1,6 +1,4 @@
 
-'use server';
-
 import { format, parseISO, isValid } from 'date-fns';
 import { db } from '@/lib/firebase';
 import { doc, runTransaction } from "firebase/firestore";

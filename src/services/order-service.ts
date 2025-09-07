@@ -1,4 +1,5 @@
 
+
 "use client"; // This service is used by client components, so it must be marked as client-compatible.
 
 import { db } from '@/lib/firebase';
@@ -83,14 +84,14 @@ export const getInteractionsForAccountFS = async (accountId: string, accountName
     
     // Create queries for both accountId and clientName if they exist
     const queries = [];
-    if(accountId) {
-        queries.push(query(collection(db, ORDERS_COLLECTION), where("accountId", "==", accountId)));
+    if (accountId) {
+      queries.push(query(collection(db, ORDERS_COLLECTION), where("accountId", "==", accountId)));
     }
-    if(accountName) {
-        queries.push(query(collection(db, ORDERS_COLLECTION), where("clientName", "==", accountName)));
+    if (accountName) {
+      queries.push(query(collection(db, ORDERS_COLLECTION), where("clientName", "==", accountName)));
     }
 
-    if(queries.length === 0) return [];
+    if (queries.length === 0) return [];
 
     const snapshots = await Promise.all(queries.map(q => getDocs(q)));
 

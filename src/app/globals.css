@@ -4,67 +4,63 @@
 
 @layer base {
   :root {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 45 93% 58%; /* Amarillo Santa Brisa */
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 181 33% 76%; /* Teal Light */
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 12 62% 54%; /* Naranja Atardecer */
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 54.9%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 45 93% 58%; /* Amarillo Santa Brisa para focus */
-    --radius: 0.5rem;
-
-    /* Tokens de Marca Personalizados (HSL) */
+    /* Base Colors from Brand Guide */
     --brand-black-hsl: 0 0% 10%;
     --brand-yellow-hsl: 45 93% 58%;
     --brand-orange-hsl: 20 65% 55%;
-    --brand-turquoise-hsl: 181 33% 76%; /* Teal Light */
+    --brand-teal-light-hsl: 181 33% 76%;
     --brand-teal-dark-hsl: 181 19% 47%;
+    --brand-white-hsl: 0 0% 100%;
+    --brand-off-white-hsl: 0 0% 97.6%;
+    --brand-gray-hsl: 0 0% 91.8%;
+
+    /* ShadCN UI Theme Variables (Light Theme) */
+    --background: var(--brand-off-white-hsl);
+    --foreground: var(--brand-black-hsl);
+    
+    --card: var(--brand-white-hsl);
+    --card-foreground: var(--brand-black-hsl);
+
+    --popover: var(--brand-white-hsl);
+    --popover-foreground: var(--brand-black-hsl);
+
+    --primary: var(--brand-yellow-hsl);
+    --primary-foreground: var(--brand-black-hsl);
+    
+    --secondary: var(--brand-teal-dark-hsl);
+    --secondary-foreground: var(--brand-white-hsl);
+
+    --accent: var(--brand-teal-light-hsl);
+    --accent-foreground: var(--brand-black-hsl);
+
+    --muted: var(--brand-gray-hsl);
+    --muted-foreground: 0 0% 40%;
+    
+    --destructive: var(--brand-orange-hsl);
+    --destructive-foreground: var(--brand-white-hsl);
+
+    --border: var(--brand-gray-hsl);
+    --input: var(--brand-gray-hsl);
+    --ring: var(--brand-yellow-hsl);
+
+    --radius: 0.75rem;
+
+    /* Additional Custom Tokens for more specific cases */
     --brand-purple-hsl: 262 49% 60%;
     --brand-blue-hsl: 215 70% 60%;
-    --brand-success-hsl: 142 71% 45%; /* Verde para éxito */
-    --brand-danger-hsl: 0 84% 60%; /* Rojo para peligro */
-    --brand-neutral-hsl: 210 9% 31%; /* Gris oscuro para neutral */
-    --brand-warning-hsl: 48 96% 53%; /* Amarillo para advertencias */
-    --brand-info-hsl: 198 81% 54%; /* Azul para información */
-    --brand-process-hsl: 262 49% 60%; /* Púrpura para en proceso */
+    --brand-success-hsl: 142 71% 45%; 
+    --brand-danger-hsl: 0 84% 60%; 
+    --brand-neutral-hsl: 210 9% 31%;
+    --brand-warning-hsl: 48 96% 53%; 
+    --brand-info-hsl: 198 81% 54%;
+    --brand-process-hsl: 262 49% 60%;
   }
 
-  .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 45 93% 58%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 181 19% 47%; /* Teal Dark */
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 12 62% 54%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 54.9%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 45 93% 58%;
+  * {
+    @apply border-border;
   }
-
   body {
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
   }
 }

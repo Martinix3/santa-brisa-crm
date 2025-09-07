@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body className="font-body antialiased bg-santabrisa-background text-santabrisa-foreground">
+      <body>
         <AuthProvider>
           {children}
           <Toaster />

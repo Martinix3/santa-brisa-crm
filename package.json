@@ -15,7 +15,8 @@
     "seed:accounts": "tsx src/scripts/seed-accounts.ts",
     "migrate:erp": "tsx src/scripts/migrate-erp-data.ts",
     "migrate:categories": "tsx src/scripts/migrate-categories.ts",
-    "assign-distributor": "tsx src/scripts/assign-distributor-to-orders.ts"
+    "assign-distributor": "tsx src/scripts/assign-distributor-to-orders.ts",
+    "migrate:roles": "tsx src/scripts/migrate-team-roles.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",

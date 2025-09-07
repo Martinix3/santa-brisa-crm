@@ -16,33 +16,31 @@ export async function processCarteraData(
     teamMembers: TeamMember[]
 ): Promise<EnrichedAccount[]> {
     const teamMembersMap = new Map(teamMembers.map(tm => [tm.id, tm]));
+    
+    // Fetch direct sales once
     const directSales = await getDirectSalesFS();
 
-    const allInteractions = [...orders, ...directSales.map(ds => ({
-        id: ds.id,
-        accountId: ds.customerId,
-        clientName: ds.customerName,
-        createdAt: ds.issueDate,
-        status: ds.status,
-        value: ds.totalAmount,
-        // Map other relevant fields if necessary, providing defaults
-        visitDate: ds.issueDate,
-        products: ds.items.map(i => i.productName),
-        salesRep: 'Venta Directa',
-        lastUpdated: ds.updatedAt,
-        clientStatus: 'existing',
-        taskCategory: 'Commercial',
-        isCompleted: true,
-    } as Order))];
+    // Unify all interactions into a single structure
+    const allInteractions: (Order | DirectSale & { interactionType: 'directSale' })[] = [
+        ...orders,
+        ...directSales.map(ds => ({
+            ...ds,
+            interactionType: 'directSale' as const,
+            createdAt: ds.issueDate, 
+            clientName: ds.customerName,
+            accountId: ds.customerId,
+            value: ds.totalAmount
+        }))
+    ];
 
-    const interactionsByAccountId = new Map<string, Order[]>();
+    const interactionsByAccountId = new Map<string, (Order | DirectSale)[]>();
     for (const interaction of allInteractions) {
         const interactionDate = interaction.createdAt ? parseISO(interaction.createdAt) : null;
         if (interaction.accountId && interactionDate && isValid(interactionDate)) {
             if (!interactionsByAccountId.has(interaction.accountId)) {
                 interactionsByAccountId.set(interaction.accountId, []);
             }
-            interactionsByAccountId.get(interaction.accountId)!.push(interaction);
+            interactionsByAccountId.get(interaction.accountId)!.push(interaction as Order); // Cast as Order for simplicity in the array
         }
     }
     
@@ -72,10 +70,10 @@ export async function processCarteraData(
         });
         const nextInteraction = openTasks[0] || undefined;
         
-        let status: AccountStatus;
         const historicalStatus = await calculateCommercialStatus(accountInteractions);
         const taskStatus = nextInteraction ? nextInteraction.status as 'Programada' | 'Seguimiento' : null;
-
+        
+        let status: AccountStatus;
         if (historicalStatus === 'Activo' || historicalStatus === 'Repetición' || historicalStatus === 'Inactivo') {
             status = historicalStatus;
         } else if (taskStatus) {

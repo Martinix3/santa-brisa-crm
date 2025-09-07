@@ -96,50 +96,6 @@ export default function AccountsPage() {
     const todayStart = startOfDay(new Date());
     const todayEnd = endOfDay(new Date());
 
-    const applySearchFilter = (acc: EnrichedAccount) => {
-      if (!searchTerm) return true;
-      const lowercasedFilter = searchTerm.toLowerCase();
-      return acc.nombre.toLowerCase().includes(lowercasedFilter) ||
-             (acc.cif && acc.cif.toLowerCase().includes(lowercasedFilter)) ||
-             (acc.responsableName && acc.responsableName.toLowerCase().includes(lowercasedFilter)) ||
-             (acc.ciudad && acc.ciudad.toLowerCase().includes(lowercasedFilter));
-    };
-
-    const applyTypeFilter = (acc: EnrichedAccount) => {
-        if (typeFilter === 'Todos') return true;
-        if (typeFilter === 'Cuentas') return HORECA_RETAIL_TYPES.includes(acc.type);
-        if (typeFilter === 'Distribuidor') return DISTRIBUTOR_TYPES.includes(acc.type);
-        if (typeFilter === 'Importador') return IMPORTER_TYPES.includes(acc.type);
-        if (typeFilter === 'Cliente Final') return FINAL_CUSTOMER_TYPES.includes(acc.type);
-        if (typeFilter === 'Otro') {
-            const allKnownTypes = [...HORECA_RETAIL_TYPES, ...DISTRIBUTOR_TYPES, ...IMPORTER_TYPES, ...FINAL_CUSTOMER_TYPES];
-            return !allKnownTypes.includes(acc.type);
-        }
-        return false;
-    };
-    
-    const applyResponsibleFilter = (acc: EnrichedAccount) => {
-        if (!isAdmin || responsibleFilter === "Todos") return true;
-        if (responsibleFilter === "SinAsignar") return !acc.responsableId;
-        return acc.responsableId === responsibleFilter;
-    };
-
-    const applyBucketFilter = (acc: EnrichedAccount) => {
-        if (bucketFilter === 'Todos') return true;
-        const validStatusesForBucketFilter: AccountStatus[] = ['Programada', 'Seguimiento'];
-        if (!validStatusesForBucketFilter.includes(acc.status)) return false;
-
-        const nextActionDate = acc.nextInteraction?.status === 'Programada'
-            ? (acc.nextInteraction.visitDate ? parseISO(acc.nextInteraction.visitDate) : null)
-            : (acc.nextInteraction?.nextActionDate ? parseISO(acc.nextInteraction.nextActionDate) : null);
-        if (!nextActionDate || !isValid(nextActionDate)) return false;
-
-        if (bucketFilter === 'Vencidas') return isBefore(nextActionDate, todayStart);
-        if (bucketFilter === 'Para Hoy') return isEqual(startOfDay(nextActionDate), todayStart);
-        if (bucketFilter === 'Pendientes') return nextActionDate > todayEnd;
-        return false;
-    };
-
     const sortFunction = (a: EnrichedAccount, b: EnrichedAccount) => {
         switch (sortOption) {
             case 'nextAction_asc': {
@@ -166,27 +122,61 @@ export default function AccountsPage() {
         }
     };
     
-    const baseFiltered = enrichedAccounts
-        .filter(applySearchFilter)
-        .filter(applyTypeFilter)
-        .filter(applyResponsibleFilter)
-        .filter(applyBucketFilter);
-        
+    const filtered = enrichedAccounts
+      .filter(acc => { // Search Filter
+        if (!searchTerm) return true;
+        const lowercasedFilter = searchTerm.toLowerCase();
+        return acc.nombre.toLowerCase().includes(lowercasedFilter) ||
+               (acc.cif && acc.cif.toLowerCase().includes(lowercasedFilter)) ||
+               (acc.responsableName && acc.responsableName.toLowerCase().includes(lowercasedFilter)) ||
+               (acc.ciudad && acc.ciudad.toLowerCase().includes(lowercasedFilter));
+      })
+      .filter(acc => { // Type Filter
+        if (typeFilter === 'Todos') return true;
+        if (typeFilter === 'Cuentas') return HORECA_RETAIL_TYPES.includes(acc.type);
+        if (typeFilter === 'Distribuidor') return DISTRIBUTOR_TYPES.includes(acc.type);
+        if (typeFilter === 'Importador') return IMPORTER_TYPES.includes(acc.type);
+        if (typeFilter === 'Cliente Final') return FINAL_CUSTOMER_TYPES.includes(acc.type);
+        if (typeFilter === 'Otro') {
+            const allKnownTypes = [...HORECA_RETAIL_TYPES, ...DISTRIBUTOR_TYPES, ...IMPORTER_TYPES, ...FINAL_CUSTOMER_TYPES];
+            return !allKnownTypes.includes(acc.type);
+        }
+        return false;
+      })
+      .filter(acc => { // Responsible Filter
+        if (!isAdmin || responsibleFilter === "Todos") return true;
+        if (responsibleFilter === "SinAsignar") return !acc.responsableId;
+        return acc.responsableId === responsibleFilter;
+      })
+      .filter(acc => { // Bucket Filter
+        if (bucketFilter === 'Todos') return true;
+        const validStatusesForBucketFilter: AccountStatus[] = ['Programada', 'Seguimiento'];
+        if (!validStatusesForBucketFilter.includes(acc.status)) return false;
+
+        const nextActionDate = acc.nextInteraction?.status === 'Programada'
+            ? (acc.nextInteraction.visitDate ? parseISO(acc.nextInteraction.visitDate) : null)
+            : (acc.nextInteraction?.nextActionDate ? parseISO(acc.nextInteraction.nextActionDate) : null);
+        if (!nextActionDate || !isValid(nextActionDate)) return false;
+
+        if (bucketFilter === 'Vencidas') return isBefore(nextActionDate, todayStart);
+        if (bucketFilter === 'Para Hoy') return isEqual(startOfDay(nextActionDate), todayStart);
+        if (bucketFilter === 'Pendientes') return nextActionDate > todayEnd;
+        return false;
+      });
+
     const hasActiveOrder = (acc: EnrichedAccount) => ['Activo', 'Repetición'].includes(acc.status);
     const isInactive = (acc: EnrichedAccount) => acc.status === 'Inactivo';
     const isPotential = (acc: EnrichedAccount) => acc.status === 'Seguimiento';
     const isPending = (acc: EnrichedAccount) => acc.status === 'Programada' || acc.status === 'Pendiente';
     const isFailed = (acc: EnrichedAccount) => acc.status === 'Fallido';
 
-
     return {
-      activeAccounts: baseFiltered.filter(acc => hasActiveOrder(acc)).sort(sortFunction),
-      potentialAccounts: baseFiltered.filter(acc => isPotential(acc)).sort(sortFunction),
-      pendingAccounts: baseFiltered.filter(acc => isPending(acc)).sort(sortFunction),
-      failedAccounts: baseFiltered.filter(acc => isFailed(acc)).sort(sortFunction),
-      inactiveAccounts: baseFiltered.filter(acc => isInactive(acc)).sort(sortFunction),
+      activeAccounts: filtered.filter(acc => hasActiveOrder(acc)).sort(sortFunction),
+      potentialAccounts: filtered.filter(acc => isPotential(acc)).sort(sortFunction),
+      pendingAccounts: filtered.filter(acc => isPending(acc)).sort(sortFunction),
+      failedAccounts: filtered.filter(acc => isFailed(acc)).sort(sortFunction),
+      inactiveAccounts: filtered.filter(acc => isInactive(acc)).sort(sortFunction),
     };
-
   }, [searchTerm, typeFilter, enrichedAccounts, responsibleFilter, bucketFilter, isAdmin, sortOption]);
 
   const handleAddNewAccount = () => {

@@ -86,49 +86,27 @@ export default function MainAppLayout({ children }: { children: React.ReactNode 
   return (
     <AuthGuard>
       <CategoriesProvider dataSignature={dataSignature}>
-        <SidebarProvider defaultOpen>
-            <header className="header-full-width z-40 flex h-24 items-center justify-between bg-primary px-4 sm:px-6 text-primary-foreground">
-                <div className="flex items-center gap-4">
-                <div className="md:hidden">
-                    <SidebarTrigger />
-                </div>
-                <Logo className="invert brightness-0" />
-                </div>
-                <div className="flex items-center gap-4">
-                <div className="hidden md:flex items-center gap-3">
-                    <GlassWater size={28} />
-                    <Citrus size={28} />
-                </div>
-                <div className="h-8 w-px bg-primary-foreground/30 mx-2 hidden md:block" />
-                <DailyTasksWidget />
-                <UserMenu userEmail={user?.email} logout={logout}/>
+        <div className="flex min-h-screen w-full flex-col bg-background">
+            <header className="sticky top-0 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6 z-40">
+                <nav className="hidden flex-col gap-6 text-lg font-medium md:flex md:flex-row md:items-center md:gap-5 md:text-sm lg:gap-6">
+                    <Link href="/dashboard" className="flex items-center gap-2 text-lg font-semibold md:text-base">
+                        <Logo className="h-6 w-auto" size={100}/>
+                        <span className="sr-only">Santa Brisa CRM</span>
+                    </Link>
+                </nav>
+                <div className="flex w-full items-center gap-4 md:ml-auto md:gap-2 lg:gap-4">
+                    <div className="ml-auto flex-1 sm:flex-initial">
+                        <DailyTasksWidget/>
+                    </div>
+                     <UserMenu userEmail={user?.email} logout={logout}/>
                 </div>
             </header>
-
-            <div className="flex">
-                <Sidebar collapsible="icon" className="sidebar-under-header border-r border-sidebar-border shadow-lg">
-                    <SidebarContent>
-                    <SidebarHeader />
-                    <AppNavigation />
-                    </SidebarContent>
-                    <SidebarFooter className="p-2">
-                    <SidebarMenu>
-                        <SidebarMenuItem>
-                        <SidebarMenuButton tooltip={{children: "Cerrar Sesión", side: "right"}} className="hover:bg-destructive/20 hover:text-destructive" onClick={logout}>
-                            <LogOut />
-                            <span>Cerrar Sesión</span>
-                        </SidebarMenuButton>
-                        </SidebarMenuItem>
-                    </SidebarMenu>
-                    </SidebarFooter>
-                </Sidebar>
-                <SidebarInset className="main-under-header">
-                    <main className="flex-1 p-4 sm:p-6 overflow-auto">
+             <main className="flex min-h-[calc(100vh_-_theme(spacing.16))] flex-1 flex-col gap-4 bg-muted/40 p-4 md:gap-8 md:p-10">
+                <div className="mx-auto grid w-full max-w-7xl gap-2">
                     {children}
-                    </main>
-                </SidebarInset>
-            </div>
-        </SidebarProvider>
+                </div>
+             </main>
+        </div>
       </CategoriesProvider>
     </AuthGuard>
   );

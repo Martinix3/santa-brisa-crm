@@ -1,160 +1,70 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    /* Brand Palette */
-    --sb-primary-500:#F7D15F; /* Main Yellow */
-    --sb-tang-500:#D7713E;   /* Accent Orange */
-    --sb-aqua-300:#A7D8D9;   /* Accent Aqua */
-    --sb-teal-600:#618E8F;   /* Accent Teal */
-    --sb-n-25:#FAFBFC;
-    --sb-n-50:#F4F6F8;
-    --sb-n-100:#E9EDF2;
-    --sb-n-600:#66778E;
-    --sb-n-700:#49576B;
-    --sb-n-900:#14191F;
-    
-    /* Brand semantic colors as HSL */
-    --brand-success-hsl: 183 31% 43%; /* sb-teal-700 */
-    --brand-warning-hsl: 42 65% 45%;  /* sb-primary-700 */
-    --brand-danger-hsl: 18 56% 48%;   /* sb-tang-600 */
-    --brand-info-hsl: 182 31% 43%;    /* sb-aqua-700 */
-    --brand-process-hsl: 255 48% 49%; /* Purple placeholder */
-    --brand-neutral-hsl: 215 14% 34%; /* sb-n-700 */
-    --brand-turquoise-hsl: 182 31% 43%;
-    --brand-yellow-hsl: 46 93% 66%;
-    --brand-purple-hsl: 255 48% 49%;
-    --brand-blue-hsl: 215 80% 55%;
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 45 93% 58%; /* Amarillo Santa Brisa */
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 181 33% 76%; /* Teal Light */
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 12 62% 54%; /* Naranja Atardecer */
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 54.9%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 45 93% 58%; /* Amarillo Santa Brisa para focus */
+    --radius: 0.5rem;
 
-    /* Radios */
-    --sb-radius-sm: 8px;
-    --sb-radius-md: 12px;
-    --sb-radius-lg: 16px;
-    --sb-radius-2xl: 20px;
-
-    /* Sombras */
-    --sb-shadow-xs: 0 1px 2px rgba(9,11,15,.06);
-    --sb-shadow-sm: 0 2px 8px rgba(9,11,15,.08);
-    --sb-shadow-md: 0 6px 20px rgba(9,11,15,.12);
-    --sb-shadow-lg: 0 16px 40px rgba(9,11,15,.16);
-
-    /* --- Shadcn UI Theme Mapping --- */
-    --background: 216 17% 95%;          /* #F4F6F8 (Light Grey) */
-    --foreground: 215 14% 34%;          /* --sb-n-700 */
-
-    --card: 0 0% 100%;                   /* Pure white */
-    --card-foreground: 215 14% 34%;      
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 215 14% 34%;
-
-    --primary: 46 93% 66%;               /* ≈ #F7D15F (Yellow SB) */
-    --primary-foreground: 210 17% 15%;
-
-    --secondary: 184 18% 47%;             /* Teal for secondary buttons */
-    --secondary-foreground: 0 0% 100%;
-
-    --muted: 216 17% 95%;                /* --sb-n-50 */
-    --muted-foreground: 214 11% 41%;     /* --sb-n-600 */
-
-    --accent: 184 25% 95%;               /* --sb-teal-50 */
-    --accent-foreground: 184 22% 31%;    
-
-    --destructive: 18 56% 48%;           /* --sb-tang-600 */
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 216 17% 91%;               /* --sb-n-100 */
-    --input: 216 17% 91%;
-    --ring: 184 18% 47%;                 
-
-    --radius: 1rem;
+    /* Tokens de Marca Personalizados (HSL) */
+    --brand-black-hsl: 0 0% 10%;
+    --brand-yellow-hsl: 45 93% 58%;
+    --brand-orange-hsl: 20 65% 55%;
+    --brand-turquoise-hsl: 181 33% 76%; /* Teal Light */
+    --brand-teal-dark-hsl: 181 19% 47%;
+    --brand-purple-hsl: 262 49% 60%;
+    --brand-blue-hsl: 215 70% 60%;
+    --brand-success-hsl: 142 71% 45%; /* Verde para éxito */
+    --brand-danger-hsl: 0 84% 60%; /* Rojo para peligro */
+    --brand-neutral-hsl: 210 9% 31%; /* Gris oscuro para neutral */
+    --brand-warning-hsl: 48 96% 53%; /* Amarillo para advertencias */
+    --brand-info-hsl: 198 81% 54%; /* Azul para información */
+    --brand-process-hsl: 262 49% 60%; /* Púrpura para en proceso */
   }
 
   .dark {
-    /* Dark mode remains unchanged for now */
-    --background: 210 17% 15%;
-    --foreground: 210 20% 98%;
-    --card: 210 17% 15%;
-    --card-foreground: 210 20% 98%;
-    --popover: 210 17% 15%;
-    --popover-foreground: 210 20% 98%;
-    --primary: 46 93% 66%;
-    --primary-foreground: 210 17% 15%;
-    --secondary: 184 18% 47%;
-    --secondary-foreground: 210 20% 98%;
-    --muted: 214 11% 25%;
-    --muted-foreground: 214 11% 60%;
-    --accent: 184 22% 21%;
-    --accent-foreground: 210 20% 98%;
-    --destructive: 18 56% 48%;
-    --destructive-foreground: 210 20% 98%;
-    --border: 214 11% 25%;
-    --input: 214 11% 25%;
-    --ring: 46 93% 66%;
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 45 93% 58%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 181 19% 47%; /* Teal Dark */
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 12 62% 54%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 54.9%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 45 93% 58%;
   }
 
-  * {
-    @apply border-border;
-  }
   body {
-    @apply bg-background text-foreground;
-    font-family: 'Inter', sans-serif;
-  }
-}
-
-/* Custom CSS classes for new layout */
-.header-full-width {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 50; /* Ensure it's on top */
-}
-
-.sidebar-under-header {
-  margin-top: 6rem; /* Match header height */
-  height: calc(100vh - 6rem);
-}
-
-.main-under-header {
-  margin-top: 6rem; /* Match header height */
-}
-
-/* Print-specific styles */
-@media print {
-  body, html {
-    background-color: white !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-  .print-hide {
-    display: none !important;
-  }
-  .print-dialog-content {
-    max-width: 100% !important;
-    max-height: none !important;
-    overflow: visible !important;
-    box-shadow: none !important;
-    border: none !important;
-  }
-  .print-hide-in-dialog {
-    display: none !important;
-  }
-  .print-section {
-    page-break-inside: avoid;
-  }
-  
-  /* Shipping label specific styles */
-  .shipping-label-dialog {
-    transform: scale(0.8);
-    transform-origin: top left;
-  }
-
-  @page {
-    size: A4 portrait;
-    margin: 1cm;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
   }
 }

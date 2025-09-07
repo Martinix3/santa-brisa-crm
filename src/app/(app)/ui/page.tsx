@@ -38,8 +38,8 @@ function AgaveEdge(){
   },[]);
   return (
     <svg className="h-3 w-full" viewBox={`0 0 ${cfg.W} ${cfg.H}`} preserveAspectRatio="none" aria-hidden>
-      {cfg.back.map((p,i)=> <polygon key={`b-${i}`} fill="#fff" points={`${p.x},${cfg.H} ${p.x+p.w/2+p.skew},${Math.max(0,cfg.H-p.h)} ${p.x+p.w},${cfg.H}`} />)}
-      {cfg.front.map((p,i)=> <polygon key={`f-${i}`} fill="#fff" points={`${p.x},${cfg.H} ${p.x+p.w/2+p.skew},${Math.max(0,cfg.H-p.h)} ${p.x+p.w},${cfg.H}`} />)}
+      {cfg.back.map((p: any,i: number)=> <polygon key={`b-${i}`} fill="#fff" points={`${p.x},${cfg.H} ${p.x+p.w/2+p.skew},${Math.max(0,cfg.H-p.h)} ${p.x+p.w},${cfg.H}`} />)}
+      {cfg.front.map((p: any,i: number)=> <polygon key={`f-${i}`} fill="#fff" points={`${p.x},${cfg.H} ${p.x+p.w/2+p.skew},${Math.max(0,cfg.H-p.h)} ${p.x+p.w},${cfg.H}`} />)}
     </svg>
   );
 }
@@ -113,104 +113,124 @@ function SearchInput(){
   );
 }
 
+const CustomUiStyles = () => (
+  <style jsx global>{`
+    :root {
+      --sb-primary: #F7D15F;
+      --sb-sec-1: #D7713E;
+      --sb-sec-2: #A7D8D9;
+      --sb-sec-3: #618E8F;
+      --sb-fg-900: #0f172a;
+      --sb-fg-700: #3f4a5a;
+      --sb-fg-600: #525e71;
+      --sb-b-100: #eef1f5;
+      --sb-b-200: #e5e8ee;
+      --sb-b-300: #d8dde6;
+      --sb-white: #ffffff;
+      --sb-water-base: 247,209,95;
+      --sb-radius: 16px;
+      --sb-radius-md: 12px;
+      --sb-radius-lg: 20px;
+      --sb-shadow-sm: 0 1px 2px rgba(15,23,42,.06);
+      --sb-shadow-md: 0 8px 24px rgba(15,23,42,.08);
+    }
+  `}</style>
+);
+
+
 export default function SantaBrisaUIKit(){
-  useEffect(()=>{
-    const r = document.documentElement;
-    r.style.setProperty('--sb-primary','#F7D15F');
-    r.style.setProperty('--sb-sec-1','#D7713E');
-    r.style.setProperty('--sb-sec-2','#A7D8D9');
-    r.style.setProperty('--sb-sec-3','#618E8F');
-  },[]);
-
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header de marca */}
-      <div className="relative border-b border-zinc-200" style={{background: `linear-gradient(90deg, var(--sb-primary) 0, var(--sb-primary) 200px, rgba(247,209,95,0) 450px)`}}>
-        <div className="flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-xl" style={{background:'var(--sb-primary)'}}/>
-            <div className="font-semibold text-zinc-900">Santa Brisa · UI Kit</div>
+    <>
+      <CustomUiStyles />
+      <div className="min-h-screen bg-white">
+        {/* Header de marca */}
+        <div className="relative border-b border-zinc-200" style={{background: `linear-gradient(90deg, var(--sb-primary) 0, var(--sb-primary) 200px, rgba(247,209,95,0) 450px)`}}>
+          <div className="flex items-center justify-between px-4 py-3">
+            <div className="flex items-center gap-2">
+              <div className="h-9 w-9 rounded-xl" style={{background:'var(--sb-primary)'}}/>
+              <div className="font-semibold text-zinc-900">Santa Brisa · UI Kit</div>
+            </div>
+            <div className="text-xs text-zinc-600">Preview</div>
           </div>
-          <div className="text-xs text-zinc-600">Preview</div>
+          <div className="absolute left-0 right-0 -bottom-[1px]"><AgaveEdge/></div>
         </div>
-        <div className="absolute left-0 right-0 -bottom-[1px]"><AgaveEdge/></div>
+
+        <main className="p-4 md:p-6 space-y-6">
+          {/* Tokens */}
+          <section>
+            <div className="text-xs uppercase tracking-wide text-zinc-500 mb-2">Colores de marca</div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[['Primario','var(--sb-primary)'],['Naranja','#D7713E'],['Aqua','#A7D8D9'],['Teal','#618E8F']].map(([name,val])=> (
+                <div key={name} className="rounded-xl border border-zinc-200 overflow-hidden">
+                  <div className="h-16" style={{background: `linear-gradient(180deg, ${val} 0%, ${hexToRgba(String(val),0.85)} 70%, ${hexToRgba(String(val),0.6)} 100%)`}}/>
+                  <div className="px-3 py-2 text-sm flex items-center justify-between"><span>{name}</span><code className="text-xs text-zinc-500">{String(val)}</code></div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Componentes base */}
+          <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <SBCard title="Botones">
+              <div className="flex flex-wrap items-center gap-2">
+                <SBButton>Primario</SBButton>
+                <SBButton variant="outline">Outline</SBButton>
+                <SBButton variant="subtle">Subtle</SBButton>
+                <button className="px-3 py-2 rounded-lg text-sm bg-[var(--sb-sec-1)] text-white hover:brightness-95">Secundario</button>
+              </div>
+            </SBCard>
+
+            <SBCard title="Inputs">
+              <div className="space-y-3">
+                <SearchInput/>
+                <div className="flex items-center gap-2">
+                  <select className="px-3 py-2 rounded-lg text-sm border border-zinc-300 bg-white">
+                    <option>Seleccione</option>
+                    <option>Opción A</option>
+                  </select>
+                  <button className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-zinc-300 bg-white"><Calendar className="h-4 w-4"/>Fecha</button>
+                  <button className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm border border-zinc-300 bg-white">Filtro<ChevronDown className="h-4 w-4"/></button>
+                </div>
+              </div>
+            </SBCard>
+
+            <SBCard title="Chips / Estado">
+              <div className="flex flex-wrap gap-2">
+                <AgaveChip color="#D7713E" text="Ventas" icon={icons.ventas}/>
+                <AgaveChip color="#A7D8D9" text="Marketing" icon={icons.marketing}/>
+                <AgaveChip color="#618E8F" text="Administración" icon={icons.administracion}/>
+                <AgaveChip color="#F7D15F" text="Personal" icon={icons.personal}/>
+              </div>
+            </SBCard>
+
+            <SBCard title="Tabla / Lista">
+              <SampleTable/>
+            </SBCard>
+          </section>
+
+          {/* Piezas de identidad */}
+          <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <SBCard title="Card con cabecera agua">
+              <div className="text-sm text-zinc-700">Cabecera con reflejo de agua irregular, centro claro y bordes activos.</div>
+            </SBCard>
+            <SBCard title="CTA estilo sello">
+              <button className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--sb-primary)] text-zinc-900 shadow-sm hover:brightness-95"><Sparkles className="h-4 w-4"/>Acción principal</button>
+            </SBCard>
+          </section>
+
+          {/* Mini calendario sample */}
+          <section>
+            <SBCard title="Leyenda Agenda (chips agave)">
+              <div className="flex flex-wrap gap-2">
+                <AgaveChip color="#D7713E" text="Ventas" icon={icons.ventas}/>
+                <AgaveChip color="#A7D8D9" text="Marketing" icon={icons.marketing}/>
+                <AgaveChip color="#618E8F" text="Administración" icon={icons.administracion}/>
+                <AgaveChip color="#F7D15F" text="Personal" icon={icons.personal}/>
+              </div>
+            </SBCard>
+          </section>
+        </main>
       </div>
-
-      <main className="p-4 md:p-6 space-y-6">
-        {/* Tokens */}
-        <section>
-          <div className="text-xs uppercase tracking-wide text-zinc-500 mb-2">Colores de marca</div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[['Primario','var(--sb-primary)'],['Naranja','#D7713E'],['Aqua','#A7D8D9'],['Teal','#618E8F']].map(([name,val])=> (
-              <div key={name} className="rounded-xl border border-zinc-200 overflow-hidden">
-                <div className="h-16" style={{background: `linear-gradient(180deg, ${val} 0%, ${hexToRgba(String(val),0.85)} 70%, ${hexToRgba(String(val),0.6)} 100%)`}}/>
-                <div className="px-3 py-2 text-sm flex items-center justify-between"><span>{name}</span><code className="text-xs text-zinc-500">{String(val)}</code></div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Componentes base */}
-        <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <SBCard title="Botones">
-            <div className="flex flex-wrap items-center gap-2">
-              <SBButton>Primario</SBButton>
-              <SBButton variant="outline">Outline</SBButton>
-              <SBButton variant="subtle">Subtle</SBButton>
-              <button className="px-3 py-2 rounded-lg text-sm bg-[var(--sb-sec-1)] text-white hover:brightness-95">Secundario</button>
-            </div>
-          </SBCard>
-
-          <SBCard title="Inputs">
-            <div className="space-y-3">
-              <SearchInput/>
-              <div className="flex items-center gap-2">
-                <select className="px-3 py-2 rounded-lg text-sm border border-zinc-300 bg-white">
-                  <option>Seleccione</option>
-                  <option>Opción A</option>
-                </select>
-                <button className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-zinc-300 bg-white"><Calendar className="h-4 w-4"/>Fecha</button>
-                <button className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm border border-zinc-300 bg-white">Filtro<ChevronDown className="h-4 w-4"/></button>
-              </div>
-            </div>
-          </SBCard>
-
-          <SBCard title="Chips / Estado">
-            <div className="flex flex-wrap gap-2">
-              <AgaveChip color="#D7713E" text="Ventas" icon={icons.ventas}/>
-              <AgaveChip color="#A7D8D9" text="Marketing" icon={icons.marketing}/>
-              <AgaveChip color="#618E8F" text="Administración" icon={icons.administracion}/>
-              <AgaveChip color="#F7D15F" text="Personal" icon={icons.personal}/>
-            </div>
-          </SBCard>
-
-          <SBCard title="Tabla / Lista">
-            <SampleTable/>
-          </SBCard>
-        </section>
-
-        {/* Piezas de identidad */}
-        <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <SBCard title="Card con cabecera agua">
-            <div className="text-sm text-zinc-700">Cabecera con reflejo de agua irregular, centro claro y bordes activos.</div>
-          </SBCard>
-          <SBCard title="CTA estilo sello">
-            <button className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--sb-primary)] text-zinc-900 shadow-sm hover:brightness-95"><Sparkles className="h-4 w-4"/>Acción principal</button>
-          </SBCard>
-        </section>
-
-        {/* Mini calendario sample */}
-        <section>
-          <SBCard title="Leyenda Agenda (chips agave)">
-            <div className="flex flex-wrap gap-2">
-              <AgaveChip color="#D7713E" text="Ventas" icon={icons.ventas}/>
-              <AgaveChip color="#A7D8D9" text="Marketing" icon={icons.marketing}/>
-              <AgaveChip color="#618E8F" text="Administración" icon={icons.administracion}/>
-              <AgaveChip color="#F7D15F" text="Personal" icon={icons.personal}/>
-            </div>
-          </SBCard>
-        </section>
-      </main>
-    </div>
+    </>
   );
 }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from "@/contexts/auth-context";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "CRM de Santa Brisa",
@@ -19,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body>
+      <body className={cn("min-h-screen bg-background font-sans antialiased")}>
         <AuthProvider>
           {children}
           <Toaster />

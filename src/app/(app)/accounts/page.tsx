@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -27,10 +26,6 @@ import StatusBadge from "@/components/app/status-badge";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import AccountHistoryTable from "@/components/app/account-history-table";
 import { InteractionDialog } from "@/components/app/interaction-dialog";
-
-type BucketFilter = "Todos" | "Vencidas" | "Para Hoy" | "Pendientes";
-type SortOption = "leadScore_desc" | "nextAction_asc" | "lastInteraction_desc";
-type AccountTypeFilter = 'Todos' | 'Cuentas' | 'Cliente Final' | 'Distribuidor' | 'Importador' | 'Otro';
 
 const HORECA_RETAIL_TYPES: AccountType[] = ['HORECA', 'Retail Minorista', 'Gran Superficie'];
 const DISTRIBUTOR_TYPES: AccountType[] = ['Distribuidor'];
@@ -396,3 +391,7 @@ export default function AccountsPage() {
     </div>
   );
 }
+
+type BucketFilter = "Todos" | "Vencidas" | "Para Hoy" | "Pendientes";
+type SortOption = "leadScore_desc" | "nextAction_asc" | "lastInteraction_desc";
+type AccountTypeFilter = 'Todos' | 'Cuentas' | 'Cliente Final' | 'Distribuidor' | 'Importador' | 'Otro';

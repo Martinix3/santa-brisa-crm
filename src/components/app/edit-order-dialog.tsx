@@ -52,7 +52,7 @@ const NO_CLAVADISTA_VALUE = "##NONE##";
 
 const editOrderFormSchema = z.object({
   clientName: z.string().optional(),
-  products: z.string().optional(),
+  products: z.array(z.string()).optional(),
   value: z.coerce.number({ invalid_type_error: "Debe ser un número" }).positive("El valor debe ser positivo.").optional().nullable(),
   status: z.enum(orderStatusesList as [OrderStatus, ...OrderStatus[]]),
   salesRep: z.string().optional(),
@@ -130,7 +130,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     resolver: zodResolver(editOrderFormSchema),
     mode: "onChange",
     defaultValues: {
-      clientName: "", products: "", value: undefined, status: "Pendiente", salesRep: "",
+      clientName: "", products: [], value: undefined, status: "Pendiente", salesRep: "",
       clavadistaId: NO_CLAVADISTA_VALUE, canalOrigenColocacion: undefined, paymentMethod: undefined,
       invoiceUrl: "", invoiceFileName: "",
       assignedMaterials: [], clientType: undefined,
@@ -185,7 +185,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     if (isOpen && order) {
         form.reset({
             clientName: order.clientName || "",
-            products: Array.isArray(order.products) ? order.products.join(', ') : "",
+            products: Array.isArray(order.products) ? order.products : [],
             value: order.value ?? undefined,
             status: order.status,
             salesRep: order.salesRep || "",
@@ -215,7 +215,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     
     if (shouldClearProductFields) {
       if (form.getValues('clientType') !== undefined) { form.setValue('clientType', undefined, { shouldDirty: true }); }
-      if (form.getValues('products') !== undefined && form.getValues('products') !== "") { form.setValue('products', "", { shouldDirty: true }); }
+      if (form.getValues('products') !== undefined && form.getValues('products')?.length > 0) { form.setValue('products', [], { shouldDirty: true }); }
       if (form.getValues('numberOfUnits') !== undefined) { form.setValue('numberOfUnits', undefined, { shouldDirty: true }); }
       if (form.getValues('unitPrice') !== undefined) { form.setValue('unitPrice', undefined, { shouldDirty: true }); }
       if (form.getValues('paymentMethod') !== undefined) { form.setValue('paymentMethod', undefined, { shouldDirty: true }); }
@@ -408,7 +408,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
             {(!['Seguimiento', 'Fallido', 'Programada'].includes(currentStatus)) ? (
               <>
                 <FormField control={form.control} name="clientType" render={({ field }) => (<FormItem><FormLabel>Tipo de Cliente</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={productRelatedFieldsDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione tipo cliente" /></SelectTrigger></FormControl><SelectContent>{clientTypeList.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="products" render={({ field }) => (<FormItem><FormLabel>Productos Pedidos</FormLabel><FormControl><Textarea placeholder="Listar productos y cantidades..." className="min-h-[80px]" {...field} disabled={productRelatedFieldsDisabled} /></FormControl><FormDescription>Separe múltiples productos con comas, punto y coma o saltos de línea.</FormDescription><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="products" render={({ field }) => (<FormItem><FormLabel>Productos Pedidos</FormLabel><FormControl><Textarea placeholder="Listar productos y cantidades..." className="min-h-[80px]" {...field} value={Array.isArray(field.value) ? field.value.join(', ') : ''} onChange={(e) => field.onChange(e.target.value.split(',').map(p => p.trim()))} disabled={productRelatedFieldsDisabled} /></FormControl><FormDescription>Separe múltiples productos con comas.</FormDescription><FormMessage /></FormItem>)}/>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Nº Unidades Totales</FormLabel><FormControl><Input type="number" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
                     <FormField control={form.control} name="unitPrice" render={({ field }) => (<FormItem><FormLabel>Precio Unitario Medio (€ sin IVA)</FormLabel><FormControl><Input type="number" step="0.01" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>

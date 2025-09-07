@@ -1,3 +1,4 @@
+
 import type { Timestamp } from "firebase/firestore";
 import type { Account, AccountStatus, AccountType, AddressDetails, PotencialType } from '@/domain/accounts/types';
 

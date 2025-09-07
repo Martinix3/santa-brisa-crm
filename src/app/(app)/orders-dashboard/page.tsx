@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { Order, UserRole, Account, OrderStatus } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { Loader2, Search, PlusCircle, Eye } from "lucide-react";
-import EditOrderDialog from "@/components/app/edit-order-dialog";
+import EditOrderDialog, { type EditOrderFormValues } from "@/components/app/edit-order-dialog";
 import { getAccountsFS } from "@/services/account-service";
 import { getOrdersFS, updateFullOrderFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
@@ -19,7 +19,7 @@ import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { orderStatusesList } from "@/lib/data";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format, parseISO, isValid } from "date-fns";
-import type { EditOrderFormValues } from "@/components/app/edit-order-dialog";
+import { es } from "date-fns/locale";
 
 export default function OrdersDashboardPage() {
   const { toast } = useToast();
@@ -103,7 +103,7 @@ export default function OrdersDashboardPage() {
   const handleSaveOrder = async (data: EditOrderFormValues, orderId: string) => {
     if (!userRole) return;
     try {
-      await updateFullOrderFS(orderId, data);
+      await updateFullOrderFS(orderId, data as Partial<Order>);
       refreshDataSignature();
       toast({ title: "¡Pedido Actualizado!", description: "Los detalles del pedido han sido guardados." });
     } catch (error) {
@@ -216,4 +216,3 @@ export default function OrdersDashboardPage() {
     </div>
   );
 }
-

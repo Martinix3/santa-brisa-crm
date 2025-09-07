@@ -19,7 +19,8 @@ import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { orderStatusesList } from "@/lib/data";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format, parseISO, isValid } from "date-fns";
-import { es } from "date-fns/locale";
+import { es } from 'date-fns/locale';
+import Link from 'next/link';
 
 export default function OrdersDashboardPage() {
   const { toast } = useToast();
@@ -47,7 +48,8 @@ export default function OrdersDashboardPage() {
           getTeamMembersFS(['SalesRep', 'Admin', 'Clavadista'])
         ]);
         
-        let relevantOrders = fetchedOrders.filter(o => o.status !== 'Programada' && o.status !== 'Seguimiento' && o.status !== 'Fallido');
+        // CORRECTION: Filter out agenda tasks, only show actual orders
+        let relevantOrders = fetchedOrders.filter(o => o.status !== 'Programada' && o.status !== 'Seguimiento' && o.status !== 'Fallido' && o.status !== 'Completado');
 
         if (userRole === 'Distributor' && teamMember?.accountId) {
           const managedAccountIds = new Set(fetchedAccounts.filter(acc => acc.distributorId === teamMember.accountId).map(acc => acc.id));
@@ -123,7 +125,7 @@ export default function OrdersDashboardPage() {
         </div>
         {(userRole === 'Admin' || userRole === 'SalesRep' || userRole === 'Clavadista') && (
             <Button asChild>
-                <a href="/order-form"><PlusCircle className="mr-2 h-4 w-4"/> Registrar Interacción/Pedido</a>
+                <Link href="/order-form"><PlusCircle className="mr-2 h-4 w-4"/> Registrar Interacción/Pedido</Link>
             </Button>
         )}
       </header>
@@ -144,7 +146,7 @@ export default function OrdersDashboardPage() {
                   <SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Estado..." /></SelectTrigger>
                   <SelectContent>
                       <SelectItem value="Todos">Todos los Estados</SelectItem>
-                      {orderStatusesList.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      {orderStatusesList.filter(s => s !== 'Programada' && s !== 'Seguimiento' && s !== 'Fallido' && s !== 'Completado').map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                   </SelectContent>
               </Select>
               <Select value={cityFilter} onValueChange={(v) => setCityFilter(v)}>

@@ -4,26 +4,40 @@
 
 @layer base {
   :root {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 45 93% 58%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 181 19% 47%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 181 33% 76%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 62.8% 30.6%;
+    --background: 47 100% 97%; /* #FFFBEF - brand-off-white */
+    --foreground: 224 71% 4%; /* #030712 - near black */
+    --card: 0 0% 100%; /* #FFFFFF - brand-white */
+    --card-foreground: 224 71% 4%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 71% 4%;
+    --primary: 45 93% 58%; /* #F7D15F - brand-yellow */
+    --primary-foreground: 20 14% 4%; /* #14110E - near black */
+    --secondary: 181 19% 47%; /* #618E8F - brand-teal-dark */
+    --secondary-foreground: 0 0% 98%; /* Almost white */
+    --muted: 210 40% 96.1%; /* #F1F5F9 - light gray */
+    --muted-foreground: 215.4 16.3% 46.9%; /* #64748B - slate-500 */
+    --accent: 181 33% 76%; /* #A7D8D9 - brand-teal-light */
+    --accent-foreground: 20 14% 4%;
+    --destructive: 15 70% 55%; /* #D7713E - brand-orange */
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
+    --border: 214.3 31.8% 91.4%; /* #E2E8F0 - slate-200 */
+    --input: 214.3 31.8% 91.4%;
     --ring: 45 93% 58%;
     --radius: 0.5rem;
+
+    /* Custom Brand Colors for semantic use */
+    --brand-success: 142 76% 36%; /* #228B22 - ForestGreen */
+    --brand-warning: 38 92% 50%; /* #FBBF24 - Amber 400 */
+    --brand-danger: 0 72% 51%; /* #DC2626 - Red 600 */
+    --brand-info: 199 89% 48%; /* #0284C7 - Sky 600 */
+    --brand-process: 262 83% 58%; /* #8B5CF6 - Violet 500 */
+    --brand-neutral: 220 9% 46%; /* #6C757D - Gray */
+
+    --brand-yellow-hsl: 45 93% 58%;
+    --brand-orange-hsl: 15 70% 55%;
+    --brand-turquoise-hsl: 181 33% 76%;
+    --brand-purple-hsl: 262 83% 58%;
+    --brand-blue-hsl: 199 89% 48%;
   }
 
   .dark {

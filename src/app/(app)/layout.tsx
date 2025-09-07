@@ -87,34 +87,29 @@ export default function MainAppLayout({ children }: { children: React.ReactNode 
     <AuthGuard>
       <CategoriesProvider dataSignature={dataSignature}>
         <SidebarProvider>
-          <div className="flex min-h-screen w-full flex-col bg-background">
-              <Sidebar>
-                  <SidebarContent>
-                      <SidebarHeader>
-                          <Logo size={100}/>
-                      </SidebarHeader>
-                      <AppNavigation />
-                  </SidebarContent>
-              </Sidebar>
-              <div className="flex flex-col flex-1">
-                  <header className="sticky top-0 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6 z-40">
-                      <div className="flex items-center gap-2">
-                         <SidebarTrigger className="md:hidden" />
-                          <h1 className="text-lg font-semibold md:hidden"><Logo size={80}/></h1>
-                      </div>
-                      <div className="flex w-full items-center gap-4 md:ml-auto md:gap-2 lg:gap-4">
-                          <div className="ml-auto flex-1 sm:flex-initial">
-                              <DailyTasksWidget/>
-                          </div>
-                          <UserMenu userEmail={user?.email} logout={logout}/>
-                      </div>
-                  </header>
-                  <main className="flex min-h-[calc(100vh_-_theme(spacing.16))] flex-1 flex-col gap-4 bg-muted/40 p-4 md:gap-8 md:p-10">
-                      <div className="mx-auto w-full max-w-7xl">
-                          {children}
-                      </div>
-                  </main>
-              </div>
+          <div className="flex min-h-screen w-full bg-muted/40">
+            <Sidebar className="hidden md:flex flex-col bg-card text-card-foreground border-r">
+                <SidebarContent>
+                    <SidebarHeader className="bg-background">
+                        <Logo size={120}/>
+                    </SidebarHeader>
+                    <AppNavigation />
+                </SidebarContent>
+            </Sidebar>
+            <div className="flex flex-col flex-1">
+              <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
+                 <SidebarTrigger className="md:hidden" />
+                 <div className="ml-auto flex items-center gap-2">
+                   <DailyTasksWidget/>
+                   <UserMenu userEmail={user?.email} logout={logout}/>
+                 </div>
+              </header>
+              <main className="flex-1 p-4 sm:px-6 sm:py-0">
+                  <div className="w-full max-w-7xl mx-auto">
+                      {children}
+                  </div>
+              </main>
+            </div>
           </div>
         </SidebarProvider>
       </CategoriesProvider>

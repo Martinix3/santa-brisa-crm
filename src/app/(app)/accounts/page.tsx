@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -350,7 +351,6 @@ export default function AccountsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
             {isLoading ? (
               <div className="flex justify-center items-center h-64">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -385,7 +385,6 @@ export default function AccountsPage() {
                     </TableBody>
                 </Table>
             )}
-          </div>
         </CardContent>
       </Card>
     </div>

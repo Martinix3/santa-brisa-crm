@@ -38,7 +38,7 @@ const fromFirestore = (docSnap: DocumentSnapshot): Account => {
     shipping_address: data.shipping_address || data.addressShipping,
     city: data.city || data.addressBilling?.city || data.addressShipping?.city,
     region: data.region || data.addressBilling?.province || data.addressShipping?.province,
-    country: data.country || data.addressBilling?.country || data.addressShipping?.country || 'España',
+    country: data.country || data.addressBilling?.country || 'España',
     sb_score: data.sb_score,
     next_action: data.next_action,
     next_action_date: data.next_action_date,
@@ -68,68 +68,61 @@ const fromFirestore = (docSnap: DocumentSnapshot): Account => {
   };
 };
 
-// This function is for the dialog, not the new model fully
 const toFirestore = (data: Partial<AccountFormValues>, isNew: boolean): any => {
-  const firestoreData: { [key: string]: any } = {};
-  
-  // Directly map provided fields
-  if (data.name) firestoreData.nombre = data.name;
-  if (data.legalName !== undefined) firestoreData.legalName = data.legalName || null;
-  
-  // Handle optional 'cif' field correctly
-  firestoreData.cif = data.cif || null;
+    const firestoreData: { [key: string]: any } = {};
 
-  if (data.type) firestoreData.type = data.type;
-  if (data.iban !== undefined) firestoreData.iban = data.iban || null;
-  if (data.distributorId !== undefined) firestoreData.distributorId = data.distributorId || null;
-  if (data.mainContactName !== undefined) firestoreData.mainContactName = data.mainContactName || null;
-  if (data.mainContactEmail !== undefined) firestoreData.mainContactEmail = data.mainContactEmail || null;
-  if (data.mainContactPhone !== undefined) firestoreData.mainContactPhone = data.mainContactPhone || null;
-  if (data.notes !== undefined) firestoreData.notes = data.notes || null;
-  if (data.internalNotes !== undefined) firestoreData.internalNotes = data.internalNotes || null;
-  
-  // Handle salesRepId specifically. Undefined means no change, null means unassign.
-  if (data.salesRepId !== undefined) {
+    if (data.name) firestoreData.nombre = data.name;
+    if (data.type) firestoreData.type = data.type;
+    
+    // Safe handling of optional fields
+    firestoreData.legalName = data.legalName || null;
+    firestoreData.cif = data.cif || null;
+    firestoreData.iban = data.iban || null;
+    firestoreData.distributorId = data.distributorId || null;
+    firestoreData.mainContactName = data.mainContactName || null;
+    firestoreData.mainContactEmail = data.mainContactEmail || null;
+    firestoreData.mainContactPhone = data.mainContactPhone || null;
+    firestoreData.notes = data.notes || null;
+    firestoreData.internalNotes = data.internalNotes || null;
     firestoreData.salesRepId = data.salesRepId || null;
     firestoreData.responsableId = data.salesRepId || null;
-  }
-  
-  if (isNew) {
-      firestoreData.potencial = 'medio' as PotencialType;
-  }
 
-  const hasBillingAddress = data.addressBilling_street || data.addressBilling_city || data.addressBilling_province || data.addressBilling_postalCode;
-  if (hasBillingAddress) {
-    firestoreData.addressBilling = {
-      street: data.addressBilling_street || null,
-      number: data.addressBilling_number || null,
-      city: data.addressBilling_city || null,
-      province: data.addressBilling_province || null,
-      postalCode: data.addressBilling_postalCode || null,
-      country: data.addressBilling_country || "España",
-    };
-     if (data.addressBilling_city) firestoreData.ciudad = data.addressBilling_city;
-  }
+    if (isNew) {
+        firestoreData.potencial = 'medio' as PotencialType;
+    }
 
-  const hasShippingAddress = data.addressShipping_street || data.addressShipping_city || data.addressShipping_province || data.addressShipping_postalCode;
-  if (hasShippingAddress) {
-    firestoreData.addressShipping = {
-      street: data.addressShipping_street || null,
-      number: data.addressShipping_number || null,
-      city: data.addressShipping_city || null,
-      province: data.addressShipping_province || null,
-      postalCode: data.addressShipping_postalCode || null,
-      country: data.addressShipping_country || "España",
-    };
-    if (data.addressShipping_city && !firestoreData.ciudad) firestoreData.ciudad = data.addressShipping_city;
-  }
+    const hasBillingAddress = data.addressBilling_street || data.addressBilling_city || data.addressBilling_province || data.addressBilling_postalCode;
+    if (hasBillingAddress) {
+        firestoreData.addressBilling = {
+            street: data.addressBilling_street || null,
+            number: data.addressBilling_number || null,
+            city: data.addressBilling_city || null,
+            province: data.addressBilling_province || null,
+            postalCode: data.addressBilling_postalCode || null,
+            country: data.addressBilling_country || "España",
+        };
+        if (data.addressBilling_city) firestoreData.ciudad = data.addressBilling_city;
+    }
 
-  if (isNew) {
-    firestoreData.createdAt = Timestamp.fromDate(new Date());
-  }
-  firestoreData.updatedAt = Timestamp.fromDate(new Date());
+    const hasShippingAddress = data.addressShipping_street || data.addressShipping_city || data.addressShipping_province || data.addressShipping_postalCode;
+    if (hasShippingAddress) {
+        firestoreData.addressShipping = {
+            street: data.addressShipping_street || null,
+            number: data.addressShipping_number || null,
+            city: data.addressShipping_city || null,
+            province: data.addressShipping_province || null,
+            postalCode: data.addressShipping_postalCode || null,
+            country: data.addressShipping_country || "España",
+        };
+        if (data.addressShipping_city && !firestoreData.ciudad) firestoreData.ciudad = data.addressShipping_city;
+    }
 
-  return firestoreData;
+    if (isNew) {
+        firestoreData.createdAt = Timestamp.fromDate(new Date());
+    }
+    firestoreData.updatedAt = Timestamp.fromDate(new Date());
+
+    return firestoreData;
 };
 
 

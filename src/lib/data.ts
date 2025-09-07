@@ -106,9 +106,9 @@ export const mockMarketingResources: MarketingResourceCategory[] = [
 
 export const userRolesList: UserRole[] = ['Admin', 'SalesRep', 'Distributor', 'Clavadista', 'Líder Clavadista'];
 export const accountTypeList: AccountType[] = [
-  'HORECA', 'Distribuidor', 'Retail Minorista', 'Gran Superficie',
-  'Evento Especial', 'Cliente Final Directo', 'Importador', 'Otro',
-  'distribuidor_mediano', 'distribuidor_grande', 'distribuidor_top'
+  'HORECA', 'Retail Minorista', 'Gran Superficie',
+  'Distribuidor', 'Importador',
+  'Evento Especial', 'Cliente Final Directo', 'Otro'
 ];
 export const accountStatusList: AccountStatus[] = ['Programada', 'Seguimiento', 'Pedido', 'Repetición', 'Fallido'];
 export const crmEventTypeList: CrmEventType[] = [

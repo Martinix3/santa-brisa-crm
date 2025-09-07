@@ -146,6 +146,9 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
     },
   });
 
+  const accountType = form.watch("type");
+  const showDistributorField = accountType && !['Distribuidor', 'Importador'].includes(accountType);
+
   React.useEffect(() => {
     async function loadDataForDialog() {
       try {
@@ -154,7 +157,7 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
           getAccountsFS()
         ]);
         setSalesRepList(reps);
-        setDistributors(allAccountsForDistro.filter(a => a.type === 'distributor' || a.type === 'importer'));
+        setDistributors(allAccountsForDistro.filter(a => a.type === 'Distribuidor' || a.type === 'Importador'));
       } catch (error) {
         console.error("Failed to load data for account dialog", error);
       }
@@ -208,7 +211,7 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
     if (dataToSave.salesRepId === NO_SALES_REP_VALUE) {
       dataToSave.salesRepId = undefined; 
     }
-    if (dataToSave.distributorId === DIRECT_SALE_VALUE) {
+    if (dataToSave.distributorId === DIRECT_SALE_VALUE || !showDistributorField) {
       dataToSave.distributorId = undefined;
     }
 
@@ -244,7 +247,9 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
             <Separator className="my-4"/><h3 className="text-md font-medium text-muted-foreground">Datos Financieros y Logísticos</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="iban" render={({ field }) => (<FormItem><FormLabel>IBAN (Opcional)</FormLabel><FormControl><Input placeholder="ES00 0000 0000 0000 0000 0000" {...field} value={field.value ?? ""} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="distributorId" render={({ field }) => (<FormItem><FormLabel className="flex items-center gap-1.5"><Truck className="h-4 w-4 text-primary" />Distribuidor Asignado</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger></FormControl><SelectContent><SelectItem value={DIRECT_SALE_VALUE}>Venta Directa (Gestiona Santa Brisa)</SelectItem><Separator/>{distributors.map(d=>(<SelectItem key={d.id} value={d.id}>{d.nombre}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                {showDistributorField && (
+                    <FormField control={form.control} name="distributorId" render={({ field }) => (<FormItem><FormLabel className="flex items-center gap-1.5"><Truck className="h-4 w-4 text-primary" />Distribuidor Asignado</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger></FormControl><SelectContent><SelectItem value={DIRECT_SALE_VALUE}>Venta Directa (Gestiona Santa Brisa)</SelectItem><Separator/>{distributors.map(d=>(<SelectItem key={d.id} value={d.id}>{d.nombre}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                )}
             </div>
 
 

@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import type { EnrichedAccount, TeamMember, Order, UserRole, AccountStatus } from "@/types";
+import type { EnrichedAccount, TeamMember, Order, UserRole, AccountStatus, AccountType } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { Loader2, Search } from "lucide-react";
 import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
@@ -24,6 +24,11 @@ import { cn } from "@/lib/utils";
 
 type BucketFilter = "Todos" | "Vencidas" | "Para Hoy" | "Pendientes";
 type SortOption = "leadScore_desc" | "nextAction_asc" | "lastInteraction_desc";
+type AccountTypeFilter = 'Todos' | 'CLIENTE_FINAL' | 'DISTRIBUIDOR' | 'IMPORTADOR' | 'OTRO';
+
+const CUSTOMER_TYPES: AccountType[] = ['HORECA', 'Retail Minorista', 'Gran Superficie', 'Cliente Final Directo', 'Evento Especial'];
+const DISTRIBUTOR_TYPES: AccountType[] = ['Distribuidor'];
+const IMPORTER_TYPES: AccountType[] = ['Importador'];
 
 export default function AccountsPage() {
   const { toast } = useToast();
@@ -36,11 +41,13 @@ export default function AccountsPage() {
   const [isAccountDialogOpen, setIsAccountDialogOpen] = React.useState(false);
   const [accountToDelete, setAccountToDelete] = React.useState<EnrichedAccount | null>(null);
 
+  // Filters
   const [searchTerm, setSearchTerm] = React.useState("");
   const [responsibleFilter, setResponsibleFilter] = React.useState("Todos");
   const [bucketFilter, setBucketFilter] = React.useState<BucketFilter>("Todos");
   const [sortOption, setSortOption] = React.useState<SortOption>("leadScore_desc");
   const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
+  const [typeFilter, setTypeFilter] = React.useState<AccountTypeFilter>('Todos');
   
   const isAdmin = userRole === 'Admin';
   const salesAndAdminMembers = teamMembers.filter(m => m.role === 'Admin' || m.role === 'SalesRep');
@@ -81,13 +88,13 @@ export default function AccountsPage() {
       }
     }
     loadData();
-  }, [toast, dataSignature, userRole, teamMember?.id]); // Use teamMember.id instead of the whole object
+  }, [toast, dataSignature, userRole, teamMember?.id]);
   
   const { activeAccounts, potentialAccounts, pendingAccounts, failedAccounts, inactiveAccounts } = React.useMemo(() => {
     const todayStart = startOfDay(new Date());
     const todayEnd = endOfDay(new Date());
 
-    const applyFilters = (acc: EnrichedAccount) => {
+    const applySearchFilter = (acc: EnrichedAccount) => {
       if (!searchTerm) return true;
       const lowercasedFilter = searchTerm.toLowerCase();
       return acc.nombre.toLowerCase().includes(lowercasedFilter) ||
@@ -96,6 +103,15 @@ export default function AccountsPage() {
              (acc.ciudad && acc.ciudad.toLowerCase().includes(lowercasedFilter));
     };
 
+    const applyTypeFilter = (acc: EnrichedAccount) => {
+        if (typeFilter === 'Todos') return true;
+        if (typeFilter === 'CLIENTE_FINAL') return CUSTOMER_TYPES.includes(acc.type);
+        if (typeFilter === 'DISTRIBUIDOR') return DISTRIBUTOR_TYPES.includes(acc.type);
+        if (typeFilter === 'IMPORTADOR') return IMPORTER_TYPES.includes(acc.type);
+        if (typeFilter === 'OTRO') return !CUSTOMER_TYPES.includes(acc.type) && !DISTRIBUTOR_TYPES.includes(acc.type) && !IMPORTER_TYPES.includes(acc.type);
+        return false;
+    };
+    
     const applyResponsibleFilter = (acc: EnrichedAccount) => {
         if (!isAdmin || responsibleFilter === "Todos") return true;
         if (responsibleFilter === "SinAsignar") return !acc.responsableId;
@@ -144,7 +160,12 @@ export default function AccountsPage() {
         }
     };
     
-    const baseFiltered = enrichedAccounts.filter(applyFilters).filter(applyResponsibleFilter).filter(applyBucketFilter);
+    const baseFiltered = enrichedAccounts
+        .filter(applySearchFilter)
+        .filter(applyTypeFilter)
+        .filter(applyResponsibleFilter)
+        .filter(applyBucketFilter);
+        
     const hasActiveOrder = (acc: EnrichedAccount) => ['Activo', 'Repetición'].includes(acc.status);
     const isInactive = (acc: EnrichedAccount) => acc.status === 'Inactivo';
     const isPotential = (acc: EnrichedAccount) => acc.status === 'Seguimiento';
@@ -160,7 +181,7 @@ export default function AccountsPage() {
       inactiveAccounts: baseFiltered.filter(acc => isInactive(acc)).sort(sortFunction),
     };
 
-  }, [searchTerm, enrichedAccounts, responsibleFilter, bucketFilter, isAdmin, sortOption]);
+  }, [searchTerm, typeFilter, enrichedAccounts, responsibleFilter, bucketFilter, isAdmin, sortOption]);
 
   const handleAddNewAccount = () => {
     if (!isAdmin) return;
@@ -240,6 +261,16 @@ export default function AccountsPage() {
                   className="pl-9 w-full sm:max-w-xs"
                 />
               </div>
+              <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as AccountTypeFilter)}>
+                  <SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Tipo de Cuenta..." /></SelectTrigger>
+                  <SelectContent>
+                      <SelectItem value="Todos">Todas las Cuentas</SelectItem>
+                      <SelectItem value="CLIENTE_FINAL">Clientes Finales</SelectItem>
+                      <SelectItem value="DISTRIBUIDOR">Distribuidores</SelectItem>
+                      <SelectItem value="IMPORTADOR">Importadores</SelectItem>
+                       <SelectItem value="OTRO">Otro</SelectItem>
+                  </SelectContent>
+              </Select>
               <Select value={bucketFilter} onValueChange={(v) => setBucketFilter(v as BucketFilter)}>
                   <SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Filtrar por fecha..." /></SelectTrigger>
                   <SelectContent>

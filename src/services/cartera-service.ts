@@ -32,7 +32,13 @@ export async function processCarteraData(
         const accountOrders = ordersByAccountId.get(account.id) || [];
         
         // Sort orders by date descending
-        accountOrders.sort((a, b) => parseISO(b.createdAt!).getTime() - parseISO(a.createdAt!).getTime());
+        accountOrders.sort((a, b) => {
+            const dateA = a.createdAt ? parseISO(a.createdAt) : new Date(0);
+            const dateB = b.createdAt ? parseISO(b.createdAt) : new Date(0);
+            if (!isValid(dateA)) return 1;
+            if (!isValid(dateB)) return -1;
+            return dateB.getTime() - dateA.getTime();
+        });
 
         const openTasks = accountOrders.filter(o => o.status === 'Programada' || o.status === 'Seguimiento');
         openTasks.sort((a, b) => {
@@ -42,7 +48,7 @@ export async function processCarteraData(
             const dateA = parseISO(dateAString);
             const dateB = parseISO(dateBString);
             if (!isValid(dateA)) return 1; if (!isValid(dateB)) return -1;
-            if (dateA.getTime() !== dateB.getTime()) return dateA.getTime() - dateB.getTime();
+            if (dateA.getTime() !== dateB.getTime()) return dateA.getTime() - dateA.getTime();
             if (a.status === 'Programada' && b.status !== 'Programada') return -1;
             if (b.status === 'Programada' && a.status !== 'Programada') return 1;
             return 0;
@@ -52,15 +58,17 @@ export async function processCarteraData(
         let status: AccountStatus;
         const historicalStatus = await calculateCommercialStatus(accountOrders);
 
+        // CORRECTED LOGIC: Historical status takes precedence if it indicates an active relationship.
+        // The status of open tasks is only used if there's no meaningful sales history.
         if (historicalStatus === 'Activo' || historicalStatus === 'Repetición' || historicalStatus === 'Inactivo') {
             status = historicalStatus;
         } else if (nextInteraction) {
             status = nextInteraction.status as 'Programada' | 'Seguimiento';
-        } else if (accountOrders.length === 0) {
-            status = 'Pendiente';
         } else {
+            // Fallback to historical status if no open tasks, which could be 'Pendiente' or 'Fallido'
             status = historicalStatus;
         }
+
 
         const lastInteractionOrder = accountOrders[0];
         const lastInteractionDate = lastInteractionOrder?.createdAt ? parseISO(lastInteractionOrder.createdAt) : undefined;

@@ -37,14 +37,14 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { Order, OrderStatus, UserRole, TeamMember, NextActionType, FailureReasonType, ClientType, InventoryItem, Account, CanalOrigenColocacion, PaymentMethod, AddressDetails } from "@/types"; 
 import { orderStatusesList, nextActionTypeList, failureReasonList, clientTypeList, canalOrigenColocacionList, paymentMethodList } from "@/lib/data"; 
-import { Loader2, CalendarIcon, Printer, Award, Package, PlusCircle, Trash2, Zap, CreditCard, UploadCloud, Link2 } from "lucide-react"; 
+import { Loader2, CalendarIcon, Printer, Award, Package, PlusCircle, Trash2, Zap, CreditCard, UploadCloud, Link2, AlertTriangle } from "lucide-react"; 
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { getTeamMembersFS } from "@/services/team-member-service";
-import { getInventoryItemsFS } from "@/services/inventory-item-service";
+import { getInventoryItemsAction } from "@/services/server/inventory-actions";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 
@@ -167,14 +167,14 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
         Promise.all([
             getTeamMembersFS(['Clavadista', 'Líder Clavadista']),
             getTeamMembersFS(['SalesRep', 'Admin']),
-            getInventoryItemsFS()
+            getInventoryItemsAction()
         ]).then(([fetchedClavadistas, fetchedSalesReps, fetchedMaterials]) => {
             setClavadistas(fetchedClavadistas);
             setSalesReps(fetchedSalesReps);
             setAvailableMaterials(fetchedMaterials.filter(m => m.latestPurchase && m.latestPurchase.calculatedUnitCost > 0));
         }).catch(error => {
             console.error("Error loading data for edit order dialog:", error);
-            toast({ title: "Error Datos Diálogo", description: "No se pudieron cargar datos para el diálogo.", variant: "destructive"});
+            toast({ title: "Error de carga de datos", description: "No se pudieron cargar los materiales o miembros del equipo.", variant: "destructive"});
         }).finally(() => {
             setIsLoadingDropdownData(false);
         });
@@ -472,8 +472,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                   <Separator className="my-6" />
                   <h3 className="text-md font-semibold text-muted-foreground">Materiales Promocionales Asignados</h3>
                   <div className="space-y-3">
-                    {isLoadingDropdownData && <Loader2 className="h-4 w-4 animate-spin" />}
-                    {!isLoadingDropdownData && materialFields.map((item, index) => {
+                    {materialFields.map((item, index) => {
                       const selectedMaterialInfo = availableMaterials.find(m => m.id === watchedMaterials[index]?.materialId);
                       const unitCost = selectedMaterialInfo?.latestPurchase?.calculatedUnitCost || 0;
                       return (

@@ -20,7 +20,7 @@ export async function calculateCommercialStatus(
     // Check for successful sales.
     const successfulOrders = ordersForAccount
         .filter(o => VALID_SALE_STATUSES.includes(o.status) && o.createdAt && isValid(parseISO(o.createdAt)))
-        .sort((a,b) => parseISO(b.createdAt).getTime() - parseISO(a.createdAt).getTime());
+        .sort((a,b) => parseISO(b.createdAt!).getTime() - parseISO(a.createdAt!).getTime());
     
     const count = successfulOrders.length;
 
@@ -30,7 +30,7 @@ export async function calculateCommercialStatus(
         return hasInteractions ? 'Fallido' : 'Pendiente';
     }
 
-    const lastOrderDate = parseISO(successfulOrders[0].createdAt);
+    const lastOrderDate = parseISO(successfulOrders[0].createdAt!);
     const daysSinceLastOrder = differenceInDays(new Date(), lastOrderDate);
 
     if (daysSinceLastOrder > 90) {

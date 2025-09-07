@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { getAccountsFS } from "@/services/account-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
-import { getInventoryItemsAction } from "@/services/server/inventory-actions"; // única fuente, EN OTRO ARCHIVO (server)
+import { getInventoryItemsAction } from "@/services/server/inventory-actions"; 
 import { saveInteractionFS } from "@/services/interaction-service";
 import type { Account, TeamMember, Order, InventoryItem, UserRole } from "@/types";
 import { interactionFormSchema, type InteractionFormValues } from "@/lib/schemas/interaction-schema";
@@ -19,6 +19,7 @@ type UseInteractionWizardReturn = {
   onSubmit: (values: InteractionFormValues) => Promise<void>;
   isLoading: boolean;
   isSubmitting: boolean;
+  errorLoadingData: boolean; // New state to indicate data loading failure
   availableMaterials: InventoryItem[];
   materialFields: { id: string }[];
   appendMaterial: ReturnType<typeof useFieldArray<InteractionFormValues>["append"]>;
@@ -39,6 +40,7 @@ export function useInteractionWizard(
 
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [errorLoadingData, setErrorLoadingData] = React.useState(false);
 
   const [availableMaterials, setAvailableMaterials] = React.useState<InventoryItem[]>([]);
   const [salesRepsList, setSalesRepsList] = React.useState<TeamMember[]>([]);
@@ -69,6 +71,7 @@ export function useInteractionWizard(
     let mounted = true;
     (async () => {
       setIsLoading(true);
+      setErrorLoadingData(false);
       try {
         const [fetchedAccounts, fetchedSalesReps, fetchedClavadistas, fetchedMaterials] = await Promise.all([
           getAccountsFS(),
@@ -96,9 +99,10 @@ export function useInteractionWizard(
       } catch (error: any) {
         toast({
           title: "Error cargando datos",
-          description: error?.message ?? "No se pudieron cargar los datos necesarios.",
+          description: "No se pudieron cargar los materiales o miembros del equipo.",
           variant: "destructive",
         });
+        setErrorLoadingData(true);
       } finally {
         if (mounted) setIsLoading(false);
       }
@@ -158,6 +162,7 @@ export function useInteractionWizard(
     onSubmit,
     isLoading,
     isSubmitting,
+    errorLoadingData,
     availableMaterials,
     materialFields,
     appendMaterial,

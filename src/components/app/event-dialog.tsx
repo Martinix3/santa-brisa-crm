@@ -46,7 +46,7 @@ import { cn } from "@/lib/utils";
 import { format, parseISO, isValid, subDays, isEqual } from "date-fns";
 import { es } from 'date-fns/locale';
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-import { getInventoryItemsFS } from "@/services/inventory-item-service";
+import { getInventoryItemsAction } from "@/services/server/inventory-actions";
 import { getCostCentersFS } from "@/services/costcenter-service";
 import { useToast } from "@/hooks/use-toast";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -137,14 +137,14 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
         setIsLoadingDropdowns(true);
         try {
           const [materials, costCenters] = await Promise.all([
-            getInventoryItemsFS(),
+            getInventoryItemsAction(),
             getCostCentersFS()
           ]);
           setAvailableMaterials(materials);
           setAvailableCostCenters(costCenters);
         } catch (error) {
           console.error("Error loading dropdown data for event dialog:", error);
-          toast({ title: "Error Datos", description: "No se pudieron cargar los datos para el diálogo.", variant: "destructive"});
+          toast({ title: "Error de carga de datos", description: "No se pudieron cargar los materiales o centros de coste.", variant: "destructive"});
         } finally {
           setIsLoadingDropdowns(false);
         }

@@ -59,7 +59,7 @@ export async function processCarteraData(
         const historicalStatus = await calculateCommercialStatus(accountOrders);
         const taskStatus = nextInteraction ? nextInteraction.status as 'Programada' | 'Seguimiento' : null;
 
-        // FINAL LOGIC: Sales history trumps open tasks. An active client is always active.
+        // FINAL LOGIC V2: A sale state is powerful. An open task only matters if there's no recent sale history.
         if (historicalStatus === 'Activo' || historicalStatus === 'Repetición' || historicalStatus === 'Inactivo') {
             status = historicalStatus;
         } else if (taskStatus) {

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -10,7 +11,8 @@ import { OrderForm } from '@/components/app/interaction-dialog/order-form';
 import { cn } from '@/lib/utils';
 import type { Account, Order } from '@/types';
 import { useInteractionWizard } from '@/hooks/use-interaction-wizard';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertTriangle } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export type InteractionMode = 'compact' | 'order';
 
@@ -42,6 +44,7 @@ export function InteractionDialog({
     salesRepsList,
     clavadistas,
     distributorAccounts,
+    errorLoadingData, // Added error state
   } = wizard;
 
   useEffect(() => {
@@ -72,6 +75,16 @@ export function InteractionDialog({
         {isLoading ? (
             <div className="flex justify-center items-center h-64">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        ) : errorLoadingData ? (
+             <div className="p-6">
+                <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Error al Cargar Datos</AlertTitle>
+                    <AlertDescription>
+                        No se pudieron cargar los datos necesarios para este formulario (ej. materiales o distribuidores). Por favor, intenta de nuevo más tarde.
+                    </AlertDescription>
+                </Alert>
             </div>
         ) : (
         <FormProvider {...form}>

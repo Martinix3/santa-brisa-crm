@@ -7,27 +7,19 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import type { EnrichedAccount, TeamMember, Order, UserRole, AccountStatus, AccountType } from "@/types";
+import type { Order, UserRole, Account, OrderStatus } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { Loader2, Search, PlusCircle, Eye } from "lucide-react";
-import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
-import { getAccountsFS, addAccountFS, updateAccountFS, deleteAccountFS } from "@/services/account-service";
-import { getOrdersFS } from "@/services/order-service";
-import { getTeamMembersFS } from "@/services/team-member-service";
-import { processCarteraData } from "@/services/cartera-service";
-import { AccountTableRow } from "@/components/app/account-table-row";
-import { startOfDay, endOfDay, isBefore, isEqual, parseISO, isValid } from 'date-fns';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import AccountHistoryTable from "@/components/app/account-history-table";
-import { cn } from "@/lib/utils";
 import EditOrderDialog from "@/components/app/edit-order-dialog";
+import { getAccountsFS } from "@/services/account-service";
+import { getOrdersFS, updateFullOrderFS } from "@/services/order-service";
+import { getTeamMembersFS } from "@/services/team-member-service";
 import StatusBadge from "@/components/app/status-badge";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { orderStatusesList } from "@/lib/data";
-
-type BucketFilter = "Todos" | "Vencidas" | "Para Hoy" | "Pendientes";
-type SortOption = "leadScore_desc" | "nextAction_asc" | "lastInteraction_desc";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { format, parseISO, isValid } from "date-fns";
+import type { EditOrderFormValues } from "@/components/app/edit-order-dialog";
 
 export default function OrdersDashboardPage() {
   const { toast } = useToast();
@@ -35,7 +27,7 @@ export default function OrdersDashboardPage() {
   
   const [orders, setOrders] = React.useState<Order[]>([]);
   const [accounts, setAccounts] = React.useState<Account[]>([]);
-  const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([]);
+  const [teamMembers, setTeamMembers] = React.useState<any[]>([]); // Use any temporarily if type is complex
   const [isLoading, setIsLoading] = React.useState(true);
   
   const [editingOrder, setEditingOrder] = React.useState<Order | null>(null);
@@ -107,6 +99,20 @@ export default function OrdersDashboardPage() {
         return matchesSearch && matchesStatus && matchesCity;
       });
   }, [orders, accounts, searchTerm, statusFilter, cityFilter]);
+
+  const handleSaveOrder = async (data: EditOrderFormValues, orderId: string) => {
+    if (!userRole) return;
+    try {
+      await updateFullOrderFS(orderId, data);
+      refreshDataSignature();
+      toast({ title: "¡Pedido Actualizado!", description: "Los detalles del pedido han sido guardados." });
+    } catch (error) {
+        console.error("Error updating order:", error);
+        toast({ title: "Error", description: "No se pudo actualizar el pedido.", variant: "destructive" });
+    } finally {
+        setEditingOrder(null);
+    }
+  };
   
   return (
     <div className="space-y-6">
@@ -202,7 +208,7 @@ export default function OrdersDashboardPage() {
             order={editingOrder}
             isOpen={!!editingOrder}
             onOpenChange={() => setEditingOrder(null)}
-            onSave={() => { /* Logic to update is inside dialog for now, or move to a service call here */ refreshDataSignature(); setEditingOrder(null); }}
+            onSave={handleSaveOrder}
             currentUserRole={userRole!}
             allAccounts={accounts}
         />
@@ -210,3 +216,4 @@ export default function OrdersDashboardPage() {
     </div>
   );
 }
+

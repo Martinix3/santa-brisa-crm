@@ -33,7 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Account, AccountType, TeamMember, AddressDetails } from "@/types";
+import type { Account, AccountType, TeamMember, AddressDetails, AccountFormValues } from "@/types";
 import { accountTypeList, provincesSpainList } from "@/lib/data"; 
 import { Loader2, Truck } from "lucide-react";
 import { Separator } from "../ui/separator";
@@ -104,8 +104,6 @@ const accountFormSchemaBase = z.object({
 });
 
 
-export type AccountFormValues = z.infer<typeof accountFormSchemaBase>;
-
 interface AccountDialogProps {
   account: Account | null; 
   isOpen: boolean;
@@ -156,7 +154,7 @@ export default function AccountDialog({ account, isOpen, onOpenChange, onSave, a
           getAccountsFS()
         ]);
         setSalesRepList(reps);
-        setDistributors(allAccountsForDistro.filter(a => a.type === 'Distribuidor' || a.type === 'Importador'));
+        setDistributors(allAccountsForDistro.filter(a => a.type === 'distributor' || a.type === 'importer'));
       } catch (error) {
         console.error("Failed to load data for account dialog", error);
       }

@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -8,10 +9,10 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { getAccountsFS } from "@/services/account-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
-import { getInventoryItemsAction } from "@/services/server/inventory-actions";
+import { getInventoryItemsAction } from "@/services/server/inventory-actions"; // única fuente, EN OTRO ARCHIVO (server)
 import { saveInteractionFS } from "@/services/interaction-service";
 import type { Account, TeamMember, Order, InventoryItem, UserRole } from "@/types";
-import { interactionFormSchema, type InteractionFormValues } from '@/lib/schemas/interaction-schema';
+import { interactionFormSchema, type InteractionFormValues } from "@/lib/schemas/interaction-schema";
 
 type UseInteractionWizardReturn = {
   form: ReturnType<typeof useForm<InteractionFormValues>>;
@@ -89,7 +90,7 @@ export function useInteractionWizard(
         );
         setDistributorAccounts(
           fetchedAccounts
-            .filter(acc => acc.type === "Distribuidor" || acc.type === "Importador")
+            .filter(acc => acc.type === "distributor" || acc.type === "importer")
             .sort((a, b) => (a.nombre ?? "").localeCompare(b.nombre ?? "", "es"))
         );
       } catch (error: any) {
@@ -107,6 +108,7 @@ export function useInteractionWizard(
     };
   }, [toast]);
 
+  // Sincroniza defaults cuando cambia el cliente
   React.useEffect(() => {
     if (!client) return;
     form.reset({
@@ -116,7 +118,7 @@ export function useInteractionWizard(
       distributorId: client.distributorId ?? undefined,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client?.id, client?.nombre, client?.distributorId]);
+  }, [client?.id, client?.nombre, client?.distributorId]); 
 
   const onSubmit = async (values: InteractionFormValues) => {
     if (!teamMember) {
@@ -137,6 +139,7 @@ export function useInteractionWizard(
         teamMember.name,
       );
       toast({ title: "¡Interacción registrada!", description: "Se ha guardado el resultado de la visita." });
+      // si refreshDataSignature invalida caches, considera await si devuelve promesa
       refreshDataSignature?.();
       onSuccess();
     } catch (e: any) {

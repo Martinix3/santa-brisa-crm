@@ -21,22 +21,37 @@ const fromFirestore = (docSnap: DocumentSnapshot): Account => {
   return {
     id: docSnap.id,
     nombre: data.nombre ?? data.name ?? data.nombreComercial ?? '',
-    ciudad: data.ciudad || undefined,
-    potencial: data.potencial || 'bajo',
-    responsableId: data.responsableId || data.salesRepId || '',
-    brandAmbassadorId: data.brandAmbassadorId || undefined,
-    distributorId: data.distributorId || undefined,
-
+    type: data.type, 
     // The 'status' field from Firestore is now considered legacy.
     // The true status is calculated dynamically by cartera-service.
     // We provide a default fallback here.
     status: 'Inactivo',
     leadScore: 0,
     
+    // --- New Fields ---
+    name: data.name ?? data.nombre ?? '',
+    channel: data.channel,
+    distribution_type: data.distribution_type,
+    owner_user_id: data.owner_user_id || data.salesRepId || data.responsableId,
+    vat_number: data.vat_number || data.cif,
+    billing_address: data.billing_address || data.addressBilling,
+    shipping_address: data.shipping_address || data.addressShipping,
+    city: data.city || data.addressBilling?.city || data.addressShipping?.city,
+    region: data.region || data.addressBilling?.province || data.addressShipping?.province,
+    country: data.country || data.addressBilling?.country || data.addressShipping?.country || 'España',
+    sb_score: data.sb_score,
+    next_action: data.next_action,
+    next_action_date: data.next_action_date,
+    
+    // --- Legacy Fields for compatibility ---
+    ciudad: data.ciudad || data.addressBilling?.city || data.addressShipping?.city,
+    potencial: data.potencial || 'bajo',
+    responsableId: data.responsableId || data.salesRepId || '',
+    brandAmbassadorId: data.brandAmbassadorId || undefined,
+    distributorId: data.distributorId || undefined,
     legalName: data.legalName || '',
     cif: data.cif || '',
-    type: data.type, 
-    salesRepId: data.salesRepId || data.responsableId, // Fallback for compatibility
+    salesRepId: data.salesRepId || data.responsableId,
     embajadorId: data.embajadorId,
     iban: data.iban || undefined,
     addressBilling: data.addressBilling,

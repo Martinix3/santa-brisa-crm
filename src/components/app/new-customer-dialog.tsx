@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -31,7 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Account, AccountType } from "@/types";
+import type { Account, AccountType, AccountFormValues } from "@/types";
 import { accountTypeList } from "@/lib/data"; 
 import { Loader2 } from "lucide-react";
 import { addAccountFS } from "@/services/account-service";
@@ -66,7 +67,7 @@ export function NewCustomerDialog({ isOpen, onOpenChange, onCustomerCreated }: N
   const onSubmit = async (data: NewCustomerFormValues) => {
     setIsSaving(true);
     try {
-      const newAccountId = await addAccountFS(data as any);
+      const newAccountId = await addAccountFS(data as any as AccountFormValues);
       toast({ title: "Cliente Creado", description: `Se ha creado el cliente ${data.name}.` });
       
       const newAccount: Account = {
@@ -76,11 +77,12 @@ export function NewCustomerDialog({ isOpen, onOpenChange, onCustomerCreated }: N
         cif: data.cif,
         type: data.type,
         potencial: 'medio',
-        status: 'Pendiente (Sin Interacción)',
+        status: 'Pendiente',
         leadScore: 0,
         responsableId: '',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        name: data.name,
       };
       
       refreshDataSignature(); // This is the new line to trigger a global data refetch

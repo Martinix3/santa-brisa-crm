@@ -48,7 +48,7 @@ export default function ClavadistaProfilePage() {
       try {
         const [foundClavadista, allOrders, allAccounts] = await Promise.all([
             getTeamMemberByIdFS(clavadistaId),
-            getOrdersFS(),
+            getOrdersFS(), // It's better to fetch all and filter client-side for this specific profile view
             getAccountsFS(),
         ]);
         
@@ -239,3 +239,4 @@ export default function ClavadistaProfilePage() {
     </div>
   );
 }
+

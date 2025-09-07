@@ -34,9 +34,11 @@ export default function ClavadistasPage() {
   }
 
   useEffect(() => {
-    if (userRole === 'Clavadista') {
+    if (loading) return; // Wait for auth context to be ready
+    
+    if (userRole === 'Clavadista' && teamMember?.id) {
         setIsLoading(false);
-        return;
+        return; // Redirect will handle this case
     }
 
     async function loadClavadistaData() {
@@ -80,7 +82,7 @@ export default function ClavadistasPage() {
       loadClavadistaData();
     }
     
-  }, [toast, userRole, loading]);
+  }, [toast, userRole, loading, teamMember]);
 
   const overallTotalValueParticipated = useMemo(() => clavadistaStats.reduce((sum, m) => sum + m.totalValueParticipated, 0), [clavadistaStats]);
   const overallTotalAccountsOpened = useMemo(() => clavadistaStats.reduce((sum, m) => sum + m.newAccountsOpened, 0), [clavadistaStats]);

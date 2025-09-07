@@ -65,7 +65,12 @@ export default function TeamMemberProfilePage() {
       }
       setIsLoading(true);
       try {
-        const foundMember = await getTeamMemberByIdFS(memberId);
+        const [foundMember, fetchedOrders, fetchedAccounts] = await Promise.all([
+            getTeamMemberByIdFS(memberId),
+            getOrdersFS(),
+            getAccountsFS()
+        ]);
+        
         const validRoles: UserRole[] = ['SalesRep', 'Líder Clavadista'];
         if (!foundMember || !validRoles.includes(foundMember.role)) {
             setMember(null);
@@ -77,15 +82,15 @@ export default function TeamMemberProfilePage() {
         }
         setMember(foundMember);
 
-        const [fetchedOrders, fetchedAccounts] = await Promise.all([
-          getOrdersFS(),
-          getAccountsFS()
-        ]);
-        
         const isLider = foundMember.role === 'Líder Clavadista';
         const ordersByMember = fetchedOrders
           .filter(order => order.salesRep === foundMember.name)
-          .sort((a,b) => parseISO(b.createdAt || b.visitDate).getTime() - parseISO(a.createdAt || a.visitDate).getTime());
+          .sort((a,b) => {
+            const dateA = a.createdAt || a.visitDate;
+            const dateB = b.createdAt || b.visitDate;
+            if (!dateA) return 1; if (!dateB) return -1;
+            return parseISO(dateB).getTime() - parseISO(dateA).getTime()
+          });
         setMemberOrders(ordersByMember);
 
         const accountsForMember = fetchedAccounts.filter(acc => 
@@ -97,8 +102,12 @@ export default function TeamMemberProfilePage() {
             
             const openTasks = accountOrders.filter(o => o.status === 'Programada' || o.status === 'Seguimiento');
             const nextInteraction = openTasks.sort((a, b) => {
-                const dateA = parseISO((a.status === 'Programada' ? a.visitDate : a.nextActionDate) || '1970-01-01');
-                const dateB = parseISO((b.status === 'Programada' ? b.visitDate : b.nextActionDate) || '1970-01-01');
+                const dateAString = (a.status === 'Programada' ? a.visitDate : a.nextActionDate);
+                const dateBString = (b.status === 'Programada' ? b.visitDate : b.nextActionDate);
+                if(!dateAString) return 1; if(!dateBString) return -1;
+                const dateA = parseISO(dateAString);
+                const dateB = parseISO(dateBString);
+                if (!isValid(dateA)) return 1; if (!isValid(dateB)) return -1;
                 return dateA.getTime() - dateB.getTime();
             })[0];
             
@@ -124,15 +133,14 @@ export default function TeamMemberProfilePage() {
           if (ALL_VISIT_STATUSES.includes(order.status)) {
             visitCount++;
           }
-          if (VALID_SALE_STATUSES.includes(order.status) && order.numberOfUnits) {
+          const orderDateString = order.visitDate || order.createdAt;
+          if (VALID_SALE_STATUSES.includes(order.status) && order.numberOfUnits && orderDateString && isValid(parseISO(orderDateString))) {
             bottles += order.numberOfUnits;
             orderCount++;
 
-            const orderDate = parseISO(order.visitDate || order.createdAt);
-            if (isValid(orderDate)) {
-              const yearMonth = format(orderDate, 'yyyy-MM');
-              monthlySales[yearMonth] = (monthlySales[yearMonth] || 0) + order.numberOfUnits;
-            }
+            const orderDate = parseISO(orderDateString);
+            const yearMonth = format(orderDate, 'yyyy-MM');
+            monthlySales[yearMonth] = (monthlySales[yearMonth] || 0) + order.numberOfUnits;
           }
         });
         setTotalBottlesSold(bottles);

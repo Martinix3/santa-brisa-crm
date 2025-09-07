@@ -91,7 +91,7 @@ export function AccountTableRow({ account, allTeamMembers, onResponsibleUpdate, 
                     <StatusBadge type="account" status={account.status} isOverdue={account.nextInteraction?.status === 'Seguimiento' && nextActionDate ? nextActionDate < new Date() : false}/>
                 </TableCell>
                 <TableCell className="text-right">
-                    <Button size="sm" onClick={handleOpenDialog}>
+                    <Button size="sm" onClick={handleOpenDialog} disabled>
                         <Send className="mr-2 h-3 w-3" />
                         Completar
                     </Button>

@@ -1,26 +1,30 @@
-
 "use client";
 
 import * as React from "react";
-import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/auth-context";
+import { useToast } from "@/hooks/use-toast";
+import type { EnrichedAccount, TeamMember, Order, AccountStatus, AccountType } from "@/types";
+import { getAccountsFS, updateAccountFS, deleteAccountFS, addAccountFS } from "@/services/account-service";
+import { getTeamMembersFS } from "@/services/team-member-service";
+import { getOrdersFS } from "@/services/order-service";
+import { processCarteraData } from "@/services/cartera-service";
+import { startOfDay, endOfDay, isBefore, isEqual, parseISO, isValid } from 'date-fns';
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { cn } from "@/lib/utils";
+import { Loader2, Search, PlusCircle, ChevronDown, Eye } from "lucide-react";
+
+// UI Components
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
-import type { EnrichedAccount, TeamMember, Order, UserRole, AccountStatus, AccountType } from "@/types";
-import { useAuth } from "@/contexts/auth-context";
-import { Loader2, Search } from "lucide-react";
-import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
-import { getAccountsFS, addAccountFS, updateAccountFS, deleteAccountFS } from "@/services/account-service";
-import { getOrdersFS } from "@/services/order-service";
-import { getTeamMembersFS } from "@/services/team-member-service";
-import { processCarteraData } from "@/services/cartera-service";
-import { AccountTableRow } from "@/components/app/account-table-row";
-import { startOfDay, endOfDay, isBefore, isEqual, parseISO, isValid } from 'date-fns';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import StatusBadge from "@/components/app/status-badge";
+import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import AccountHistoryTable from "@/components/app/account-history-table";
-import { cn } from "@/lib/utils";
+import { InteractionDialog } from "@/components/app/interaction-dialog";
 
 type BucketFilter = "Todos" | "Vencidas" | "Para Hoy" | "Pendientes";
 type SortOption = "leadScore_desc" | "nextAction_asc" | "lastInteraction_desc";
@@ -31,6 +35,104 @@ const DISTRIBUTOR_TYPES: AccountType[] = ['Distribuidor'];
 const IMPORTER_TYPES: AccountType[] = ['Importador'];
 const FINAL_CUSTOMER_TYPES: AccountType[] = ['Cliente Final Directo', 'Evento Especial'];
 
+function AccountTableRow({ account, isExpanded, onToggleExpand }: { account: EnrichedAccount; isExpanded: boolean; onToggleExpand: () => void; }) {
+    const [isInteractionDialogOpen, setIsInteractionDialogOpen] = React.useState(false);
+
+    const nextActionDate = account.nextInteraction?.status === 'Programada'
+        ? (account.nextInteraction.visitDate ? parseISO(account.nextInteraction.visitDate) : null)
+        : (account.nextInteraction?.nextActionDate ? parseISO(account.nextInteraction.nextActionDate) : null);
+    
+    const lastInteractionDate = account.lastInteractionDate ? new Date(account.lastInteractionDate) : null;
+    
+    return (
+      <>
+        <TableRow
+          data-state={isExpanded ? 'selected' : ''}
+          className="cursor-pointer"
+          onClick={onToggleExpand}
+        >
+          <TableCell className="font-medium">
+            <div className="flex items-center gap-2">
+              <ChevronDown
+                className={cn('h-4 w-4 transition-transform', isExpanded && 'rotate-180')}
+              />
+              <Link
+                href={`/accounts/${account.id}`}
+                onClick={(e) => e.stopPropagation()}
+                className="hover:underline text-primary"
+              >
+                {account.nombre}
+              </Link>
+            </div>
+            <p className="text-xs text-muted-foreground pl-6">
+              {account.ciudad || 'Ubicación no especificada'}
+            </p>
+          </TableCell>
+          <TableCell>{account.responsableName || <span className="text-muted-foreground">Sin Asignar</span>}</TableCell>
+          <TableCell className="text-xs">
+            <p className="truncate max-w-[150px]" title={account.lastInteraction?.notes}>{account.lastInteraction?.notes || "Sin interacciones"}</p>
+            {lastInteractionDate && isValid(lastInteractionDate) && <p className="text-muted-foreground/80">{format(lastInteractionDate, "dd MMM yyyy", { locale: es })}</p>}
+          </TableCell>
+          <TableCell className="text-xs">
+              <p>{account.nextInteraction?.nextActionType || <span className="text-muted-foreground">Ninguna</span>}</p>
+              {nextActionDate && isValid(nextActionDate) && <p className="text-muted-foreground/80">{format(nextActionDate, "dd MMM yyyy", { locale: es })}</p>}
+          </TableCell>
+          <TableCell className="text-right">
+              <FormattedNumericValue value={account.totalValue} options={{ style: 'currency', currency: 'EUR' }} placeholder="—" />
+          </TableCell>
+          <TableCell className="text-center">
+              <StatusBadge type="account" status={account.status} isOverdue={account.nextInteraction?.status === 'Seguimiento' && nextActionDate ? nextActionDate < new Date() : false}/>
+          </TableCell>
+          <TableCell className="text-right">
+              <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setIsInteractionDialogOpen(true); }}>
+                  <PlusCircle className="mr-2 h-3 w-3" />
+                  Registrar
+              </Button>
+          </TableCell>
+        </TableRow>
+        {isExpanded && (
+           <TableRow className="bg-background hover:bg-background">
+                <TableCell colSpan={7} className="p-0">
+                    <AccountHistoryTable interactions={account.interactions} />
+                </TableCell>
+            </TableRow>
+        )}
+        <InteractionDialog
+            open={isInteractionDialogOpen}
+            onOpenChange={setIsInteractionDialogOpen}
+            client={account}
+            originatingTask={account.nextInteraction || null}
+        />
+      </>
+    );
+}
+
+const AccountGroup = ({ title, accounts, expandedRowId, onToggleExpand, groupColor }: { title: string; accounts: EnrichedAccount[]; expandedRowId: string | null; onToggleExpand: (id: string) => void; groupColor: string; }) => {
+    if (accounts.length === 0) return null;
+    return (
+        <>
+            <TableRow className="bg-muted/30 hover:bg-muted/30 sticky top-0 z-10">
+                <TableCell colSpan={7} className="p-0">
+                   <div className="py-2 px-2 flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                           <div className={cn("w-2 h-6 rounded-r-full", groupColor)}></div>
+                           <h3 className="text-base font-semibold text-gray-800">{title} ({accounts.length})</h3>
+                        </div>
+                   </div>
+                </TableCell>
+            </TableRow>
+            {accounts.map(account => (
+                <AccountTableRow
+                    key={account.id}
+                    account={account}
+                    isExpanded={expandedRowId === account.id}
+                    onToggleExpand={() => onToggleExpand(account.id)}
+                />
+            ))}
+        </>
+    )
+};
+
 
 export default function AccountsPage() {
   const { toast } = useToast();
@@ -39,24 +141,17 @@ export default function AccountsPage() {
   const [enrichedAccounts, setEnrichedAccounts] = React.useState<EnrichedAccount[]>([]);
   const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
-  
-  const [isAccountDialogOpen, setIsAccountDialogOpen] = React.useState(false);
-  const [accountToDelete, setAccountToDelete] = React.useState<EnrichedAccount | null>(null);
 
   // Filters
   const [searchTerm, setSearchTerm] = React.useState("");
   const [responsibleFilter, setResponsibleFilter] = React.useState("Todos");
   const [bucketFilter, setBucketFilter] = React.useState<BucketFilter>("Todos");
   const [sortOption, setSortOption] = React.useState<SortOption>("leadScore_desc");
-  const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
   const [typeFilter, setTypeFilter] = React.useState<AccountTypeFilter>('Todos');
+  const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
   
   const isAdmin = userRole === 'Admin';
   const salesAndAdminMembers = teamMembers.filter(m => m.role === 'Admin' || m.role === 'SalesRep');
-
-  const toggleRowExpansion = React.useCallback((accountId: string) => {
-    setExpandedRowId(prevId => (prevId === accountId ? null : accountId));
-  }, []);
 
   React.useEffect(() => {
     async function loadData() {
@@ -123,7 +218,7 @@ export default function AccountsPage() {
     };
     
     const filtered = enrichedAccounts
-      .filter(acc => { // Search Filter
+      .filter(acc => {
         if (!searchTerm) return true;
         const lowercasedFilter = searchTerm.toLowerCase();
         return acc.nombre.toLowerCase().includes(lowercasedFilter) ||
@@ -131,24 +226,24 @@ export default function AccountsPage() {
                (acc.responsableName && acc.responsableName.toLowerCase().includes(lowercasedFilter)) ||
                (acc.ciudad && acc.ciudad.toLowerCase().includes(lowercasedFilter));
       })
-      .filter(acc => { // Type Filter
+      .filter(acc => {
         if (typeFilter === 'Todos') return true;
         if (typeFilter === 'Cuentas') return HORECA_RETAIL_TYPES.includes(acc.type);
+        if (typeFilter === 'Cliente Final') return FINAL_CUSTOMER_TYPES.includes(acc.type);
         if (typeFilter === 'Distribuidor') return DISTRIBUTOR_TYPES.includes(acc.type);
         if (typeFilter === 'Importador') return IMPORTER_TYPES.includes(acc.type);
-        if (typeFilter === 'Cliente Final') return FINAL_CUSTOMER_TYPES.includes(acc.type);
         if (typeFilter === 'Otro') {
-            const allKnownTypes = [...HORECA_RETAIL_TYPES, ...DISTRIBUTOR_TYPES, ...IMPORTER_TYPES, ...FINAL_CUSTOMER_TYPES];
+            const allKnownTypes = [...HORECA_RETAIL_TYPES, ...FINAL_CUSTOMER_TYPES, ...DISTRIBUTOR_TYPES, ...IMPORTER_TYPES];
             return !allKnownTypes.includes(acc.type);
         }
         return false;
       })
-      .filter(acc => { // Responsible Filter
+      .filter(acc => {
         if (!isAdmin || responsibleFilter === "Todos") return true;
         if (responsibleFilter === "SinAsignar") return !acc.responsableId;
         return acc.responsableId === responsibleFilter;
       })
-      .filter(acc => { // Bucket Filter
+      .filter(acc => {
         if (bucketFilter === 'Todos') return true;
         const validStatusesForBucketFilter: AccountStatus[] = ['Programada', 'Seguimiento'];
         if (!validStatusesForBucketFilter.includes(acc.status)) return false;
@@ -179,62 +274,6 @@ export default function AccountsPage() {
     };
   }, [searchTerm, typeFilter, enrichedAccounts, responsibleFilter, bucketFilter, isAdmin, sortOption]);
 
-  const handleAddNewAccount = () => {
-    if (!isAdmin) return;
-    setIsAccountDialogOpen(true);
-  };
-  
-  const handleSaveNewAccount = async (data: AccountFormValues) => {
-    if (!isAdmin) return;
-    setIsLoading(true); 
-    try {
-      await addAccountFS(data);
-      refreshDataSignature();
-      toast({ title: "¡Cuenta Añadida!", description: `La cuenta "${data.name}" ha sido añadida.` });
-      setIsAccountDialogOpen(false);
-    } catch (error) {
-      console.error("Error saving new account:", error);
-      toast({ title: "Error al Guardar", description: "No se pudo añadir la nueva cuenta.", variant: "destructive" });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  const handleResponsibleUpdate = async (accountId: string, newResponsibleId: string | null) => {
-      try {
-          await updateAccountFS(accountId, { salesRepId: newResponsibleId === null ? undefined : newResponsibleId });
-          refreshDataSignature();
-          toast({ title: "Responsable Actualizado", description: "Se ha reasignado la cuenta correctamente." });
-      } catch (error: any) {
-          console.error("Error updating responsible:", error);
-          toast({ title: "Error al Reasignar", description: `No se pudo actualizar el responsable: ${error.message}`, variant: "destructive" });
-      }
-  };
-
-  const handleDeleteAccountClick = (account: EnrichedAccount) => {
-    if (!isAdmin) return;
-    setAccountToDelete(account);
-  };
-  
-  const confirmDeleteAccount = async () => {
-    if (!isAdmin || !accountToDelete) return;
-    setIsLoading(true);
-    try {
-      await deleteAccountFS(accountToDelete.id);
-      toast({
-        title: "¡Cuenta Eliminada!",
-        description: `La cuenta "${accountToDelete.nombre}" y sus interacciones asociadas han sido eliminadas.`,
-        variant: "destructive"
-      });
-      refreshDataSignature();
-    } catch (error) {
-      console.error("Error deleting account:", error);
-      toast({ title: "Error al Eliminar", description: "No se pudo eliminar la cuenta y sus interacciones.", variant: "destructive" });
-    } finally {
-      setIsLoading(false);
-      setAccountToDelete(null);
-    }
-  };
   
   return (
     <div className="space-y-6">
@@ -319,11 +358,11 @@ export default function AccountsPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <AccountGroup title="Cuentas Activas y en Repetición" accounts={activeAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onDeleteAccount={handleDeleteAccountClick} groupColor="bg-emerald-500" expandedRowId={expandedRowId} onToggleExpand={toggleRowExpansion} />
-                        <AccountGroup title="Potenciales (en seguimiento)" accounts={potentialAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onDeleteAccount={handleDeleteAccountClick} groupColor="bg-amber-500" expandedRowId={expandedRowId} onToggleExpand={toggleRowExpansion} />
-                        <AccountGroup title="Pendientes (Nuevas y Programadas)" accounts={pendingAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onDeleteAccount={handleDeleteAccountClick} groupColor="bg-sky-500" expandedRowId={expandedRowId} onToggleExpand={toggleRowExpansion} />
-                        <AccountGroup title="Cuentas Inactivas" accounts={inactiveAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onDeleteAccount={handleDeleteAccountClick} groupColor="bg-orange-500" expandedRowId={expandedRowId} onToggleExpand={toggleRowExpansion}/>
-                        <AccountGroup title="Fallidos / Descartados" accounts={failedAccounts} teamMembers={teamMembers} onResponsibleUpdate={handleResponsibleUpdate} onDeleteAccount={handleDeleteAccountClick} groupColor="bg-rose-500" expandedRowId={expandedRowId} onToggleExpand={toggleRowExpansion}/>
+                        <AccountGroup title="Cuentas Activas y en Repetición" accounts={activeAccounts} groupColor="bg-emerald-500" expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} />
+                        <AccountGroup title="Potenciales (en seguimiento)" accounts={potentialAccounts} groupColor="bg-amber-500" expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} />
+                        <AccountGroup title="Pendientes (Nuevas y Programadas)" accounts={pendingAccounts} groupColor="bg-sky-500" expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} />
+                        <AccountGroup title="Cuentas Inactivas" accounts={inactiveAccounts} groupColor="bg-orange-500" expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId}/>
+                        <AccountGroup title="Fallidos / Descartados" accounts={failedAccounts} groupColor="bg-rose-500" expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId}/>
                         
                         {(activeAccounts.length + potentialAccounts.length + pendingAccounts.length + inactiveAccounts.length + failedAccounts.length) === 0 && (
                             <TableRow>
@@ -338,74 +377,6 @@ export default function AccountsPage() {
           </div>
         </CardContent>
       </Card>
-      
-      {accountToDelete && (
-        <AlertDialog open={!!accountToDelete} onOpenChange={(open) => !open && setAccountToDelete(null)}>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
-                <AlertDialogDescription>
-                    Esta acción no se puede deshacer. Se eliminará permanentemente la cuenta <strong className="text-foreground">"{accountToDelete.nombre}"</strong> y todas sus interacciones asociadas.
-                </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                <AlertDialogCancel onClick={() => setAccountToDelete(null)}>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={confirmDeleteAccount} variant="destructive">Sí, eliminar todo</AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
-      )}
-
     </div>
   );
-}
-
-interface AccountGroupProps {
-  title: string;
-  accounts: EnrichedAccount[];
-  teamMembers: TeamMember[];
-  onResponsibleUpdate: (accountId: string, newResponsibleId: string | null) => Promise<void>;
-  onDeleteAccount: (account: EnrichedAccount) => void;
-  groupColor: string;
-  expandedRowId: string | null;
-  onToggleExpand: (accountId: string) => void;
-}
-
-const AccountGroup: React.FC<AccountGroupProps> = ({ title, accounts, teamMembers, onResponsibleUpdate, onDeleteAccount, groupColor, expandedRowId, onToggleExpand }) => {
-    
-    if (accounts.length === 0) return null;
-
-    return (
-        <>
-            <TableRow className="bg-muted/30 hover:bg-muted/30 sticky top-0 z-10">
-                <TableCell colSpan={7} className="p-0">
-                   <div className="py-2 px-2 flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                           <div className={cn("w-2 h-6 rounded-r-full", groupColor)}></div>
-                           <h3 className="text-base font-semibold text-gray-800">{title} ({accounts.length})</h3>
-                        </div>
-                   </div>
-                </TableCell>
-            </TableRow>
-            {accounts.map(account => (
-                <React.Fragment key={account.id}>
-                    <AccountTableRow 
-                        account={account}
-                        allTeamMembers={teamMembers}
-                        onResponsibleUpdate={onResponsibleUpdate}
-                        onDeleteAccount={onDeleteAccount}
-                        isExpanded={expandedRowId === account.id}
-                        onToggleExpand={() => onToggleExpand(account.id)}
-                    />
-                     {expandedRowId === account.id && (
-                        <TableRow className="bg-background hover:bg-background">
-                            <TableCell colSpan={7} className="p-0">
-                                <AccountHistoryTable interactions={account.interactions} />
-                            </TableCell>
-                        </TableRow>
-                    )}
-                </React.Fragment>
-            ))}
-        </>
-    )
 }

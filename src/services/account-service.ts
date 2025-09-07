@@ -4,7 +4,7 @@ import { db } from '@/lib/firebase';
 import {
   collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
   type DocumentSnapshot,
-  writeBatch, where
+  writeBatch, where, increment
 } from "firebase/firestore";
 import type { Account, AccountFormValues, PotencialType } from '@/types';
 import { format, parseISO } from 'date-fns';
@@ -12,20 +12,15 @@ import { format, parseISO } from 'date-fns';
 const ACCOUNTS_COLLECTION = 'accounts';
 const ORDERS_COLLECTION = 'orders'; 
 
-// This function now returns the raw account data from Firestore.
-// The business logic (status, leadScore) is handled in cartera-service.
 const fromFirestore = (docSnap: DocumentSnapshot): Account => {
   const data = docSnap.data();
   if (!data) throw new Error("Document data is undefined.");
 
   return {
     id: docSnap.id,
-    nombre: data.nombre ?? data.name ?? data.nombreComercial ?? '',
-    type: data.type, 
-    // The 'status' field from Firestore is now considered legacy.
-    // The true status is calculated dynamically by cartera-service.
-    // We provide a default fallback here.
-    status: 'Inactivo',
+    nombre: data.nombre ?? data.name ?? data.nombreComercial ?? 'Nombre no disponible',
+    type: data.type ?? 'Otro', 
+    status: 'Inactivo', // Default fallback, calculated later
     leadScore: 0,
     
     // --- New Fields ---
@@ -61,10 +56,11 @@ const fromFirestore = (docSnap: DocumentSnapshot): Account => {
     mainContactPhone: data.mainContactPhone || '',
     notes: data.notes || '',
     internalNotes: data.internalNotes || undefined,
-    createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : (typeof data.createdAt === 'string' ? data.createdAt : format(new Date(), "yyyy-MM-dd")),
-    updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : (typeof data.updatedAt === 'string' ? data.updatedAt : format(new Date(), "yyyy-MM-dd")),
+    createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : (typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString()),
+    updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : (typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString()),
     primer_pedido_fecha: data.primer_pedido_fecha ? (data.primer_pedido_fecha instanceof Timestamp ? data.primer_pedido_fecha.toDate().toISOString() : data.primer_pedido_fecha) : undefined,
     segundo_pedido_fecha: data.segundo_pedido_fecha ? (data.segundo_pedido_fecha instanceof Timestamp ? data.segundo_pedido_fecha.toDate().toISOString() : data.segundo_pedido_fecha) : undefined,
+    total_orders_count: 0,
   };
 };
 
@@ -74,7 +70,6 @@ const toFirestore = (data: Partial<AccountFormValues>, isNew: boolean): any => {
     if (data.name) firestoreData.nombre = data.name;
     if (data.type) firestoreData.type = data.type;
     
-    // Safe handling of optional fields
     firestoreData.legalName = data.legalName || null;
     firestoreData.cif = data.cif || null;
     firestoreData.iban = data.iban || null;
@@ -172,7 +167,7 @@ export const updateAccountFS = async (id: string, data: Partial<AccountFormValue
                 console.warn(`Could not find team member with ID: ${data.salesRepId}`);
                 newRepName = 'Asignado a ID no válido';
             }
-        } // If data.salesRepId is null or undefined, newRepName remains null, which is correct for un-assigning.
+        } 
 
         const openTasksQuery = query(
             collection(db, ORDERS_COLLECTION),
@@ -201,11 +196,9 @@ export const updateAccountFS = async (id: string, data: Partial<AccountFormValue
 export const deleteAccountFS = async (id: string): Promise<void> => {
   const batch = writeBatch(db);
 
-  // 1. Get the account document to delete it.
   const accountDocRef = doc(db, ACCOUNTS_COLLECTION, id);
   batch.delete(accountDocRef);
 
-  // 2. Query for all orders related to this accountId and add their deletions to the batch.
   const ordersQuery = query(collection(db, ORDERS_COLLECTION), where("accountId", "==", id));
   const ordersSnapshot = await getDocs(ordersQuery);
   ordersSnapshot.forEach(orderDoc => {
@@ -217,7 +210,7 @@ export const deleteAccountFS = async (id: string): Promise<void> => {
       console.log(`Deletion complete for account ${id} and its related interactions.`);
   } catch (error) {
       console.error(`Error during batched deletion for account ${id}:`, error);
-      throw error; // Re-throw to be handled by the UI
+      throw error;
   }
 };
 
@@ -246,4 +239,13 @@ export const initializeMockAccountsInFirestore = async (mockAccounts: any[]) => 
     } else {
         console.log('Accounts collection is not empty. Skipping initialization.');
     }
+};
+
+export const incrementOrderCountFS = async (accountId: string) => {
+    if (!accountId) return;
+    const accountRef = doc(db, 'accounts', accountId);
+    await updateDoc(accountRef, {
+        total_orders_count: increment(1),
+        updatedAt: Timestamp.now()
+    });
 };

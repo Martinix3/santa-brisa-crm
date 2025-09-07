@@ -114,22 +114,9 @@ export const getOrderByIdFS = async (id: string): Promise<Order | null> => {
 };
 
 
-export const addOrderFS = async (data: Partial<Order>, originalTaskId?: string): Promise<string> => {
-  const dataToSave = { ...data };
-  
-  if (originalTaskId) {
-      await runTransaction(db, async (transaction) => {
-          const originalTaskRef = doc(db, ORDERS_COLLECTION, originalTaskId);
-          transaction.update(originalTaskRef, { status: "Completado" as OrderStatus, lastUpdated: Timestamp.now() });
-
-          const newOrderRef = doc(collection(db, ORDERS_COLLECTION));
-          transaction.set(newOrderRef, { ...dataToSave, createdAt: Timestamp.now(), lastUpdated: Timestamp.now() });
-      });
-      return "transaction_completed";
-  } else {
-      const docRef = await addDoc(collection(db, ORDERS_COLLECTION), { ...dataToSave, createdAt: Timestamp.now(), lastUpdated: Timestamp.now() });
-      return docRef.id;
-  }
+export const addOrderFS = async (data: Partial<Order>): Promise<string> => {
+  const docRef = await addDoc(collection(db, ORDERS_COLLECTION), { ...data, createdAt: Timestamp.now(), lastUpdated: Timestamp.now() });
+  return docRef.id;
 };
 
 

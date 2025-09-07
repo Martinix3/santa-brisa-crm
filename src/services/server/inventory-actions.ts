@@ -10,6 +10,8 @@ export async function getInventoryItemsAction(): Promise<InventoryItem[]> {
     return items;
   } catch (error) {
     console.error("Error in getInventoryItemsAction:", error);
+    // En lugar de devolver un array vacío, que podría ocultar el error,
+    // es mejor relanzar el error para que el cliente pueda manejarlo.
     throw new Error("Failed to fetch inventory items via server action.");
   }
 }

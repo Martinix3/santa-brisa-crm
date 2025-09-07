@@ -1,7 +1,7 @@
 
 import { db } from '@/lib/firebase';
 import {
-  collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, type DocumentSnapshot, runTransaction, FieldValue, where
+  collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, type DocumentSnapshot, runTransaction, FieldValue, where, type Transaction
 } from "firebase/firestore";
 import type { InventoryItem, InventoryItemFormValues, LatestPurchaseInfo, Category } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
@@ -75,11 +75,13 @@ export const getInventoryItemByIdFS = async (id: string): Promise<InventoryItem 
 
 export const addInventoryItemFS = async (
   data: InventoryItemFormValues,
-  transaction?: FirebaseFirestore.Transaction
+  transaction?: Transaction
 ): Promise<{ id: string; sku: string }> => {
   const categoryDocRef = doc(db, 'categories', data.categoryId);
+  
   const categoryDoc = await (transaction ? transaction.get(categoryDocRef) : getDoc(categoryDocRef));
   if (!categoryDoc.exists()) throw new Error(`Category with ID ${data.categoryId} not found.`);
+  
   const category = { id: categoryDoc.id, ...categoryDoc.data() } as Category;
   const newSku = await generateSku(data.name, category);
   
@@ -91,15 +93,17 @@ export const addInventoryItemFS = async (
     updatedAt: Timestamp.now(),
   };
 
+  const newDocRef = doc(collection(db, INVENTORY_ITEMS_COLLECTION));
+
   if (transaction) {
-    const newDocRef = doc(collection(db, INVENTORY_ITEMS_COLLECTION));
     transaction.set(newDocRef, firestoreData);
-    return { id: newDocRef.id, sku: newSku };
   } else {
-    const docRef = await addDoc(collection(db, INVENTORY_ITEMS_COLLECTION), firestoreData);
-    return { id: docRef.id, sku: newSku };
+    await setDoc(newDocRef, firestoreData);
   }
+
+  return { id: newDocRef.id, sku: newSku };
 };
+
 
 export const updateInventoryItemFS = async (id: string, data: Partial<InventoryItemFormValues>): Promise<void> => {
   const itemDocRef = doc(db, INVENTORY_ITEMS_COLLECTION, id);

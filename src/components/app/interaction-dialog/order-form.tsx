@@ -5,7 +5,7 @@ import * as React from 'react';
 import { useFormContext, useWatch, useFieldArray, type FieldArrayWithId } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
 import { DialogFooter } from '@/components/ui/dialog';
-import { Loader2, ArrowLeft, Send, Package, CreditCard, Award, Zap, Trash2, PlusCircle } from "lucide-react";
+import { Loader2, ArrowLeft, Send, Package, CreditCard, Award, Zap, Trash2, PlusCircle, Truck } from "lucide-react";
 import type { InteractionFormValues } from '@/lib/schemas/interaction-schema';
 import type { InventoryItem, TeamMember, UserRole, Account } from '@/types';
 import { FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from "@/components/ui/form";

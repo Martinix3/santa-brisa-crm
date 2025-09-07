@@ -67,7 +67,7 @@ export default function ClavadistasPage() {
             newAccountsOpened: openedAccountIds.size,
           };
         });
-        setClavadistaStats(stats);
+        setClavadistaStats(stats.sort((a,b) => b.totalValueParticipated - a.totalValueParticipated));
       } catch (error) {
         console.error("Error loading clavadista stats:", error);
         toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar las estadísticas de los clavadistas.", variant: "destructive" });
@@ -75,14 +75,18 @@ export default function ClavadistasPage() {
         setIsLoading(false);
       }
     }
-    loadClavadistaData();
-  }, [toast, userRole]);
+    
+    if (!loading && userRole !== 'Clavadista') {
+      loadClavadistaData();
+    }
+    
+  }, [toast, userRole, loading]);
 
   const overallTotalValueParticipated = useMemo(() => clavadistaStats.reduce((sum, m) => sum + m.totalValueParticipated, 0), [clavadistaStats]);
   const overallTotalAccountsOpened = useMemo(() => clavadistaStats.reduce((sum, m) => sum + m.newAccountsOpened, 0), [clavadistaStats]);
 
 
-  if (isLoading || loading || userRole === 'Clavadista') {
+  if (isLoading || loading) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />

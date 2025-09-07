@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -7,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import type { TeamMember, Order, Account, OrderStatus, EnrichedAccount, AccountStatus } from "@/types";
+import type { TeamMember, Order, Account, OrderStatus, EnrichedAccount, AccountStatus, UserRole } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { ArrowLeft, Mail, Package, Briefcase, Footprints, AlertTriangle, ShoppingCart, Loader2 } from "lucide-react";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
@@ -65,7 +66,7 @@ export default function TeamMemberProfilePage() {
       setIsLoading(true);
       try {
         const foundMember = await getTeamMemberByIdFS(memberId);
-        const validRoles: UserRole[] = ['SalesRep', 'Embajador Clavadista', 'Lider Embajador'];
+        const validRoles: UserRole[] = ['SalesRep', 'Líder Clavadista'];
         if (!foundMember || !validRoles.includes(foundMember.role)) {
             setMember(null);
             if (foundMember && !validRoles.includes(foundMember.role)) {
@@ -81,14 +82,14 @@ export default function TeamMemberProfilePage() {
           getAccountsFS()
         ]);
         
-        const isEmbajador = ['Embajador Clavadista', 'Lider Embajador'].includes(foundMember.role);
+        const isLider = foundMember.role === 'Líder Clavadista';
         const ordersByMember = fetchedOrders
-          .filter(order => isEmbajador ? order.embajadorId === foundMember.id : order.salesRep === foundMember.name)
+          .filter(order => order.salesRep === foundMember.name)
           .sort((a,b) => parseISO(b.createdAt || b.visitDate).getTime() - parseISO(a.createdAt || a.visitDate).getTime());
         setMemberOrders(ordersByMember);
 
         const accountsForMember = fetchedAccounts.filter(acc => 
-            isEmbajador ? acc.embajadorId === foundMember.id : acc.salesRepId === foundMember.id
+            acc.salesRepId === foundMember.id
         );
         
         const enrichedAccountsPromises = accountsForMember.map(async (account) => {
@@ -120,6 +121,9 @@ export default function TeamMemberProfilePage() {
         const monthlySales: Record<string, number> = {}; 
 
         ordersByMember.forEach(order => {
+          if (ALL_VISIT_STATUSES.includes(order.status)) {
+            visitCount++;
+          }
           if (VALID_SALE_STATUSES.includes(order.status) && order.numberOfUnits) {
             bottles += order.numberOfUnits;
             orderCount++;
@@ -129,9 +133,6 @@ export default function TeamMemberProfilePage() {
               const yearMonth = format(orderDate, 'yyyy-MM');
               monthlySales[yearMonth] = (monthlySales[yearMonth] || 0) + order.numberOfUnits;
             }
-          }
-          if (ALL_VISIT_STATUSES.includes(order.status)) {
-            visitCount++;
           }
         });
         setTotalBottlesSold(bottles);

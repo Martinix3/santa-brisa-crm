@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import type { TeamMember, Order, Account } from "@/types";
+import type { TeamMember, Order, Account, UserRole } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { ArrowLeft, Mail, Award, AlertTriangle, Loader2, FileText, CalendarDays, DollarSign, Briefcase } from "lucide-react";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
@@ -52,11 +52,12 @@ export default function ClavadistaProfilePage() {
             getAccountsFS(),
         ]);
         
-        if (foundClavadista && (foundClavadista.role === 'Clavadista' || foundClavadista.role === 'Líder Clavadista')) {
+        const validRoles: UserRole[] = ['Clavadista', 'Líder Clavadista'];
+        if (foundClavadista && validRoles.includes(foundClavadista.role)) {
           setClavadista(foundClavadista);
 
           const ordersWithClavadista = allOrders
-            .filter(order => order.embajadorId === foundClavadista.id)
+            .filter(order => order.clavadistaId === foundClavadista.id)
             .sort((a,b) => {
                 const dateA = parseISO(a.visitDate || a.createdAt || '1970-01-01');
                 const dateB = parseISO(b.visitDate || b.createdAt || '1970-01-01');

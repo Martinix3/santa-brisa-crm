@@ -20,6 +20,12 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from "@/contexts/auth-context";
 import { VALID_SALE_STATUSES, ALL_VISIT_STATUSES } from '@/lib/constants';
 
+interface EnrichedTeamMember extends TeamMember {
+  monthlyAccountsAchieved: number;
+  monthlyVisitsAchieved: number;
+  bottlesSold: number;
+}
+
 const renderProgress = (current: number, target: number, unit: string, targetAchievedText: string) => {
   const progress = target > 0 ? Math.min((current / target) * 100, 100) : (current > 0 ? 100 : 0);
   const remaining = Math.max(0, target - current);
@@ -56,139 +62,91 @@ const renderProgress = (current: number, target: number, unit: string, targetAch
 export default function TeamTrackingPage() {
   const { toast } = useToast();
   const { userRole, teamMember, dataSignature } = useAuth(); 
-  const [teamStats, setTeamStats] = useState<TeamMember[]>([]);
-  const [salesTeamMembersBase, setSalesTeamMembersBase] = useState<TeamMember[]>([]);
-  const [isLoadingBaseMembers, setIsLoadingBaseMembers] = useState(true);
-  const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const [teamStats, setTeamStats] = useState<EnrichedTeamMember[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    async function loadBaseTeamMembers() {
-      setIsLoadingBaseMembers(true);
-      try {
-        let members;
-        if (userRole === 'Líder Clavadista' && teamMember && teamMember.equipoIds && teamMember.equipoIds.length > 0) {
-            const fetchedMembers = await getTeamMembersFS();
-            const teamIdsSet = new Set(teamMember.equipoIds);
-            members = fetchedMembers.filter(m => teamIdsSet.has(m.id));
-        } else {
-            members = await getTeamMembersFS(['SalesRep', 'Líder Clavadista']);
-        }
-        setSalesTeamMembersBase(members);
-      } catch (error) {
-        console.error("Error loading sales team members:", error);
-        toast({ title: "Error al Cargar Equipo", description: "No se pudo cargar la lista de comerciales.", variant: "destructive" });
-      } finally {
-        setIsLoadingBaseMembers(false);
-      }
-    }
-    loadBaseTeamMembers();
-  }, [toast, dataSignature, userRole, teamMember]); 
-
-
-  useEffect(() => {
-    if (isLoadingBaseMembers) {
-      return;
-    }
-
-    if (salesTeamMembersBase.length === 0) {
-      setTeamStats([]); 
-      setIsLoadingStats(false); 
-      return;
-    }
-
-    async function loadTeamData() {
-      setIsLoadingStats(true);
-      try {
-        const [fetchedOrders, fetchedAccounts] = await Promise.all([
-            getOrdersFS(),
-            getAccountsFS()
-        ]);
-        const currentDate = new Date();
-        
-        const accountNameMap = new Map<string, string>();
-        fetchedAccounts.forEach(account => {
-            if (account.nombre) {
-                accountNameMap.set(account.nombre.toLowerCase().trim(), account.id);
-            }
-        });
-
-        const allSuccessfulOrders = fetchedOrders
-            .filter(o => VALID_SALE_STATUSES.includes(o.status) && (o.createdAt || o.visitDate))
-            .map(o => {
-                const dateString = o.visitDate || o.createdAt!;
-                const isoDateString = dateString.includes(' ') ? dateString.replace(' ', 'T') : dateString;
-                
-                let finalAccountId = o.accountId;
-                if (!finalAccountId && o.clientName) {
-                    finalAccountId = accountNameMap.get(o.clientName.toLowerCase().trim());
+    async function loadData() {
+        setIsLoading(true);
+        try {
+            const [fetchedOrders, fetchedAccounts, fetchedMembers] = await Promise.all([
+                getOrdersFS(),
+                getAccountsFS(),
+                getTeamMembersFS(['SalesRep', 'Líder Clavadista'])
+            ]);
+            
+            const currentDate = new Date();
+            
+            const accountNameMap = new Map<string, string>();
+            fetchedAccounts.forEach(account => {
+                if (account.nombre) {
+                    accountNameMap.set(account.nombre.toLowerCase().trim(), account.id);
                 }
+            });
 
-                return { ...o, accountId: finalAccountId, relevantDate: parseISO(isoDateString) };
-            })
-            .filter(o => isValid(o.relevantDate) && o.accountId)
-            .sort((a,b) => a.relevantDate.getTime() - b.relevantDate.getTime());
+            const allSuccessfulOrders = fetchedOrders
+                .filter(o => VALID_SALE_STATUSES.includes(o.status) && (o.createdAt || o.visitDate))
+                .map(o => {
+                    const dateString = o.visitDate || o.createdAt!;
+                    const isoDateString = dateString.includes(' ') ? dateString.replace(' ', 'T') : dateString;
+                    let finalAccountId = o.accountId;
+                    if (!finalAccountId && o.clientName) {
+                        finalAccountId = accountNameMap.get(o.clientName.toLowerCase().trim());
+                    }
+                    return { ...o, accountId: finalAccountId, relevantDate: parseISO(isoDateString) };
+                })
+                .filter(o => isValid(o.relevantDate) && o.accountId)
+                .sort((a,b) => a.relevantDate.getTime() - b.relevantDate.getTime());
 
-        const stats = salesTeamMembersBase.map(member => {
-          let bottlesSold = 0;
-          let ordersCount = 0;
-          let totalVisitsCount = 0;
+            const stats: EnrichedTeamMember[] = fetchedMembers.map(member => {
+                const memberInteractions = fetchedOrders.filter(o => o.salesRep === member.name);
+                
+                const bottlesSold = memberInteractions
+                    .filter(order => VALID_SALE_STATUSES.includes(order.status))
+                    .reduce((sum, order) => sum + (order.numberOfUnits || 0), 0);
+                
+                const monthlyVisitsAchieved = memberInteractions.filter(order => {
+                    const date = order.visitDate || order.createdAt;
+                    return date && isValid(parseISO(date)) && isSameMonth(parseISO(date), currentDate) && isSameYear(parseISO(date), currentDate) && ALL_VISIT_STATUSES.includes(order.status);
+                }).length;
+                
+                const firstOrdersForMemberAccounts = new Map<string, typeof allSuccessfulOrders[0]>();
+                for (const order of allSuccessfulOrders) {
+                    if (order.salesRep === member.name && order.accountId && !firstOrdersForMemberAccounts.has(order.accountId)) {
+                    firstOrdersForMemberAccounts.set(order.accountId, order);
+                    }
+                }
+                
+                const monthlyAccountsAchieved = Array.from(firstOrdersForMemberAccounts.values()).filter(o => 
+                    isSameMonth(o.relevantDate, currentDate) && isSameYear(o.relevantDate, currentDate)
+                ).length;
 
-          const memberInteractions = fetchedOrders.filter(o => o.salesRep === member.name);
-
-          memberInteractions.forEach(order => {
-            if (ALL_VISIT_STATUSES.includes(order.status)) {
-                totalVisitsCount++;
-            }
-            if (VALID_SALE_STATUSES.includes(order.status)) {
-              if (order.numberOfUnits) bottlesSold += order.numberOfUnits;
-              ordersCount++;
-            }
-          });
-          
-          const monthlyVisitsAchieved = memberInteractions.filter(order =>
-            isValid(parseISO(order.createdAt || order.visitDate!)) &&
-            isSameMonth(parseISO(order.createdAt || order.visitDate!), currentDate) &&
-            isSameYear(parseISO(order.createdAt || order.visitDate!), currentDate) &&
-            ALL_VISIT_STATUSES.includes(order.status)
-          ).length;
-
-          const firstOrdersForMemberAccounts = new Map<string, typeof allSuccessfulOrders[0]>();
-          for (const order of allSuccessfulOrders) {
-            if (order.salesRep === member.name && order.accountId && !firstOrdersForMemberAccounts.has(order.accountId)) {
-              firstOrdersForMemberAccounts.set(order.accountId, order);
-            }
-          }
-          
-          const monthlyAccountsAchieved = Array.from(firstOrdersForMemberAccounts.values()).filter(o => 
-            isSameMonth(o.relevantDate, currentDate) && isSameYear(o.relevantDate, currentDate)
-          ).length;
-
-
-          return {
-            ...member,
-            bottlesSold,
-            orders: ordersCount, 
-            visits: totalVisitsCount, 
-            monthlyAccountsAchieved, 
-            monthlyVisitsAchieved,   
-          };
-        });
-        setTeamStats(stats);
-      } catch (error) {
-        console.error("Error loading team tracking data:", error);
-        toast({ title: "Error al Cargar Estadísticas", description: "No se pudieron cargar las estadísticas del equipo.", variant: "destructive" });
-      } finally {
-        setIsLoadingStats(false);
-      }
+                return {
+                    ...member,
+                    bottlesSold,
+                    monthlyAccountsAchieved,
+                    monthlyVisitsAchieved,
+                };
+            });
+            setTeamStats(stats.sort((a,b) => b.bottlesSold - a.bottlesSold));
+        } catch (error) {
+            console.error("Error loading team tracking data:", error);
+            toast({ title: "Error al Cargar Estadísticas", description: "No se pudieron cargar las estadísticas del equipo.", variant: "destructive" });
+        } finally {
+            setIsLoading(false);
+        }
     }
-    loadTeamData();
-  }, [salesTeamMembersBase, isLoadingBaseMembers, toast, dataSignature]); 
+    loadData();
+  }, [toast, dataSignature]); 
 
-  const teamTotalBottlesValue = useMemo(() => teamStats.reduce((sum, m) => sum + (m.bottlesSold || 0), 0), [teamStats]);
-  const teamTotalOrdersValue = useMemo(() => teamStats.reduce((sum, m) => sum + (m.orders || 0), 0), [teamStats]);
-  const teamTotalVisitsValue = useMemo(() => teamStats.reduce((sum, m) => sum + (m.visits || 0), 0), [teamStats]);
+  const { totalBottles, totalAccounts, totalVisits } = useMemo(() => {
+    return teamStats.reduce((acc, member) => ({
+      totalBottles: acc.totalBottles + member.bottlesSold,
+      totalAccounts: acc.totalAccounts + member.monthlyAccountsAchieved,
+      totalVisits: acc.totalVisits + member.monthlyVisitsAchieved
+    }), { totalBottles: 0, totalAccounts: 0, totalVisits: 0 });
+  }, [teamStats]);
   
-  const isLoading = isLoadingBaseMembers || isLoadingStats;
 
   if (isLoading) {
     return (
@@ -223,10 +181,7 @@ export default function TeamTrackingPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {teamStats.length > 0 ? teamStats.map((member: TeamMember & { monthlyAccountsAchieved?: number, monthlyVisitsAchieved?: number }) => {
-                const bottlesSold = member.bottlesSold || 0;
-                const accountsAchievedThisMonth = member.monthlyAccountsAchieved || 0; 
-                const visitsMadeThisMonth = member.monthlyVisitsAchieved || 0; 
+              {teamStats.length > 0 ? teamStats.map((member) => {
                 const targetAccounts = member.monthlyTargetAccounts || 0;
                 const targetVisits = member.monthlyTargetVisits || 0;
                 
@@ -247,13 +202,13 @@ export default function TeamTrackingPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                      <FormattedNumericValue value={bottlesSold} locale="es-ES" />
+                      <FormattedNumericValue value={member.bottlesSold} locale="es-ES" />
                     </TableCell>
                     <TableCell>
-                      {renderProgress(accountsAchievedThisMonth, targetAccounts, "cuentas", "¡Obj. Cuentas Cumplido!")}
+                      {renderProgress(member.monthlyAccountsAchieved, targetAccounts, "cuentas", "¡Obj. Cuentas Cumplido!")}
                     </TableCell>
                     <TableCell>
-                       {renderProgress(visitsMadeThisMonth, targetVisits, "visitas", "¡Obj. Visitas Cumplido!")}
+                       {renderProgress(member.monthlyVisitsAchieved, targetVisits, "visitas", "¡Obj. Visitas Cumplido!")}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button variant="outline" size="sm" asChild>
@@ -284,33 +239,33 @@ export default function TeamTrackingPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              <FormattedNumericValue value={teamTotalBottlesValue} locale="es-ES" />
+              <FormattedNumericValue value={totalBottles} locale="es-ES" />
             </div>
             <p className="text-xs text-muted-foreground">Suma de todas las botellas vendidas por el equipo.</p>
           </CardContent>
         </Card>
         <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Pedidos del Equipo</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Cuentas Nuevas (Mes)</CardTitle>
             <Briefcase className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              <FormattedNumericValue value={teamTotalOrdersValue} locale="es-ES" />
+              <FormattedNumericValue value={totalAccounts} locale="es-ES" />
             </div>
-            <p className="text-xs text-muted-foreground">Número total de pedidos (con venta) registrados por el equipo.</p>
+            <p className="text-xs text-muted-foreground">Suma de cuentas nuevas este mes por el equipo.</p>
           </CardContent>
         </Card>
         <Card className="shadow-subtle hover:shadow-md transition-shadow duration-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Visitas Equipo</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Visitas (Mes)</CardTitle>
             <Footprints className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-                 <FormattedNumericValue value={teamTotalVisitsValue} locale="es-ES" />
+                 <FormattedNumericValue value={totalVisits} locale="es-ES" />
             </div>
-            <p className="text-xs text-muted-foreground">Número total de visitas (exitosas, fallidas o seguimiento) por el equipo.</p>
+            <p className="text-xs text-muted-foreground">Suma de todas las interacciones registradas este mes.</p>
           </CardContent>
         </Card>
       </div>

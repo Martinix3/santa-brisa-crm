@@ -16,6 +16,8 @@ export async function processCarteraData(
     teamMembers: TeamMember[]
 ): Promise<EnrichedAccount[]> {
     const teamMembersMap = new Map(teamMembers.map(tm => [tm.id, tm]));
+    const accountsMap = new Map(accounts.map(acc => [acc.id, acc]));
+    const accountNameMap = new Map(accounts.map(acc => [acc.nombre.toLowerCase().trim(), acc]));
     
     // Fetch direct sales once
     const directSales = await getDirectSalesFS();
@@ -36,12 +38,20 @@ export async function processCarteraData(
 
     const interactionsByAccountId = new Map<string, (Order | DirectSale)[]>();
     for (const interaction of allInteractions) {
-        const interactionDate = interaction.createdAt ? parseISO(interaction.createdAt) : null;
-        if (interaction.accountId && interactionDate && isValid(interactionDate)) {
-            if (!interactionsByAccountId.has(interaction.accountId)) {
-                interactionsByAccountId.set(interaction.accountId, []);
+        let accountId = interaction.accountId;
+        // If accountId is missing, try to find it by the client name (case-insensitive)
+        if (!accountId && interaction.clientName) {
+            const matchedAccount = accountNameMap.get(interaction.clientName.toLowerCase().trim());
+            if (matchedAccount) {
+                accountId = matchedAccount.id;
             }
-            interactionsByAccountId.get(interaction.accountId)!.push(interaction as Order); // Cast as Order for simplicity in the array
+        }
+        
+        if (accountId) {
+            if (!interactionsByAccountId.has(accountId)) {
+                interactionsByAccountId.set(accountId, []);
+            }
+            interactionsByAccountId.get(accountId)!.push(interaction as Order); // Cast as Order for simplicity in the array
         }
     }
     

@@ -1,7 +1,7 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
+ 
 @layer base {
   :root {
     --background: 47 100% 97%; /* #FFFBEF - brand-off-white */
@@ -39,7 +39,7 @@
     --brand-purple-hsl: 262 83% 58%;
     --brand-blue-hsl: 199 89% 48%;
   }
-
+ 
   .dark {
     --background: 240 10% 3.9%;
     --foreground: 0 0% 98%;
@@ -62,7 +62,7 @@
     --ring: 45 93% 58%;
   }
 }
-
+ 
 @layer base {
   * {
     @apply border-border;

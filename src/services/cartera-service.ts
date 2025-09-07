@@ -29,7 +29,8 @@ export async function processCarteraData(
             createdAt: ds.issueDate, 
             clientName: ds.customerName,
             accountId: ds.customerId,
-            value: ds.totalAmount
+            value: ds.totalAmount,
+            status: ds.status as any, // Cast to avoid type mismatch, logic will handle it
         }))
     ];
 
@@ -55,7 +56,7 @@ export async function processCarteraData(
             return dateB.getTime() - dateA.getTime();
         });
 
-        const openTasks = accountInteractions.filter(o => o.status === 'Programada' || o.status === 'Seguimiento');
+        const openTasks = accountInteractions.filter(o => o.status === 'Programada' || o.status === 'Seguimiento') as Order[];
         openTasks.sort((a, b) => {
             const dateAString = (a.status === 'Programada' ? a.visitDate : a.nextActionDate);
             const dateBString = (b.status === 'Programada' ? b.visitDate : b.nextActionDate);
@@ -70,29 +71,28 @@ export async function processCarteraData(
         });
         const nextInteraction = openTasks[0] || undefined;
         
-        const historicalStatus = await calculateCommercialStatus(accountInteractions);
-        const taskStatus = nextInteraction ? nextInteraction.status as 'Programada' | 'Seguimiento' : null;
+        const historicalStatus = await calculateCommercialStatus(accountInteractions as Order[]);
         
         let status: AccountStatus;
-        if (historicalStatus === 'Activo' || historicalStatus === 'Repetición' || historicalStatus === 'Inactivo') {
+        if (historicalStatus === 'Activo' || historicalStatus === 'Repetición') {
             status = historicalStatus;
-        } else if (taskStatus) {
-            status = taskStatus;
         } else {
-            status = historicalStatus;
+            status = nextInteraction ? nextInteraction.status as 'Programada' | 'Seguimiento' : historicalStatus;
         }
 
 
         const lastInteractionOrder = accountInteractions[0];
         const lastInteractionDate = lastInteractionOrder?.createdAt ? parseISO(lastInteractionOrder.createdAt) : undefined;
         
-        const recentOrderValue = accountInteractions
-            .filter(o => VALID_SALE_STATUSES.includes(o.status as any) && o.createdAt && isValid(parseISO(o.createdAt)) && isAfter(parseISO(o.createdAt), subDays(new Date(), 30)))
-            .reduce((sum, o) => sum + (o.value || 0), 0);
-        const leadScore = await calculateLeadScore(status, account.potencial, lastInteractionDate, recentOrderValue);
-
         const successfulOrders = accountInteractions.filter(o => VALID_SALE_STATUSES.includes(o.status as any));
         const totalSuccessfulOrders = successfulOrders.length;
+        
+        const recentOrderValue = successfulOrders
+            .filter(o => o.createdAt && isValid(parseISO(o.createdAt)) && isAfter(parseISO(o.createdAt), subDays(new Date(), 30)))
+            .reduce((sum, o) => sum + (o.value || 0), 0);
+            
+        const leadScore = await calculateLeadScore(status, account.potencial, lastInteractionDate, recentOrderValue);
+
         const totalValue = successfulOrders.reduce((sum, o) => sum + (o.value || 0), 0);
         
         const responsableId = account.salesRepId || account.responsableId;
@@ -106,10 +106,11 @@ export async function processCarteraData(
             totalSuccessfulOrders,
             totalValue,
             lastInteractionDate,
-            interactions: accountInteractions,
+            interactions: accountInteractions as Order[],
             responsableId: responsable?.id || '',
             responsableName: responsable?.name,
             responsableAvatar: responsable?.avatarUrl,
+            total_orders_count: totalSuccessfulOrders,
         };
     });
 

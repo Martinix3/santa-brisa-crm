@@ -53,6 +53,7 @@ export interface Account {
   internalNotes?: string;
   primer_pedido_fecha?: string;
   segundo_pedido_fecha?: string;
+  total_orders_count?: number;
 }
 
 export interface AccountFormValues {

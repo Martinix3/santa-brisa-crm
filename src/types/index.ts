@@ -368,13 +368,13 @@ export interface Purchase {
 }
 
 export interface EnrichedAccount extends Account {
-  totalSuccessfulOrders: number;
   totalValue: number;
   lastInteractionDate?: Date;
   nextInteraction?: Order;
   interactions: Order[];
   responsableName?: string;
   responsableAvatar?: string;
+  total_orders_count?: number;
 }
 
 export interface FollowUpResultFormValues {
@@ -721,3 +721,5 @@ export interface EarningsConfig {
   horecaRules: HorecaRule[];
   distributorRules: DistributorRule[];
 }
+
+export type OrderType = 'directa' | 'deposito';

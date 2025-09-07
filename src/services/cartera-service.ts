@@ -48,7 +48,7 @@ export async function processCarteraData(
             const dateA = parseISO(dateAString);
             const dateB = parseISO(dateBString);
             if (!isValid(dateA)) return 1; if (!isValid(dateB)) return -1;
-            if (dateA.getTime() !== dateB.getTime()) return dateA.getTime() - dateA.getTime();
+            if (dateA.getTime() !== dateB.getTime()) return dateA.getTime() - dateB.getTime();
             if (a.status === 'Programada' && b.status !== 'Programada') return -1;
             if (b.status === 'Programada' && a.status !== 'Programada') return 1;
             return 0;
@@ -57,13 +57,13 @@ export async function processCarteraData(
         
         let status: AccountStatus;
         const historicalStatus = await calculateCommercialStatus(accountOrders);
+        const taskStatus = nextInteraction ? nextInteraction.status as 'Programada' | 'Seguimiento' : null;
 
-        // CORRECTED LOGIC: Historical status takes precedence if it indicates an active relationship.
-        // The status of open tasks is only used if there's no meaningful sales history.
+        // FINAL LOGIC: Sales history trumps open tasks. An active client is always active.
         if (historicalStatus === 'Activo' || historicalStatus === 'Repetición' || historicalStatus === 'Inactivo') {
             status = historicalStatus;
-        } else if (nextInteraction) {
-            status = nextInteraction.status as 'Programada' | 'Seguimiento';
+        } else if (taskStatus) {
+            status = taskStatus;
         } else {
             // Fallback to historical status if no open tasks, which could be 'Pendiente' or 'Fallido'
             status = historicalStatus;

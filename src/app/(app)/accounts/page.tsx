@@ -24,11 +24,13 @@ import { cn } from "@/lib/utils";
 
 type BucketFilter = "Todos" | "Vencidas" | "Para Hoy" | "Pendientes";
 type SortOption = "leadScore_desc" | "nextAction_asc" | "lastInteraction_desc";
-type AccountTypeFilter = 'Todos' | 'CLIENTE_FINAL' | 'DISTRIBUIDOR' | 'IMPORTADOR' | 'OTRO';
+type AccountTypeFilter = 'Todos' | 'Cuentas' | 'Cliente Final' | 'Distribuidor' | 'Importador' | 'Otro';
 
-const CUSTOMER_TYPES: AccountType[] = ['HORECA', 'Retail Minorista', 'Gran Superficie', 'Cliente Final Directo', 'Evento Especial'];
+const HORECA_RETAIL_TYPES: AccountType[] = ['HORECA', 'Retail Minorista', 'Gran Superficie'];
 const DISTRIBUTOR_TYPES: AccountType[] = ['Distribuidor'];
 const IMPORTER_TYPES: AccountType[] = ['Importador'];
+const FINAL_CUSTOMER_TYPES: AccountType[] = ['Cliente Final Directo', 'Evento Especial'];
+
 
 export default function AccountsPage() {
   const { toast } = useToast();
@@ -105,10 +107,14 @@ export default function AccountsPage() {
 
     const applyTypeFilter = (acc: EnrichedAccount) => {
         if (typeFilter === 'Todos') return true;
-        if (typeFilter === 'CLIENTE_FINAL') return CUSTOMER_TYPES.includes(acc.type);
-        if (typeFilter === 'DISTRIBUIDOR') return DISTRIBUTOR_TYPES.includes(acc.type);
-        if (typeFilter === 'IMPORTADOR') return IMPORTER_TYPES.includes(acc.type);
-        if (typeFilter === 'OTRO') return !CUSTOMER_TYPES.includes(acc.type) && !DISTRIBUTOR_TYPES.includes(acc.type) && !IMPORTER_TYPES.includes(acc.type);
+        if (typeFilter === 'Cuentas') return HORECA_RETAIL_TYPES.includes(acc.type);
+        if (typeFilter === 'Distribuidor') return DISTRIBUTOR_TYPES.includes(acc.type);
+        if (typeFilter === 'Importador') return IMPORTER_TYPES.includes(acc.type);
+        if (typeFilter === 'Cliente Final') return FINAL_CUSTOMER_TYPES.includes(acc.type);
+        if (typeFilter === 'Otro') {
+            const allKnownTypes = [...HORECA_RETAIL_TYPES, ...DISTRIBUTOR_TYPES, ...IMPORTER_TYPES, ...FINAL_CUSTOMER_TYPES];
+            return !allKnownTypes.includes(acc.type);
+        }
         return false;
     };
     
@@ -265,10 +271,11 @@ export default function AccountsPage() {
                   <SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Tipo de Cuenta..." /></SelectTrigger>
                   <SelectContent>
                       <SelectItem value="Todos">Todas las Cuentas</SelectItem>
-                      <SelectItem value="CLIENTE_FINAL">Clientes Finales</SelectItem>
-                      <SelectItem value="DISTRIBUIDOR">Distribuidores</SelectItem>
-                      <SelectItem value="IMPORTADOR">Importadores</SelectItem>
-                       <SelectItem value="OTRO">Otro</SelectItem>
+                      <SelectItem value="Cuentas">Cuentas (HORECA/Retail)</SelectItem>
+                      <SelectItem value="Cliente Final">Cliente Final</SelectItem>
+                      <SelectItem value="Distribuidor">Distribuidores</SelectItem>
+                      <SelectItem value="Importador">Importadores</SelectItem>
+                      <SelectItem value="Otro">Otro</SelectItem>
                   </SelectContent>
               </Select>
               <Select value={bucketFilter} onValueChange={(v) => setBucketFilter(v as BucketFilter)}>

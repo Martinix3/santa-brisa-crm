@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -10,11 +11,12 @@ import { getOrdersFS } from "@/services/order-service";
 import { processCarteraData } from "@/services/cartera-service";
 import { startOfDay, endOfDay, isBefore, isEqual, parseISO, isValid } from 'date-fns';
 import { format } from "date-fns";
-import { es } from "date-fns/locale";
+import { es } from 'date-fns/locale';
 import { cn } from "@/lib/utils";
 import { Loader2, Search, PlusCircle, ChevronDown, Eye } from "lucide-react";
+import Link from "next/link";
 
-// UI Components
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -58,20 +60,34 @@ function AccountTableRow({ account, isExpanded, onToggleExpand }: { account: Enr
               />
               <Link
                 href={`/accounts/${account.id}`}
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e: React.MouseEvent<HTMLAnchorElement>) => e.stopPropagation()}
                 className="hover:underline text-primary"
               >
                 {account.nombre}
               </Link>
             </div>
             <p className="text-xs text-muted-foreground pl-6">
-              {account.ciudad || 'Ubicación no especificada'}
+              {(account as any).city || (account as any).ciudad || 'Ubicación no especificada'}
             </p>
           </TableCell>
           <TableCell>{account.responsableName || <span className="text-muted-foreground">Sin Asignar</span>}</TableCell>
           <TableCell className="text-xs">
-            <p className="truncate max-w-[150px]" title={account.lastInteraction?.notes}>{account.lastInteraction?.notes || "Sin interacciones"}</p>
-            {lastInteractionDate && isValid(lastInteractionDate) && <p className="text-muted-foreground/80">{format(lastInteractionDate, "dd MMM yyyy", { locale: es })}</p>}
+            {(() => {
+              const last = account.interactions?.[0]; 
+              const lastNote = last?.notes || null;
+              return (
+                <>
+                  <p className="truncate max-w-[150px]" title={lastNote || undefined}>
+                    {lastNote || "Sin interacciones"}
+                  </p>
+                  {lastInteractionDate && isValid(lastInteractionDate) && (
+                    <p className="text-muted-foreground/80">
+                      {format(lastInteractionDate, "dd MMM yyyy", { locale: es })}
+                    </p>
+                  )}
+                </>
+              );
+            })()}
           </TableCell>
           <TableCell className="text-xs">
               <p>{account.nextInteraction?.nextActionType || <span className="text-muted-foreground">Ninguna</span>}</p>
@@ -204,12 +220,12 @@ export default function AccountsPage() {
                 return dateA.getTime() - dateB.getTime();
             }
             case 'lastInteraction_desc': {
-                const dateA = a.lastInteractionDate;
-                const dateB = b.lastInteractionDate;
-                if (!dateA && !dateB) return 0;
-                if (!dateA) return 1;
-                if (!dateB) return -1;
-                return dateB.getTime() - new Date(a.lastInteractionDate!).getTime();
+                const aDate = a.lastInteractionDate ? new Date(a.lastInteractionDate) : null;
+                const bDate = b.lastInteractionDate ? new Date(b.lastInteractionDate) : null;
+                if (!aDate && !bDate) return 0;
+                if (!aDate) return 1;
+                if (!bDate) return -1;
+                return bDate.getTime() - aDate.getTime();
             }
             case 'leadScore_desc':
             default:
@@ -224,7 +240,7 @@ export default function AccountsPage() {
         return acc.nombre.toLowerCase().includes(lowercasedFilter) ||
                (acc.cif && acc.cif.toLowerCase().includes(lowercasedFilter)) ||
                (acc.responsableName && acc.responsableName.toLowerCase().includes(lowercasedFilter)) ||
-               (acc.ciudad && acc.ciudad.toLowerCase().includes(lowercasedFilter));
+               ((acc as any).city && (acc as any).city.toLowerCase().includes(lowercasedFilter));
       })
       .filter(acc => {
         if (typeFilter === 'Todos') return true;

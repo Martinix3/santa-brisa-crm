@@ -13,7 +13,6 @@ import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, Filter, ChevronDown, Briefcase, Loader2, DollarSign, Package } from "lucide-react";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { getDirectSalesFS, deleteDirectSaleFS, regularizeConsignmentDirectSaleFS, updateDirectSaleFS } from "@/services/venta-directa-sb-service"; 
-import { getOrdersFS } from "@/services/order-service";
 import { getAccountsFS } from "@/services/account-service";
 import Link from 'next/link';
 import DirectSaleDialog from "@/components/app/direct-sale-dialog";
@@ -67,45 +66,15 @@ export default function DirectSalesSbPage() {
     async function loadInitialData() {
         setIsLoading(true);
         try {
-            const [fetchedSales, allAccounts, fetchedOrders] = await Promise.all([
+            const [fetchedSales, allAccounts] = await Promise.all([
                 getDirectSalesFS(),
                 getAccountsFS(),
-                getOrdersFS()
             ]);
             
             const relevantAccounts = allAccounts.filter(acc => RELEVANT_ACCOUNT_TYPES.includes(acc.type));
             
-            const salesFromOrders = fetchedOrders
-              .filter(order => order.saleType === 'propia' && order.status === 'Confirmado')
-              .map(order => ({
-                id: order.id,
-                customerId: order.accountId,
-                customerName: order.clientName,
-                channel: 'Venta Directa Equipo',
-                items: [{
-                    productId: 'PRODUCT_ID_PLACEHOLDER', // Placeholder
-                    productName: order.products?.join(', ') || 'Producto Desconocido',
-                    quantity: order.numberOfUnits || 0,
-                    netUnitPrice: order.unitPrice || 0,
-                    total: (order.numberOfUnits || 0) * (order.unitPrice || 0)
-                }],
-                subtotal: (order.numberOfUnits || 0) * (order.unitPrice || 0),
-                tax: (order.value || 0) - ((order.numberOfUnits || 0) * (order.unitPrice || 0)),
-                totalAmount: order.value || 0,
-                issueDate: order.createdAt,
-                status: 'confirmado',
-                notes: `Venta registrada desde app de campo. ${order.notes || ''}`,
-                createdAt: order.createdAt,
-                updatedAt: order.lastUpdated,
-                paidStatus: 'Pendiente',
-                paymentMethod: order.paymentMethod,
-                type: 'directa'
-            } as DirectSale));
-
-            const combinedSales = [...fetchedSales, ...salesFromOrders];
-
             const regularizationsMap = new Map<string, DirectSale[]>();
-            combinedSales.forEach(sale => {
+            fetchedSales.forEach(sale => {
                 if (sale.originalConsignmentId) {
                     if (!regularizationsMap.has(sale.originalConsignmentId)) {
                         regularizationsMap.set(sale.originalConsignmentId, []);
@@ -114,7 +83,7 @@ export default function DirectSalesSbPage() {
                 }
             });
 
-            const enrichedSales = combinedSales
+            const enrichedSales = fetchedSales
                 .filter(sale => !sale.originalConsignmentId) // Filter out children, only show parents
                 .map(sale => ({
                     ...sale,

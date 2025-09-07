@@ -81,23 +81,25 @@ export const getOrdersFS = async (): Promise<Order[]> => {
 
 export const getInteractionsForAccountFS = async (accountId: string, accountName: string): Promise<Order[]> => {
     if (!accountId && !accountName) return [];
-    
-    // Create queries for both accountId and clientName if they exist
-    const queries = [];
+
+    const queriesToRun = [];
     if (accountId) {
-      queries.push(query(collection(db, ORDERS_COLLECTION), where("accountId", "==", accountId)));
+        queriesToRun.push(query(collection(db, ORDERS_COLLECTION), where("accountId", "==", accountId)));
     }
-    if (accountName) {
-      queries.push(query(collection(db, ORDERS_COLLECTION), where("clientName", "==", accountName)));
+    // To handle legacy data, we also search by name if it's different from the ID
+    if (accountName && accountName !== accountId) {
+        queriesToRun.push(query(collection(db, ORDERS_COLLECTION), where("clientName", "==", accountName)));
     }
 
-    if (queries.length === 0) return [];
+    if (queriesToRun.length === 0) return [];
 
-    const snapshots = await Promise.all(queries.map(q => getDocs(q)));
+    // Execute all queries in parallel
+    const querySnapshots = await Promise.all(queriesToRun.map(q => getDocs(q)));
 
     const allInteractions = new Map<string, Order>();
-    snapshots.forEach(snapshot => {
+    querySnapshots.forEach(snapshot => {
         snapshot.docs.forEach(doc => {
+            // Avoid adding duplicates if an interaction matches both ID and name
             if (!allInteractions.has(doc.id)) {
                 allInteractions.set(doc.id, fromFirestoreOrder(doc));
             }

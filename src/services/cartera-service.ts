@@ -1,9 +1,10 @@
 
 
-import type { Account, Order, TeamMember, EnrichedAccount, AccountStatus } from '@/types';
+import type { Account, Order, TeamMember, EnrichedAccount, AccountStatus, DirectSale } from '@/types';
 import { parseISO, isValid, isAfter, subDays, differenceInDays } from 'date-fns';
 import { calculateCommercialStatus, calculateLeadScore } from '@/lib/account-logic';
 import { VALID_SALE_STATUSES } from '@/lib/constants';
+import { getDirectSalesFS } from './venta-directa-sb-service';
 
 /**
  * Processes raw accounts and interactions data to return enriched account objects for the Cartera view.
@@ -15,24 +16,40 @@ export async function processCarteraData(
     teamMembers: TeamMember[]
 ): Promise<EnrichedAccount[]> {
     const teamMembersMap = new Map(teamMembers.map(tm => [tm.id, tm]));
-    
-    const ordersByAccountId = new Map<string, Order[]>();
-    for (const order of orders) {
-        // Ensure the order has a valid date before processing
-        const orderDate = order.createdAt ? parseISO(order.createdAt) : null;
-        if (order.accountId && orderDate && isValid(orderDate)) {
-            if (!ordersByAccountId.has(order.accountId)) {
-                ordersByAccountId.set(order.accountId, []);
+    const directSales = await getDirectSalesFS();
+
+    const allInteractions = [...orders, ...directSales.map(ds => ({
+        id: ds.id,
+        accountId: ds.customerId,
+        clientName: ds.customerName,
+        createdAt: ds.issueDate,
+        status: ds.status,
+        value: ds.totalAmount,
+        // Map other relevant fields if necessary, providing defaults
+        visitDate: ds.issueDate,
+        products: ds.items.map(i => i.productName),
+        salesRep: 'Venta Directa',
+        lastUpdated: ds.updatedAt,
+        clientStatus: 'existing',
+        taskCategory: 'Commercial',
+        isCompleted: true,
+    } as Order))];
+
+    const interactionsByAccountId = new Map<string, Order[]>();
+    for (const interaction of allInteractions) {
+        const interactionDate = interaction.createdAt ? parseISO(interaction.createdAt) : null;
+        if (interaction.accountId && interactionDate && isValid(interactionDate)) {
+            if (!interactionsByAccountId.has(interaction.accountId)) {
+                interactionsByAccountId.set(interaction.accountId, []);
             }
-            ordersByAccountId.get(order.accountId)!.push(order);
+            interactionsByAccountId.get(interaction.accountId)!.push(interaction);
         }
     }
     
     const enrichedAccountsPromises = accounts.map(async (account): Promise<EnrichedAccount> => {
-        const accountOrders = ordersByAccountId.get(account.id) || [];
+        const accountInteractions = interactionsByAccountId.get(account.id) || [];
         
-        // Sort orders by date descending
-        accountOrders.sort((a, b) => {
+        accountInteractions.sort((a, b) => {
             const dateA = a.createdAt ? parseISO(a.createdAt) : new Date(0);
             const dateB = b.createdAt ? parseISO(b.createdAt) : new Date(0);
             if (!isValid(dateA)) return 1;
@@ -40,7 +57,7 @@ export async function processCarteraData(
             return dateB.getTime() - dateA.getTime();
         });
 
-        const openTasks = accountOrders.filter(o => o.status === 'Programada' || o.status === 'Seguimiento');
+        const openTasks = accountInteractions.filter(o => o.status === 'Programada' || o.status === 'Seguimiento');
         openTasks.sort((a, b) => {
             const dateAString = (a.status === 'Programada' ? a.visitDate : a.nextActionDate);
             const dateBString = (b.status === 'Programada' ? b.visitDate : b.nextActionDate);
@@ -56,29 +73,27 @@ export async function processCarteraData(
         const nextInteraction = openTasks[0] || undefined;
         
         let status: AccountStatus;
-        const historicalStatus = await calculateCommercialStatus(accountOrders);
+        const historicalStatus = await calculateCommercialStatus(accountInteractions);
         const taskStatus = nextInteraction ? nextInteraction.status as 'Programada' | 'Seguimiento' : null;
 
-        // FINAL LOGIC V2: A sale state is powerful. An open task only matters if there's no recent sale history.
         if (historicalStatus === 'Activo' || historicalStatus === 'Repetición' || historicalStatus === 'Inactivo') {
             status = historicalStatus;
         } else if (taskStatus) {
             status = taskStatus;
         } else {
-            // Fallback to historical status if no open tasks, which could be 'Pendiente' or 'Fallido'
             status = historicalStatus;
         }
 
 
-        const lastInteractionOrder = accountOrders[0];
+        const lastInteractionOrder = accountInteractions[0];
         const lastInteractionDate = lastInteractionOrder?.createdAt ? parseISO(lastInteractionOrder.createdAt) : undefined;
         
-        const recentOrderValue = accountOrders
-            .filter(o => VALID_SALE_STATUSES.includes(o.status) && o.createdAt && isValid(parseISO(o.createdAt)) && isAfter(parseISO(o.createdAt), subDays(new Date(), 30)))
+        const recentOrderValue = accountInteractions
+            .filter(o => VALID_SALE_STATUSES.includes(o.status as any) && o.createdAt && isValid(parseISO(o.createdAt)) && isAfter(parseISO(o.createdAt), subDays(new Date(), 30)))
             .reduce((sum, o) => sum + (o.value || 0), 0);
         const leadScore = await calculateLeadScore(status, account.potencial, lastInteractionDate, recentOrderValue);
 
-        const successfulOrders = accountOrders.filter(o => VALID_SALE_STATUSES.includes(o.status));
+        const successfulOrders = accountInteractions.filter(o => VALID_SALE_STATUSES.includes(o.status as any));
         const totalSuccessfulOrders = successfulOrders.length;
         const totalValue = successfulOrders.reduce((sum, o) => sum + (o.value || 0), 0);
         
@@ -93,7 +108,7 @@ export async function processCarteraData(
             totalSuccessfulOrders,
             totalValue,
             lastInteractionDate,
-            interactions: accountOrders,
+            interactions: accountInteractions,
             responsableId: responsable?.id || '',
             responsableName: responsable?.name,
             responsableAvatar: responsable?.avatarUrl,

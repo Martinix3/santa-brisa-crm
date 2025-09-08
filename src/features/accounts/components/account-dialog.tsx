@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -112,7 +113,7 @@ export default function AccountDialog({ open, onOpenChange, initial, onSaved, di
               <Select value={form.watch("type")} onValueChange={(v) => form.setValue("type", v as any, { shouldDirty: true })}>
                 <SelectTrigger><SelectValue placeholder="Selecciona"/></SelectTrigger>
                 <SelectContent>
-                  {OPCIONES_TIPO_CUENTA.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                  {(OPCIONES_TIPO_CUENTA ?? []).map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </Field>
@@ -144,25 +145,11 @@ export default function AccountDialog({ open, onOpenChange, initial, onSaved, di
               </Field>
             )}
 
-            <Field label="Teléfono">
-              <Input placeholder="+34 ..." {...form.register("phone")} />
-            </Field>
-
-            <Field label="Email" error={form.formState.errors.email?.message}>
-              <Input placeholder="contacto@ejemplo.com" {...form.register("email")} />
-            </Field>
-
-            <Field label="Dirección" colSpan={2}>
-              <Input placeholder="Calle, número, piso..." {...form.register("address")} />
-            </Field>
-
-            <Field label="Ciudad">
-              <Input placeholder="Madrid" {...form.register("city")} />
-            </Field>
-
-            <Field label="Notas" colSpan={2}>
-              <Textarea rows={3} placeholder="Observaciones internas…" {...form.register("notes")} />
-            </Field>
+            <Field label="Teléfono"><Input placeholder="+34 ..." {...form.register("phone")} /></Field>
+            <Field label="Email" error={form.formState.errors.email?.message}><Input placeholder="contacto@ejemplo.com" {...form.register("email")} /></Field>
+            <Field label="Dirección" colSpan={2}><Input placeholder="Calle, número…" {...form.register("address")} /></Field>
+            <Field label="Ciudad"><Input placeholder="Madrid" {...form.register("city")} /></Field>
+            <Field label="Notas" colSpan={2}><Textarea rows={3} placeholder="Observaciones…" {...form.register("notes")} /></Field>
           </section>
 
           <div className="flex justify-end gap-2 pt-2">

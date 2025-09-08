@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -20,7 +21,7 @@ import {
   type AccountFormValues,
 } from "@/lib/schemas/account-schema";
 import { upsertAccountAction } from "@/app/(app)/accounts/actions";
-import { TIPOS_CUENTA, OWNERSHIP_OPTIONS, TIPOS_INTERACCION, RESULTADOS_INTERACCION, orderChannelOptions } from "@ssot";
+import { OPCIONES_TIPO_CUENTA, OWNERSHIP_OPTIONS, TIPOS_INTERACCION, RESULTADOS_INTERACCION, orderChannelOptions } from "@ssot";
 
 
 import {
@@ -153,7 +154,7 @@ function CreateAccountForm({
       id: initialAccount?.id,
       name: initialAccount?.name ?? "",
       cif: "",
-      type: "prospect",
+      type: "HORECA",
       phone: "",
       email: "",
       address: "",
@@ -190,7 +191,7 @@ function CreateAccountForm({
           <Select value={form.watch("type")} onValueChange={(v)=> form.setValue("type", v as any, { shouldDirty:true })}>
             <SelectTrigger><SelectValue placeholder="Selecciona"/></SelectTrigger>
             <SelectContent>
-              {TIPOS_CUENTA.map(o=> <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+              {OPCIONES_TIPO_CUENTA.map(o=> <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
             </SelectContent>
           </Select>
         </Field>
@@ -244,9 +245,9 @@ function CreateInteractionForm({
       defaultValues: {
             accountId: selectedAccount?.id ?? "",
             accountName: selectedAccount?.name ?? "",
-            type: "visita",
+            type: "LLAMADA",
             date: new Date(),
-            outcome: "pendiente",
+            outcome: "PENDIENTE",
             note: "",
             nextActionAt: undefined,
             ownershipHint: "propio",

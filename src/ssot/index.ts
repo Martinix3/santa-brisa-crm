@@ -192,13 +192,44 @@ export const orderChannelOptions = [
 export const userRolesList = ["Admin", "Ventas", "Distributor", "Clavadista", "Líder Clavadista"] as const;
 
 // ------------------------------------------------------------
-// Listas para el diálogo de edición de pedidos
+// Listas para el diálogo de edición de pedidos y otros diálogos
 // ------------------------------------------------------------
 
-export const paymentMethodList = METODOS_PAGO;
-export const nextActionTypeList = SIGUIENTES_ACCIONES;
-export const failureReasonList = MOTIVOS_FALLO;
-export const clientTypeList = TIPOS_CLIENTE;
+export const paymentMethodList = [
+  { value: "Adelantado", label: "Adelantado" },
+  { value: "Giro Bancario", label: "Giro Bancario" },
+  { value: "Transferencia", label: "Transferencia" },
+  { value: "Confirming", label: "Confirming" },
+] as const;
+
+export const nextActionTypeList = [
+  { value: 'Llamar', label: 'Llamar' },
+  { value: 'Visitar', label: 'Visitar' },
+  { value: 'Enviar Muestras', label: 'Enviar Muestras' },
+  { value: 'Preparar Propuesta', label: 'Preparar Propuesta' },
+  { value: 'Opción personalizada', label: 'Opción personalizada' },
+] as const;
+
+export const failureReasonList = [
+  { value: 'Precio', label: 'Precio' },
+  { value: 'No Interesado', label: 'No Interesado' },
+  { value: 'Sin Stock', label: 'Sin Stock' },
+  { value: 'Competencia', label: 'Competencia' },
+  { value: 'Otro (especificar)', label: 'Otro (especificar)' },
+] as const;
+
+export const clientTypeList = [
+  { value: 'HORECA', label: 'HORECA' },
+  { value: 'Retail Minorista', label: 'Retail Minorista' },
+  { value: 'Gran Superficie', label: 'Gran Superficie' },
+  { value: 'Distribuidor', label: 'Distribuidor' },
+  { value: 'Importador', label: 'Importador' },
+  { value: 'Cliente Final Directo', label: 'Cliente Final Directo' },
+  { value: 'Evento Especial', label: 'Evento Especial' },
+  { value: 'Otro', label: 'Otro' },
+] as const;
+
+
 export const crmEventTypeList = TIPOS_EVENTO;
 export const crmEventStatusList = ESTADOS_EVENTO_CRM;
 

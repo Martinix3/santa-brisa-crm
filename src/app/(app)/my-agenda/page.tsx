@@ -18,10 +18,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
-import { getOrdersFS, addScheduledTaskFS, deleteOrderFS, updateScheduledTaskFS, reorderTasksBatchFS, updateOrderStatusFS } from "@/services/order-service";
-import { getEventsFS, addEventFS, deleteEventFS, updateEventFS, reorderEventsBatchFS } from "@/services/event-service";
-import { getTeamMembersFS } from "@/services/team-member-service";
-import { getAllNotesFS, getNotesForUserFS } from "@/services/note-service";
+import { getAgendaDataAction, updateTaskOrderAction, deleteAgendaItemAction, addScheduledTaskAction, updateScheduledTaskAction, addEventAction, updateEventAction, markTaskAsCompleteAction } from "@/services/server/agenda-actions";
 import type { Order, CrmEvent, TeamMember, UserRole, OrderStatus, FollowUpResultFormValues, NewScheduledTaskData, EventFormValues, StickyNote } from "@/types";
 import StatusBadge from "@/components/app/status-badge";
 import Link from "next/link";
@@ -40,12 +37,13 @@ import { DayDots } from "@/components/app/DayDots";
 import { StickyNotesWidget } from '@/components/app/dashboard/sticky-notes-widget';
 import { getInteractionType } from '@/lib/interaction-utils';
 import { MODIFIER_NAMES, COLOR_MAP } from "@/lib/agenda-colors";
+import { saveInteractionFS } from "@/services/interaction-service";
 
 
 // --- TYPE DEFINITIONS ---
-type AgendaItemType = 'tarea_comercial' | 'evento' | 'tarea_administrativa';
+export type AgendaItemType = 'tarea_comercial' | 'evento' | 'tarea_administrativa';
 
-interface AgendaItemBase {
+export interface AgendaItemBase {
   id: string;
   date: Date;
   type: AgendaItemType;
@@ -54,10 +52,10 @@ interface AgendaItemBase {
   rawItem: Order | CrmEvent;
   orderIndex: number;
 }
-interface AgendaTareaComercialItem extends AgendaItemBase { type: 'tarea_comercial'; rawItem: Order; }
-interface AgendaTareaAdministrativaItem extends AgendaItemBase { type: 'tarea_administrativa'; rawItem: Order; }
-interface AgendaEventItem extends AgendaItemBase { type: 'evento'; rawItem: CrmEvent; }
-type AgendaItem = AgendaTareaComercialItem | AgendaEventItem | AgendaTareaAdministrativaItem;
+export interface AgendaTareaComercialItem extends AgendaItemBase { type: 'tarea_comercial'; rawItem: Order; }
+export interface AgendaTareaAdministrativaItem extends AgendaItemBase { type: 'tarea_administrativa'; rawItem: Order; }
+export interface AgendaEventItem extends AgendaItemBase { type: 'evento'; rawItem: CrmEvent; }
+export type AgendaItem = AgendaTareaComercialItem | AgendaEventItem | AgendaTareaAdministrativaItem;
 
 type TypeFilter = 'all' | 'tareas_comerciales' | 'eventos' | 'tareas_administrativas';
 type ViewMode = 'day' | 'week' | 'month';
@@ -227,12 +225,7 @@ export default function MyAgendaPage() {
     async function loadAgendaData() {
       setIsLoading(true);
       try {
-        const [orders, events, members, notesData] = await Promise.all([
-          getOrdersFS(),
-          getEventsFS(),
-          getTeamMembersFS(['SalesRep', 'Clavadista', 'Admin']),
-          userRole === 'Admin' ? getAllNotesFS() : (teamMember ? getNotesForUserFS(teamMember.id) : Promise.resolve([]))
-        ]);
+        const { orders, events, teamMembers: members, notes } = await getAgendaDataAction(userRole, teamMember?.id);
 
         const tareaItems: AgendaItem[] = orders
             .filter(o => (o.status === 'Programada' || o.status === 'Seguimiento') && (o.status === 'Programada' ? o.visitDate : o.nextActionDate) && isValid(parseISO((o.status === 'Programada' ? o.visitDate : o.nextActionDate)!)))
@@ -260,8 +253,8 @@ export default function MyAgendaPage() {
         
         setAllAgendaItems([...tareaItems, ...eventItems].map(item => ({ ...item, orderIndex: item.orderIndex ?? 0 })));
         setTeamMembers(members);
-        setNotes(notesData);
-        setAssignableUsers(members.filter(m => m.role === 'Admin' || m.role === 'SalesRep'));
+        setNotes(notes);
+        setAssignableUsers(members.filter(m => m.role === 'Admin' || m.role === 'Ventas'));
 
       } catch (error) {
         console.error("Error loading agenda data:", error);
@@ -415,7 +408,7 @@ export default function MyAgendaPage() {
   const handleMarkTaskAsComplete = async (item: AgendaItem) => {
     if (item.type !== 'tarea_administrativa') return;
     try {
-        await updateOrderStatusFS(item.id, "Completado");
+        await markTaskAsCompleteAction(item.id);
         toast({ title: "Tarea Completada", description: `"${item.title}" ha sido marcada como completada.` });
         refreshDataSignature();
     } catch (error: any) {
@@ -424,64 +417,9 @@ export default function MyAgendaPage() {
   };
   
   const handleSaveFollowUp = async (data: FollowUpResultFormValues, originalTask: Order) => {
+    if (!teamMember) return;
     try {
-        await runTransaction(db, async (transaction) => {
-            const originalTaskRef = doc(db, 'orders', originalTask.id);
-            transaction.update(originalTaskRef, { status: "Completado" as OrderStatus, lastUpdated: Timestamp.fromDate(new Date()) });
-            
-            const newOrderRef = doc(collection(db, 'orders'));
-            
-            const subtotal = (data.numberOfUnits || 0) * (data.unitPrice || 0);
-            const totalValue = subtotal * 1.21;
-            
-            let salesRepName = originalTask.salesRep;
-            if (data.assignedSalesRepId && salesRepName !== teamMember?.name) {
-                const assignedRep = teamMembers.find(m => m.id === data.assignedSalesRepId);
-                if(assignedRep) salesRepName = assignedRep.name;
-            }
-
-            const newInteractionData: any = {
-                clientName: originalTask.clientName,
-                accountId: originalTask.accountId || null,
-                createdAt: Timestamp.fromDate(new Date()),
-                lastUpdated: Timestamp.fromDate(new Date()),
-                salesRep: salesRepName,
-                clavadistaId: originalTask.clavadistaId || null,
-                clientStatus: "existing",
-                originatingTaskId: originalTask.id,
-                notes: data.notes || null,
-                taskCategory: 'Commercial',
-                orderIndex: 0
-            };
-
-            if (data.outcome === "successful") {
-                newInteractionData.status = 'Confirmado';
-                newInteractionData.visitDate = Timestamp.fromDate(new Date());
-                newInteractionData.products = ["Santa Brisa 750ml"];
-                newInteractionData.numberOfUnits = data.numberOfUnits;
-                newInteractionData.unitPrice = data.unitPrice;
-                newInteractionData.value = totalValue;
-                newInteractionData.paymentMethod = data.paymentMethod;
-            } else if (data.outcome === "follow-up") {
-                newInteractionData.status = 'Seguimiento';
-                newInteractionData.nextActionType = data.nextActionType;
-                newInteractionData.nextActionCustom = data.nextActionType === 'Opción personalizada' ? data.nextActionCustom : null;
-                if (data.nextActionDate) {
-                    const normalizedDate = new Date(data.nextActionDate);
-                    normalizedDate.setHours(12, 0, 0, 0); 
-                    newInteractionData.nextActionDate = Timestamp.fromDate(normalizedDate);
-                } else {
-                    newInteractionData.nextActionDate = null;
-                }
-                newInteractionData.visitDate = null;
-            } else if (data.outcome === "failed") {
-                newInteractionData.status = 'Fallido';
-                newInteractionData.visitDate = Timestamp.fromDate(new Date());
-                newInteractionData.failureReasonType = data.failureReasonType;
-                newInteractionData.failureReasonCustom = data.failureReasonType === 'Otro (especificar)' ? data.failureReasonCustom : null;
-            }
-            transaction.set(newOrderRef, newInteractionData);
-        });
+        await saveInteractionFS(originalTask.accountId!, originalTask.id, data, teamMember.id, teamMember.name);
         toast({ title: "Interacción Registrada", description: "Se ha guardado el resultado y actualizado la cartera."});
         refreshDataSignature();
     } catch(err: any) {
@@ -520,15 +458,11 @@ export default function MyAgendaPage() {
       return;
     }
     try {
-      const adjustedDate = new Date(data.visitDate);
-      adjustedDate.setHours(12, 0, 0, 0);
-      const saveData = { ...data, visitDate: adjustedDate };
-
       if(originalTaskId) {
-        await updateScheduledTaskFS(originalTaskId, saveData);
+        await updateScheduledTaskAction(originalTaskId, data);
         toast({ title: "¡Tarea Actualizada!", description: "La tarea ha sido modificada en la agenda." });
       } else {
-        await addScheduledTaskFS(saveData, teamMember);
+        await addScheduledTaskAction(data, teamMember);
         toast({ title: "¡Tarea Creada!", description: "La nueva tarea ha sido añadida a la agenda." });
       }
       
@@ -544,10 +478,10 @@ export default function MyAgendaPage() {
     if (!isAdmin) return;
     try {
       if (eventId) {
-        await updateEventFS(eventId, data);
+        await updateEventAction(eventId, data);
         toast({ title: "¡Evento Actualizado!", description: `El evento "${data.name}" ha sido actualizado.` });
       } else {
-        await addEventFS(data);
+        await addEventAction(data);
         toast({ title: "¡Evento Añadido!", description: `El evento "${data.name}" ha sido añadido.` });
       }
       refreshDataSignature();
@@ -580,13 +514,8 @@ export default function MyAgendaPage() {
   const confirmDeleteItem = async () => {
       if(!itemToDelete) return;
       try {
-        if(itemToDelete.type === 'evento') {
-            await deleteEventFS(itemToDelete.id);
-            toast({ title: "Evento Eliminado", description: "El evento ha sido eliminado de la agenda."});
-        } else {
-            await deleteOrderFS(itemToDelete.id);
-            toast({ title: "Tarea Eliminada", description: "La tarea ha sido eliminada de la agenda."});
-        }
+        await deleteAgendaItemAction(itemToDelete.id, itemToDelete.type);
+        toast({ title: "Elemento Eliminado", description: "La entrada ha sido eliminada de la agenda."});
         refreshDataSignature();
       } catch (error) {
         toast({ title: "Error al Eliminar", description: "No se pudo eliminar el elemento.", variant: "destructive"});
@@ -640,12 +569,7 @@ export default function MyAgendaPage() {
         setAllAgendaItems(prev => prev.map(item => item.id === active.id ? { ...item, date: parsedDate, orderIndex: 0 } : item));
 
         try {
-            const updates = [{ id: active.id, orderIndex: 0, date: parsedDate }];
-            if (activeItem.type === 'evento') {
-                await reorderEventsBatchFS(updates);
-            } else {
-                await reorderTasksBatchFS(updates);
-            }
+            await updateTaskOrderAction([{ id: active.id, orderIndex: 0, date: parsedDate, type: activeItem.type }]);
             toast({ title: "Tarea Movida", description: `"${activeItem.title}" movida al ${format(parsedDate, 'dd/MM/yyyy')}.` });
             refreshDataSignature();
         } catch (error) {
@@ -671,19 +595,8 @@ export default function MyAgendaPage() {
                 setAllAgendaItems([...otherDayItems, ...reindexedNewDayOrder].sort((a,b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0)));
                 
                 try {
-                    const tasksToUpdate = newDayOrder
-                        .filter(item => item.type !== 'evento')
-                        .map((item, index) => ({ id: item.id, orderIndex: index }));
-                    
-                    const eventsToUpdate = newDayOrder
-                        .filter(item => item.type === 'evento')
-                        .map((item, index) => ({ id: item.id, orderIndex: index }));
-
-                    await Promise.all([
-                        tasksToUpdate.length > 0 ? reorderTasksBatchFS(tasksToUpdate) : Promise.resolve(),
-                        eventsToUpdate.length > 0 ? reorderEventsBatchFS(eventsToUpdate) : Promise.resolve(),
-                    ]);
-                    
+                    const updates = newDayOrder.map((item, index) => ({ id: item.id, orderIndex: index, type: item.type }));
+                    await updateTaskOrderAction(updates);
                     toast({ title: "Agenda Reordenada", description: "El orden de las tareas del día se ha guardado." });
                 } catch (error) {
                     console.error("Error reordering items:", error);
@@ -717,7 +630,7 @@ export default function MyAgendaPage() {
     [MODIFIER_NAMES.admin]: adminTaskDays,
   };
 
-  const showStickyNotes = (userRole === 'Admin' || userRole === 'SalesRep') && teamMember;
+  const showStickyNotes = (userRole === 'Admin' || userRole === 'Ventas') && teamMember;
   
   return (
     <>
@@ -947,7 +860,7 @@ export default function MyAgendaPage() {
                         </div>
                     )}
                 </div>
-                {(isAdmin || (userRole === 'SalesRep' && (selectedItem.rawItem as Order).salesRep === teamMember?.name)) && (
+                {(isAdmin || (userRole === 'Ventas' && (selectedItem.rawItem as Order).salesRep === teamMember?.name)) && (
                     <>
                     <Separator />
                     <div className="pt-4 flex justify-end gap-2">
@@ -1019,4 +932,5 @@ export default function MyAgendaPage() {
     </>
   );
 }
+
 

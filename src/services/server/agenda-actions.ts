@@ -1,98 +1,114 @@
 
 'use server';
 
-import { getOrdersFS } from '@/services/order-service';
-import { getEventsFS } from '@/services/event-service';
-import type { Order, CrmEvent, UserRole, CrmEventStatus } from '@/types';
-import { parseISO, isValid, startOfDay, endOfDay, addDays, isWithinInterval } from 'date-fns';
+import { getOrdersFS, addScheduledTaskFS, deleteOrderFS, updateScheduledTaskFS, reorderTasksBatchFS, updateOrderStatusFS } from '@/services/order-service';
+import { getEventsFS, addEventFS, deleteEventFS, updateEventFS, reorderEventsBatchFS } from '@/services/event-service';
+import { getTeamMembersFS } from '@/services/team-member-service';
+import { getNotesForUserFS, getAllNotesFS } from '@/services/note-service';
+import type { Order, CrmEvent, TeamMember, UserRole, NewScheduledTaskData, EventFormValues, StickyNote } from '@/types';
+import { AgendaItemType } from '@/app/(app)/my-agenda/page';
 
-interface GetDailyTasksParams {
-  userId: string;
-  userName: string;
-  userRole: UserRole;
-}
 
-interface AgendaItem {
-  id: string;
-  itemDate: string; // ISO string
-  sourceType: 'order' | 'event';
-  title: string;
-  description?: string;
-  rawStatus: string;
-  link: string;
-}
-
-export async function getDailyTasks({ userId, userName, userRole }: GetDailyTasksParams): Promise<AgendaItem[]> {
-  try {
-    const [allOrders, allEvents] = await Promise.all([
-      getOrdersFS(),
-      getEventsFS(),
-    ]);
-
-    const localToday = startOfDay(new Date());
-    const localNextSevenDaysEnd = endOfDay(addDays(localToday, 6));
-
-    let filteredOrders: Order[] = [];
-    let filteredEvents: CrmEvent[] = [];
-
-    if (userRole === 'Admin') {
-      filteredOrders = allOrders;
-      filteredEvents = allEvents;
-    } else if (userRole === 'SalesRep') {
-      filteredOrders = allOrders.filter(o => o.salesRep === userName);
-      filteredEvents = allEvents.filter(e => e.assignedTeamMemberIds.includes(userId));
-    } else if (userRole === 'Clavadista' || userRole === 'Líder Clavadista') {
-      filteredOrders = allOrders.filter(o => o.clavadistaId === userId);
-      filteredEvents = allEvents.filter(e => e.assignedTeamMemberIds.includes(userId));
+export async function getAgendaDataAction(userRole: UserRole | null, userId?: string): Promise<{
+    orders: Order[],
+    events: CrmEvent[],
+    teamMembers: TeamMember[],
+    notes: StickyNote[],
+}> {
+    if (!userRole) {
+        throw new Error("User role is not defined.");
     }
-    
-    const orderItems: AgendaItem[] = filteredOrders
-      .filter(o => {
-        const dateStr = o.status === 'Programada' ? o.visitDate : o.nextActionDate;
-        return (o.status === 'Programada' || o.status === 'Seguimiento' || o.status === 'Fallido') && dateStr && isValid(parseISO(dateStr));
-      })
-      .map(order => {
-        const dateStr = (order.status === 'Programada' ? order.visitDate : order.nextActionDate)!;
-        return {
-          id: order.id,
-          itemDate: dateStr,
-          sourceType: 'order',
-          title: order.clientName,
-          description: order.status === 'Programada' ? 'Visita Programada' : `Acción: ${order.nextActionType || 'N/D'}`,
-          rawStatus: order.status,
-          link: `/order-form?originatingTaskId=${order.id}`,
-        };
-      });
+    try {
+        const [orders, events, teamMembers] = await Promise.all([
+            getOrdersFS(),
+            getEventsFS(),
+            getTeamMembersFS(['SalesRep', 'Clavadista', 'Admin', 'Líder Clavadista']),
+        ]);
+        
+        let notes: StickyNote[] = [];
+        if (userRole === 'Admin') {
+            notes = await getAllNotesFS();
+        } else if (userId) {
+            notes = await getNotesForUserFS(userId);
+        }
 
-    const eventItems: AgendaItem[] = allEvents
-      .filter(e => e.startDate && isValid(parseISO(e.startDate)) && e.assignedTeamMemberIds.includes(userId))
-      .map(event => ({
-        id: event.id,
-        itemDate: event.startDate,
-        sourceType: 'event',
-        title: event.name,
-        description: `Tipo: ${event.type}`,
-        rawStatus: event.status,
-        link: `/events?viewEventId=${event.id}`,
-      }));
-
-    const allItems = [...orderItems, ...eventItems];
-    
-    const finalItems = allItems
-      .filter(item => {
-        const itemStartDate = startOfDay(parseISO(item.itemDate));
-        return isWithinInterval(itemStartDate, { start: localToday, end: localNextSevenDaysEnd });
-      })
-      .sort((a, b) => {
-        const dateA = parseISO(a.itemDate).getTime();
-        const dateB = parseISO(b.itemDate).getTime();
-        return dateA - dateB;
-      });
-
-    return finalItems;
-
-  } catch (error) {
-    console.error("Error in getDailyTasks server action:", error);
-    throw new Error("Failed to fetch agenda items.");
-  }
+        return { orders, events, teamMembers, notes };
+    } catch (error) {
+        console.error("Error in getAgendaDataAction:", error);
+        throw new Error("Failed to fetch agenda data. Please check server logs.");
+    }
 }
+
+export async function updateTaskOrderAction(updates: { id: string; orderIndex: number; date?: Date, type: AgendaItemType }[]): Promise<void> {
+    try {
+        const taskUpdates = updates.filter(u => u.type !== 'evento').map(({ id, orderIndex, date }) => ({ id, orderIndex, date }));
+        const eventUpdates = updates.filter(u => u.type === 'evento').map(({ id, orderIndex, date }) => ({ id, orderIndex, date }));
+
+        await Promise.all([
+            taskUpdates.length > 0 ? reorderTasksBatchFS(taskUpdates) : Promise.resolve(),
+            eventUpdates.length > 0 ? reorderEventsBatchFS(eventUpdates) : Promise.resolve(),
+        ]);
+    } catch (error) {
+        console.error("Error in updateTaskOrderAction:", error);
+        throw new Error("Failed to reorder tasks.");
+    }
+}
+
+export async function deleteAgendaItemAction(id: string, type: AgendaItemType): Promise<void> {
+    try {
+        if (type === 'evento') {
+            await deleteEventFS(id);
+        } else {
+            await deleteOrderFS(id);
+        }
+    } catch (error) {
+        console.error(`Error deleting item ${id} of type ${type}:`, error);
+        throw new Error("Failed to delete agenda item.");
+    }
+}
+
+export async function addScheduledTaskAction(data: NewScheduledTaskData, currentUser: TeamMember): Promise<string> {
+    try {
+        return await addScheduledTaskFS(data, currentUser);
+    } catch (error) {
+        console.error("Error in addScheduledTaskAction:", error);
+        throw new Error("Failed to add scheduled task.");
+    }
+}
+
+export async function updateScheduledTaskAction(id: string, data: NewScheduledTaskData): Promise<void> {
+     try {
+        await updateScheduledTaskFS(id, data);
+    } catch (error) {
+        console.error("Error in updateScheduledTaskAction:", error);
+        throw new Error("Failed to update scheduled task.");
+    }
+}
+
+export async function addEventAction(data: EventFormValues): Promise<string> {
+    try {
+        return await addEventFS(data);
+    } catch (error) {
+        console.error("Error in addEventAction:", error);
+        throw new Error("Failed to add event.");
+    }
+}
+
+export async function updateEventAction(id: string, data: EventFormValues): Promise<void> {
+    try {
+        await updateEventFS(id, data);
+    } catch (error) {
+        console.error("Error in updateEventAction:", error);
+        throw new Error("Failed to update event.");
+    }
+}
+
+export async function markTaskAsCompleteAction(id: string): Promise<void> {
+    try {
+        await updateOrderStatusFS(id, "Completado");
+    } catch (error) {
+        console.error("Error in markTaskAsCompleteAction:", error);
+        throw new Error("Failed to mark task as complete.");
+    }
+}
+

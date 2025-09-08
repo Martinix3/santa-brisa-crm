@@ -42,7 +42,7 @@ import { accountToForm, formToAccountPartial } from "@/services/account-mapper";
 
 const NO_SALES_REP_VALUE = "##NONE##";
 
-const B2B_TYPES = ["distributor", "importer"] as const;
+const B2B_TYPES = ["Distribuidor", "Importador"] as const;
 type B2BType = typeof B2B_TYPES[number];
 const isB2B = (t?: AccountType | null): t is B2BType =>
   !!t && (B2B_TYPES as readonly string[]).includes(t as string);
@@ -108,7 +108,7 @@ const accountFormSchemaBase = z.object({
     if (!data.addressShipping_street?.trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["addressShipping_street"], message: "Calle de entrega es obligatoria." });
     if (!data.addressShipping_city?.trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["addressShipping_city"], message: "Ciudad de entrega es obligatoria." });
     if (!data.addressShipping_province?.trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["addressShipping_province"], message: "Provincia de entrega es obligatoria." });
-    if (!data.addressShipping_postalCode?.trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["addressShipping_postalCode"], message: "Código postal de entrega es obligatorio." });
+    if (!data.addressShipping_postalCode?.trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["addressShipping_postalCode"], message: "Código postal de entrega es obligatoria." });
   }
 });
 

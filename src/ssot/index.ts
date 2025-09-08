@@ -61,17 +61,22 @@ export type ResultadoInteraccion = typeof RESULTADOS_INTERACCION[number];
 // Pedidos/Documentos — ESTADOS CANÓNICOS (solo de pedido)
 // ------------------------------------------------------------
 export const ESTADOS_PEDIDO = [
-  "borrador",     // creado pero no confirmado
-  "confirmado",   // aceptado/confirmado
-  "enviado",      // salida logística
-  "entregado",    // POD
-  "facturado",    // facturado
-  "pagado",       // cobro recibido
-  "cancelado",    // cancelado
+  "Borrador", // de una tarea, no un pedido real aún
+  "Confirmado",   // aceptado/confirmado
+  "Procesando", // Preparándose en almacén
+  "Enviado",      // salida logística
+  "Entregado",    // POD
+  "Facturado",    // facturado
+  "Pagado",       // cobro recibido
+  "Cancelado",    // cancelado
+  "Programada", // Visita/Tarea futura
+  "Seguimiento", // Tarea de seguimiento activa
+  "Fallido", // Visita sin resultado positivo
+  "Completado" // Tarea completada que no es venta
 ] as const;
 export type EstadoPedido = typeof ESTADOS_PEDIDO[number];
 
-export const ESTADOS_PAGO = ["pendiente", "parcial", "pagado", "pagado_adelantado"] as const;
+export const ESTADOS_PAGO = ["Pendiente", "Parcial", "Pagado", "Adelantado"] as const;
 export type EstadoPago = typeof ESTADOS_PAGO[number];
 
 export const ESTADOS_DOCUMENTO = ["proforma", "factura_pendiente", "factura_recibida", "factura_validada"] as const;
@@ -97,6 +102,9 @@ export const TIPOS_CUENTA = [
   "Importador",
   "Cliente Final",
   "Otro",
+  'distribuidor_mediano',
+  'distribuidor_grande',
+  'distribuidor_top',
 ] as const;
 export type TipoCuenta = typeof TIPOS_CUENTA[number];
 
@@ -115,7 +123,7 @@ export type PoliticaStock = typeof POLITICAS_STOCK[number];
 export const UDM = ["unit", "kg", "g", "l", "ml"] as const; // Unidad de Medida (sin tildes por compatibilidad)
 export type UdM = typeof UDM[number];
 
-export const ESTADOS_QC = ["pending", "released", "rejected"] as const; // estandarizamos en minúsculas EN para interoperabilidad QC
+export const ESTADOS_QC = ["Pending", "Released", "Rejected"] as const; // estandarizamos en minúsculas EN para interoperabilidad QC
 export type EstadoQC = typeof ESTADOS_QC[number];
 
 export const TIPOS_BOM = ["blend", "fill"] as const;
@@ -151,7 +159,7 @@ export type TipoRecursoMarketing = typeof TIPOS_RECURSO_MARKETING[number];
 // ------------------------------------------------------------
 // Ventas directas, muestras, pagos, etc.
 // ------------------------------------------------------------
-export const ESTADOS_VENTA_DIRECTA = ["borrador", "confirmado", "en_deposito", "facturado", "pagado", "cancelado"] as const;
+export const ESTADOS_VENTA_DIRECTA = ["borrador", "confirmado", "enviado", "entregado", "facturado", "pagado", "cancelado", "en depósito"] as const;
 export type EstadoVentaDirecta = typeof ESTADOS_VENTA_DIRECTA[number];
 
 export const CANALES_VENTA_DIRECTA = ["Importador", "Online", "Estrategica", "Deposito/Consigna", "Otro"] as const; // sin tildes en slug
@@ -207,13 +215,13 @@ export type Moneda = typeof MONEDAS[number];
 // ------------------------------------------------------------
 // Producción
 // ------------------------------------------------------------
-export const ESTADOS_EJECUCION = ["borrador", "programada", "en_curso", "pausada", "finalizada", "cancelada"] as const;
+export const ESTADOS_EJECUCION = ["Draft", "En curso", "Pausada", "Finalizada", "Cancelada"] as const;
 export type EstadoEjecucion = typeof ESTADOS_EJECUCION[number];
 
 export const TIPOS_EJECUCION = ["blend", "fill"] as const;
 export type TipoEjecucion = typeof TIPOS_EJECUCION[number];
 
-export const ESTADOS_TANQUE = ["libre", "ocupado", "limpieza"] as const;
+export const ESTADOS_TANQUE = ["Libre", "Ocupado", "Limpieza"] as const;
 export type EstadoTanque = typeof ESTADOS_TANQUE[number];
 
 export const TIPOS_PEDIDO = ["directa", "deposito"] as const;
@@ -227,13 +235,18 @@ export type TipoCategoria = typeof TIPOS_CATEGORIA[number];
 // ------------------------------------------------------------
 export const ETIQUETAS = Object.freeze({
   EstadoPedido: {
-    borrador: "Borrador",
-    confirmado: "Confirmado",
-    enviado: "Enviado",
-    entregado: "Entregado",
-    facturado: "Facturado",
-    pagado: "Pagado",
-    cancelado: "Cancelado",
+    Borrador: "Borrador",
+    Confirmado: "Confirmado",
+    Procesando: "Procesando",
+    Enviado: "Enviado",
+    Entregado: "Entregado",
+    Facturado: "Facturado",
+    Pagado: "Pagado",
+    Cancelado: "Cancelado",
+    Programada: "Programada",
+    Seguimiento: "Seguimiento",
+    Fallido: "Fallido",
+    Completado: "Completado"
   } as const satisfies Record<EstadoPedido, string>,
   EstadoTarea: {
     programada: "Programada",
@@ -254,6 +267,9 @@ export const ETIQUETAS = Object.freeze({
     Importador: "Importador",
     "Cliente Final": "Cliente Final",
     Otro: "Otro",
+    distribuidor_mediano: 'Distribuidor Mediano',
+    distribuidor_grande: 'Distribuidor Grande',
+    distribuidor_top: 'Distribuidor Top',
   } as const satisfies Record<TipoCuenta, string>,
 });
 
@@ -282,27 +298,27 @@ export const PROVINCIAS_ES = [
 // ------------------------------------------------------------
 export const MAPEO_ESTADO_PEDIDO_LEGACY: Record<string, EstadoPedido | undefined> = Object.freeze({
   // Inglés
-  draft: "borrador",
-  confirmed: "confirmado",
-  shipped: "enviado",
-  delivered: "entregado",
-  invoiced: "facturado",
-  paid: "pagado",
-  cancelled: "cancelado",
+  draft: "Borrador",
+  confirmed: "Confirmado",
+  shipped: "Enviado",
+  delivered: "Entregado",
+  invoiced: "Facturado",
+  paid: "Pagado",
+  cancelled: "Cancelado",
 
   // Español anterior (mal mezclado con tareas)
-  Pendiente: "borrador",
-  Procesando: "confirmado",
-  Enviado: "enviado",
-  Entregado: "entregado",
-  Facturado: "facturado",
-  Pagado: "pagado",
-  Fallido: "cancelado",
+  Pendiente: "Borrador",
+  Procesando: "Procesando",
+  Enviado: "Enviado",
+  Entregado: "Entregado",
+  Facturado: "Facturado",
+  Pagado: "Pagado",
+  Fallido: "Fallido",
 
   // Tareas que NO son estado de pedido -> undefined
-  Programada: undefined,
-  Seguimiento: undefined,
-  Completado: undefined,
+  Programada: "Programada",
+  Seguimiento: "Seguimiento",
+  Completado: "Completado",
 });
 
 export const MAPEO_TIPO_CLIENTE_LEGACY: Record<string, TipoCliente | undefined> = Object.freeze({
@@ -369,9 +385,9 @@ export const SEEDS_DESARROLLO = Object.freeze({
   ].map((nombre) => ({ nombre, type: "HORECA" as TipoCuenta, potencial: "medio" as const })),
 
   tanques: [
-    { name: "Tanque Mezcla 1", capacity: 1000, status: "libre", location: "Zona de Mezcla" },
-    { name: "Tanque Mezcla 2", capacity: 1000, status: "libre", location: "Zona de Mezcla" },
-    { name: "Tanque Pulmón 1", capacity: 500, status: "libre", location: "Línea 1" },
+    { name: "Tanque Mezcla 1", capacity: 1000, status: "Libre", location: "Zona de Mezcla" },
+    { name: "Tanque Mezcla 2", capacity: 1000, status: "Libre", location: "Zona de Mezcla" },
+    { name: "Tanque Pulmón 1", capacity: 500, status: "Libre", location: "Línea 1" },
   ] as const,
 
   categorias: [
@@ -402,10 +418,10 @@ export const SEEDS_DESARROLLO = Object.freeze({
 // ------------------------------------------------------------
 export type EstadoFacturaHolded = 0 | 1 | 2 | 3; // 0=no pagada,1=pagada,2=borrador,3=parcial
 export const HOLDED_A_ESTADO_PAGO: Record<EstadoFacturaHolded, EstadoPago> = Object.freeze({
-  0: "pendiente",
-  1: "pagado",
-  2: "pendiente",
-  3: "parcial",
+  0: "Pendiente",
+  1: "Pagado",
+  2: "Pendiente",
+  3: "Parcial",
 });
 
 // ------------------------------------------------------------

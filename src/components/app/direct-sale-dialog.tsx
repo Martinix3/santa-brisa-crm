@@ -43,10 +43,9 @@ import { es } from 'date-fns/locale';
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
-import { EstadoVentaDirecta as DirectSaleStatus, CanalVentaDirecta as DirectSaleChannel, EstadoPago as PaidStatus, CANALES_VENTA_DIRECTA as directSaleChannelList } from "@ssot";
+import { EstadoVentaDirecta as DirectSaleStatus, CanalVentaDirecta as DirectSaleChannel, EstadoPago as PaidStatus, CANALES_VENTA_DIRECTA as directSaleChannelList, ESTADOS_VENTA_DIRECTA as directSaleStatusList } from "@ssot";
 
 const paidStatusList: PaidStatus[] = ['Pendiente', 'Pagado', 'Parcial'];
-const directSaleStatusList: DirectSaleStatus[] = ['borrador', 'confirmado', 'enviado', 'entregado', 'facturado', 'pagado', 'cancelado', 'en depósito'];
 
 const editDirectSaleFormSchema = z.object({
   status: z.enum(directSaleStatusList as [DirectSaleStatus, ...DirectSaleStatus[]]),

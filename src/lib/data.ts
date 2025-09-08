@@ -1,6 +1,7 @@
 
 
 import type { Kpi, StrategicObjective, OrderStatus, MarketingResourceType, UserRole, ClientType, AccountType, AccountStatus, NextActionType, FailureReasonType, CrmEvent, CrmEventType, CrmEventStatus, PromotionalMaterial, CanalOrigenColocacion, Purchase, PurchaseStatus, PaymentMethod, SampleRequestStatus, SampleRequestPurpose, DirectSaleStatus, PurchaseCategory, DirectSaleChannel, PotencialType, InteractionType, InteractionResult, Category, CategoryKind, Tank, RunStatus, RunType, TankStatus, UoM } from '@/types';
+import { TrendingUp, Users, Briefcase, CalendarPlus, Repeat } from "lucide-react"; 
 
 export const mockInitialAccounts = [
   "Sello Copil", "Grupo Tragaluz", "MARRIOT", "AC HOTELES", "Bokaxankla Bar", 
@@ -106,9 +107,9 @@ export const mockMarketingResources: MarketingResourceCategory[] = [
 
 export const userRolesList: UserRole[] = ['Admin', 'Ventas', 'Distributor', 'Marketing', 'Manager', 'Operaciones', 'Finanzas', 'Clavadista', 'Líder Clavadista'];
 export const accountTypeList: AccountType[] = [
-  'HORECA', 'Retail Minorista', 'Gran Superficie', 'Distribuidor', 'Importador', 'Cliente Final Directo', 'Evento Especial', 'Otro'
+  'HORECA', 'Retail Minorista', 'Gran Superficie', 'Distribuidor', 'Importador', 'Cliente Final Directo', 'Otro'
 ];
-export const accountStatusList: AccountStatus[] = ['lead', 'qualified', 'active', 'dormant', 'lost', 'Programada', 'Seguimiento', 'Repetición', 'Fallido', 'Pendiente', 'Inactivo'];
+export const accountStatusList: AccountStatus[] = ['Activo', 'Repetición', 'Seguimiento', 'Inactivo', 'Pendiente', 'Fallido', 'Programada'];
 export const crmEventTypeList: CrmEventType[] = [
   'Activación en Tienda', 'Feria Comercial', 'Evento Corporativo',
   'Degustación', 'Patrocinio', 'Activación', 'Otro'
@@ -118,7 +119,7 @@ export const crmEventStatusList: CrmEventStatus[] = [
 ];
 
 export const canalOrigenColocacionList: CanalOrigenColocacion[] = [
-  'Equipo Santa Brisa', 'Iniciativa Importador', 'Marketing Digital', 'Referido', 'Otro'
+  'Equipo Santa Brisa', 'Iniciativa Importador', 'Marketing Digital', 'Referido', 'Evento Especial', 'Otro'
 ];
 export const paymentMethodList: PaymentMethod[] = ['Adelantado', 'Contado', 'Transferencia 30 días', 'Giro Bancario'];
 export const sampleRequestStatusList: SampleRequestStatus[] = ['Pendiente', 'Aprobada', 'Rechazada', 'Enviada'];

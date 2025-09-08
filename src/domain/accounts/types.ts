@@ -10,7 +10,7 @@ export interface AddressDetails {
   country?: string | null;
 }
 
-export type AccountStatus = 'lead' | 'qualified' | 'active' | 'dormant' | 'lost' | 'Programada' | 'Seguimiento' | 'Repetición' | 'Fallido' | 'Pendiente' | 'Inactivo';
+export type AccountStatus = 'Activo' | 'Repetición' | 'Seguimiento' | 'Inactivo' | 'Pendiente' | 'Fallido' | 'Programada';
 export type PotencialType = 'alto' | 'medio' | 'bajo';
 
 export interface Account {

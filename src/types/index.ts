@@ -28,7 +28,7 @@ export type ClientType = 'Distribuidor' | 'HORECA' | 'Retail' | 'Cliente Final' 
 export type MarketingResourceType = 'Folleto' | 'Presentación' | 'Imagen' | 'Guía';
 export type NextActionType = 'Llamar al responsable de compras' | 'Mandar información' | 'Visitar de nuevo' | 'Enviar muestra' | 'Esperar decisión' | 'Opción personalizada';
 export type FailureReasonType = 'No interesado' | 'Ya trabaja con otro proveedor' | 'Sin presupuesto' | 'Producto no encaja' | 'Otro (especificar)';
-export type CanalOrigenColocacion = 'Equipo Santa Brisa' | 'Iniciativa Importador' | 'Marketing Digital' | 'Referido' | 'Otro';
+export type CanalOrigenColocacion = 'Equipo Santa Brisa' | 'Iniciativa Importador' | 'Marketing Digital' | 'Referido' | 'Evento Especial' | 'Otro';
 export type PaymentMethod = 'Adelantado' | 'Contado' | 'Transferencia 30 días' | 'Giro Bancario';
 export type SampleRequestStatus = 'Pendiente' | 'Aprobada' | 'Rechazada' | 'Enviada';
 export type SampleRequestPurpose = 'Captación Cliente Nuevo' | 'Seguimiento Cliente Existente' | 'Material para Evento' | 'Uso Interno/Formación' | 'Otro';
@@ -45,7 +45,7 @@ export type QcStatus = "Pending" | "Released" | "Rejected";
 export type BomKind = "blend" | "fill";
 
 // UNIFIED ACCOUNT TYPE
-export type AccountType = 'HORECA' | 'Retail Minorista' | 'Gran Superficie' | 'Distribuidor' | 'Importador' | 'Cliente Final Directo' | 'Evento Especial' | 'Otro';
+export type AccountType = 'HORECA' | 'Retail Minorista' | 'Gran Superficie' | 'Distribuidor' | 'Importador' | 'Cliente Final Directo' | 'Otro';
 
 // --- MAIN COLLECTIONS ---
 

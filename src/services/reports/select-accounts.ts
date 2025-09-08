@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { adminDb as db } from "@/lib/firebaseAdmin";
@@ -51,14 +52,9 @@ export async function selectAccountsByActivity(opts: SelectAccountsOptions = {})
 
   // 2. Fetch all orders (interactions are a subset of orders).
   let ordersQuery: FirebaseFirestore.Query = db.collection("orders");
-  if (ordersRange?.from || interactionsRange?.from) {
-    const fromDate = ordersRange?.from || interactionsRange?.from;
-    ordersQuery = ordersQuery.where("createdAt", ">=", Timestamp.fromDate(fromDate!));
-  }
-  if (ordersRange?.to || interactionsRange?.to) {
-    const toDate = ordersRange?.to || interactionsRange?.to;
-    ordersQuery = ordersQuery.where("createdAt", "<=", Timestamp.fromDate(toDate!));
-  }
+  // The user reported an issue where accounts with old orders were not showing up.
+  // We remove the date range filter from here to fetch ALL orders and then filter client-side if needed
+  // or apply the date range only for certain logic, but not for the main grouping.
   const ordersSnap = await ordersQuery.get();
   const allInteractions = ordersSnap.docs.map(fromFirestoreOrder);
 
@@ -94,7 +90,7 @@ export async function selectAccountsByActivity(opts: SelectAccountsOptions = {})
       sinPedidoNiInteraccionIds.push(a.id);
     }
     
-    if (isFallida) {
+    if (isFallida && !hasOrder) { // An account with an order shouldn't be in 'fallidas'
       fallidasIds.push(a.id);
     }
   });

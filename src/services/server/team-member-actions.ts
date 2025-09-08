@@ -13,7 +13,6 @@ import type { TeamMember, TeamMemberFormValues, RolUsuario as UserRole } from '@
  * @returns The team member profile or null if not found.
  */
 export async function getTeamMemberByAuthUidFS(authUid: string): Promise<TeamMember | null> {
-    // Correctly use the function from the service
     return getTeamMemberByAuthUidFromServiceFS(authUid);
 }
 

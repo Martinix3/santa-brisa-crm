@@ -4,7 +4,7 @@ import { getAgendaDataAction } from "@/services/server/agenda-actions";
 import MyAgendaClientPage from "@/components/app/my-agenda/my-agenda-client-page";
 import { headers } from 'next/headers';
 import { adminAuth } from '@/lib/firebaseAdmin';
-import { getTeamMemberByAuthUidFS } from "@/services/server/team-member-actions";
+import { getTeamMemberByAuthUidFS } from "@/services/team-member-service";
 
 
 export const dynamic = 'force-dynamic';
@@ -53,4 +53,5 @@ export default async function MyAgendaPage() {
     />
   );
 }
+
 

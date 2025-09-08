@@ -1,4 +1,6 @@
 
+'use server';
+import 'server-only';
 
 import { adminDb } from '@/lib/firebaseAdmin';
 import {
@@ -54,8 +56,7 @@ const toFirestoreTeamMember = (data: Partial<TeamMemberFormValues>, isNew: boole
 };
 
 export const getTeamMembersFS = async (roles?: UserRole[]): Promise<TeamMember[]> => {
-  const membersCol = adminDb.collection(TEAM_MEMBERS_COLLECTION);
-  let q: FirebaseFirestore.Query = membersCol;
+  let q: FirebaseFirestore.Query = adminDb.collection(TEAM_MEMBERS_COLLECTION);
 
   if (roles && roles.length > 0) {
     q = q.where('role', 'in', roles);
@@ -125,3 +126,4 @@ export const initializeMockTeamMembersInFirestore = async () => {
         console.log('Team members collection is not empty. Skipping initialization.');
     }
 };
+

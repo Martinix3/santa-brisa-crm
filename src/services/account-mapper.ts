@@ -1,4 +1,5 @@
 
+
 import type { Account, AddressDetails } from '@/types';
 import type { AccountFormValues } from '@/components/app/account-dialog';
 import { parseISO, isValid } from 'date-fns';
@@ -33,7 +34,7 @@ export function fromFirestore(raw: any): Account {
 
   return {
     id: String(raw.id),
-    name,
+    name: name, // This is the fix. Use the resolved name.
     nombre: raw.nombre,
     legalName: raw.legalName,
     type: raw.type,

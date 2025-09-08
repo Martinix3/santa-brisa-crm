@@ -81,15 +81,12 @@ export async function processCarteraData(
         });
         const nextInteraction = openTasks[0] || undefined;
         
-        const historicalStatus = await calculateCommercialStatus(accountInteractions as Order[]);
-        
         let status: AccountStatus;
-        if (historicalStatus === 'Activo' || historicalStatus === 'Repetición') {
-            status = historicalStatus;
+        if (nextInteraction) {
+            status = nextInteraction.status as 'Programada' | 'Seguimiento';
         } else {
-            status = nextInteraction ? nextInteraction.status as 'Programada' | 'Seguimiento' : historicalStatus;
+            status = await calculateCommercialStatus(accountInteractions as Order[]);
         }
-
 
         const lastInteractionOrder = accountInteractions[0];
         const lastInteractionDate = lastInteractionOrder?.createdAt ? parseISO(lastInteractionOrder.createdAt) : undefined;

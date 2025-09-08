@@ -12,11 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import AccountDialog from "@/features/accounts/components/account-dialog";
-import { TIPOS_CUENTA, type TipoCuenta } from "@ssot";
+import { TIPOS_CUENTA } from "@ssot";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getCarteraBundle } from "@/features/accounts/repo";
 import { AccountRow } from "@/features/accounts/components/account-row";
+import { AccountHubDialog } from "@/features/accounts/components/account-hub-dialog";
 
 const hexToRgba = (hex: string, alpha: number) => {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -40,7 +41,7 @@ const AccountGroup = ({
 
   return (
     <React.Fragment>
-      <TableRow className="sb-group" style={style}>
+      <TableRow className="sb-group" style={{ backgroundColor: hexToRgba(style.backgroundColor as string, 0.15) }}>
         <TableCell colSpan={8} className="p-0">
           <button
             type="button"
@@ -81,8 +82,10 @@ export default function AccountsPage() {
   const [error, setError] = React.useState<string | null>(null);
 
   // Dialog state
-  const [dialogOpen, setDialogOpen] = React.useState(false);
-  const [selectedAccount, setSelectedAccount] = React.useState<Partial<AccountFormValues> | null>(null);
+  const [isAccountDialogOpen, setAccountDialogOpen] = React.useState(false);
+  const [isHubOpen, setIsHubOpen] = React.useState(false);
+  const [hubAccountId, setHubAccountId] = React.useState<string | null>(null);
+  const [hubMode, setHubMode] = React.useState<'registrar'|'editar'|'pedido'>('registrar');
 
 
   // Filters
@@ -90,7 +93,7 @@ export default function AccountsPage() {
   const [responsibleFilter, setResponsibleFilter] = React.useState("Todos");
   const [bucketFilter, setBucketFilter] = React.useState<BucketFilter>("Todos");
   const [sortOption, setSortOption] = React.useState<SortOption>("leadScore_desc");
-  const [typeFilter, setTypeFilter] = React.useState<TipoCuenta | "Todos">('Todos');
+  const [typeFilter, setTypeFilter] = React.useState<string | "Todos">('Todos');
   const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
   
   const isAdmin = userRole === 'Admin';
@@ -161,7 +164,7 @@ export default function AccountsPage() {
         potentialAccounts: [], 
         failedAccounts: [] 
     };
-
+    
     filtered.forEach(acc => {
         if (acc.status === 'Activo' || acc.status === 'Repetición') {
             groups.activeAccounts.push(acc);
@@ -174,8 +177,8 @@ export default function AccountsPage() {
         }
     });
 
-
     Object.values(groups).forEach(group => group.sort(sortFunction));
+    
     return groups as { 
         activeAccounts: EnrichedAccount[], 
         potentialAccounts: EnrichedAccount[], 
@@ -186,8 +189,9 @@ export default function AccountsPage() {
   }, [searchTerm, typeFilter, enrichedAccounts, responsibleFilter, bucketFilter, isAdmin, sortOption]);
 
   const handleOpenHub = (accountId: string, mode: 'registrar' | 'editar' | 'pedido') => {
-      // Future implementation for Hub
-      console.log('Open hub for', accountId, 'in mode', mode);
+    setHubAccountId(accountId);
+    setHubMode(mode);
+    setIsHubOpen(true);
   };
   
   const totalCount = activeAccounts.length + potentialAccounts.length + followUpAccounts.length + failedAccounts.length;
@@ -247,7 +251,7 @@ export default function AccountsPage() {
             <div className="ml-auto flex items-center gap-2">
               <span className="sb-chip">Activas {activeAccounts.length}</span>
               <span className="sb-chip">Seguimiento {followUpAccounts.length}</span>
-              <Button onClick={()=>setDialogOpen(true)} className="rounded-full bg-amber-400 hover:bg-amber-500 text-amber-950">
+              <Button onClick={()=>setAccountDialogOpen(true)} className="rounded-full bg-amber-400 hover:bg-amber-500 text-amber-950">
                 <PlusCircle className="mr-2 h-4 w-4"/> Nueva Cuenta
               </Button>
             </div>
@@ -301,10 +305,10 @@ export default function AccountsPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <AccountGroup title="Activas y en Repetición" accounts={activeAccounts} expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} onOpenHub={handleOpenHub} style={{ backgroundColor: hexToRgba('#9CD7D8', 0.15) }}/>
-                        <AccountGroup title="En Seguimiento" accounts={followUpAccounts} expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} onOpenHub={handleOpenHub} style={{ backgroundColor: hexToRgba('#F6C851', 0.15) }}/>
-                        <AccountGroup title="Potenciales (Nuevas)" accounts={potentialAccounts} expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} onOpenHub={handleOpenHub} style={{ backgroundColor: hexToRgba('#559091', 0.10) }}/>
-                        <AccountGroup title="Cuentas con Interacción Fallida" accounts={failedAccounts} expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} onOpenHub={handleOpenHub} style={{ backgroundColor: hexToRgba('#E06B2F', 0.15) }}/>
+                        <AccountGroup title="Activas y en Repetición" accounts={activeAccounts} expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} onOpenHub={handleOpenHub} style={{ backgroundColor: '#9CD7D8' }}/>
+                        <AccountGroup title="En Seguimiento" accounts={followUpAccounts} expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} onOpenHub={handleOpenHub} style={{ backgroundColor: '#F6C851' }}/>
+                        <AccountGroup title="Potenciales (Nuevas)" accounts={potentialAccounts} expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} onOpenHub={handleOpenHub} style={{ backgroundColor: '#559091' }}/>
+                        <AccountGroup title="Cuentas con Interacción Fallida" accounts={failedAccounts} expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} onOpenHub={handleOpenHub} style={{ backgroundColor: '#E06B2F' }}/>
                         
                         {totalCount === 0 && (
                             <TableRow>
@@ -315,7 +319,7 @@ export default function AccountsPage() {
                                     <Button variant="outline" onClick={()=> { setSearchTerm(""); setTypeFilter("Todos"); setBucketFilter("Todos"); }}>
                                         Limpiar filtros
                                     </Button>
-                                    <Button onClick={()=> setDialogOpen(true)} className="rounded-full bg-amber-400 hover:bg-amber-500 text-amber-950">
+                                    <Button onClick={()=> setAccountDialogOpen(true)} className="rounded-full bg-amber-400 hover:bg-amber-500 text-amber-950">
                                         <PlusCircle className="mr-2 h-4 w-4"/> Crear nueva cuenta
                                     </Button>
                                     </div>
@@ -329,10 +333,16 @@ export default function AccountsPage() {
         </CardContent>
       </Card>
       <AccountDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        initial={selectedAccount}
+        open={isAccountDialogOpen}
+        onOpenChange={setAccountDialogOpen}
+        initial={null}
         onSaved={() => loadData()}
+      />
+      <AccountHubDialog 
+        open={isHubOpen}
+        onOpenChange={setIsHubOpen}
+        accountId={hubAccountId}
+        defaultMode={hubMode}
       />
     </div>
   );
@@ -341,5 +351,3 @@ export default function AccountsPage() {
 type BucketFilter = "Todos" | "Vencidas" | "Para Hoy";
 type SortOption = "leadScore_desc" | "nextAction_asc" | "lastInteraction_desc";
 type AccountFormValues = import('@/lib/schemas/account-schema').AccountFormValues;
-
-      

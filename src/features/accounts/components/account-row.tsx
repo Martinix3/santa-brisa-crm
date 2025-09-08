@@ -81,7 +81,7 @@ export function AccountRow({
 
   return (
     <React.Fragment>
-      <TableRow className={cn("group", className, isExpanded && "bg-muted/50")} style={style}>
+      <TableRow className={cn("group", className)} style={style}>
         <TableCell className={cn("w-8 pl-2", tdClassName)}>
           <Button
             aria-label={isExpanded ? 'Contraer' : 'Expandir'}

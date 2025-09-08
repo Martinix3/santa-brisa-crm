@@ -51,6 +51,8 @@ export function enrichCartera(
             if (!isValid(dateB)) return -1;
             return dateB.getTime() - dateA.getTime();
         });
+        
+        const lastInteractionOrder = accountInteractions[0];
 
         const openTasks = accountInteractions.filter(o => o.status === 'Programada' || o.status === 'Seguimiento') as Order[];
         openTasks.sort((a, b) => {
@@ -64,14 +66,16 @@ export function enrichCartera(
         });
         const nextInteraction = openTasks[0] || undefined;
         
-        const successfulOrders = accountInteractions.filter(o => VALID_SALE_STATUSES.includes(o.status as any));
         let status: AccountStatus;
         if (nextInteraction) {
             status = nextInteraction.status as 'Programada' | 'Seguimiento';
+        } else if (lastInteractionOrder?.status === 'Fallido') {
+            status = 'Fallido';
         } else {
-            if (successfulOrders.length === 0) {
-                 status = accountInteractions.length > 0 ? 'Fallido' : 'Pendiente';
-            } else {
+             const successfulOrders = accountInteractions.filter(o => VALID_SALE_STATUSES.includes(o.status as any));
+             if (successfulOrders.length === 0) {
+                 status = accountInteractions.length > 0 ? 'Seguimiento' : 'Pendiente';
+             } else {
                  const lastOrderDate = parseISO(successfulOrders[0].createdAt!);
                  const daysSinceLastOrder = differenceInDays(new Date(), lastOrderDate);
                  if (daysSinceLastOrder > 90) status = 'Inactivo';
@@ -79,19 +83,12 @@ export function enrichCartera(
                  else status = 'Activo';
             }
         }
-
-        const lastInteractionOrder = accountInteractions[0];
+        
         const lastInteractionDate = lastInteractionOrder?.createdAt ? parseISO(lastInteractionOrder.createdAt) : undefined;
+        const totalSuccessfulOrders = accountInteractions.filter(o => VALID_SALE_STATUSES.includes(o.status as any)).length;
+        const totalValue = accountInteractions.filter(o => VALID_SALE_STATUSES.includes(o.status as any)).reduce((sum, o) => sum + (o.value || 0), 0);
         
-        const totalSuccessfulOrders = successfulOrders.length;
-        
-        const recentOrderValue = successfulOrders
-            .filter(o => o.createdAt && isValid(parseISO(o.createdAt)) && isAfter(parseISO(o.createdAt), subDays(new Date(), 30)))
-            .reduce((sum, o) => sum + (o.value || 0), 0);
-            
         const leadScore = 50; 
-        
-        const totalValue = successfulOrders.reduce((sum, o) => sum + (o.value || 0), 0);
         
         const responsableId = account.salesRepId || account.responsableId;
         const responsable = responsableId ? teamMembersMap.get(responsableId) : undefined;

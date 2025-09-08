@@ -17,7 +17,11 @@ export async function calculateCommercialStatus(
     ordersForAccount: Order[]
 ): Promise<Exclude<AccountStatus, 'Programada' | 'Seguimiento'>> {
     
-    // Check for successful sales.
+    // If there are no interactions at all, it's a new potential client.
+    if (!ordersForAccount || ordersForAccount.length === 0) {
+        return 'Pendiente';
+    }
+
     const successfulOrders = ordersForAccount
         .filter(o => VALID_SALE_STATUSES.includes(o.status) && o.createdAt && isValid(parseISO(o.createdAt)))
         .sort((a,b) => parseISO(b.createdAt!).getTime() - parseISO(a.createdAt!).getTime());

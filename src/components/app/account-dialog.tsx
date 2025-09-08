@@ -39,6 +39,8 @@ import { Separator } from "@/components/ui/separator";
 import { accountToForm, formToAccountPartial } from "@/services/account-mapper";
 
 const NO_SALES_REP_VALUE = "##NONE##";
+const DIRECT_SALE_VALUE = "##DIRECT##";
+
 
 const B2B_TYPES = ["Distribuidor", "Importador"] as const;
 type B2BType = typeof B2B_TYPES[number];
@@ -220,7 +222,7 @@ export default function AccountDialog({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField control={form.control} name="iban" render={({ field }) => (<FormItem><FormLabel>IBAN</FormLabel><FormControl><Input placeholder="ES00..." {...field} value={field.value ?? ""} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
               {showDistributorField && (
-                <FormField control={form.control} name="distributorId" render={({ field }) => (<FormItem><FormLabel className="flex items-center gap-1.5"><Truck className="h-4 w-4 text-zinc-500" />Distribuidor</FormLabel><Select onValueChange={field.onChange} value={field.value || ""} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger></FormControl><SelectContent><SelectItem value="">Venta Directa (Gestiona Santa Brisa)</SelectItem><Separator />{(distributors ?? []).map((d: Account) => (<SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="distributorId" render={({ field }) => (<FormItem><FormLabel className="flex items-center gap-1.5"><Truck className="h-4 w-4 text-zinc-500" />Distribuidor</FormLabel><Select onValueChange={field.onChange} value={field.value || ""} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger></FormControl><SelectContent><SelectItem value={DIRECT_SALE_VALUE}>Venta Directa (Gestiona Santa Brisa)</SelectItem><Separator />{(distributors ?? []).map((d: Account) => (<SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
               )}
             </div>
           </div>

@@ -1,5 +1,4 @@
 
-
 import type { Account, AddressDetails } from '@/types';
 import type { AccountFormValues } from '@/components/app/account-dialog';
 import { parseISO, isValid } from 'date-fns';
@@ -131,7 +130,7 @@ export function formToAccountPartial(f: AccountFormValues): Partial<Account> {
     cif: norm(f.cif),
     type: f.type,
     iban: norm(f.iban),
-    distributorId: norm(f.distributorId),
+    distributorId: f.distributorId === '##DIRECT##' ? null : norm(f.distributorId),
     billing_address: has(billing_address) ? billing_address : undefined,
     shipping_address: has(shipping_address) ? shipping_address : undefined,
     mainContactName: norm(f.mainContactName),

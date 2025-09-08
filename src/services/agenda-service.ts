@@ -1,7 +1,7 @@
 
 'use server';
 
-import { db } from '@/lib/firebase';
+import { adminDb as db } from '@/lib/firebaseAdmin';
 import { collection, query, where, getDocs, Timestamp } from "firebase-admin/firestore";
 import type { Order, CrmEvent } from '@/types';
 import { startOfToday, endOfToday, addDays, parseISO, isValid } from 'date-fns';
@@ -38,6 +38,20 @@ export async function getDailyTasks(params: {
   const baseOrderQueryConditions = [
       where('status', 'in', ['Programada', 'Seguimiento']),
   ];
+
+  // This is the fix: Add date filters to order queries as well.
+  const scheduledOrderConditions = [
+      ...baseOrderQueryConditions,
+      where('visitDate', '>=', todayTimestamp),
+      where('visitDate', '<=', sevenDaysTimestamp),
+  ];
+  const followUpOrderConditions = [
+      ...baseOrderQueryConditions,
+      where('nextActionDate', '>=', todayTimestamp),
+      where('nextActionDate', '<=', sevenDaysTimestamp),
+  ];
+
+
   const baseEventQueryConditions = [
       where('status', 'in', ['Planificado', 'Confirmado', 'En Curso']),
       where('startDate', '>=', todayTimestamp),
@@ -46,13 +60,17 @@ export async function getDailyTasks(params: {
 
   if (userRole === 'Admin') {
     // Admin sees all tasks/events in the date range
-    orderQueries.push(query(collection(db, 'orders'), ...baseOrderQueryConditions));
+    orderQueries.push(query(collection(db, 'orders'), ...scheduledOrderConditions));
+    orderQueries.push(query(collection(db, 'orders'), ...followUpOrderConditions));
     eventQueries.push(query(collection(db, 'events'), ...baseEventQueryConditions));
   } else {
     // Non-admins see tasks assigned to them
-    orderQueries.push(query(collection(db, 'orders'), ...baseOrderQueryConditions, where('salesRep', '==', userName)));
+    orderQueries.push(query(collection(db, 'orders'), ...scheduledOrderConditions, where('salesRep', '==', userName)));
+    orderQueries.push(query(collection(db, 'orders'), ...followUpOrderConditions, where('salesRep', '==', userName)));
+
     if(userRole === 'Clavadista' || userRole === 'Líder Clavadista'){
-        orderQueries.push(query(collection(db, 'orders'), ...baseOrderQueryConditions, where('clavadistaId', '==', userId)));
+        orderQueries.push(query(collection(db, 'orders'), ...scheduledOrderConditions, where('clavadistaId', '==', userId)));
+        orderQueries.push(query(collection(db, 'orders'), ...followUpOrderConditions, where('clavadistaId', '==', userId)));
     }
     eventQueries.push(query(collection(db, 'events'), ...baseEventQueryConditions, where('assignedTeamMemberIds', 'array-contains', userId)));
   }
@@ -63,8 +81,9 @@ export async function getDailyTasks(params: {
   ]);
 
   const uniqueOrders = new Map<string, Order>();
-  orderSnapshots.forEach(snapshot => snapshot.docs.forEach(doc => {
+  orderSnapshots.flat().forEach(snapshot => snapshot.docs.forEach(doc => {
       const order = fromFirestoreOrder(doc);
+      // Additional client-side validation just in case
       const taskDateStr = order.status === 'Programada' ? order.visitDate : order.nextActionDate;
       if (taskDateStr) {
           const taskDate = parseISO(taskDateStr);
@@ -75,7 +94,7 @@ export async function getDailyTasks(params: {
   }));
 
   const uniqueEvents = new Map<string, CrmEvent>();
-  eventSnapshots.forEach(snapshot => snapshot.docs.forEach(doc => {
+  eventSnapshots.flat().forEach(snapshot => snapshot.docs.forEach(doc => {
       uniqueEvents.set(doc.id, fromFirestoreEvent(doc));
   }));
   

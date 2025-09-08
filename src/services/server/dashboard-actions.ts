@@ -1,7 +1,7 @@
 
 'use server';
 
-import { getOrdersFS, updateFullOrderFS } from '@/services/order-service';
+import { getOrdersFS } from '@/services/order-service';
 import { getDirectSalesFS } from '@/services/venta-directa-sb-service';
 import { getAccountsFS } from '@/services/account-service';
 import { getTeamMembersFS } from '@/services/team-member-service';

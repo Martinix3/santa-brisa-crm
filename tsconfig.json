@@ -1,4 +1,3 @@
-
 {
   "compilerOptions": {
     "target": "es5",
@@ -23,8 +22,9 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@ssot": ["src/types/index.ts"],
-      "@domain/*": ["src/domain/*"]
+      "@ssot": ["src/ssot/index.ts"],
+      "@domain/*": ["src/domain/*"],
+      "@seeds": ["src/lib/seeds.ts"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

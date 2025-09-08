@@ -1,4 +1,5 @@
 
+
 import * as z from "zod";
 import { 
     TIPOS_INTERACCION_VALUES,
@@ -16,9 +17,9 @@ export const interactionSchema = z.object({
   // Hint de ownership para creación implícita
   ownershipHint: z.enum(OWNERSHIP_VALUES).default("propio"),
 
-  type: z.enum(TIPOS_INTERACCION_VALUES as [TipoInteraccion, ...TipoInteraccion[]]),
+  type: z.enum(TIPOS_INTERACCION_VALUES),
   date: z.coerce.date().default(() => new Date()),
-  outcome: z.enum(RESULTADOS_INTERACCION_VALUES as [ResultadoInteraccion, ...ResultadoInteraccion[]]).optional().nullable(),
+  outcome: z.enum(RESULTADOS_INTERACCION_VALUES).optional().nullable(),
   note: z.string().optional().nullable(),
   nextActionAt: z.coerce.date().optional().nullable(), // próxima cita/recordatorio
   originatingTaskId: z.string().optional().nullable(), // si viene de una tarea programada

@@ -101,6 +101,21 @@ export type EstadoDocumento = typeof ESTADOS_DOCUMENTO[number];
 export const ORIGENES_PEDIDO = ["crm", "holded", "shopify", "sendcloud"] as const;
 export type OrigenPedido = typeof ORIGENES_PEDIDO[number];
 
+export const ORDER_CHANNEL_VALUES = ["propio", "distribuidor"] as const;
+export const orderChannelOptions = [
+  { value: "propio", label: "Propio" },
+  { value: "distribuidor", label: "Distribuidor" },
+] as const;
+export type OrderChannel = typeof orderChannelOptions[number]["value"];
+
+export const LINE_TYPE_VALUES = ["product", "plv"] as const;
+export const lineTypeOptions = [
+  { value: "product", label: "Producto" },
+  { value: "plv", label: "PLV" },
+] as const;
+export type LineType = typeof lineTypeOptions[number]["value"];
+
+
 // ------------------------------------------------------------
 // Tipos de cliente / cuenta
 // ------------------------------------------------------------
@@ -472,5 +487,3 @@ export const esTipoCliente = (v: unknown): v is TipoCliente => typeof v === "str
 /** @deprecated */ export type AccountType = TipoCuenta;
 /** @deprecated */ export const LABELS = ETIQUETAS;
 /** @deprecated */ export const UI_COLORS = COLORES_UI;
-
-    

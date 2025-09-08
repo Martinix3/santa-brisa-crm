@@ -24,8 +24,8 @@ export async function saveRecipeFS(productSku: string, components: BomComponentV
   const batch = writeBatch(adminDb);
 
   // 1. Find and queue deletion of all existing lines for this product
-  const q = query(collection(adminDb, BOM_LINES_COLLECTION), where('productSku', '==', productSku));
-  const snapshot = await getDocs(q);
+  const q = adminDb.collection(BOM_LINES_COLLECTION).where('productSku', '==', productSku);
+  const snapshot = await q.get();
   snapshot.forEach(docToDelete => {
     batch.delete(docToDelete.ref);
   });
@@ -53,8 +53,8 @@ export async function saveRecipeFS(productSku: string, components: BomComponentV
 
 export async function deleteRecipeFS(productSku: string): Promise<void> {
   const batch = writeBatch(adminDb);
-  const q = query(collection(adminDb, BOM_LINES_COLLECTION), where('productSku', '==', productSku));
-  const snapshot = await getDocs(q);
+  const q = adminDb.collection(BOM_LINES_COLLECTION).where('productSku', '==', productSku);
+  const snapshot = await q.get();
   snapshot.forEach(docToDelete => {
     batch.delete(docToDelete.ref);
   });
@@ -63,20 +63,20 @@ export async function deleteRecipeFS(productSku: string): Promise<void> {
 
 
 export const getBomLinesFS = async (productSku?: string, type?: BomKind): Promise<BomLine[]> => {
-  let q;
-  const colRef = collection(adminDb, BOM_LINES_COLLECTION);
+  let q: FirebaseFirestore.Query = adminDb.collection(BOM_LINES_COLLECTION);
   
-  if (productSku && type) {
-    q = query(colRef, where('productSku', '==', productSku), where('type', '==', type));
-  } else if (productSku) {
-    q = query(colRef, where('productSku', '==', productSku));
-  } else if (type) {
-    q = query(colRef, where('type', '==', type), orderBy('productSku'));
-  } else {
-    q = query(colRef, orderBy('productSku'));
+  if (productSku) {
+    q = q.where('productSku', '==', productSku);
+  }
+  if (type) {
+    q = q.where('type', '==', type);
+  }
+
+  if (!productSku && !type) {
+      q = q.orderBy('productSku');
   }
   
-  const snapshot = await getDocs(q);
+  const snapshot = await q.get();
   return snapshot.docs.map(fromFirestoreBomLine);
 };
 

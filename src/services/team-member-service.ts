@@ -19,7 +19,7 @@ const fromFirestoreTeamMember = (docSnap: DocumentSnapshot): TeamMember => {
     name: data.name || '',
     email: data.email || '',
     avatarUrl: data.avatarUrl || '',
-    role: data.role || 'SalesRep',
+    role: data.role || 'Ventas',
     monthlyTargetAccounts: data.monthlyTargetAccounts,
     monthlyTargetVisits: data.monthlyTargetVisits,
     createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : (typeof data.createdAt === 'string' ? data.createdAt : undefined),
@@ -44,7 +44,7 @@ const toFirestoreTeamMember = (data: Partial<TeamMemberFormValues>, isNew: boole
     accountId: data.accountId || null,
   };
 
-  if (data.role === 'SalesRep') {
+  if (data.role === 'Ventas') {
     firestoreData.monthlyTargetAccounts = data.monthlyTargetAccounts || 0;
     firestoreData.monthlyTargetVisits = data.monthlyTargetVisits || 0;
   } else {
@@ -76,12 +76,12 @@ const toFirestoreTeamMember = (data: Partial<TeamMemberFormValues>, isNew: boole
 };
 
 export const getTeamMembersFS = async (roles?: UserRole[]): Promise<TeamMember[]> => {
-  const membersCol = adminDb.collection(TEAM_MEMBERS_COLLECTION);
-  let q: FirebaseFirestore.Query<FirebaseFirestore.DocumentData>;
+  let q: FirebaseFirestore.Query = adminDb.collection(TEAM_MEMBERS_COLLECTION);
+
   if (roles && roles.length > 0) {
-    q = membersCol.where('role', 'in', roles);
+    q = q.where('role', 'in', roles);
   } else {
-    q = membersCol.orderBy('name', 'asc');
+    q = q.orderBy('name', 'asc');
   }
   
   const snapshot = await q.get();

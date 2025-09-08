@@ -1,10 +1,9 @@
-
-import { db } from '@/lib/firebase';
+import { db, adminDb } from '@/lib/firebaseAdmin';
 import {
   collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
   type DocumentSnapshot, writeBatch, runTransaction, where,
   increment,
-} from "firebase/firestore";
+} from "firebase-admin/firestore";
 import type { CrmEvent, EventFormValues, InventoryItem, Category } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 import { getInventoryItemByIdFS } from './inventory-item-service';
@@ -84,9 +83,9 @@ const toFirestoreEvent = (data: EventFormValues, isNew: boolean): any => {
 };
 
 export const getEventsFS = async (): Promise<CrmEvent[]> => {
-  const eventsCol = collection(db, EVENTS_COLLECTION);
-  const q = query(eventsCol, orderBy('startDate', 'desc'));
-  const eventSnapshot = await getDocs(q);
+  const eventsCol = adminDb.collection(EVENTS_COLLECTION);
+  const q = eventsCol.orderBy('startDate', 'desc');
+  const eventSnapshot = await q.get();
   const eventList = eventSnapshot.docs.map(docSnap => fromFirestoreEvent(docSnap));
 
   eventList.sort((a, b) => {
@@ -103,12 +102,10 @@ export const getEventsFS = async (): Promise<CrmEvent[]> => {
 
 export const getEventsForAccountFS = async (accountId: string): Promise<CrmEvent[]> => {
     if (!accountId) return [];
-    // The query now only filters by accountId. The ordering is done client-side to avoid the composite index requirement.
-    const q = query(collection(db, EVENTS_COLLECTION), where("accountId", "==", accountId), orderBy('startDate', 'desc'));
-    const snapshot = await getDocs(q);
+    const q = adminDb.collection(EVENTS_COLLECTION).where("accountId", "==", accountId).orderBy('startDate', 'desc');
+    const snapshot = await q.get();
     const events = snapshot.docs.map(fromFirestoreEvent);
     
-    // Sort in application code
     events.sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
     
     return events;
@@ -116,9 +113,9 @@ export const getEventsForAccountFS = async (accountId: string): Promise<CrmEvent
 
 export const getEventByIdFS = async (id: string): Promise<CrmEvent | null> => {
   if (!id) return null;
-  const eventDocRef = doc(db, EVENTS_COLLECTION, id);
-  const docSnap = await getDoc(eventDocRef);
-  return docSnap.exists() ? fromFirestoreEvent(docSnap) : null;
+  const eventDocRef = adminDb.collection(EVENTS_COLLECTION).doc(id);
+  const docSnap = await docRef.get();
+  return docSnap.exists ? fromFirestoreEvent(docSnap) : null;
 };
 
 const updateStockAndCreateExpenseForMaterials = async (
@@ -129,7 +126,7 @@ const updateStockAndCreateExpenseForMaterials = async (
 ) => {
   if (!materials || materials.length === 0) return;
 
-  const batch = writeBatch(db);
+  const batch = adminDb.batch();
   let totalCost = 0;
 
   for (const item of materials) {
@@ -139,7 +136,7 @@ const updateStockAndCreateExpenseForMaterials = async (
       continue;
     }
 
-    const materialRef = doc(db, 'inventoryItems', item.materialId);
+    const materialRef = adminDb.collection('inventoryItems').doc(item.materialId);
     const change = isRemoval ? item.quantity : -item.quantity;
     batch.update(materialRef, { stock: increment(change) });
     
@@ -159,7 +156,7 @@ const updateStockAndCreateExpenseForMaterials = async (
       creadoPor: 'system_auto',
       fechaCreacion: Timestamp.now(),
     };
-    const newExpenseRef = doc(collection(db, PURCHASES_COLLECTION));
+    const newExpenseRef = adminDb.collection(PURCHASES_COLLECTION).doc();
     batch.set(newExpenseRef, expenseData);
   }
 
@@ -168,10 +165,10 @@ const updateStockAndCreateExpenseForMaterials = async (
 
 export const addEventFS = async (data: EventFormValues): Promise<string> => {
   const firestoreData = toFirestoreEvent(data, true);
-  const docRef = await addDoc(collection(db, EVENTS_COLLECTION), firestoreData);
+  const docRef = await addDoc(collection(adminDb, EVENTS_COLLECTION), firestoreData);
   
-  const mktCatQuery = query(collection(db, 'categories'), where('name', '==', 'Ventas & Marketing'));
-  const mktCatSnapshot = await getDocs(mktCatQuery);
+  const mktCatQuery = adminDb.collection('categories').where('name', '==', 'Ventas & Marketing');
+  const mktCatSnapshot = await mktCatQuery.get();
   const marketingCategoryId = mktCatSnapshot.empty ? 'MKT' : mktCatSnapshot.docs[0].id;
 
   if (data.assignedMaterials && data.assignedMaterials.length > 0) {
@@ -182,7 +179,7 @@ export const addEventFS = async (data: EventFormValues): Promise<string> => {
 };
 
 export const updateEventFS = async (id: string, data: EventFormValues): Promise<void> => {
-  const eventDocRef = doc(db, EVENTS_COLLECTION, id);
+  const eventDocRef = adminDb.collection(EVENTS_COLLECTION).doc(id);
   const existingEventDoc = await getDoc(eventDocRef);
   if (!existingEventDoc.exists()) throw new Error("Event not found to update");
   const oldData = fromFirestoreEvent(existingEventDoc);
@@ -190,8 +187,8 @@ export const updateEventFS = async (id: string, data: EventFormValues): Promise<
   const firestoreData = toFirestoreEvent(data, false);
   await updateDoc(eventDocRef, firestoreData);
 
-  const mktCatQuery = query(collection(db, 'categories'), where('name', '==', 'Ventas & Marketing'));
-  const mktCatSnapshot = await getDocs(mktCatQuery);
+  const mktCatQuery = adminDb.collection('categories').where('name', '==', 'Ventas & Marketing');
+  const mktCatSnapshot = await mktCatQuery.get();
   const marketingCategoryId = mktCatSnapshot.empty ? 'MKT' : mktCatSnapshot.docs[0].id;
 
   const stockChanges = new Map<string, number>();
@@ -229,14 +226,14 @@ export const updateEventFS = async (id: string, data: EventFormValues): Promise<
 };
 
 export const deleteEventFS = async (id: string): Promise<void> => {
-  const eventDocRef = doc(db, EVENTS_COLLECTION, id);
+  const eventDocRef = adminDb.collection(EVENTS_COLLECTION).doc(id);
   const existingEventDoc = await getDoc(eventDocRef);
 
   if (existingEventDoc.exists()) {
     const eventData = fromFirestoreEvent(existingEventDoc);
     if (eventData.assignedMaterials && eventData.assignedMaterials.length > 0) {
-      const mktCatQuery = query(collection(db, 'categories'), where('name', '==', 'Ventas & Marketing'));
-      const mktCatSnapshot = await getDocs(mktCatQuery);
+      const mktCatQuery = adminDb.collection('categories').where('name', '==', 'Ventas & Marketing');
+      const mktCatSnapshot = await mktCatQuery.get();
       const marketingCategoryId = mktCatSnapshot.empty ? 'MKT' : mktCatSnapshot.docs[0].id;
       await updateStockAndCreateExpenseForMaterials(eventData.assignedMaterials, `Cancelación/Devolución PLV Evento: ${eventData.name}`, marketingCategoryId, true);
     }
@@ -245,8 +242,8 @@ export const deleteEventFS = async (id: string): Promise<void> => {
 };
 
 export const initializeMockEventsInFirestore = async (mockEventsData: CrmEvent[]) => {
-    const eventsCol = collection(db, EVENTS_COLLECTION);
-    const snapshot = await getDocs(query(eventsCol, orderBy('createdAt', 'desc')));
+    const eventsCol = adminDb.collection(EVENTS_COLLECTION);
+    const snapshot = await eventsCol.limit(1).get();
     if (snapshot.empty && mockEventsData.length > 0) {
         for(const event of mockEventsData) {
             const { id, createdAt, updatedAt, startDate, endDate, ...eventData } = event;
@@ -280,19 +277,19 @@ export const reorderEventsBatchFS = async (
   if (!updates || updates.length === 0) {
     return;
   }
-  const batch = writeBatch(db);
-
-  const docRefs = updates.map(u => doc(db, EVENTS_COLLECTION, u.id));
-  const docSnapshots = await Promise.all(docRefs.map(ref => getDoc(ref)));
+  const batch = adminDb.batch();
+  
+  const docRefs = updates.map(u => adminDb.collection(EVENTS_COLLECTION).doc(u.id));
+  const docSnapshots = await adminDb.getAll(...docRefs);
   
   updates.forEach((update, index) => {
     const docSnap = docSnapshots[index];
-    if (!docSnap.exists()) {
+    if (!docSnap.exists) {
       console.warn(`Event with ID ${update.id} not found during batch update. Skipping.`);
       return;
     }
 
-    const ref = doc(db, EVENTS_COLLECTION, update.id);
+    const ref = adminDb.collection(EVENTS_COLLECTION).doc(update.id);
     const payload: any = { 
       orderIndex: update.orderIndex, 
       updatedAt: Timestamp.now() 
@@ -301,7 +298,7 @@ export const reorderEventsBatchFS = async (
     if (update.date) {
         payload.startDate = Timestamp.fromDate(update.date);
         const eventData = docSnap.data();
-        if(eventData.endDate && eventData.startDate) {
+        if(eventData && eventData.endDate && eventData.startDate) {
             const duration = eventData.endDate.toDate().getTime() - eventData.startDate.toDate().getTime();
             if (duration >= 0) { 
               payload.endDate = Timestamp.fromMillis(update.date.getTime() + duration);

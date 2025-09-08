@@ -1,5 +1,5 @@
-import { db } from '@/lib/firebase';
-import { collection, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, runTransaction, getDoc, query, where, getDocs, type DocumentSnapshot, writeBatch, increment, FieldValue } from "firebase/firestore";
+import { adminDb } from '@/lib/firebaseAdmin';
+import { collection, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, runTransaction, getDoc, query, where, getDocs, type DocumentSnapshot, writeBatch, increment, FieldValue } from "firebase-admin/firestore";
 import type { Expense, Category, InventoryItem, Supplier } from '@/types';
 import { fromFirestoreExpense, toFirestoreExpense } from './utils/firestore-converters';
 import { addStockTxnFSTransactional } from './stock-txn-service';
@@ -12,47 +12,37 @@ const SUPPLIERS_COLLECTION = 'suppliers';
 const INVENTORY_ITEMS_COLLECTION = 'inventoryItems';
 const CATEGORIES_COLLECTION = 'categories';
 
-export const getExpensesFS = async (): Promise<Expense[]> => {
-    const expensesCol = collection(db, EXPENSES_COLLECTION);
-    const q = query(expensesCol, orderBy('fechaCreacion', 'desc'));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(fromFirestoreExpense);
-};
-
-export const getPurchasesFS = async (supplierId: string): Promise<Expense[]> => {
-    const expensesCol = collection(db, EXPENSES_COLLECTION);
-    const q = query(expensesCol, where('proveedorId', '==', supplierId), orderBy('fechaCreacion', 'desc'));
-    const snapshot = await getDocs(q);
+export const getPurchasesFS = async (supplierId?: string): Promise<Expense[]> => {
+    let q: FirebaseFirestore.Query = adminDb.collection(EXPENSES_COLLECTION);
+    if (supplierId) {
+        q = q.where('proveedorId', '==', supplierId);
+    }
+    q = q.orderBy('fechaCreacion', 'desc');
+    const snapshot = await q.get();
     return snapshot.docs.map(fromFirestoreExpense);
 }
 
 async function getOrCreateSupplier(transaction: FirebaseFirestore.Transaction, data: PurchaseFormValues): Promise<{ id: string; name: string, code: string } | null> {
-    const suppliersRef = collection(db, SUPPLIERS_COLLECTION);
+    const suppliersRef = adminDb.collection(SUPPLIERS_COLLECTION);
 
-    // If an ID is provided, try to get it.
     if (data.proveedorId && data.proveedorId !== '##NEW##') {
-        const supplierDoc = await transaction.get(doc(suppliersRef, data.proveedorId));
-        if (supplierDoc.exists()) {
+        const supplierDoc = await transaction.get(suppliersRef.doc(data.proveedorId));
+        if (supplierDoc.exists) {
             const supplierData = supplierDoc.data() as Supplier;
             return { id: supplierDoc.id, name: supplierData.name, code: supplierData.code || 'NA' };
         }
     }
 
-    // If no ID or ID not found, check by name (case-insensitive) or CIF
     if (data.proveedorNombre) {
-        // Read outside of the transaction to avoid read-after-write errors if we create a new one.
-        // This is a calculated risk; in a high-concurrency scenario, two users could create the same supplier.
-        // For this CRM's use case, it's an acceptable tradeoff.
-        const q = query(suppliersRef, where("name", "==", data.proveedorNombre));
-        const existingSnap = await getDocs(q); 
+        const q = suppliersRef.where("name", "==", data.proveedorNombre);
+        const existingSnap = await q.get(); 
         if (!existingSnap.empty) {
             const supplierData = existingSnap.docs[0].data() as Supplier;
             return { id: existingSnap.docs[0].id, name: supplierData.name, code: supplierData.code || 'NA' };
         }
         
-        // If still not found, create it
         const code = (data.proveedorNombre || "NUEVO").substring(0, 3).toUpperCase();
-        const newSupplierRef = doc(suppliersRef); // Create a new ref
+        const newSupplierRef = suppliersRef.doc();
         const newSupplierData = {
           name: data.proveedorNombre,
           cif: data.proveedorCif || null,
@@ -72,7 +62,7 @@ async function ensureItem(
     categoryDoc: DocumentSnapshot
 ): Promise<{ id: string; isNew: boolean, data: InventoryItem }> {
     if (itemData.productoId && itemData.productoId !== '##NEW##') {
-        const itemRef = doc(db, INVENTORY_ITEMS_COLLECTION, itemData.productoId);
+        const itemRef = adminDb.collection(INVENTORY_ITEMS_COLLECTION).doc(itemData.productoId);
         const itemDoc = await transaction.get(itemRef);
         if (!itemDoc.exists()) {
             throw new Error(`El artículo con ID ${itemData.productoId} no fue encontrado.`);
@@ -82,7 +72,6 @@ async function ensureItem(
 
     if (!itemData.newItemName) throw new Error("Se intentó crear un artículo sin nombre.");
 
-    // This is now safe because addInventoryItemFS can be called inside a transaction
     const { id: newProductId, sku: newProductSku } = await addInventoryItemFS({
       name: itemData.newItemName,
       categoryId: categoryDoc.id,
@@ -103,10 +92,9 @@ async function ensureItem(
 }
 
 export const addPurchaseFS = async (data: PurchaseFormValues, creatorId: string): Promise<void> => {
-  await runTransaction(db, async (transaction) => {
-    // --- PHASE 1: READS ---
+  await runTransaction(adminDb, async (transaction) => {
     const supplierInfo = await getOrCreateSupplier(transaction, data);
-    const categoryDocRef = doc(db, CATEGORIES_COLLECTION, data.categoriaId!);
+    const categoryDocRef = adminDb.collection(CATEGORIES_COLLECTION).doc(data.categoriaId!);
     const categoryDoc = await transaction.get(categoryDocRef);
     if (!categoryDoc.exists()) throw new Error(`Categoría con ID ${data.categoriaId} no encontrada.`);
 
@@ -119,9 +107,7 @@ export const addPurchaseFS = async (data: PurchaseFormValues, creatorId: string)
     });
 
     const resolvedItemDetails = await Promise.all(itemDetailsPromises);
-
-    // --- PHASE 2: WRITES ---
-    const newExpenseRef = doc(collection(db, EXPENSES_COLLECTION));
+    const newExpenseRef = adminDb.collection(EXPENSES_COLLECTION).doc();
 
     for (let i = 0; i < resolvedItemDetails.length; i++) {
         const detail = resolvedItemDetails[i];
@@ -140,7 +126,7 @@ export const addPurchaseFS = async (data: PurchaseFormValues, creatorId: string)
             expiryDate: itemData.caducidad,
         });
 
-        const itemRef = doc(db, INVENTORY_ITEMS_COLLECTION, itemId);
+        const itemRef = adminDb.collection(INVENTORY_ITEMS_COLLECTION).doc(itemId);
         transaction.update(itemRef, { stock: increment(itemData.cantidad!) });
 
         await addStockTxnFSTransactional(transaction, {
@@ -162,21 +148,21 @@ export const addPurchaseFS = async (data: PurchaseFormValues, creatorId: string)
 
 
 export const updatePurchaseFS = async (id: string, data: PurchaseFormValues): Promise<void> => {
-    const expenseRef = doc(db, EXPENSES_COLLECTION, id);
+    const expenseRef = adminDb.collection(EXPENSES_COLLECTION).doc(id);
     const payload = toFirestoreExpense(data, false, ''); 
     await updateDoc(expenseRef, payload);
 };
 
 export const deleteExpenseFS = async (id: string): Promise<void> => {
-  const docRef = doc(db, EXPENSES_COLLECTION, id);
+  const docRef = adminDb.collection(EXPENSES_COLLECTION).doc(id);
   await deleteDoc(docRef);
 };
 
 export const deleteExpensesBatchFS = async (ids: string[]): Promise<void> => {
     if (ids.length === 0) return;
-    const batch = writeBatch(db);
+    const batch = writeBatch(adminDb);
     ids.forEach(id => {
-        const docRef = doc(db, EXPENSES_COLLECTION, id);
+        const docRef = adminDb.collection(EXPENSES_COLLECTION).doc(id);
         batch.delete(docRef);
     });
     await batch.commit();

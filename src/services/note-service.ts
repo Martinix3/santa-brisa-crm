@@ -32,25 +32,18 @@ const fromFirestoreNote = (snapshot: DocumentSnapshot): StickyNote => {
 
 export const getNotesForUserFS = async (userId: string): Promise<StickyNote[]> => {
   if (!userId) return [];
-  // The query was filtering by 'assignedToId' and ordering by 'createdAt'.
-  // This requires a composite index. To avoid this, we remove the orderBy clause.
-  const q = query(
-    collection(adminDb, NOTES_COLLECTION),
-    where('assignedToId', '==', userId)
-    // orderBy('createdAt', 'desc') // <-- This line was removed to prevent the index error.
-  );
-  const snapshot = await getDocs(q);
+  const q = adminDb.collection(NOTES_COLLECTION).where('assignedToId', '==', userId);
+  const snapshot = await q.get();
   const notes = snapshot.docs.map(fromFirestoreNote);
   
-  // We now perform the sorting in the application code after fetching the data.
   notes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   
   return notes;
 };
 
 export const getAllNotesFS = async (): Promise<StickyNote[]> => {
-  const q = query(collection(adminDb, NOTES_COLLECTION), orderBy('createdAt', 'desc'));
-  const snapshot = await getDocs(q);
+  const q = adminDb.collection(NOTES_COLLECTION).orderBy('createdAt', 'desc');
+  const snapshot = await q.get();
   return snapshot.docs.map(fromFirestoreNote);
 };
 

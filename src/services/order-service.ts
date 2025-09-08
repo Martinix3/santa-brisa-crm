@@ -1,5 +1,3 @@
-
-
 // This service now exclusively uses the ADMIN SDK for all Firestore operations.
 
 import { adminDb } from '@/lib/firebaseAdmin';
@@ -13,7 +11,7 @@ import { EstadoPedido as OrderStatus } from "@ssot";
 
 const ORDERS_COLLECTION = 'orders'; 
 
-const fromFirestoreOrder = (docSnap: DocumentSnapshot): Order => {
+export const fromFirestoreOrder = (docSnap: DocumentSnapshot): Order => {
   const data = docSnap.data();
   if (!data) throw new Error("Document data is undefined.");
 

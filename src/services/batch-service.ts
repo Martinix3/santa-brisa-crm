@@ -95,12 +95,9 @@ export async function planBatchConsumption(
   inventoryItemName?: string,
   strategy: 'FIFO' | 'FEFO' = 'FIFO'
 ): Promise<{ batchId: string; quantity: number; batchData: ItemBatch }[]> {
-  const batchesQuery = query(
-    collection(adminDb, BATCHES_COLLECTION),
-    where("inventoryItemId", "==", inventoryItemId)
-  );
+  const batchesQuery = adminDb.collection(BATCHES_COLLECTION).where("inventoryItemId", "==", inventoryItemId);
 
-  const snapshot = await getDocs(batchesQuery);
+  const snapshot = await batchesQuery.get();
   
   let availableBatches = snapshot.docs
     .map(fromFirestoreItemBatch)
@@ -138,8 +135,8 @@ export async function planBatchConsumption(
 
 export const getStockDetailsForItem = async (itemId: string): Promise<{ available: number; pending: number; }> => {
     if (!itemId) return { available: 0, pending: 0 };
-    const q = query(collection(adminDb, BATCHES_COLLECTION), where('inventoryItemId', '==', itemId));
-    const snapshot = await getDocs(q);
+    const q = adminDb.collection(BATCHES_COLLECTION).where('inventoryItemId', '==', itemId);
+    const snapshot = await q.get();
     
     let available = 0;
     let pending = 0;
@@ -160,19 +157,15 @@ export const getStockDetailsForItem = async (itemId: string): Promise<{ availabl
 
 
 export const getAllBatchesFS = async (): Promise<ItemBatch[]> => {
-    const q = query(collection(adminDb, BATCHES_COLLECTION), orderBy('createdAt', 'desc'));
-    const snapshot = await getDocs(q);
+    const q = adminDb.collection(BATCHES_COLLECTION).orderBy('createdAt', 'desc');
+    const snapshot = await q.get();
     return snapshot.docs.map(fromFirestoreItemBatch);
 };
 
 export const getBatchesForItemFS = async (itemId: string): Promise<ItemBatch[]> => {
     if (!itemId) return [];
-    const q = query(
-        collection(adminDb, BATCHES_COLLECTION), 
-        where('inventoryItemId', '==', itemId),
-        orderBy('createdAt', 'desc')
-    );
-    const snapshot = await getDocs(q);
+    const q = adminDb.collection(BATCHES_COLLECTION).where('inventoryItemId', '==', itemId).orderBy('createdAt', 'desc');
+    const snapshot = await q.get();
     return snapshot.docs.map(fromFirestoreItemBatch);
 }
 

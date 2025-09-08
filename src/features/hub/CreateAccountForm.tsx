@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import AccountDialog from "@/components/app/account-dialog";
+import { AccountForm } from "@/components/app/account-dialog";
 import type { Account, TeamMember } from "@/types";
 import { upsertAccountAction } from "@/app/(app)/accounts/actions";
 import { useToast } from "@/hooks/use-toast";
@@ -23,8 +23,10 @@ export function CreateAccountForm({
   onCancel,
 }: Props) {
   const { toast } = useToast();
+  const [isSaving, setIsSaving] = React.useState(false);
 
   const handleSave = async (data: Partial<Account>) => {
+    setIsSaving(true);
     try {
       const res = await upsertAccountAction({
         id: initialAccount?.id !== 'new' ? initialAccount?.id : undefined,
@@ -38,19 +40,19 @@ export function CreateAccountForm({
         description: e.message || "No se pudo guardar la cuenta.",
         variant: "destructive",
       });
+    } finally {
+        setIsSaving(false);
     }
   };
   
   return (
-    <div className="p-1 -m-6">
-        <AccountDialog
-            isOpen={true} // It's always "open" inside its container
-            onOpenChange={(open) => { if(!open) onCancel() }}
-            account={initialAccount}
-            onSave={handleSave}
-            allAccounts={allAccounts}
-            allTeamMembers={allTeamMembers}
-        />
-    </div>
+    <AccountForm
+        account={initialAccount}
+        onSave={handleSave}
+        allAccounts={allAccounts}
+        allTeamMembers={allTeamMembers}
+        isSaving={isSaving}
+        onCancel={onCancel}
+    />
   );
 }

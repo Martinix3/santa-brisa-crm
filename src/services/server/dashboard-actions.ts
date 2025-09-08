@@ -7,6 +7,7 @@ import { getAccountsFS } from '@/services/account-service';
 import { getTeamMembersFS } from '@/services/team-member-service';
 import type { Account, Order, TeamMember, DirectSale } from '@/types';
 import { EstadoPedido as OrderStatus } from "@ssot";
+import { updateFullOrderFS } from '@/services/order-service'; // Corrected import
 
 export async function getDashboardDataAction(): Promise<{
   orders: Order[];
@@ -21,12 +22,13 @@ export async function getDashboardDataAction(): Promise<{
       getTeamMembersFS(),
       getDirectSalesFS(),
     ]);
-    // The data fetched with the admin SDK is serializable by default.
+    // Data from Admin SDK is generally serializable.
+    // Removing the JSON.parse(JSON.stringify(...)) to get clearer error messages if any non-serializable data is passed.
     return { 
-        orders: JSON.parse(JSON.stringify(orders)), 
-        accounts: JSON.parse(JSON.stringify(accounts)), 
-        teamMembers: JSON.parse(JSON.stringify(teamMembers)), 
-        directSales: JSON.parse(JSON.stringify(directSales))
+        orders, 
+        accounts, 
+        teamMembers, 
+        directSales
     };
   } catch (error) {
     console.error("Error in getDashboardDataAction:", error);

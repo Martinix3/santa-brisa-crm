@@ -28,18 +28,16 @@ export async function getAccounts(): Promise<Account[]> {
 }
 
 export async function getAccountById(accountId: string): Promise<Account | null> {
-  const ref = doc(db, ACCOUNTS, accountId);
-  const snap = await getDoc(ref);
+  const ref = db.collection(ACCOUNTS).doc(accountId);
+  const snap = await ref.get();
   return snap.exists ? fromFirestore({ id: snap.id, ...snap.data() }) : null;
 }
 
 export async function getOrdersByAccount(accountId: string): Promise<Order[]> {
-  const q = query(
-    collection(db, ORDERS),
-    where('accountId', '==', accountId),
-    orderBy('createdAt', 'desc')
-  );
-  const snap = await getDocs(q);
+  const q = db.collection(ORDERS)
+    .where('accountId', '==', accountId)
+    .orderBy('createdAt', 'desc');
+  const snap = await q.get();
   return snap.docs.map(d => fromFirestoreOrder(d));
 }
 
@@ -48,13 +46,11 @@ export async function getRecentHistoryByAccount(
   accountId: string,
   maxItems = 10
 ): Promise<(Order | Interaction)[]> {
-  const q = query(
-    collection(db, ORDERS),
-    where('accountId', '==', accountId),
-    orderBy('createdAt', 'desc'),
-    limit(maxItems)
-  );
-  const snap = await getDocs(q);
+  const q = db.collection(ORDERS)
+    .where('accountId', '==', accountId)
+    .orderBy('createdAt', 'desc')
+    .limit(maxItems);
+  const snap = await q.get();
   return snap.docs.map(d => fromFirestoreOrder(d));
 }
 

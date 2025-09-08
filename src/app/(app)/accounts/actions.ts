@@ -1,10 +1,11 @@
+
 'use server';
 
 import { adminDb as db } from '@/lib/firebaseAdmin';
-import { collection, addDoc, updateDoc, doc, FieldValue } from 'firebase-admin/firestore';
+import { collection, addDoc, updateDoc, doc, FieldValue, getDocs, query, where, Timestamp } from 'firebase-admin/firestore';
 import { accountSchema, type AccountFormValues, toSearchName } from '@/lib/schemas/account-schema';
 
-const ACCOUNTS = 'accounts';
+const ACCOUNTS_COLLECTION = 'accounts';
 
 // ⚠️ Esta es una simulación. En una app real, obtendrías el usuario de la sesión.
 async function getCurrentUser() {
@@ -52,10 +53,10 @@ export async function upsertAccountAction(input: AccountFormValues) {
   };
 
   if (data.id) {
-    await updateDoc(doc(db, ACCOUNTS, data.id), payload);
+    await updateDoc(doc(db, ACCOUNTS_COLLECTION, data.id), payload);
     return { ok: true, id: data.id, op: 'updated' as const };
   } else {
-    const ref = await addDoc(collection(db, ACCOUNTS), {
+    const ref = await addDoc(collection(db, ACCOUNTS_COLLECTION), {
       ...payload,
       createdAt: FieldValue.serverTimestamp(),
       createdBy: user.id,
@@ -64,4 +65,47 @@ export async function upsertAccountAction(input: AccountFormValues) {
     });
     return { ok: true, id: ref.id, op: 'created' as const };
   }
+}
+
+/**
+ * Busca una cuenta por searchName; si no existe, la crea.
+ * Devuelve { id, name, ownership, distributorId }
+ */
+export async function findOrCreateAccountByName(input: {
+  name: string;
+  ownership?: "propio" | "distribuidor";
+  distributorId?: string | null;
+}) {
+  const user = await getCurrentUser();
+  const name = input.name.trim();
+  const searchName = toSearchName(name);
+
+  // 1) buscar por searchName
+  const snap = await getDocs(query(collection(db, ACCOUNTS_COLLECTION), where("searchName", "==", searchName)));
+  if (!snap.empty) {
+    const d = snap.docs[0];
+    const x = d.data() as any;
+    return { id: d.id, name: x.name as string, ownership: x.ownership ?? "propio", distributorId: x.distributorId ?? null };
+  }
+
+  // 2) crear mínima si no existe
+  const now = Timestamp.now();
+  const ownership = input.ownership ?? "propio";
+  const docRef = await addDoc(collection(db, ACCOUNTS_COLLECTION), {
+    name,
+    searchName,
+    type: "prospect",                 // por defecto
+    ownership,
+    distributorId: ownership === "distribuidor" ? (input.distributorId ?? null) : null,
+    createdAt: now,
+    lastUpdated: now,
+    createdBy: user.id,
+    responsibleId: user.id,
+    responsibleName: user.name,
+    status: 'lead',
+    potencial: 'medio',
+    leadScore: 50,
+  });
+
+  return { id: docRef.id, name, ownership, distributorId: ownership === "distribuidor" ? (input.distributorId ?? null) : null };
 }

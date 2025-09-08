@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -7,7 +8,6 @@ import {
   orderSchema, type OrderFormValues, orderChannelOptions
 } from "@/lib/schemas/order-schema";
 import { createOrderAction } from "@/app/(app)/orders/actions";
-
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -18,35 +18,43 @@ import { Loader2, Plus, Trash2 } from "lucide-react";
 import type { OrderLine } from "@/lib/schemas/order-schema";
 import { OrderChannel } from "@ssot";
 
-
 type Props = {
   open: boolean;
   onOpenChange: (v: boolean)=>void;
-  account: { id:string; name:string };
-  onCreated?: (id:string)=>void;
+  account?: { id:string; name:string } | null;
+  onCreated?: (id:string, accountId?:string)=>void;
 };
 
 export default function OrderDialog({ open, onOpenChange, account, onCreated }: Props) {
   const { toast } = useToast();
+  
+  const hasPresetAccount = !!account?.id;
+
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(orderSchema),
     defaultValues: {
-      accountId: account.id,
-      accountName: account.name,
+      accountId: account?.id,
+      accountName: account?.name,
       channel: "propio",
       currency: "EUR",
       lines: [],
     },
   });
-  
-  const [lines, setLines] = React.useState<OrderLine[]>([]);
+
+  const [lines, setLines] = React.useState<OrderFormValues["lines"]>([]);
   const busy = form.formState.isSubmitting;
 
   async function onSubmit(values: OrderFormValues) {
     try {
-      const res = await createOrderAction({ ...values, lines });
+      const res = await createOrderAction({ 
+        ...values, 
+        lines,
+        accountId: hasPresetAccount ? account!.id : undefined,
+        accountName: hasPresetAccount ? account!.name : values.accountName,
+        ownershipHint: values.channel === "distribuidor" ? "distribuidor" : "propio",
+      });
       toast({ title: "Pedido creado", description: `ID ${res.id}` });
-      onCreated?.(res.id);
+      onCreated?.(res.id, res.accountId);
       onOpenChange(false);
     } catch (error: any) {
         toast({ title: "Error al crear pedido", description: error.message, variant: "destructive" });
@@ -56,8 +64,8 @@ export default function OrderDialog({ open, onOpenChange, account, onCreated }: 
   React.useEffect(() => {
     if(open) {
       form.reset({
-        accountId: account.id,
-        accountName: account.name,
+        accountId: account?.id,
+        accountName: account?.name,
         channel: "propio",
         currency: "EUR",
         lines: [],
@@ -70,11 +78,19 @@ export default function OrderDialog({ open, onOpenChange, account, onCreated }: 
     <Dialog open={open} onOpenChange={(v)=>!busy&&onOpenChange(v)}>
       <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Nuevo pedido para: {account.name}</DialogTitle>
-          <DialogDescription>Selecciona productos/PLV del inventario y guarda el pedido.</DialogDescription>
+          <DialogTitle>Nuevo pedido</DialogTitle>
+          <DialogDescription>
+            {hasPresetAccount ? `Cuenta: ${account!.name}` : "Escribe el nombre de la cuenta o selecciona una existente."}
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          {!hasPresetAccount && (
+            <Field label="Cuenta">
+                <Input placeholder="Ej. Bar Las Tablas" {...form.register("accountName")} />
+            </Field>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Field label="Canal">
               <Select

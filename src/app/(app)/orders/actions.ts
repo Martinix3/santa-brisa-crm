@@ -4,12 +4,11 @@
 import { adminDb as db } from '@/lib/firebaseAdmin';
 import { collection, addDoc, doc, getDoc, Timestamp } from 'firebase-admin/firestore';
 import { orderSchema, type OrderFormValues } from '@/lib/schemas/order-schema';
-import type { InventoryItem, Account } from '@/types';
-import { toSearchName } from '@/lib/schemas/account-schema';
+import { findOrCreateAccountByName } from '@/app/(app)/accounts/actions';
+import type { InventoryItem } from '@/types';
 
 const INVENTORY_ITEMS_COLLECTION = 'inventoryItems';
 const ORDERS_COLLECTION = 'orders';
-const ACCOUNTS_COLLECTION = 'accounts';
 
 async function getCurrentUser() {
   return { id: "currentUserId", name: "Usuario Actual" };
@@ -19,82 +18,56 @@ export async function createOrderAction(input: OrderFormValues) {
   const user = await getCurrentUser();
   const data = orderSchema.parse(input);
 
+  // 0) Resolver cuenta: si no hay accountId, se busca por nombre o se crea
   let accountId = data.accountId;
-  let accountName = data.accountName;
-
-  // Handle implicit account creation
-  if (!accountId && accountName) {
-      const newAccountData = {
-          name: accountName,
-          searchName: toSearchName(accountName),
-          type: 'customer', // Default type for implicit creation
-          ownership: data.ownershipHint || 'propio',
-          status: 'lead',
-          potencial: 'medio',
-          leadScore: 50,
-          createdAt: Timestamp.now(),
-          updatedAt: Timestamp.now(),
-          createdBy: user.id,
-          owner_user_id: user.id,
-          responsibleName: user.name,
-      };
-      const accountRef = await addDoc(collection(db, ACCOUNTS_COLLECTION), newAccountData);
-      accountId = accountRef.id;
-  } else if(accountId) {
-      const accountSnap = await getDoc(doc(db, ACCOUNTS_COLLECTION, accountId));
-      if(accountSnap.exists()) {
-          accountName = accountSnap.data()?.name || accountName;
-      }
-  }
-
+  let accountName = data.accountName ?? "";
   if (!accountId) {
-      throw new Error("No se pudo determinar la cuenta para el pedido.");
+    if (!accountName) throw new Error("Falta el nombre de cuenta");
+    const acc = await findOrCreateAccountByName({
+      name: accountName,
+      ownership: data.ownershipHint ?? (data.channel === "distribuidor" ? "distribuidor" : "propio"),
+      distributorId: data.channel === "distribuidor" ? (data.distributorId ?? null) : null,
+    });
+    accountId = acc.id;
+    accountName = acc.name;
   }
 
-
-  // Validar inventario y enriquecer líneas
-  const linesPromises = data.lines.map(async (l) => {
+  // 1) Validar/normalizar líneas contra inventario
+  const lines = [];
+  for (const l of data.lines) {
     const snap = await getDoc(doc(db, INVENTORY_ITEMS_COLLECTION, l.inventoryId));
     if (!snap.exists()) throw new Error(`Inventario no encontrado: ${l.inventoryId}`);
-    
     const inv = snap.data() as InventoryItem;
     const unitPrice = l.unitPrice ?? inv.latestPurchase?.calculatedUnitCost ?? 0;
     const total = unitPrice * l.qty;
-
-    return {
+    lines.push({
       ...l,
-      lineType: inv.categoryId, 
+      lineType: inv.categoryId, // O usa una lógica para determinar si es producto o PLV
       sku: inv.sku || 'N/A',
       name: inv.name,
-      uom: inv.uom || 'unit',
+      uom: inv.uom ?? "unit",
       unitPrice,
       total,
-    };
-  });
-  
-  const lines = await Promise.all(linesPromises);
+    });
+  }
 
-  const subtotal = lines.reduce((s, x) => s + x.total, 0);
-  const taxes = 0; // Ajustar si es necesario
+  const subtotal = lines.reduce((s,x)=>s+x.total,0);
+  const taxes = 0;
   const total = subtotal + taxes;
   const now = Timestamp.now();
 
   const ref = await addDoc(collection(db, ORDERS_COLLECTION), {
-    accountId: accountId,
-    accountName: accountName,
+    accountId, accountName,
     channel: data.channel,
-    distributorId: data.channel === "distribuidor" ? data.distributorId ?? null : null,
+    distributorId: data.channel==="distribuidor"?data.distributorId??null:null,
     currency: data.currency,
-    lines,
-    subtotal, 
-    taxes, 
-    total,
+    lines, subtotal, taxes, total,
     notes: data.notes ?? null,
-    status: data.channel === "distribuidor" ? "Registrado_distribuidor" : "Borrador",
+    status: data.channel==="distribuidor" ? "Registrado_distribuidor" : "Borrador",
     createdAt: now,
     lastUpdated: now,
     responsibleId: user.id,
   });
 
-  return { ok: true, id: ref.id, accountId: accountId };
+  return { ok:true, id: ref.id, accountId };
 }

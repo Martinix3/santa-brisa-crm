@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import * as React from "react";
@@ -22,7 +21,7 @@ type HubMode = "cuenta" | "interaccion" | "pedido";
 type Props = {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  initialAccount?: { id: string; name: string } | null;
+  initialAccount?: Account | null;
   defaultMode?: HubMode;
   onAccountCreated?: (accountId: string) => void;
   onInteractionCreated?: (interactionId: string, accountId: string) => void;
@@ -43,6 +42,8 @@ export default function QuickHubDialog({
 
   const [mode, setMode] = React.useState<HubMode>(defaultMode);
   const [selectedAccount, setSelectedAccount] = React.useState<Account | null>(initialAccount || null);
+  const [newAccountName, setNewAccountName] = React.useState<string | null>(null);
+  
   const [allAccounts, setAllAccounts] = React.useState<Account[]>([]);
   const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -59,8 +60,9 @@ export default function QuickHubDialog({
       }).catch(() => toast({ title: "Error", description: "No se pudieron cargar los datos necesarios."}))
         .finally(() => setIsLoading(false));
       
-      setMode(defaultMode);
+      setMode(initialAccount ? 'interaccion' : defaultMode);
       setSelectedAccount(initialAccount || null);
+      setNewAccountName(null);
     }
   }, [open, defaultMode, initialAccount, toast]);
 
@@ -74,17 +76,23 @@ export default function QuickHubDialog({
 
   const handleAccountSelection = (account: Account | null) => {
     setSelectedAccount(account);
+    setNewAccountName(null); // Clear new name if an existing one is selected
     if(account) {
-        // Si se selecciona una cuenta, tiene sentido pasar a registrar algo para ella.
         if (mode === 'cuenta') setMode('interaccion');
     } else {
-        // Si se deselecciona o se quiere crear una nueva, ir a la pestaña de cuenta.
         setMode('cuenta');
     }
   };
+
+  const handleGoCreateAccount = (name: string) => {
+      setSelectedAccount(null);
+      setNewAccountName(name);
+      setMode('cuenta');
+  }
   
   const distributors = React.useMemo(() => allAccounts.filter(a => a.type === 'Distribuidor' || a.type === 'Importador'), [allAccounts]);
 
+  const accountForForm = selectedAccount || (newAccountName ? { name: newAccountName } : null);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -100,7 +108,7 @@ export default function QuickHubDialog({
             accounts={allAccounts}
             selectedAccount={selectedAccount}
             onAccountSelected={handleAccountSelection}
-            onGoCreateAccount={() => setMode('cuenta')}
+            onGoCreateAccount={handleGoCreateAccount}
             isLoading={isLoading}
         />
 
@@ -113,13 +121,14 @@ export default function QuickHubDialog({
 
           <TabsContent value="cuenta" className="mt-4">
             <CreateAccountForm
-              key={`account-form-${selectedAccount?.id || 'new'}`}
-              initialAccount={selectedAccount}
+              key={`account-form-${selectedAccount?.id || newAccountName || 'new'}`}
+              initialAccount={accountForForm}
               onCreated={(id, name) => {
                 toast({ title: "Cuenta creada", description: name });
                 handleSuccess('account', id, id);
               }}
-              distributors={distributors}
+              allAccounts={allAccounts}
+              allTeamMembers={teamMembers}
             />
           </TabsContent>
 

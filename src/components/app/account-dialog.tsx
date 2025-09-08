@@ -115,7 +115,7 @@ export type AccountFormValues = z.infer<typeof accountFormSchemaBase>;
 
 
 interface AccountDialogProps {
-  account: Account | null;
+  account: Partial<Account> | null;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (data: Partial<Account>) => void;
@@ -129,18 +129,18 @@ export default function AccountDialog({
   isOpen,
   onOpenChange,
   onSave,
-  allAccounts,
-  allTeamMembers,
+  allAccounts = [],
+  allTeamMembers = [],
   isReadOnly = false,
 }: AccountDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   
   const salesRepList = React.useMemo(() => 
-    allTeamMembers.filter(m => m.role === 'Ventas' || m.role === 'Admin' || m.role === 'Manager'),
+    (allTeamMembers || []).filter(m => m.role === 'Ventas' || m.role === 'Admin' || m.role === 'Manager'),
     [allTeamMembers]
   );
   const distributors = React.useMemo(() => 
-    allAccounts.filter(a => isB2B(a.type)),
+    (allAccounts || []).filter(a => isB2B(a.type)),
     [allAccounts]
   );
 
@@ -150,7 +150,7 @@ export default function AccountDialog({
       (data) => {
         if (!data.cif || data.cif.trim() === "") return true;
         const cifToCompare = data.cif.toLowerCase();
-        const existingAccountWithCif = allAccounts.find(
+        const existingAccountWithCif = (allAccounts || []).find(
           (acc) => acc.cif && acc.cif.toLowerCase() === cifToCompare && acc.id !== account?.id
         );
         return !existingAccountWithCif;
@@ -161,7 +161,7 @@ export default function AccountDialog({
 
   const form = useForm<AccountFormValues>({
     resolver: zodResolver(accountFormSchema),
-    defaultValues: accountToForm({} as Account)
+    defaultValues: accountToForm(account as Account || {} as Account)
   });
 
   const accountType = form.watch("type");
@@ -170,7 +170,7 @@ export default function AccountDialog({
   React.useEffect(() => {
     if (!isOpen) return;
     if (account) {
-      form.reset(accountToForm(account));
+      form.reset(accountToForm(account as Account));
     } else {
       form.reset(accountToForm({} as Account));
     }

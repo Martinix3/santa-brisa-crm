@@ -13,7 +13,7 @@ interface AccountSelectorProps {
   accounts: Account[];
   selectedAccount: Account | null;
   onAccountSelected: (account: Account | null) => void;
-  onGoCreateAccount: () => void;
+  onGoCreateAccount: (name: string) => void;
   isLoading: boolean;
 }
 
@@ -28,8 +28,9 @@ export function AccountSelector({
   const [searchTerm, setSearchTerm] = React.useState("");
 
   React.useEffect(() => {
-    // Cuando se deselecciona la cuenta desde fuera, limpiamos el término de búsqueda.
-    if (!selectedAccount) {
+    if (selectedAccount) {
+      setSearchTerm(selectedAccount.name);
+    } else {
       setSearchTerm("");
     }
   }, [selectedAccount]);
@@ -42,7 +43,7 @@ export function AccountSelector({
   
   const handleCreateNew = () => {
     onAccountSelected(null);
-    onGoCreateAccount();
+    onGoCreateAccount(searchTerm);
     setOpen(false);
   };
 

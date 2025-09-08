@@ -1,5 +1,5 @@
 
-import { db } from '@/lib/firebase';
+import { adminDb } from '@/lib/firebaseAdmin';
 import {
   collection,
   query,
@@ -12,7 +12,7 @@ import {
   Timestamp,
   orderBy,
   type DocumentSnapshot,
-} from 'firebase/firestore';
+} from 'firebase-admin/firestore';
 import type { StickyNote } from '@/types';
 
 const NOTES_COLLECTION = 'stickyNotes';
@@ -35,7 +35,7 @@ export const getNotesForUserFS = async (userId: string): Promise<StickyNote[]> =
   // The query was filtering by 'assignedToId' and ordering by 'createdAt'.
   // This requires a composite index. To avoid this, we remove the orderBy clause.
   const q = query(
-    collection(db, NOTES_COLLECTION),
+    collection(adminDb, NOTES_COLLECTION),
     where('assignedToId', '==', userId)
     // orderBy('createdAt', 'desc') // <-- This line was removed to prevent the index error.
   );
@@ -49,7 +49,7 @@ export const getNotesForUserFS = async (userId: string): Promise<StickyNote[]> =
 };
 
 export const getAllNotesFS = async (): Promise<StickyNote[]> => {
-  const q = query(collection(db, NOTES_COLLECTION), orderBy('createdAt', 'desc'));
+  const q = query(collection(adminDb, NOTES_COLLECTION), orderBy('createdAt', 'desc'));
   const snapshot = await getDocs(q);
   return snapshot.docs.map(fromFirestoreNote);
 };
@@ -66,7 +66,7 @@ export const addNoteFS = async (
     isCompleted: false,
     createdAt: Timestamp.now(),
   };
-  const docRef = await addDoc(collection(db, NOTES_COLLECTION), newNote);
+  const docRef = await addDoc(collection(adminDb, NOTES_COLLECTION), newNote);
   return {
     id: docRef.id,
     ...newNote,
@@ -75,11 +75,11 @@ export const addNoteFS = async (
 };
 
 export const updateNoteStatusFS = async (noteId: string, isCompleted: boolean): Promise<void> => {
-  const noteRef = doc(db, NOTES_COLLECTION, noteId);
+  const noteRef = doc(adminDb, NOTES_COLLECTION, noteId);
   await updateDoc(noteRef, { isCompleted });
 };
 
 export const deleteNoteFS = async (noteId: string): Promise<void> => {
-  const noteRef = doc(db, NOTES_COLLECTION, noteId);
+  const noteRef = doc(adminDb, NOTES_COLLECTION, noteId);
   await deleteDoc(noteRef);
 };

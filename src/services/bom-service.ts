@@ -1,11 +1,10 @@
 
-
 'use server';
 
-import { db } from '@/lib/firebase';
+import { adminDb } from '@/lib/firebaseAdmin';
 import {
   collection, query, getDocs, doc as firestoreDoc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, where, writeBatch, runTransaction
-} from "firebase/firestore";
+} from "firebase-admin/firestore";
 import type { BomLine, InventoryItemFormValues, Category } from '@/types';
 import { fromFirestoreBomLine } from './utils/firestore-converters';
 import { addInventoryItemFS } from './inventory-item-service';
@@ -22,10 +21,10 @@ interface BomComponentValues {
 }
 
 export async function saveRecipeFS(productSku: string, components: BomComponentValues[], type: BomKind): Promise<void> {
-  const batch = writeBatch(db);
+  const batch = writeBatch(adminDb);
 
   // 1. Find and queue deletion of all existing lines for this product
-  const q = query(collection(db, BOM_LINES_COLLECTION), where('productSku', '==', productSku));
+  const q = query(collection(adminDb, BOM_LINES_COLLECTION), where('productSku', '==', productSku));
   const snapshot = await getDocs(q);
   snapshot.forEach(docToDelete => {
     batch.delete(docToDelete.ref);
@@ -33,7 +32,7 @@ export async function saveRecipeFS(productSku: string, components: BomComponentV
 
   // 2. Queue creation of all the new lines
   components.forEach(component => {
-    const newDocRef = firestoreDoc(collection(db, BOM_LINES_COLLECTION));
+    const newDocRef = firestoreDoc(collection(adminDb, BOM_LINES_COLLECTION));
     const dataToAdd = {
       productSku: productSku,
       componentId: component.componentId,
@@ -53,8 +52,8 @@ export async function saveRecipeFS(productSku: string, components: BomComponentV
 };
 
 export async function deleteRecipeFS(productSku: string): Promise<void> {
-  const batch = writeBatch(db);
-  const q = query(collection(db, BOM_LINES_COLLECTION), where('productSku', '==', productSku));
+  const batch = writeBatch(adminDb);
+  const q = query(collection(adminDb, BOM_LINES_COLLECTION), where('productSku', '==', productSku));
   const snapshot = await getDocs(q);
   snapshot.forEach(docToDelete => {
     batch.delete(docToDelete.ref);
@@ -65,7 +64,7 @@ export async function deleteRecipeFS(productSku: string): Promise<void> {
 
 export const getBomLinesFS = async (productSku?: string, type?: BomKind): Promise<BomLine[]> => {
   let q;
-  const colRef = collection(db, BOM_LINES_COLLECTION);
+  const colRef = collection(adminDb, BOM_LINES_COLLECTION);
   
   if (productSku && type) {
     q = query(colRef, where('productSku', '==', productSku), where('type', '==', type));
@@ -88,7 +87,7 @@ export const createNewProductAndRecipeFS = async (
   components: BomComponentValues[],
   type: BomKind
 ): Promise<{ id: string, sku: string }> => {
-  return await runTransaction(db, async (transaction) => {
+  return await runTransaction(adminDb, async (transaction) => {
     // 1. Create the new inventory item, which now returns the generated SKU
     const { id: newProductId, sku: newProductSku } = await addInventoryItemFS({
       name: newProductName,
@@ -102,7 +101,7 @@ export const createNewProductAndRecipeFS = async (
     // 2. Save the recipe using the newly generated SKU
     // Since saveRecipeFS uses writeBatch, we cannot pass the transaction directly.
     // Instead, we replicate its logic inside this transaction.
-    const bomColRef = collection(db, BOM_LINES_COLLECTION);
+    const bomColRef = collection(adminDb, BOM_LINES_COLLECTION);
     
     // No need to delete since it's a new product.
     

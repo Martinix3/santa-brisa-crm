@@ -1,8 +1,8 @@
 
-import { db } from '@/lib/firebase';
+import { adminDb } from '@/lib/firebaseAdmin';
 import {
-  collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, type DocumentSnapshot, runTransaction, FieldValue, where, type Transaction
-} from "firebase/firestore";
+  collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, type DocumentSnapshot, runTransaction, FieldValue, where, type Transaction, setDoc
+} from "firebase-admin/firestore";
 import type { InventoryItem, InventoryItemFormValues, LatestPurchaseInfo, Category } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 import { generateSku } from '@/lib/coding';
@@ -57,7 +57,7 @@ const toFirestoreInventoryItem = (data: Partial<InventoryItemFormValues>): any =
 };
 
 export const getInventoryItemsFS = async (): Promise<InventoryItem[]> => {
-  const itemsCol = collection(db, INVENTORY_ITEMS_COLLECTION);
+  const itemsCol = collection(adminDb, INVENTORY_ITEMS_COLLECTION);
   const q = query(itemsCol, orderBy('name', 'asc'));
   const snapshot = await getDocs(q);
   return snapshot.docs.map(docSnap => fromFirestoreInventoryItem(docSnap));
@@ -65,7 +65,7 @@ export const getInventoryItemsFS = async (): Promise<InventoryItem[]> => {
 
 export const getInventoryItemByIdFS = async (id: string): Promise<InventoryItem | null> => {
   if (!id) return null;
-  const docRef = doc(db, INVENTORY_ITEMS_COLLECTION, id);
+  const docRef = doc(adminDb, INVENTORY_ITEMS_COLLECTION, id);
   const snapshot = await getDoc(docRef);
   if (snapshot.exists()) {
     return fromFirestoreInventoryItem(snapshot);
@@ -77,7 +77,7 @@ export const addInventoryItemFS = async (
   data: InventoryItemFormValues,
   transaction?: Transaction
 ): Promise<{ id: string; sku: string }> => {
-  const categoryDocRef = doc(db, 'categories', data.categoryId);
+  const categoryDocRef = doc(adminDb, 'categories', data.categoryId);
   
   const categoryDoc = await (transaction ? transaction.get(categoryDocRef) : getDoc(categoryDocRef));
   if (!categoryDoc.exists()) throw new Error(`Category with ID ${data.categoryId} not found.`);
@@ -93,7 +93,7 @@ export const addInventoryItemFS = async (
     updatedAt: Timestamp.now(),
   };
 
-  const newDocRef = doc(collection(db, INVENTORY_ITEMS_COLLECTION));
+  const newDocRef = doc(collection(adminDb, INVENTORY_ITEMS_COLLECTION));
 
   if (transaction) {
     transaction.set(newDocRef, firestoreData);
@@ -106,7 +106,7 @@ export const addInventoryItemFS = async (
 
 
 export const updateInventoryItemFS = async (id: string, data: Partial<InventoryItemFormValues>): Promise<void> => {
-  const itemDocRef = doc(db, INVENTORY_ITEMS_COLLECTION, id);
+  const itemDocRef = doc(adminDb, INVENTORY_ITEMS_COLLECTION, id);
   const firestoreData = {
     ...toFirestoreInventoryItem(data),
     updatedAt: Timestamp.now(),
@@ -115,7 +115,7 @@ export const updateInventoryItemFS = async (id: string, data: Partial<InventoryI
 };
 
 export const deleteInventoryItemFS = async (id: string): Promise<void> => {
-  const itemDocRef = doc(db, INVENTORY_ITEMS_COLLECTION, id);
+  const itemDocRef = doc(adminDb, INVENTORY_ITEMS_COLLECTION, id);
   // Add logic here to check if item is used in BOMs or has stock before deleting
   await deleteDoc(itemDocRef);
 };

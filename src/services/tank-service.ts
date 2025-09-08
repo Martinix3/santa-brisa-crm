@@ -1,3 +1,4 @@
+
 import { adminDb } from '@/lib/firebaseAdmin';
 import {
   collection, query, getDocs, getDoc, doc, Timestamp, orderBy, type DocumentSnapshot, updateDoc, addDoc,
@@ -35,7 +36,7 @@ const fromFirestoreTank = (snapshot: DocumentSnapshot): Tank => {
 export const getTanksFS = async (): Promise<Tank[]> => {
     const tanksCol = adminDb.collection(TANKS_COLLECTION);
     const q = tanksCol.orderBy('name', 'asc');
-    const snapshot = await q.get();
+    const snapshot = await getDocs(q);
     return snapshot.docs.map(fromFirestoreTank);
 };
 

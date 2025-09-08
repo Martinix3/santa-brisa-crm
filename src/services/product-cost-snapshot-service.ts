@@ -1,8 +1,8 @@
 
 'use server';
 
-import { db } from '@/lib/firebase';
-import { collection, doc, Timestamp, type Transaction } from "firebase/firestore";
+import { adminDb } from '@/lib/firebaseAdmin';
+import { collection, doc, Timestamp, type Transaction } from "firebase-admin/firestore";
 import type { ProductCostSnapshot } from '@/types';
 
 const SNAPSHOTS_COLLECTION = 'productCostSnapshots';
@@ -16,7 +16,7 @@ export const addProductCostSnapshotFSTransactional = async (
     transaction: Transaction,
     data: Omit<ProductCostSnapshot, 'id' | 'date'>
 ): Promise<void> => {
-    const snapshotRef = doc(collection(db, SNAPSHOTS_COLLECTION));
+    const snapshotRef = doc(collection(adminDb, SNAPSHOTS_COLLECTION));
     const dataToSave: Omit<ProductCostSnapshot, 'id'> = {
         ...data,
         date: Timestamp.now(),

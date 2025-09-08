@@ -1,9 +1,8 @@
 
-
 'use server';
 
-import { db } from '@/lib/firebase';
-import { collection, doc, query, where, orderBy, getDocs, Timestamp, type Transaction, type DocumentSnapshot, updateDoc } from "firebase/firestore";
+import { adminDb } from '@/lib/firebaseAdmin';
+import { collection, doc, query, where, orderBy, getDocs, Timestamp, type Transaction, type DocumentSnapshot, updateDoc } from "firebase-admin/firestore";
 import type { ItemBatch, InventoryItem, BatchFormValues } from '@/types';
 import { fromFirestoreItemBatch } from './utils/firestore-converters';
 import { generateRawMaterialInternalCode, generateFinishedGoodBatchCode } from '@/lib/coding';
@@ -22,7 +21,7 @@ export const createRawMaterialBatchFSTransactional = async (
     item: InventoryItem,
     data: { purchaseId: string; supplierId: string; supplierCode: string; supplierBatchCode: string; quantity: number; unitCost: number; locationId?: string; expiryDate?: Date }
 ): Promise<string> => {
-    const newBatchRef = doc(collection(db, BATCHES_COLLECTION));
+    const newBatchRef = doc(collection(adminDb, BATCHES_COLLECTION));
     const internalBatchCode = await generateRawMaterialInternalCode(data.supplierCode, data.supplierBatchCode);
 
     const newBatchData: Omit<ItemBatch, 'id'> = {
@@ -54,7 +53,7 @@ export const createFinishedGoodBatchFSTransactional = async (
     item: InventoryItem,
     data: { productionRunId: string; line: number; quantity: number; unitCost: number; locationId?: string; expiryDate?: Date }
 ): Promise<{ batchId: string; internalBatchCode: string }> => {
-    const newBatchRef = doc(collection(db, BATCHES_COLLECTION));
+    const newBatchRef = doc(collection(adminDb, BATCHES_COLLECTION));
     const internalBatchCode = await generateFinishedGoodBatchCode(item.sku || 'UNKNOWN', data.line);
     
     const productionDate = new Date();
@@ -97,7 +96,7 @@ export async function planBatchConsumption(
   strategy: 'FIFO' | 'FEFO' = 'FIFO'
 ): Promise<{ batchId: string; quantity: number; batchData: ItemBatch }[]> {
   const batchesQuery = query(
-    collection(db, BATCHES_COLLECTION),
+    collection(adminDb, BATCHES_COLLECTION),
     where("inventoryItemId", "==", inventoryItemId)
   );
 
@@ -139,7 +138,7 @@ export async function planBatchConsumption(
 
 export const getStockDetailsForItem = async (itemId: string): Promise<{ available: number; pending: number; }> => {
     if (!itemId) return { available: 0, pending: 0 };
-    const q = query(collection(db, BATCHES_COLLECTION), where('inventoryItemId', '==', itemId));
+    const q = query(collection(adminDb, BATCHES_COLLECTION), where('inventoryItemId', '==', itemId));
     const snapshot = await getDocs(q);
     
     let available = 0;
@@ -161,7 +160,7 @@ export const getStockDetailsForItem = async (itemId: string): Promise<{ availabl
 
 
 export const getAllBatchesFS = async (): Promise<ItemBatch[]> => {
-    const q = query(collection(db, BATCHES_COLLECTION), orderBy('createdAt', 'desc'));
+    const q = query(collection(adminDb, BATCHES_COLLECTION), orderBy('createdAt', 'desc'));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(fromFirestoreItemBatch);
 };
@@ -169,7 +168,7 @@ export const getAllBatchesFS = async (): Promise<ItemBatch[]> => {
 export const getBatchesForItemFS = async (itemId: string): Promise<ItemBatch[]> => {
     if (!itemId) return [];
     const q = query(
-        collection(db, BATCHES_COLLECTION), 
+        collection(adminDb, BATCHES_COLLECTION), 
         where('inventoryItemId', '==', itemId),
         orderBy('createdAt', 'desc')
     );
@@ -178,7 +177,7 @@ export const getBatchesForItemFS = async (itemId: string): Promise<ItemBatch[]> 
 }
 
 export const updateBatchFS = async (id: string, data: Partial<BatchFormValues>): Promise<void> => {
-  const docRef = doc(db, BATCHES_COLLECTION, id);
+  const docRef = doc(adminDb, BATCHES_COLLECTION, id);
   const updateData: { [key: string]: any } = {
     ...data,
     updatedAt: Timestamp.now(),

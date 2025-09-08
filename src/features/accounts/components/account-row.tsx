@@ -12,6 +12,7 @@ import { format, isValid, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 import { Button } from '@/components/ui/button';
+import { TableCell, TableRow } from '@/components/ui/table';
 import { Send } from 'lucide-react';
 import Link from 'next/link';
 
@@ -24,7 +25,6 @@ function LazyHistory({ accountId }: { accountId: string }) {
     (async () => {
       setLoading(true);
       try {
-        // Use the new API route to fetch history
         const response = await fetch(`/api/accounts/history?accountId=${accountId}`);
         if (!response.ok) {
           throw new Error(`Failed to fetch history: ${response.statusText}`);
@@ -75,53 +75,53 @@ export function AccountRow({
 
   return (
     <React.Fragment>
-      <tr className={cn("group", isExpanded && "bg-muted/50")}>
-        <td className="w-8 pl-2">
+      <TableRow className={cn("group", isExpanded && "bg-muted/50")}>
+        <TableCell className="w-8 pl-2">
           <Button
-            aria-label={expanded ? 'Contraer' : 'Expandir'}
+            aria-label={isExpanded ? 'Contraer' : 'Expandir'}
             variant="ghost"
             size="icon"
             className="size-7"
             onClick={onToggleExpand}
           >
-            {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+            {isExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
           </Button>
-        </td>
-        <td className="font-medium p-2">
+        </TableCell>
+        <TableCell className="font-medium p-2">
             <Link href={`/accounts/${account.id}`} className="hover:underline text-primary">
                 {account.name}
             </Link>
             <p className="text-xs text-muted-foreground">{account.city ?? '--'}</p>
-        </td>
-        <td className="p-2">{account.responsableName || 'N/A'}</td>
-        <td className="p-2 text-sm">
+        </TableCell>
+        <TableCell className="p-2">{account.responsableName || 'N/A'}</TableCell>
+        <TableCell className="p-2 text-sm">
             {account.lastInteractionDate && isValid(parseISO(account.lastInteractionDate))
                 ? format(parseISO(account.lastInteractionDate), 'dd MMM yyyy', {locale: es})
                 : 'Nunca'
             }
-        </td>
-        <td className="p-2 text-sm">
+        </TableCell>
+        <TableCell className="p-2 text-sm">
             {nextInteractionDate && isValid(parseISO(nextInteractionDate))
                 ? format(parseISO(nextInteractionDate), 'dd MMM yyyy', {locale: es})
                 : 'No programada'
             }
-        </td>
-        <td className="text-right p-2"><FormattedNumericValue value={account.totalValue}/></td>
-        <td className="text-center p-2"><StatusBadge type="account" status={account.status}/></td>
-        <td className="text-right p-2 pr-4">
+        </TableCell>
+        <TableCell className="text-right p-2"><FormattedNumericValue value={account.totalValue}/>/td>
+        <TableCell className="text-center p-2"><StatusBadge type="account" status={account.status}/></TableCell>
+        <TableCell className="text-right p-2 pr-4">
              <Button size="sm" onClick={() => onOpenHub(account.id, 'registrar')}>
                 <Send className="mr-2 h-4 w-4"/>
                 Registrar
             </Button>
-        </td>
-      </tr>
+        </TableCell>
+      </TableRow>
 
       {isExpanded && (
-        <tr>
-          <td colSpan={8} className="p-0 border-t-2 border-primary/50">
+        <TableRow>
+          <TableCell colSpan={8} className="p-0 border-t-2 border-primary/50">
              <LazyHistory accountId={account.id} />
-          </td>
-        </tr>
+          </TableCell>
+        </TableRow>
       )}
     </React.Fragment>
   );

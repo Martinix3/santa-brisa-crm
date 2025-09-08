@@ -34,8 +34,9 @@ export type CanalOrigenColocacion = typeof CANALES_ORIGEN_COLOCACION[number];
 export const TIPOS_CUENTA_VALUES = ["CLIENTE_FINAL", "DISTRIBUIDOR", "IMPORTADOR", "HORECA", "RETAIL", "OTRO"] as const;
 export type TipoCuenta = typeof TIPOS_CUENTA_VALUES[number];
 
-export const ESTADOS_CUENTA = ["SEGUIMIENTO", "FALLIDA", "ACTIVA", "POTENCIAL", "INACTIVA"] as const;
-export type AccountStage = typeof ESTADOS_CUENTA[number];
+export const ESTADOS_CUENTA = ["SEGUIMIENTO", "FALLIDA", "ACTIVA", "POTENCIAL", "INACTIVA", "Programada", "Pendiente", "Inactivo", "Repetición"] as const;
+export type AccountStatus = typeof ESTADOS_CUENTA[number];
+
 
 export const OWNERSHIP_VALUES = ["propio", "distribuidor"] as const;
 export type Ownership = typeof OWNERSHIP_VALUES[number];
@@ -56,23 +57,23 @@ export type InteractionStatus = typeof ESTADOS_INTERACCION[number];
 export const ESTADOS_PEDIDO = ["Programada", "Pendiente", "Confirmado", "Procesando", "Enviado", "Entregado", "Facturado", "Pagado", "Cancelado", "Fallido", "Seguimiento", "Completado"] as const;
 export type EstadoPedido = typeof ESTADOS_PEDIDO[number];
 
-export const SIGUIENTES_ACCIONES = ['Llamar', 'Visitar', 'Enviar Muestras', 'Preparar Propuesta', 'Opción personalizada'] as const;
-export type SiguienteAccion = typeof SIGUIENTES_ACCIONES[number];
+export const SIGUIENTES_ACCIONES_VALUES = ['Llamar', 'Visitar', 'Enviar Muestras', 'Preparar Propuesta', 'Opción personalizada'] as const;
+export type SiguienteAccion = typeof SIGUIENTES_ACCIONES_VALUES[number];
 
-export const MOTIVOS_FALLO = ['Precio', 'No Interesado', 'Sin Stock', 'Competencia', 'Otro (especificar)'] as const;
-export type MotivoFallo = typeof MOTIVOS_FALLO[number];
+export const MOTIVOS_FALLO_VALUES = ['Precio', 'No Interesado', 'Sin Stock', 'Competencia', 'Otro (especificar)'] as const;
+export type MotivoFallo = typeof MOTIVOS_FALLO_VALUES[number];
 
-export const TIPOS_CLIENTE = ['HORECA', 'Retail Minorista', 'Gran Superficie', 'Distribuidor', 'Importador', 'Cliente Final Directo', 'Evento Especial', 'Otro'] as const;
-export type TipoCliente = typeof TIPOS_CLIENTE[number];
+export const TIPOS_CLIENTE_VALUES = ['HORECA', 'Retail Minorista', 'Gran Superficie', 'Distribuidor', 'Importador', 'Cliente Final Directo', 'Evento Especial', 'Otro'] as const;
+export type TipoCliente = typeof TIPOS_CLIENTE_VALUES[number];
 
-export const METODOS_PAGO = ['Adelantado', 'Giro Bancario', 'Transferencia', 'Confirming'] as const;
-export type MetodoPago = typeof METODOS_PAGO[number];
+export const METODOS_PAGO_VALUES = ['Adelantado', 'Giro Bancario', 'Transferencia', 'Confirming'] as const;
+export type MetodoPago = typeof METODOS_PAGO_VALUES[number];
 
 // ------------------------------------------------------------
 // Eventos y Material PLV
 // ------------------------------------------------------------
-export const TIPOS_EVENTO = ["Activación en Tienda", "Evento Patrocinado", "Feria Comercial", "Formación de Producto", "Cata / Degustación"] as const;
-export type TipoEventoCrm = typeof TIPOS_EVENTO[number];
+export const TIPOS_EVENTO_VALUES = ["Activación en Tienda", "Evento Patrocinado", "Feria Comercial", "Formación de Producto", "Cata / Degustación"] as const;
+export type TipoEventoCrm = typeof TIPOS_EVENTO_VALUES[number];
 
 export const ESTADOS_EVENTO_CRM = ["Planificado", "Confirmado", "En Curso", "Completado", "Cancelado", "Pospuesto"] as const;
 export type EstadoEventoCrm = typeof ESTADOS_EVENTO_CRM[number];
@@ -167,27 +168,32 @@ export const OPCIONES_CANAL_ORIGEN = [
 ] as const;
 
 export const TIPOS_INTERACCION = [
-    { value: 'visita', label: 'Visita'},
-    { value: 'llamada', label: 'Llamada'},
-    { value: 'email', label: 'Email'},
-    { value: 'whatsapp', label: 'WhatsApp'},
-    { value: 'otro', label: 'Otro'},
+    { value: 'VISITA', label: 'Visita'},
+    { value: 'LLAMADA', label: 'Llamada'},
+    { value: 'EMAIL', label: 'Email'},
+    { value: 'WHATSAPP', label: 'WhatsApp'},
+    { value: 'OTRO', label: 'Otro'},
 ] as const;
 
 export const RESULTADOS_INTERACCION = [
-    { value: 'pedido', label: 'Pedido Exitoso'},
-    { value: 'seguimiento', label: 'Requiere Seguimiento'},
-    { value: 'fallida', label: 'Fallida / Sin Pedido'},
-    { value: 'pendiente', label: 'Pendiente de registrar'},
+    { value: 'PEDIDO', label: 'Pedido Exitoso'},
+    { value: 'SEGUIMIENTO', label: 'Requiere Seguimiento'},
+    { value: 'FALLIDA', label: 'Fallida / Sin Pedido'},
+    { value: 'PENDIENTE', label: 'Pendiente de registrar'},
 ] as const;
 
 export const MONEDAS = ["EUR", "USD", "MXN"] as const;
 export type Moneda = typeof MONEDAS[number];
 
+export const ORDER_CHANNEL_VALUES = ["propio", "distribuidor"] as const;
+export type OrderChannel = typeof ORDER_CHANNEL_VALUES[number];
 export const orderChannelOptions = [
     { value: 'propio', label: 'Propio' },
     { value: 'distribuidor', label: 'Distribuidor' },
 ] as const;
+
+export const LINE_TYPE_VALUES = ['product', 'plv', 'service'] as const;
+export type LineType = typeof LINE_TYPE_VALUES[number];
 
 export const userRolesList = ["Admin", "Ventas", "Distributor", "Clavadista", "Líder Clavadista"] as const;
 
@@ -195,14 +201,14 @@ export const userRolesList = ["Admin", "Ventas", "Distributor", "Clavadista", "L
 // Listas para el diálogo de edición de pedidos y otros diálogos
 // ------------------------------------------------------------
 
-export const paymentMethodList = [
+export const METODOS_PAGO = [
   { value: "Adelantado", label: "Adelantado" },
   { value: "Giro Bancario", label: "Giro Bancario" },
   { value: "Transferencia", label: "Transferencia" },
   { value: "Confirming", label: "Confirming" },
 ] as const;
 
-export const nextActionTypeList = [
+export const SIGUIENTES_ACCIONES = [
   { value: 'Llamar', label: 'Llamar' },
   { value: 'Visitar', label: 'Visitar' },
   { value: 'Enviar Muestras', label: 'Enviar Muestras' },
@@ -210,7 +216,7 @@ export const nextActionTypeList = [
   { value: 'Opción personalizada', label: 'Opción personalizada' },
 ] as const;
 
-export const failureReasonList = [
+export const MOTIVOS_FALLO = [
   { value: 'Precio', label: 'Precio' },
   { value: 'No Interesado', label: 'No Interesado' },
   { value: 'Sin Stock', label: 'Sin Stock' },
@@ -218,7 +224,7 @@ export const failureReasonList = [
   { value: 'Otro (especificar)', label: 'Otro (especificar)' },
 ] as const;
 
-export const clientTypeList = [
+export const TIPOS_CLIENTE = [
   { value: 'HORECA', label: 'HORECA' },
   { value: 'Retail Minorista', label: 'Retail Minorista' },
   { value: 'Gran Superficie', label: 'Gran Superficie' },
@@ -230,7 +236,7 @@ export const clientTypeList = [
 ] as const;
 
 
-export const crmEventTypeList = TIPOS_EVENTO;
+export const crmEventTypeList = TIPOS_EVENTO_VALUES;
 export const crmEventStatusList = ESTADOS_EVENTO_CRM;
 
 

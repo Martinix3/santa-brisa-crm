@@ -1,6 +1,6 @@
 
 import * as z from "zod";
-import { Currency, LineType, OrderChannel, ORDER_CHANNEL_VALUES, LINE_TYPE_VALUES, MONEDAS } from "@ssot";
+import { LINE_TYPE_VALUES, ORDER_CHANNEL_VALUES, MONEDAS } from "@ssot";
 
 export const orderLineSchema = z.object({
   inventoryId: z.string(),

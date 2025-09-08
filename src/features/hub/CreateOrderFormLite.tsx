@@ -4,7 +4,9 @@
 import * as React from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { orderSchema, type OrderFormValues, type OrderLine, orderChannelOptions } from "@/lib/schemas/order-schema";
+import {
+  orderSchema, type OrderFormValues, type OrderLine
+} from "@/lib/schemas/order-schema";
 import { createOrderAction } from "@/app/(app)/orders/actions";
 import { getHubDialogDataAction } from "./actions";
 import type { InventoryItem, Account } from "@/types";
@@ -15,6 +17,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Plus, Trash2 } from "lucide-react";
+import { ORDER_CHANNEL_VALUES, orderChannelOptions } from "@ssot";
+import { OrderChannel } from "@ssot";
 
 type Props = {
   selectedAccount: Account;
@@ -36,10 +40,8 @@ export function CreateOrderFormLite({ selectedAccount, onCreated }: Props) {
       accountId: selectedAccount?.id,
       accountName: selectedAccount?.name,
       channel: "propio",
-      distributorId: selectedAccount?.distributorId,
       currency: "EUR",
       lines: [],
-      notes: "",
     },
   });
 
@@ -73,7 +75,13 @@ export function CreateOrderFormLite({ selectedAccount, onCreated }: Props) {
   const orderTotal = (lines || []).reduce((s, l) => s + (l.total || 0), 0);
 
   async function onSubmit(values: OrderFormValues) {
-    const res = await createOrderAction(values);
+    const res = await createOrderAction({ 
+      ...values, 
+      lines,
+      accountId: selectedAccount!.id,
+      accountName: selectedAccount!.name,
+      ownershipHint: values.channel === "distribuidor" ? "distribuidor" : "propio",
+    });
     onCreated(res.id, res.accountId!);
   }
 
@@ -81,16 +89,19 @@ export function CreateOrderFormLite({ selectedAccount, onCreated }: Props) {
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Field label="Canal">
-          <Select value={form.watch("channel")} onValueChange={(v) => form.setValue("channel", v as any)}>
+          <Select
+            value={form.watch("channel")}
+            onValueChange={(v)=> form.setValue("channel", v as OrderChannel)}
+          >
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              {orderChannelOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+              {orderChannelOptions.map(o=><SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
             </SelectContent>
           </Select>
         </Field>
         <Field label="Moneda">
-          <Select value={form.watch("currency")} onValueChange={(v) => form.setValue("currency", v as any)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+          <Select value={form.watch("currency")} onValueChange={(v)=>form.setValue("currency", v as any)}>
+            <SelectTrigger><SelectValue/></SelectTrigger>
             <SelectContent>
               <SelectItem value="EUR">EUR</SelectItem>
               <SelectItem value="USD">USD</SelectItem>
@@ -100,7 +111,7 @@ export function CreateOrderFormLite({ selectedAccount, onCreated }: Props) {
       </div>
 
       <div className="space-y-2">
-        <Label>Líneas del pedido</Label>
+        <Label>Líneas</Label>
         <div className="rounded-lg border">
           <table className="w-full text-sm">
             <thead>
@@ -143,6 +154,6 @@ export function CreateOrderFormLite({ selectedAccount, onCreated }: Props) {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label:string; children:React.ReactNode }) {
   return <div className="space-y-2"><Label>{label}</Label>{children}</div>;
 }

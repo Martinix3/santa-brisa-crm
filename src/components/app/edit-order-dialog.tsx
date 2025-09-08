@@ -53,14 +53,14 @@ import {
     SiguienteAccion, 
     MotivoFallo, 
     TipoCliente, 
-    ESTADOS_PEDIDO as orderStatusesList, 
+    ESTADOS_PEDIDO, 
     MetodoPago,
     CanalOrigenColocacion,
-    OPCIONES_CANAL_ORIGEN as canalOrigenColocacionList,
-    METODOS_PAGO as paymentMethodList,
-    SIGUIENTES_ACCIONES as nextActionTypeList,
-    MOTIVOS_FALLO as failureReasonList,
-    TIPOS_CLIENTE as clientTypeList,
+    OPCIONES_CANAL_ORIGEN,
+    METODOS_PAGO,
+    SIGUIENTES_ACCIONES,
+    MOTIVOS_FALLO,
+    TIPOS_CLIENTE,
 } from "@ssot";
 
 const NO_CLAVADISTA_VALUE = "##NONE##";
@@ -324,8 +324,8 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 <FormField control={form.control} name="salesRep" render={({ field }) => (<FormItem><FormLabel>Representante de Ventas</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={salesRepFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un representante" /></SelectTrigger></FormControl><SelectContent>{salesReps.map((member: TeamMember) => (<SelectItem key={member.id} value={member.name}>{member.name} ({member.role === 'Ventas' ? 'Rep. Ventas' : member.role})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={statusFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un estado" /></SelectTrigger></FormControl><SelectContent>{orderStatusesList.filter(s => s !== 'Programada' && s !== 'Fallido' && s !== 'Seguimiento').map((statusVal) => (<SelectItem key={statusVal} value={statusVal}>{statusVal}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
-                <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel className="flex items-center"><CreditCard className="mr-1 h-4 w-4"/>Forma Pago</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={paymentMethodFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar forma de pago" /></SelectTrigger></FormControl><SelectContent>{paymentMethodList.map(method => (<SelectItem key={method.value} value={method.value}>{method.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={statusFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un estado" /></SelectTrigger></FormControl><SelectContent>{ESTADOS_PEDIDO.filter(s => s !== 'Programada' && s !== 'Fallido' && s !== 'Seguimiento').map((statusVal) => (<SelectItem key={statusVal} value={statusVal}>{statusVal}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="paymentMethod" render={({ field }) => (<FormItem><FormLabel className="flex items-center"><CreditCard className="mr-1 h-4 w-4"/>Forma Pago</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={paymentMethodFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar forma de pago" /></SelectTrigger></FormControl><SelectContent>{METODOS_PAGO.map(method => (<SelectItem key={method.value} value={method.value}>{method.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                 <FormField
                     control={form.control}
                     name="clavadistaId"
@@ -362,7 +362,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                             </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                            {canalOrigenColocacionList.map((canal) => (
+                            {OPCIONES_CANAL_ORIGEN.map((canal) => (
                             <SelectItem key={canal.value} value={canal.value}>{canal.label}</SelectItem>
                             ))}
                         </SelectContent>
@@ -422,7 +422,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
 
             {(!['Seguimiento', 'Fallido', 'Programada'].includes(currentStatus)) ? (
               <>
-                <FormField control={form.control} name="clientType" render={({ field }) => (<FormItem><FormLabel>Tipo de Cliente</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={productRelatedFieldsDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione tipo cliente" /></SelectTrigger></FormControl><SelectContent>{clientTypeList.map(type => (<SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="clientType" render={({ field }) => (<FormItem><FormLabel>Tipo de Cliente</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={productRelatedFieldsDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione tipo cliente" /></SelectTrigger></FormControl><SelectContent>{TIPOS_CLIENTE.map(type => (<SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
                 <FormField control={form.control} name="products" render={({ field }) => (<FormItem><FormLabel>Productos Pedidos</FormLabel><FormControl><Textarea placeholder="Listar productos y cantidades..." className="min-h-[80px]" {...field} value={Array.isArray(field.value) ? field.value.join(', ') : ''} onChange={(e) => field.onChange(e.target.value.split(',').map(p => p.trim()))} disabled={productRelatedFieldsDisabled} /></FormControl><FormDescription>Separe múltiples productos con comas.</FormDescription><FormMessage /></FormItem>)}/>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <FormField control={form.control} name="numberOfUnits" render={({ field }) => (<FormItem><FormLabel>Nº Unidades Totales</FormLabel><FormControl><Input type="number" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} value={field.value ?? ""} disabled={productRelatedFieldsDisabled} /></FormControl><FormMessage /></FormItem>)}/>
@@ -455,7 +455,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                 <>
                   <Separator className="my-6" />
                   <h3 className="text-md font-semibold text-muted-foreground">Información de Seguimiento/Programación Original</h3>
-                  <FormField control={form.control} name="nextActionType" render={({ field }) => (<FormItem><FormLabel>Próxima Acción (Original)</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={true}><FormControl><SelectTrigger><SelectValue placeholder="N/A" /></SelectTrigger></FormControl><SelectContent>{nextActionTypeList.map(action => (<SelectItem key={action.value} value={action.value}>{action.label}</SelectItem>))}</SelectContent></Select></FormItem>)}/>
+                  <FormField control={form.control} name="nextActionType" render={({ field }) => (<FormItem><FormLabel>Próxima Acción (Original)</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={true}><FormControl><SelectTrigger><SelectValue placeholder="N/A" /></SelectTrigger></FormControl><SelectContent>{SIGUIENTES_ACCIONES.map(action => (<SelectItem key={action.value} value={action.value}>{action.label}</SelectItem>))}</SelectContent></Select></FormItem>)}/>
                   {order?.nextActionType === "Opción personalizada" && (<FormField control={form.control} name="nextActionCustom" render={({ field }) => (<FormItem><FormLabel>Detalle Próx. Acción Personalizada (Original)</FormLabel><FormControl><Input {...field} disabled={true} /></FormControl></FormItem>)} />)}
                   <FormField
                     control={form.control}
@@ -475,7 +475,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
                   />
                    {order?.status === 'Fallido' && (
                      <>
-                      <FormField control={form.control} name="failureReasonType" render={({ field }) => (<FormItem><FormLabel>Motivo Fallo (Original)</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={true}><FormControl><SelectTrigger><SelectValue placeholder="N/A" /></SelectTrigger></FormControl><SelectContent>{failureReasonList.map(reason => (<SelectItem key={reason.value} value={reason.value}>{reason.label}</SelectItem>))}</SelectContent></Select></FormItem>)}/>
+                      <FormField control={form.control} name="failureReasonType" render={({ field }) => (<FormItem><FormLabel>Motivo Fallo (Original)</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={true}><FormControl><SelectTrigger><SelectValue placeholder="N/A" /></SelectTrigger></FormControl><SelectContent>{MOTIVOS_FALLO.map(reason => (<SelectItem key={reason.value} value={reason.value}>{reason.label}</SelectItem>))}</SelectContent></Select></FormItem>)}/>
                       {order?.failureReasonType === "Otro (especificar)" && (<FormField control={form.control} name="failureReasonCustom" render={({ field }) => (<FormItem><FormLabel>Detalle Motivo Fallo Personalizado (Original)</FormLabel><FormControl><Textarea {...field} disabled={true} /></FormControl></FormItem>)} />)}
                      </>
                    )}

@@ -1,12 +1,14 @@
 
+
 "use client";
 
 import * as React from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import type { Account } from "@/types";
+import type { Account, TeamMember } from "@/types";
 import { getAccountsFS } from "@/services/account-service";
+import { getTeamMembersFS } from "@/services/team-member-service";
 import { useAuth } from "@/contexts/auth-context";
 
 // Importar los nuevos componentes de formulario
@@ -42,14 +44,19 @@ export default function QuickHubDialog({
   const [mode, setMode] = React.useState<HubMode>(defaultMode);
   const [selectedAccount, setSelectedAccount] = React.useState<Account | null>(initialAccount || null);
   const [allAccounts, setAllAccounts] = React.useState<Account[]>([]);
+  const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
 
   React.useEffect(() => {
     if (open) {
       setIsLoading(true);
-      getAccountsFS()
-        .then(setAllAccounts)
-        .catch(() => toast({ title: "Error", description: "No se pudieron cargar las cuentas."}))
+      Promise.all([
+        getAccountsFS(),
+        getTeamMembersFS(['Ventas', 'Admin', 'Clavadista', 'Líder Clavadista'])
+      ]).then(([accounts, members]) => {
+        setAllAccounts(accounts);
+        setTeamMembers(members);
+      }).catch(() => toast({ title: "Error", description: "No se pudieron cargar los datos necesarios."}))
         .finally(() => setIsLoading(false));
       
       setMode(defaultMode);
@@ -75,6 +82,8 @@ export default function QuickHubDialog({
         setMode('cuenta');
     }
   };
+  
+  const distributors = React.useMemo(() => allAccounts.filter(a => a.type === 'Distribuidor' || a.type === 'Importador'), [allAccounts]);
 
 
   return (
@@ -110,6 +119,7 @@ export default function QuickHubDialog({
                 toast({ title: "Cuenta creada", description: name });
                 handleSuccess('account', id, id);
               }}
+              distributors={distributors}
             />
           </TabsContent>
 

@@ -1,4 +1,5 @@
 
+
 import { getDashboardDataAction } from "@/services/server/dashboard-actions";
 import { DashboardClientPage } from "@/components/app/dashboard/dashboard-client-page";
 
@@ -7,6 +8,7 @@ export default async function DashboardPage() {
 
   return (
     <DashboardClientPage
+      pageType="dashboard"
       initialOrders={orders}
       initialAccounts={accounts}
       initialTeamMembers={teamMembers}

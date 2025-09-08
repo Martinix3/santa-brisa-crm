@@ -2,7 +2,7 @@
 
 import * as z from "zod";
 import type { PaymentMethod } from "@/types";
-import { TipoPedido as OrderType, EstadoVentaDirecta as DirectSaleStatus, METODOS_PAGO as paymentMethodList, ESTADOS_VENTA_DIRECTA as directSaleStatusList } from "@ssot";
+import { TipoPedido as OrderType, EstadoVentaDirecta as DirectSaleStatus } from "@ssot";
 
 const orderItemSchema = z.object({
   productId: z.string().min(1, "Selecciona un producto."),
@@ -16,8 +16,8 @@ export const generateOrderSchema = (orderType: OrderType) => z.object({
   issueDate: z.date({ required_error: "La fecha es obligatoria." }),
   dueDate: z.date().optional(),
   type: z.enum(['directa', 'deposito']),
-  status: z.enum(directSaleStatusList as [DirectSaleStatus, ...DirectSaleStatus[]], { required_error: "El estado es obligatorio." }),
-  paymentMethod: z.enum(paymentMethodList as [PaymentMethod, ...PaymentMethod[]], { required_error: "La forma de pago es obligatoria." }),
+  status: z.string().min(1, "El estado es obligatorio."),
+  paymentMethod: z.string({ required_error: "La forma de pago es obligatoria." }),
   items: z.array(orderItemSchema).min(1, "Debes añadir al menos un producto."),
   notes: z.string().optional(),
 }).superRefine((data, ctx) => {

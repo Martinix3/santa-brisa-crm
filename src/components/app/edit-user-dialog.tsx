@@ -60,7 +60,7 @@ const settingsSchema = z.object({
 
 const editUserFormSchema = z.object({
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres."),
-  role: z.enum(ROLES_USUARIO as [UserRole, ...UserRole[]], { required_error: "El rol es obligatorio." }),
+  role: z.string().min(1, "El rol es obligatorio."), // Changed from enum
   monthlyTargetAccounts: z.coerce.number().positive("El objetivo de cuentas debe ser un número positivo.").optional(),
   monthlyTargetVisits: z.coerce.number().positive("El objetivo de visitas debe ser un número positivo.").optional(),
   avatarUrl: z.string().url("Debe ser una URL válida.").optional().or(z.literal("")),
@@ -169,7 +169,7 @@ export default function EditUserDialog({ user, isOpen, onOpenChange, onSave }: E
     const dataToSave: TeamMemberFormValuesType = {
         name: data.name,
         email: user.email,
-        role: data.role,
+        role: data.role as UserRole,
         monthlyTargetAccounts: data.monthlyTargetAccounts,
         monthlyTargetVisits: data.monthlyTargetVisits,
         avatarUrl: data.avatarUrl,

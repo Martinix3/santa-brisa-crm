@@ -3,11 +3,6 @@
 import * as z from "zod";
 import { userRolesList } from "@/lib/data";
 import { 
-    OPCIONES_CANAL_ORIGEN, 
-    METODOS_PAGO, 
-    SIGUIENTES_ACCIONES, 
-    MOTIVOS_FALLO, 
-    TIPOS_CLIENTE, 
     RolUsuario as UserRole 
 } from "@ssot";
 
@@ -23,7 +18,7 @@ const assignedMaterialSchema = z.object({
 
 const baseOrderFormSchema = z.object({
   // Internal state
-  userRole: z.enum(userRolesList as [UserRole, ...UserRole[]]).nullable(),
+  userRole: z.string().nullable(), // Changed from enum
   isNewClient: z.boolean().default(false),
   
   // Step 2: Outcome
@@ -139,4 +134,3 @@ export const orderFormSchema = baseOrderFormSchema.superRefine((data, ctx) => {
         }
     }
   });
-

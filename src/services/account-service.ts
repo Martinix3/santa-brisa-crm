@@ -1,5 +1,7 @@
 
 
+'use server';
+
 import { adminDb } from '@/lib/firebaseAdmin'; // Use Admin SDK
 import { Timestamp } from "firebase-admin/firestore";
 import type { Account, AccountFormValues } from '@/types';

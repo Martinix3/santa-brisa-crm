@@ -9,6 +9,7 @@ import { subDays } from 'date-fns';
 import { fromFirestore } from '@/services/account-mapper';
 import type { Account, Order, AccountStage, PotencialType } from '@/types';
 import { toSearchName } from '@/lib/schemas/account-schema';
+import { ESTADOS_CUENTA, type AccountStatus as AccountStageSSOT } from "@ssot";
 
 // --- Admin SDK Initialization ---
 let db: FirebaseFirestore.Firestore;
@@ -34,8 +35,19 @@ const ORDERS_COLLECTION = 'orders';
 
 const TEST_REP = { id: 'TEST_USER_ID', name: 'Comercial de Pruebas' };
 
-const accountsToSeed: { name: string; statusTarget: AccountStage; accountType: Account['type'], interactions: Partial<Order>[] }[] = [
-    { name: 'Test Potencial (Sin Interacciones)', statusTarget: 'Pendiente', accountType: 'prospect', interactions: [] },
+// Map descriptive status to canonical SSOT status
+const statusMap: Record<string, AccountStageSSOT> = {
+    'Potencial': 'POTENCIAL',
+    'Activo': 'ACTIVA',
+    'Repetición': 'ACTIVA', // Repetición is a kind of ACTIVA
+    'Inactivo': 'INACTIVA',
+    'Seguimiento': 'SEGUIMIENTO',
+    'Fallido': 'FALLIDA',
+    'Programada': 'SEGUIMIENTO', // Programada implies seguimiento
+};
+
+const accountsToSeed: { name: string; statusTarget: string; accountType: Account['type'], interactions: Partial<Order>[] }[] = [
+    { name: 'Test Potencial (Sin Interacciones)', statusTarget: 'Potencial', accountType: 'prospect', interactions: [] },
     { 
         name: 'Test Activa (1 Pedido)', 
         statusTarget: 'Activo',
@@ -46,7 +58,7 @@ const accountsToSeed: { name: string; statusTarget: AccountStage; accountType: A
     },
     { 
         name: 'Test Repetición (2 Pedidos)', 
-        statusTarget: 'Repetición',
+        statusTarget: 'Repetición', // This will map to ACTIVA, but the context is useful
         accountType: 'customer',
         interactions: [
             { status: 'Entregado', value: 150, createdAt: subDays(new Date(), 20).toISOString() },
@@ -80,7 +92,7 @@ const accountsToSeed: { name: string; statusTarget: AccountStage; accountType: A
     },
     { 
         name: 'Test Programada (Visita Futura)', 
-        statusTarget: 'Programada',
+        statusTarget: 'Programada', // This will map to SEGUIMIENTO
         accountType: 'prospect',
         interactions: [
             { status: 'Programada', value: 0, visitDate: subDays(new Date(), -5).toISOString() } // 5 days in the future
@@ -102,13 +114,14 @@ async function seedTestAccounts() {
         let accountId: string;
         let account: Account;
 
-        const accountDataForCreation = {
+        // Use the canonical status from the map, defaulting to POTENCIAL
+        const canonicalStage = statusMap[seed.statusTarget] || 'POTENCIAL';
+
+        const accountDataForCreation: Partial<Account> = {
             name: seed.name,
-            searchName: searchName,
-            type: seed.accountType,
-            accountStage: seed.statusTarget,
-            potencial: 'medio',
-            leadScore: 50,
+            nameNorm: searchName,
+            accountType: seed.accountType,
+            accountStage: canonicalStage,
             createdAt: Timestamp.now(),
             updatedAt: Timestamp.now(),
             owner_user_id: TEST_REP.id,
@@ -124,12 +137,14 @@ async function seedTestAccounts() {
         } else {
             console.log(`  - Account "${seed.name}" already exists. Skipping creation, checking interactions.`);
             accountId = accountQuery.docs[0].id;
-            account = fromFirestore({id: accountId, ...accountQuery.docs[0].data()});
+            // Optionally, update existing test accounts to the new model
+            await accountsRef.doc(accountId).update({ ...accountDataForCreation });
+            account = fromFirestore({id: accountId, ...accountQuery.docs[0].data(), ...accountDataForCreation });
         }
         
         createdAccountsData.push({
-            ...accountDataForCreation,
             id: accountId,
+            ...accountDataForCreation
         });
 
         // Check and create interactions if they don't exist
@@ -162,16 +177,14 @@ async function seedTestAccounts() {
     }
     
     console.log("\n✅ Seeding script completed.");
-    console.log("--- Resumen de Cuentas Creadas/Verificadas ---");
+    console.log("--- Resumen de Cuentas Creadas/Verificadas (Modelo Canónico) ---");
     console.table(createdAccountsData.map(acc => ({
         ID: acc.id.substring(0, 10) + '...',
         Nombre: acc.name,
-        'Tipo Cuenta': acc.type,
-        'Etapa': acc.accountStage,
+        Tipo: acc.accountType,
+        Etapa: acc.accountStage,
         Ciudad: acc.city,
-        Responsable: acc.owner_user_id,
     })));
 }
 
 seedTestAccounts().catch(console.error);
-

@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -60,7 +59,7 @@ export default function QuickHubDialog({
 
     const roleFilter = ["Admin", "Ventas", "Manager", "Operaciones", "Marketing", "Distributor"];
 
-    Promise.all([getAccountsFS(), getTeamMembersFS(roleFilter as any)])
+    Promise.all([getAccountsFS(), getTeamMembersFS(roleFilter)])
       .then(([accounts, members]) => {
         if (!mounted) return;
         setAllAccounts(accounts);
@@ -71,7 +70,8 @@ export default function QuickHubDialog({
         toast({ title: "Error", description: "No se pudieron cargar los datos necesarios." });
       })
       .finally(() => {
-        if (mounted) setIsLoading(false);
+        if (!mounted) return;
+        setIsLoading(false);
       });
 
     setMode(initialAccount ? "interaccion" : defaultMode);
@@ -120,7 +120,7 @@ export default function QuickHubDialog({
     selectAccount({
       id: "new",
       name: (draftAccountName || "Nueva cuenta").trim(),
-      type: "Otro",
+      accountType: "OTRO",
     } as Account);
     setMode("cuenta");
   };
@@ -181,7 +181,7 @@ export default function QuickHubDialog({
                 ({
                   id: "new",
                   name: draftAccountName || "",
-                  type: "OTRO",
+                  accountType: "OTRO",
                 } as Account)
               }
               onCreated={(id, name) => {
@@ -197,7 +197,7 @@ export default function QuickHubDialog({
           <TabsContent value="interaccion" className="mt-4">
             <CreateInteractionForm
               key={`interaction-form-${selectedAccount?.id || "draft"}`}
-              selectedAccount={selectedAccount}
+              selectedAccount={selectedAccount || undefined}
               accountNameFallback={!selectedAccount ? (draftAccountName || "").trim() : undefined}
               onCreated={(iid, accId) => {
                 const name = selectedAccount?.name ?? draftAccountName;
@@ -210,7 +210,7 @@ export default function QuickHubDialog({
           <TabsContent value="pedido" className="mt-4">
             <CreateOrderFormLite
               key={`order-form-${selectedAccount?.id || "draft"}`}
-              selectedAccount={selectedAccount}
+              selectedAccount={selectedAccount || undefined}
               accountNameFallback={!selectedAccount ? (draftAccountName || "").trim() : undefined}
               onCreated={(oid, accId) => {
                 const name = selectedAccount?.name ?? draftAccountName;
@@ -223,3 +223,4 @@ export default function QuickHubDialog({
     </Dialog>
   );
 }
+

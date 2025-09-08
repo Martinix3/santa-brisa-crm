@@ -35,35 +35,31 @@ export async function selectAccountsByActivity(opts: SelectAccountsOptions = {})
   } = opts;
 
   // 1. Fetch all accounts applying primary filters.
-  const accountsCol = db.collection("accounts");
-  const accountPredicates: any[] = [];
+  let accountsQuery: FirebaseFirestore.Query = db.collection("accounts");
   if (accountStageIn && accountStageIn.length > 0) {
-    accountPredicates.push(where("accountStage", "in", accountStageIn.slice(0, 10)));
+    accountsQuery = accountsQuery.where("accountStage", "in", accountStageIn.slice(0, 10));
   }
   if (accountTypeIn && accountTypeIn.length > 0) {
-    accountPredicates.push(where("accountType", "in", accountTypeIn.slice(0, 10)));
+    accountsQuery = accountsQuery.where("accountType", "in", accountTypeIn.slice(0, 10));
   }
-  const qAccounts = accountPredicates.length ? query(accountsCol, ...accountPredicates) : accountsCol;
   
-  const accountsSnap = await getDocs(qAccounts);
+  const accountsSnap = await accountsQuery.get();
   const accounts = accountsSnap.docs.map(d => fromFirestore({ id: d.id, ...d.data() }));
 
   const accountsById = new Map<string, Account>();
   accounts.forEach(a => accountsById.set(a.id, a));
 
   // 2. Fetch all orders (interactions are a subset of orders).
-  const ordersCol = db.collection("orders");
-  const orderPredicates: any[] = [];
+  let ordersQuery: FirebaseFirestore.Query = db.collection("orders");
   if (ordersRange?.from || interactionsRange?.from) {
     const fromDate = ordersRange?.from || interactionsRange?.from;
-    orderPredicates.push(where("createdAt", ">=", Timestamp.fromDate(fromDate!)));
+    ordersQuery = ordersQuery.where("createdAt", ">=", Timestamp.fromDate(fromDate!));
   }
   if (ordersRange?.to || interactionsRange?.to) {
     const toDate = ordersRange?.to || interactionsRange?.to;
-    orderPredicates.push(where("createdAt", "<=", Timestamp.fromDate(toDate!)));
+    ordersQuery = ordersQuery.where("createdAt", "<=", Timestamp.fromDate(toDate!));
   }
-  const qOrders = orderPredicates.length ? query(ordersCol, ...orderPredicates) : ordersCol;
-  const ordersSnap = await getDocs(qOrders);
+  const ordersSnap = await ordersQuery.get();
   const allInteractions = ordersSnap.docs.map(fromFirestoreOrder);
 
   // 3. Create sets of account IDs based on activity.

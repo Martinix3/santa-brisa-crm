@@ -1,4 +1,3 @@
-
 // This service now exclusively uses the ADMIN SDK for all Firestore operations.
 
 import { adminDb } from '@/lib/firebaseAdmin';
@@ -76,6 +75,11 @@ export const fromFirestoreOrder = (docSnap: DocumentSnapshot): Order => {
     saleType: data.saleType,
   };
 };
+
+export const getOrders = async (): Promise<Order[]> => {
+    const snap = await adminDb.collection(ORDERS_COLLECTION).get();
+    return snap.docs.map(d => fromFirestoreOrder(d));
+}
 
 export const getOrdersFS = async (): Promise<Order[]> => {
   const ordersCol = adminDb.collection(ORDERS_COLLECTION);
@@ -191,4 +195,3 @@ export const updateOrderStatusFS = async (id: string, status: OrderStatus): Prom
     lastUpdated: Timestamp.now(),
   });
 };
-

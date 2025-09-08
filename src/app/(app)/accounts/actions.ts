@@ -4,7 +4,8 @@
 import { adminDb as db } from '@/lib/firebaseAdmin';
 import { collection, addDoc, updateDoc, doc, Timestamp, getDocs, query, where } from 'firebase-admin/firestore';
 import { accountSchema, type AccountFormValues, toSearchName } from '@/lib/schemas/account-schema';
-import { getAccounts, getOrdersByAccount, getTeamMembers, getRecentHistoryByAccount, getOrders } from '@/features/accounts/repo';
+import { getAccounts, getTeamMembers } from '@/features/accounts/repo';
+import { getOrders } from '@/services/order-service';
 import { enrichCartera } from '@/features/accounts/cartera';
 import type { Order } from '@/types';
 
@@ -109,4 +110,21 @@ export async function getAccountHistory(accountId: string) {
       amount: item.value,
       status: item.status,
     }));
+}
+
+// Helper function import moved from another file.
+// We need to move this from where it was before, as it caused a circular dependency
+async function getTeamMembersFS(roles?: any[]): Promise<TeamMember[]> {
+  const membersCol = collection(db, 'teamMembers');
+  let q;
+
+  if (roles && roles.length > 0) {
+    q = query(membersCol, where('role', 'in', roles));
+  } else {
+    q = query(membersCol);
+  }
+  
+  const snapshot = await getDocs(q);
+  // This is a simplified converter. You should use your `fromFirestoreTeamMember`
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TeamMember));
 }

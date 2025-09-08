@@ -47,11 +47,11 @@ interface NewTaskDialogProps {
   selectedDate: Date | undefined;
   taskCategory: 'Commercial' | 'General';
   taskToEdit?: Order | null;
-  allAccounts: Account[];
-  teamMembers: TeamMember[];
+  allAccounts?: Account[];
+  teamMembers?: TeamMember[];
 }
 
-export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDate, taskCategory, taskToEdit, allAccounts, teamMembers }: NewTaskDialogProps) {
+export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDate, taskCategory, taskToEdit, allAccounts = [], teamMembers = [] }: NewTaskDialogProps) {
   const { userRole, teamMember } = useAuth();
   const [isSaving, setIsSaving] = React.useState(false);
   
@@ -133,7 +133,8 @@ export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDa
                         <SelectItem value="existing">Cliente Existente</SelectItem>
                         <SelectItem value="new">Cliente Nuevo</SelectItem>
                       </SelectContent>
-                    </FormItem>
+                    </Select>
+                  </FormItem>
                 )} />
                 {clientMode === 'existing' ? (
                    <FormField control={form.control} name="accountId" render={({ field }) => (

@@ -33,7 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Account, AccountType, TeamMember, AccountFormValues } from "@/types";
-import { accountTypeList, provincesSpainList } from "@/lib/data";
+import { TIPOS_CUENTA, PROVINCIAS_ES } from "@/lib/data";
 import { Loader2, Truck } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { getTeamMembersFS } from "@/services/team-member-service";
@@ -63,7 +63,7 @@ const accountFormSchemaBase = z.object({
         message: "Formato de CIF/NIF no válido. Use 1 letra, 7 números y 1 carácter de control.",
       }
     ),
-  type: z.enum(accountTypeList as [AccountType, ...AccountType[]], {
+  type: z.enum(TIPOS_CUENTA as [AccountType, ...AccountType[]], {
     required_error: "El tipo de cuenta es obligatorio.",
   }),
   iban: z.string().optional(),
@@ -158,7 +158,7 @@ export default function AccountDialog({
     async function loadDataForDialog() {
       try {
         const [reps, allAccountsForDistro] = await Promise.all([
-          getTeamMembersFS(["SalesRep", "Admin", "Ventas", "Manager"]),
+          getTeamMembersFS(["Ventas", "Admin", "Manager"]),
           getAccountsFS(),
         ]);
         setSalesRepList(reps);
@@ -218,7 +218,7 @@ export default function AccountDialog({
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF/NIF</FormLabel><FormControl><Input placeholder="Identificador fiscal" {...field} value={field.value ?? ""} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="type" render={({ field }) => (<FormItem><FormLabel>Tipo de Cuenta</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un tipo" /></SelectTrigger></FormControl><SelectContent>{accountTypeList.map((type) => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="type" render={({ field }) => (<FormItem><FormLabel>Tipo de Cuenta</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un tipo" /></SelectTrigger></FormControl><SelectContent>{(TIPOS_CUENTA as readonly string[]).map((type: string) => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
               </div>
             </div>
             <div className="space-y-4 p-4 border rounded-lg">
@@ -226,7 +226,7 @@ export default function AccountDialog({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="iban" render={({ field }) => (<FormItem><FormLabel>IBAN</FormLabel><FormControl><Input placeholder="ES00..." {...field} value={field.value ?? ""} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
                 {showDistributorField && (
-                  <FormField control={form.control} name="distributorId" render={({ field }) => (<FormItem><FormLabel className="flex items-center gap-1.5"><Truck className="h-4 w-4 text-zinc-500" />Distribuidor</FormLabel><Select onValueChange={field.onChange} value={field.value || ""} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger></FormControl><SelectContent><SelectItem value="">Venta Directa (Gestiona Santa Brisa)</SelectItem><Separator />{distributors.map((d) => (<SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="distributorId" render={({ field }) => (<FormItem><FormLabel className="flex items-center gap-1.5"><Truck className="h-4 w-4 text-zinc-500" />Distribuidor</FormLabel><Select onValueChange={field.onChange} value={field.value || ""} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger></FormControl><SelectContent><SelectItem value="">Venta Directa (Gestiona Santa Brisa)</SelectItem><Separator />{distributors.map((d: Account) => (<SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                 )}
               </div>
             </div>
@@ -238,7 +238,7 @@ export default function AccountDialog({
                   <FormField control={form.control} name="addressBilling_postalCode" render={({ field }) => (<FormItem><FormLabel>C. Postal</FormLabel><FormControl><Input {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
                   <FormField control={form.control} name="addressBilling_city" render={({ field }) => (<FormItem><FormLabel>Ciudad</FormLabel><FormControl><Input {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
                 </div>
-                <FormField control={form.control} name="addressBilling_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map((p) => (<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="addressBilling_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger></FormControl><SelectContent>{(PROVINCIAS_ES as readonly string[]).map((p: string) => (<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
               </div>
               <div className="space-y-4 p-4 border rounded-lg">
                 <h3 className="text-sm font-semibold text-zinc-600">Dirección de Envío</h3>
@@ -247,7 +247,7 @@ export default function AccountDialog({
                   <FormField control={form.control} name="addressShipping_postalCode" render={({ field }) => (<FormItem><FormLabel>C. Postal</FormLabel><FormControl><Input {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
                   <FormField control={form.control} name="addressShipping_city" render={({ field }) => (<FormItem><FormLabel>Ciudad</FormLabel><FormControl><Input {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
                 </div>
-                <FormField control={form.control} name="addressShipping_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger></FormControl><SelectContent>{provincesSpainList.map((p) => (<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="addressShipping_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger></FormControl><SelectContent>{(PROVINCIAS_ES as readonly string[]).map((p: string) => (<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
               </div>
             </div>
             <div className="space-y-4 p-4 border rounded-lg">

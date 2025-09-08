@@ -26,7 +26,7 @@ export async function calculateCommercialStatus(
 
     if (count === 0) {
         // If there are no successful orders, check for failed attempts.
-        const hasInteractions = ordersForAccount.some(o => o.status === 'Fallido' || o.status === 'Cancelado');
+        const hasInteractions = ordersForAccount.some(o => o.status === 'Fallido');
         return hasInteractions ? 'Fallido' : 'Pendiente';
     }
 

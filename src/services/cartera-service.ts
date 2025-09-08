@@ -18,9 +18,11 @@ export async function processCarteraData(
     const teamMembersMap = new Map(teamMembers.map(tm => [tm.id, tm]));
     const accountsMap = new Map(accounts.map(acc => [acc.id, acc]));
     
+    // FIX: Ensure acc.nombre is a non-empty string before mapping.
+    // This was the source of the error and the reason for missing accounts.
     const accountNameMap = new Map(
       accounts
-        .filter(acc => acc.nombre && typeof acc.nombre === 'string') // FIX: Ensure acc.nombre is a non-empty string
+        .filter(acc => acc.nombre && typeof acc.nombre === 'string') 
         .map(acc => [acc.nombre.toLowerCase().trim(), acc])
     );
     
@@ -32,7 +34,8 @@ export async function processCarteraData(
     for (const interaction of orders) { // Only process orders, not directSales
         let accountId = interaction.accountId;
         
-        if (!accountId && interaction.clientName) {
+        // Match by name only if the name is valid
+        if (!accountId && interaction.clientName && typeof interaction.clientName === 'string') {
             const matchedAccount = accountNameMap.get(interaction.clientName.toLowerCase().trim());
             if (matchedAccount) {
                 accountId = matchedAccount.id;

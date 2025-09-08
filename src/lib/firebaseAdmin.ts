@@ -5,6 +5,13 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { getStorage } from 'firebase-admin/storage';
 
+console.log('SB ENV check:', {
+  SA: !!process.env.FIREBASE_SERVICE_ACCOUNT,
+  SA_B64: !!process.env.FIREBASE_SERVICE_ACCOUNT_BASE64,
+  GAC: process.env.GOOGLE_APPLICATION_CREDENTIALS || null,
+  PID: process.env.FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT || null,
+});
+
 const ADMIN_APP_NAME = 'firebase-admin-app-instance';
 
 let app: App;

@@ -104,13 +104,11 @@ export const mockMarketingResources: MarketingResourceCategory[] = [
   },
 ];
 
-export const userRolesList: UserRole[] = ['Admin', 'SalesRep', 'Distributor', 'Clavadista', 'Líder Clavadista'];
+export const userRolesList: UserRole[] = ['Admin', 'Ventas', 'Distributor', 'Marketing', 'Manager', 'Operaciones', 'Finanzas', 'Clavadista', 'Líder Clavadista'];
 export const accountTypeList: AccountType[] = [
-  'HORECA', 'Retail Minorista', 'Gran Superficie',
-  'Distribuidor', 'Importador',
-  'Evento Especial', 'Cliente Final Directo', 'Otro'
+  'prospect', 'customer', 'distributor', 'importer'
 ];
-export const accountStatusList: AccountStatus[] = ['Programada', 'Seguimiento', 'Pedido', 'Repetición', 'Fallido'];
+export const accountStatusList: AccountStatus[] = ['lead', 'qualified', 'active', 'dormant', 'lost', 'Programada', 'Seguimiento', 'Repetición', 'Fallido', 'Pendiente', 'Inactivo'];
 export const crmEventTypeList: CrmEventType[] = [
   'Activación en Tienda', 'Feria Comercial', 'Evento Corporativo',
   'Degustación', 'Patrocinio', 'Activación', 'Otro'

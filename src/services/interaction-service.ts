@@ -39,8 +39,8 @@ export async function createInteractionAction(input: InteractionFormValues) {
   // Handle implicit account creation
   if (!accountId && accountName) {
     const searchName = toSearchName(accountName);
-    const existingQuery = query(collection(db, ACCOUNTS_COLLECTION), where('searchName', '==', searchName), limit(1));
-    const existingSnap = await getDocs(existingQuery);
+    const existingQuery = db.collection(ACCOUNTS_COLLECTION).where('searchName', '==', searchName).limit(1);
+    const existingSnap = await existingQuery.get();
 
     if (!existingSnap.empty) {
       accountId = existingSnap.docs[0].id;
@@ -59,12 +59,12 @@ export async function createInteractionAction(input: InteractionFormValues) {
           owner_user_id: user.id,
           responsibleName: user.name,
       };
-      const accountRef = await addDoc(collection(db, ACCOUNTS_COLLECTION), newAccountData);
+      const accountRef = await db.collection(ACCOUNTS_COLLECTION).add(newAccountData);
       accountId = accountRef.id;
     }
   } else if(accountId) {
-      const accountSnap = await getDoc(doc(db, ACCOUNTS_COLLECTION, accountId));
-      if(accountSnap.exists()) {
+      const accountSnap = await db.collection(ACCOUNTS_COLlection).doc(accountId).get();
+      if(accountSnap.exists) {
           accountName = accountSnap.data()?.name || accountName;
       }
   }
@@ -75,7 +75,7 @@ export async function createInteractionAction(input: InteractionFormValues) {
 
 
   // 1) Save interaction
-  const ref = await addDoc(collection(db, INTERACTIONS_COLLECTION), {
+  const ref = await db.collection(INTERACTIONS_COLLECTION).add({
     accountId: accountId,
     clientName: accountName,
     type: input.type,
@@ -91,7 +91,7 @@ export async function createInteractionAction(input: InteractionFormValues) {
 
   // 2) If this interaction came from a scheduled task, mark it as completed
   if (input.originatingTaskId) {
-    await updateDoc(doc(db, 'orders', input.originatingTaskId), {
+    await db.collection('orders').doc(input.originatingTaskId).update({
       status: 'Completado',
       lastUpdated: now,
       completedBy: user.id,
@@ -99,7 +99,7 @@ export async function createInteractionAction(input: InteractionFormValues) {
   }
 
   // 3) Touch the account with useful info for scoring/status calculation
-  await updateDoc(doc(db, ACCOUNTS_COLLECTION, accountId), {
+  await db.collection(ACCOUNTS_COLLECTION).doc(accountId).update({
     lastInteractionAt: Timestamp.fromDate(input.date),
     lastUpdated: now,
     lastTouchedBy: user.id,
@@ -111,7 +111,7 @@ export async function createInteractionAction(input: InteractionFormValues) {
 /** For a simple account selector (top recent) */
 export async function listAccountsForSelectAction(params?: { q?: string }) {
   // Minimal implementation: if you have advanced search, change it here.
-  const snap = await getDocs(query(collection(db, ACCOUNTS_COLLECTION), orderBy('createdAt', 'desc'), limit(20)));
+  const snap = await db.collection(ACCOUNTS_COLLECTION).orderBy('createdAt', 'desc').limit(20).get();
   return snap.docs.map(d => {
     const x = d.data() as any;
     return { id: d.id, name: x.name as string };
@@ -128,23 +128,23 @@ export const saveInteractionFS = async (
     const now = Timestamp.now();
 
     if(originatingTaskId) {
-        const originalTaskRef = doc(db, 'orders', originatingTaskId);
-        await updateDoc(originalTaskRef, { status: "Completado", lastUpdated: now });
+        const originalTaskRef = db.collection('orders').doc(originatingTaskId);
+        await originalTaskRef.update({ status: "Completado", lastUpdated: now });
     }
 
-    const accountRef = doc(db, 'accounts', accountId);
-    const accountSnap = await getDoc(accountRef);
-    if (!accountSnap.exists()) throw new Error("Account not found");
+    const accountRef = db.collection('accounts').doc(accountId);
+    const accountSnap = await accountRef.get();
+    if (!accountSnap.exists) throw new Error("Account not found");
 
-    const newOrderRef = doc(collection(db, 'orders'));
+    const newOrderRef = db.collection('orders').doc();
 
     const subtotal = (data.numberOfUnits || 0) * (data.unitPrice || 0);
     const totalValue = subtotal * 1.21;
     
     let salesRepName = userName;
     if (data.assignedSalesRepId && data.assignedSalesRepId !== userId) {
-        const assignedRepDoc = await getDoc(doc(db, 'teamMembers', data.assignedSalesRepId));
-        if(assignedRepDoc.exists()) salesRepName = assignedRepDoc.data()?.name;
+        const assignedRepDoc = await db.collection('teamMembers').doc(data.assignedSalesRepId).get();
+        if(assignedRepDoc.exists) salesRepName = assignedRepDoc.data()?.name;
     }
 
     const newInteractionData: any = {
@@ -188,5 +188,5 @@ export const saveInteractionFS = async (
         newInteractionData.type = data.outcome;
     }
 
-    await setDoc(newOrderRef, newInteractionData);
+    await newOrderRef.set(newInteractionData);
 };

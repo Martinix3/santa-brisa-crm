@@ -12,12 +12,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import AccountDialog from "@/features/accounts/components/account-dialog";
-import { TIPOS_CUENTA } from "@ssot";
+import { CANALES, TIPOS_CUENTA } from "@ssot";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getCarteraBundle } from "@/features/accounts/repo";
 import { AccountRow } from "@/features/accounts/components/account-row";
 import { AccountHubDialog } from "@/features/accounts/components/account-hub-dialog";
+import { MultiSelect } from "@/components/ui/multi-select";
 
 const hexToRgba = (hex: string, alpha: number) => {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -93,7 +94,7 @@ export default function AccountsPage() {
   const [responsibleFilter, setResponsibleFilter] = React.useState("Todos");
   const [bucketFilter, setBucketFilter] = React.useState<BucketFilter>("Todos");
   const [sortOption, setSortOption] = React.useState<SortOption>("leadScore_desc");
-  const [typeFilter, setTypeFilter] = React.useState<string | "Todos">('Todos');
+  const [channelFilter, setChannelFilter] = React.useState<string[]>([]);
   const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
   
   const isAdmin = userRole === 'Admin';
@@ -147,7 +148,7 @@ export default function AccountsPage() {
     
     const filtered = enrichedAccounts
       .filter(acc => !searchTerm || acc.name.toLowerCase().includes(searchTerm.toLowerCase()) || (acc.city && acc.city.toLowerCase().includes(searchTerm.toLowerCase())))
-      .filter(acc => typeFilter === 'Todos' || acc.type === typeFilter)
+      .filter(acc => channelFilter.length === 0 || (acc.channel && channelFilter.includes(acc.channel)))
       .filter(acc => !isAdmin || responsibleFilter === "Todos" || acc.responsableId === responsibleFilter)
       .filter(acc => {
         if (bucketFilter === 'Todos') return true;
@@ -187,7 +188,7 @@ export default function AccountsPage() {
         failedAccounts: EnrichedAccount[] 
     };
 
-  }, [searchTerm, typeFilter, enrichedAccounts, responsibleFilter, bucketFilter, isAdmin, sortOption]);
+  }, [searchTerm, channelFilter, enrichedAccounts, responsibleFilter, bucketFilter, isAdmin, sortOption]);
 
   const handleOpenHub = (accountId: string, mode: 'registrar' | 'editar' | 'pedido') => {
     setHubAccountId(accountId);
@@ -213,13 +214,13 @@ export default function AccountsPage() {
               />
             </div>
 
-            <Select value={typeFilter} onValueChange={(v)=>setTypeFilter(v as any)}>
-              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Tipo"/></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Todos">Todos los Tipos</SelectItem>
-                {TIPOS_CUENTA.map(t=> <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <MultiSelect
+              options={CANALES.map(c => ({ value: c, label: c.charAt(0).toUpperCase() + c.slice(1) }))}
+              selected={channelFilter}
+              onChange={setChannelFilter}
+              className="w-[200px]"
+              placeholder="Canal..."
+            />
 
             <Select value={bucketFilter} onValueChange={(v)=>setBucketFilter(v as BucketFilter)}>
               <SelectTrigger className="w-[160px]"><SelectValue placeholder="Tareas"/></SelectTrigger>
@@ -317,7 +318,7 @@ export default function AccountsPage() {
                                 <div className="h-full flex flex-col items-center justify-center text-center gap-2">
                                     <p className="text-sm text-muted-foreground">No hay cuentas que coincidan con los filtros.</p>
                                     <div className="flex gap-2">
-                                    <Button variant="outline" onClick={()=> { setSearchTerm(""); setTypeFilter("Todos"); setBucketFilter("Todos"); }}>
+                                    <Button variant="outline" onClick={()=> { setSearchTerm(""); setChannelFilter([]); setBucketFilter("Todos"); }}>
                                         Limpiar filtros
                                     </Button>
                                     <Button onClick={()=> setAccountDialogOpen(true)} className="rounded-full bg-amber-400 hover:bg-amber-500 text-amber-950">
@@ -352,5 +353,3 @@ export default function AccountsPage() {
 type BucketFilter = "Todos" | "Vencidas" | "Para Hoy";
 type SortOption = "leadScore_desc" | "nextAction_asc" | "lastInteraction_desc";
 type AccountFormValues = import('@/lib/schemas/account-schema').AccountFormValues;
-
-    

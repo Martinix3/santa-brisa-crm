@@ -1,4 +1,5 @@
 
+
 import { getAgendaDataAction } from "@/services/server/agenda-actions";
 import MyAgendaClientPage from "@/components/app/my-agenda/my-agenda-client-page";
 import { headers } from 'next/headers';

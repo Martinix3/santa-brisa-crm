@@ -75,6 +75,18 @@ export const getTeamMemberByIdFS = async (id: string): Promise<TeamMember | null
   return docSnap.exists ? fromFirestoreTeamMember(docSnap) : null;
 };
 
+export const getTeamMemberByAuthUidFS = async (authUid: string): Promise<TeamMember | null> => {
+  if (!authUid) return null;
+  const membersCol = adminDb.collection(TEAM_MEMBERS_COLLECTION);
+  const q = membersCol.where('authUid', '==', authUid).limit(1);
+  const snapshot = await q.get();
+  if (!snapshot.empty) {
+    return fromFirestoreTeamMember(snapshot.docs[0]);
+  }
+  return null;
+};
+
+
 export const getTeamMemberByEmailFS = async (email: string): Promise<TeamMember | null> => {
   if (!email) return null;
   const membersCol = adminDb.collection(TEAM_MEMBERS_COLLECTION);

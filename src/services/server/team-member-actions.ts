@@ -3,7 +3,7 @@
 'use server';
 
 import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
-import { addTeamMemberFS, getTeamMemberByAuthUidFS as getTeamMemberByAuthUidFromService } from '@/services/team-member-service';
+import { addTeamMemberFS, getTeamMemberByAuthUidFS as getTeamMemberByAuthUidFromServiceFS } from '@/services/team-member-service';
 import type { TeamMember, TeamMemberFormValues, RolUsuario as UserRole } from '@/types';
 
 /**
@@ -13,7 +13,8 @@ import type { TeamMember, TeamMemberFormValues, RolUsuario as UserRole } from '@
  * @returns The team member profile or null if not found.
  */
 export async function getTeamMemberByAuthUidFS(authUid: string): Promise<TeamMember | null> {
-    return getTeamMemberByAuthUidFromService(authUid);
+    // Correctly use the function from the service
+    return getTeamMemberByAuthUidFromServiceFS(authUid);
 }
 
 /**

@@ -23,9 +23,6 @@ type Props = {
   onOpenChange: (v: boolean) => void;
   initialAccount?: Account | null;
   defaultMode?: HubMode;
-  onAccountCreated?: (accountId: string) => void;
-  onInteractionCreated?: (interactionId: string, accountId: string) => void;
-  onOrderCreated?: (orderId: string, accountId: string) => void;
 };
 
 export default function QuickHubDialog({
@@ -33,9 +30,6 @@ export default function QuickHubDialog({
   onOpenChange,
   initialAccount,
   defaultMode = "cuenta",
-  onAccountCreated,
-  onInteractionCreated,
-  onOrderCreated,
 }: Props) {
   const { toast } = useToast();
   const { refreshDataSignature } = useAuth();
@@ -68,17 +62,15 @@ export default function QuickHubDialog({
     onOpenChange(false);
     refreshDataSignature();
     
-    // If a new account was implicitly created, guide the user to edit it.
     if ((type === 'interaction' || type === 'order') && !accountId) {
        toast({
           title: "Acción registrada",
           description: `Se ha creado la interacción/pedido para "${accountName}". Ahora, por favor completa los datos de la nueva cuenta.`
        });
-       // Here you could programmatically switch the tab and set the account,
-       // for a more advanced flow.
-       // For now, we just close and let the user re-open.
+       // Programmatically switch tab and set account
+       setMode('cuenta');
+       setSelectedAccount({id: id, name: accountName, type: 'prospect'} as any);
     }
-    
   };
 
   const handleAccountSelection = (account: Account | null) => {
@@ -116,8 +108,8 @@ export default function QuickHubDialog({
         <Tabs value={mode} onValueChange={(v) => setMode(v as HubMode)} className="w-full">
           <TabsList className="grid grid-cols-3 w-full">
             <TabsTrigger value="cuenta">Cuenta</TabsTrigger>
-            <TabsTrigger value="interaccion">Interacción</TabsTrigger>
-            <TabsTrigger value="pedido">Pedido</TabsTrigger>
+            <TabsTrigger value="interaccion" disabled={!selectedAccount}>Interacción</TabsTrigger>
+            <TabsTrigger value="pedido" disabled={!selectedAccount}>Pedido</TabsTrigger>
           </TabsList>
 
           <TabsContent value="cuenta" className="mt-4">
@@ -130,6 +122,7 @@ export default function QuickHubDialog({
               }}
               allAccounts={allAccounts}
               allTeamMembers={teamMembers}
+              onOpenChange={onOpenChange}
             />
           </TabsContent>
 

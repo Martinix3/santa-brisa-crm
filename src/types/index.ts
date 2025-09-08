@@ -1,6 +1,6 @@
 
 import type { Timestamp } from "firebase/firestore";
-import type { Account as DomainAccount, AccountStatus as DomainAccountStatus, AccountType as DomainAccountType, AddressDetails, PotencialType } from '@/domain/accounts/types';
+import type { Account as DomainAccount, AccountStatus as DomainAccountStatus, AddressDetails, PotencialType } from '@/domain/accounts/types';
 
 export * from '@/domain/accounts/types';
 
@@ -43,6 +43,9 @@ export type TankStatus = "Libre" | "Ocupado" | "Limpieza";
 export type UoM = "unit" | "kg" | "g" | "l" | "ml";
 export type QcStatus = "Pending" | "Released" | "Rejected";
 export type BomKind = "blend" | "fill";
+
+// UNIFIED ACCOUNT TYPE
+export type AccountType = 'HORECA' | 'Retail Minorista' | 'Gran Superficie' | 'Distribuidor' | 'Importador' | 'Cliente Final Directo' | 'Evento Especial' | 'Otro';
 
 // --- MAIN COLLECTIONS ---
 
@@ -597,7 +600,7 @@ export interface AccountFormValues {
   name: string;
   legalName?: string;
   cif?: string;
-  type: DomainAccountType;
+  type: AccountType;
   iban?: string;
   distributorId?: string;
   addressBilling_street?: string;

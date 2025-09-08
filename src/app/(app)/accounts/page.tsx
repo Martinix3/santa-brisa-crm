@@ -15,6 +15,7 @@ import { es } from 'date-fns/locale';
 import { cn } from "@/lib/utils";
 import { Loader2, Search, PlusCircle, ChevronDown, Eye } from "lucide-react";
 import Link from "next/link";
+import { accountTypeList } from '@/lib/data';
 
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -28,10 +29,6 @@ import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import AccountHistoryTable from "@/components/app/account-history-table";
 import { InteractionDialog } from "@/components/app/interaction-dialog";
 
-const HORECA_RETAIL_TYPES: AccountType[] = ['HORECA', 'Retail Minorista', 'Gran Superficie'];
-const DISTRIBUTOR_TYPES: AccountType[] = ['Distribuidor'];
-const IMPORTER_TYPES: AccountType[] = ['Importador'];
-const FINAL_CUSTOMER_TYPES: AccountType[] = ['Cliente Final Directo', 'Evento Especial'];
 
 function AccountTableRow({ account, isExpanded, onToggleExpand }: { account: EnrichedAccount; isExpanded: boolean; onToggleExpand: () => void; }) {
     const [isInteractionDialogOpen, setIsInteractionDialogOpen] = React.useState(false);
@@ -159,7 +156,7 @@ export default function AccountsPage() {
   const [responsibleFilter, setResponsibleFilter] = React.useState("Todos");
   const [bucketFilter, setBucketFilter] = React.useState<BucketFilter>("Todos");
   const [sortOption, setSortOption] = React.useState<SortOption>("leadScore_desc");
-  const [typeFilter, setTypeFilter] = React.useState<AccountTypeFilter>('Todos');
+  const [typeFilter, setTypeFilter] = React.useState<AccountType | "Todos">('Todos');
   const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
   
   const isAdmin = userRole === 'Admin';
@@ -240,15 +237,7 @@ export default function AccountsPage() {
       })
       .filter(acc => {
         if (typeFilter === 'Todos') return true;
-        if (typeFilter === 'Cuentas') return HORECA_RETAIL_TYPES.includes(acc.type);
-        if (typeFilter === 'Cliente Final') return FINAL_CUSTOMER_TYPES.includes(acc.type);
-        if (typeFilter === 'Distribuidor') return DISTRIBUTOR_TYPES.includes(acc.type);
-        if (typeFilter === 'Importador') return IMPORTER_TYPES.includes(acc.type);
-        if (typeFilter === 'Otro') {
-            const allKnownTypes = [...HORECA_RETAIL_TYPES, ...FINAL_CUSTOMER_TYPES, ...DISTRIBUTOR_TYPES, ...IMPORTER_TYPES];
-            return !allKnownTypes.includes(acc.type);
-        }
-        return false;
+        return acc.type === typeFilter;
       })
       .filter(acc => {
         if (!isAdmin || responsibleFilter === "Todos") return true;
@@ -308,15 +297,13 @@ export default function AccountsPage() {
                   className="pl-9 w-full sm:max-w-xs"
                 />
               </div>
-              <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as AccountTypeFilter)}>
+              <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as AccountType | 'Todos')}>
                   <SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Tipo de Cuenta..." /></SelectTrigger>
                   <SelectContent>
-                      <SelectItem value="Todos">Todas las Cuentas</SelectItem>
-                      <SelectItem value="Cuentas">Cuentas (HORECA/Retail)</SelectItem>
-                      <SelectItem value="Cliente Final">Cliente Final</SelectItem>
-                      <SelectItem value="Distribuidor">Distribuidores</SelectItem>
-                      <SelectItem value="Importador">Importadores</SelectItem>
-                      <SelectItem value="Otro">Otro</SelectItem>
+                      <SelectItem value="Todos">Todos los Tipos</SelectItem>
+                      {accountTypeList.map(type => (
+                        <SelectItem key={type} value={type}>{type}</SelectItem>
+                      ))}
                   </SelectContent>
               </Select>
               <Select value={bucketFilter} onValueChange={(v) => setBucketFilter(v as BucketFilter)}>
@@ -393,4 +380,3 @@ export default function AccountsPage() {
 
 type BucketFilter = "Todos" | "Vencidas" | "Para Hoy" | "Pendientes";
 type SortOption = "leadScore_desc" | "nextAction_asc" | "lastInteraction_desc";
-type AccountTypeFilter = 'Todos' | 'Cuentas' | 'Cliente Final' | 'Distribuidor' | 'Importador' | 'Otro';

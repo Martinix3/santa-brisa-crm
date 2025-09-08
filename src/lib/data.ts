@@ -1,6 +1,6 @@
 
 
-import type { Kpi, StrategicObjective, TeamMember, Order, MarketingResourceCategory, OrderStatus, MarketingResourceType, UserRole, ClientType, AccountType, AccountStatus, NextActionType, FailureReasonType, CrmEvent, CrmEventType, CrmEventStatus, PromotionalMaterial, CanalOrigenColocacion, Purchase, PurchaseStatus, PaymentMethod, SampleRequestStatus, SampleRequestPurpose, DirectSaleStatus, PurchaseCategory, DirectSaleChannel, PotencialType, InteractionType, InteractionResult, Category, CategoryKind, Tank, RunStatus, RunType, TankStatus, UoM } from '@/types';
+import type { Kpi, StrategicObjective, OrderStatus, MarketingResourceType, UserRole, ClientType, AccountType, AccountStatus, NextActionType, FailureReasonType, CrmEvent, CrmEventType, CrmEventStatus, PromotionalMaterial, CanalOrigenColocacion, Purchase, PurchaseStatus, PaymentMethod, SampleRequestStatus, SampleRequestPurpose, DirectSaleStatus, PurchaseCategory, DirectSaleChannel, PotencialType, InteractionType, InteractionResult, Category, CategoryKind, Tank, RunStatus, RunType, TankStatus, UoM } from '@/types';
 
 export const mockInitialAccounts = [
   "Sello Copil", "Grupo Tragaluz", "MARRIOT", "AC HOTELES", "Bokaxankla Bar", 
@@ -106,7 +106,7 @@ export const mockMarketingResources: MarketingResourceCategory[] = [
 
 export const userRolesList: UserRole[] = ['Admin', 'Ventas', 'Distributor', 'Marketing', 'Manager', 'Operaciones', 'Finanzas', 'Clavadista', 'Líder Clavadista'];
 export const accountTypeList: AccountType[] = [
-  'prospect', 'customer', 'distributor', 'importer'
+  'HORECA', 'Retail Minorista', 'Gran Superficie', 'Distribuidor', 'Importador', 'Cliente Final Directo', 'Evento Especial', 'Otro'
 ];
 export const accountStatusList: AccountStatus[] = ['lead', 'qualified', 'active', 'dormant', 'lost', 'Programada', 'Seguimiento', 'Repetición', 'Fallido', 'Pendiente', 'Inactivo'];
 export const crmEventTypeList: CrmEventType[] = [

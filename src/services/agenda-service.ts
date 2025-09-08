@@ -1,11 +1,13 @@
 
 'use server';
 
-import { getOrdersFS } from '@/services/order-service';
-import { getEventsFS } from '@/services/event-service';
+import { db } from '@/lib/firebase';
+import { collection, query, where, getDocs, Timestamp } from "firebase-admin/firestore";
 import type { Order, CrmEvent } from '@/types';
 import { startOfToday, endOfToday, addDays, parseISO, isValid } from 'date-fns';
 import { RolUsuario as UserRole } from "@ssot";
+import { fromFirestoreOrder } from '@/services/order-service';
+import { fromFirestoreEvent } from '@/services/event-service';
 
 interface AgendaItem {
   id: string;
@@ -24,38 +26,61 @@ export async function getDailyTasks(params: {
 }): Promise<AgendaItem[]> {
   const { userId, userName, userRole } = params;
 
-  const [orders, events] = await Promise.all([
-    getOrdersFS(),
-    getEventsFS(),
+  const today = startOfToday();
+  const sevenDaysFromNow = addDays(endOfToday(), 7);
+  const todayTimestamp = Timestamp.fromDate(today);
+  const sevenDaysTimestamp = Timestamp.fromDate(sevenDaysFromNow);
+
+  // --- Optimized Queries ---
+  const orderQueries = [];
+  const eventQueries = [];
+
+  const baseOrderQueryConditions = [
+      where('status', 'in', ['Programada', 'Seguimiento']),
+  ];
+  const baseEventQueryConditions = [
+      where('status', 'in', ['Planificado', 'Confirmado', 'En Curso']),
+      where('startDate', '>=', todayTimestamp),
+      where('startDate', '<=', sevenDaysTimestamp),
+  ];
+
+  if (userRole === 'Admin') {
+    // Admin sees all tasks/events in the date range
+    orderQueries.push(query(collection(db, 'orders'), ...baseOrderQueryConditions));
+    eventQueries.push(query(collection(db, 'events'), ...baseEventQueryConditions));
+  } else {
+    // Non-admins see tasks assigned to them
+    orderQueries.push(query(collection(db, 'orders'), ...baseOrderQueryConditions, where('salesRep', '==', userName)));
+    if(userRole === 'Clavadista' || userRole === 'Líder Clavadista'){
+        orderQueries.push(query(collection(db, 'orders'), ...baseOrderQueryConditions, where('clavadistaId', '==', userId)));
+    }
+    eventQueries.push(query(collection(db, 'events'), ...baseEventQueryConditions, where('assignedTeamMemberIds', 'array-contains', userId)));
+  }
+
+  const [orderSnapshots, eventSnapshots] = await Promise.all([
+    Promise.all(orderQueries.map(q => getDocs(q))),
+    Promise.all(eventQueries.map(q => getDocs(q))),
   ]);
 
-  const today = startOfToday();
-  const sevenDaysFromNow = addDays(endOfToday(), 7); // Include tasks for the next 7 days
+  const uniqueOrders = new Map<string, Order>();
+  orderSnapshots.forEach(snapshot => snapshot.docs.forEach(doc => {
+      const order = fromFirestoreOrder(doc);
+      const taskDateStr = order.status === 'Programada' ? order.visitDate : order.nextActionDate;
+      if (taskDateStr) {
+          const taskDate = parseISO(taskDateStr);
+          if (isValid(taskDate) && taskDate >= today && taskDate <= sevenDaysFromNow) {
+            uniqueOrders.set(doc.id, order);
+          }
+      }
+  }));
 
-  const relevantOrders = orders.filter(order => {
-    const isAssigned =
-      userRole === 'Admin' ||
-      order.salesRep === userName ||
-      order.clavadistaId === userId;
-    if (!isAssigned) return false;
-
-    const taskDateStr = order.status === 'Programada' ? order.visitDate : order.nextActionDate;
-    if (!taskDateStr || !['Programada', 'Seguimiento'].includes(order.status)) return false;
-
-    const taskDate = parseISO(taskDateStr);
-    return isValid(taskDate) && taskDate >= today && taskDate <= sevenDaysFromNow;
-  });
-
-  const relevantEvents = events.filter(event => {
-    const isAssigned =
-      userRole === 'Admin' || event.assignedTeamMemberIds.includes(userId);
-    if (!isAssigned || !event.startDate) return false;
-
-    const eventDate = parseISO(event.startDate);
-    return isValid(eventDate) && eventDate >= today && eventDate <= sevenDaysFromNow;
-  });
-
-  const formattedOrders: AgendaItem[] = relevantOrders.map(o => ({
+  const uniqueEvents = new Map<string, CrmEvent>();
+  eventSnapshots.forEach(snapshot => snapshot.docs.forEach(doc => {
+      uniqueEvents.set(doc.id, fromFirestoreEvent(doc));
+  }));
+  
+  // --- Formatting ---
+  const formattedOrders: AgendaItem[] = Array.from(uniqueOrders.values()).map(o => ({
     id: o.id,
     itemDate: (o.status === 'Programada' ? o.visitDate : o.nextActionDate)!,
     sourceType: 'order',
@@ -65,7 +90,7 @@ export async function getDailyTasks(params: {
     link: `/my-agenda`, 
   }));
 
-  const formattedEvents: AgendaItem[] = relevantEvents.map(e => ({
+  const formattedEvents: AgendaItem[] = Array.from(uniqueEvents.values()).map(e => ({
     id: e.id,
     itemDate: e.startDate,
     sourceType: 'event',

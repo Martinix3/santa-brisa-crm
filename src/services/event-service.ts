@@ -3,6 +3,7 @@ import { db } from '@/lib/firebase';
 import {
   collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
   type DocumentSnapshot, writeBatch, runTransaction, where,
+  increment,
 } from "firebase/firestore";
 import type { CrmEvent, EventFormValues, InventoryItem, Category } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
@@ -11,7 +12,7 @@ import { getInventoryItemByIdFS } from './inventory-item-service';
 const EVENTS_COLLECTION = 'events';
 const PURCHASES_COLLECTION = 'purchases';
 
-const fromFirestoreEvent = (docSnap: DocumentSnapshot): CrmEvent => {
+export const fromFirestoreEvent = (docSnap: DocumentSnapshot): CrmEvent => {
   const data = docSnap.data();
   if (!data) throw new Error("Document data is undefined.");
   return {
@@ -103,7 +104,7 @@ export const getEventsFS = async (): Promise<CrmEvent[]> => {
 export const getEventsForAccountFS = async (accountId: string): Promise<CrmEvent[]> => {
     if (!accountId) return [];
     // The query now only filters by accountId. The ordering is done client-side to avoid the composite index requirement.
-    const q = query(collection(db, EVENTS_COLLECTION), where("accountId", "==", accountId));
+    const q = query(collection(db, EVENTS_COLLECTION), where("accountId", "==", accountId), orderBy('startDate', 'desc'));
     const snapshot = await getDocs(q);
     const events = snapshot.docs.map(fromFirestoreEvent);
     

@@ -12,7 +12,7 @@ import AccountDialog from "@/features/accounts/components/account-dialog";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { CANALES, TIPOS_CUENTA } from "@ssot";
+import { CANALES_ORIGEN_COLOCACION as CANALES, TIPOS_CUENTA } from "@/lib/data";
 import { startOfDay, isBefore, isEqual, parseISO, isValid } from 'date-fns';
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
@@ -131,7 +131,7 @@ export default function AccountsPage(){
     return enrichedAccounts
       .filter(acc => !searchTerm || acc.name.toLowerCase().includes(searchTerm.toLowerCase()) || (acc.city && acc.city.toLowerCase().includes(searchTerm.toLowerCase())))
       .filter(acc => channelFilter.length === 0 || (acc.channel && channelFilter.includes(acc.channel)))
-      .filter(acc => typeFilter === "Todos" || (acc.type === typeFilter))
+      .filter(acc => typeFilter === "Todos" || (acc.accountType === typeFilter))
       .filter(acc => !isAdmin || responsibleFilter === "Todos" || acc.responsableId === responsibleFilter)
       .filter(acc => {
         if (bucketFilter === 'Todos') return true;
@@ -319,4 +319,3 @@ export default function AccountsPage(){
     </div>
   );
 }
-

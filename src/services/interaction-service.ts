@@ -5,7 +5,7 @@ import { adminDb as db } from '@/lib/firebaseAdmin';
 import {
   collection, addDoc, updateDoc, doc, Timestamp,
   getDocs, query, orderBy, limit, where
-} from 'firebase/admin/firestore';
+} from 'firebase-admin/firestore';
 import type { InteractionFormValues } from '@/lib/schemas/interaction-schema';
 
 const INTERACTIONS_COLLECTION = 'orders'; // Using 'orders' collection with a different status

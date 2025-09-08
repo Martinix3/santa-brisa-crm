@@ -66,11 +66,49 @@ module.exports = {
         'brand-turquoise': 'hsl(var(--brand-turquoise-hsl))',
         'brand-purple': 'hsl(var(--brand-purple-hsl))',
         'brand-blue': 'hsl(var(--brand-blue-hsl))',
+        // Santa Brisa Tokens
+        sb: {
+          primary: "var(--sb-primary)",
+          orange: "var(--sb-orange)",
+          aqua: "var(--sb-aqua)",
+          teal: "var(--sb-teal)",
+          danger: "var(--sb-danger)",
+        }
+      },
+      spacing: {
+        sb1: "var(--sb-space-1)", 
+        sb2: "var(--sb-space-2)",
+        sb3: "var(--sb-space-3)", 
+        sb4: "var(--sb-space-4)",
+        sb6: "var(--sb-space-6)", 
+        sb8: "var(--sb-space-8)",
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        sbs: "var(--sb-radius-sm)", 
+        sb: "var(--sb-radius-md)",
+        sblg: "var(--sb-radius-lg)",
+        pill: "var(--sb-radius-pill)",
+      },
+       boxShadow: { 
+        sb0: "var(--sb-shadow-0)",
+        sb1: "var(--sb-shadow-1)", 
+        sb2: "var(--sb-shadow-2)" 
+      },
+      height: {
+        'sb-sm': "var(--sb-control-sm)",
+        'sb-md': "var(--sb-control-md)",
+        'sb-lg': "var(--sb-control-lg)",
+      },
+      maxWidth: {
+        'sb-sm': "var(--sb-container-sm)",
+        'sb-md': "var(--sb-container-md)",
+        'sb-lg': "var(--sb-container-lg)",
+      },
+      ringColor: { 
+        sb: "rgb(var(--sb-primary-rgb) / 0.55)" 
       },
       keyframes: {
         "accordion-down": {

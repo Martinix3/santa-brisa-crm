@@ -3,6 +3,7 @@
 .sb-table {
   --sb-row-h: 42px;
   --sb-bg-header: 255 255 255;                /* blanco */
+  --sb-bg-group: 236 253 245;                 /* tint aqua-50 */
   --sb-bg-hover: 249 250 251;                 /* zinc-50 */
   --sb-border: 229 231 235;                   /* gray-200 */
 }
@@ -25,8 +26,9 @@
 }
 
 .sb-tr:not(.sb-group):hover {
-  background-color: rgb(var(--sb-bg-hover)) !important; /* Use !important to override inline style */
+  background-color: rgb(var(--sb-bg-hover)) !important; /* Use !important to override inline style from groups */
 }
+
 
 .sb-group {
   @apply text-sm font-semibold text-gray-800;

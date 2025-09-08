@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import * as React from "react";
@@ -230,31 +229,40 @@ export default function MyAgendaClientPage({ initialAgendaItems, initialTeamMemb
   const isAdmin = userRole === 'Admin';
   
   React.useEffect(() => {
-    const formattedItems: AgendaItem[] = initialAgendaItems.map(item => {
+    const formattedItems: AgendaItem[] = initialAgendaItems
+      .map(item => {
         if ('status' in item && ('visitDate' in item || 'nextActionDate' in item)) { // It's an Order
-            const order = item as Order;
-            return {
-                id: order.id,
-                date: parseISO((order.status === 'Programada' ? order.visitDate : order.nextActionDate)!),
-                type: order.taskCategory === 'General' ? 'tarea_administrativa' : 'tarea_comercial',
-                title: order.clientName,
-                description: getInteractionType(order),
-                rawItem: order,
-                orderIndex: order.orderIndex ?? 0,
-            };
+          const order = item as Order;
+          const dateString = order.status === 'Programada' ? order.visitDate : order.nextActionDate;
+          if (!dateString || !isValid(parseISO(dateString))) {
+            return null; // Skip invalid or dateless orders
+          }
+          return {
+            id: order.id,
+            date: parseISO(dateString),
+            type: order.taskCategory === 'General' ? 'tarea_administrativa' : 'tarea_comercial',
+            title: order.clientName,
+            description: getInteractionType(order),
+            rawItem: order,
+            orderIndex: order.orderIndex ?? 0,
+          };
         } else { // It's a CrmEvent
-            const event = item as CrmEvent;
-             return {
-                id: event.id,
-                date: parseISO(event.startDate),
-                type: 'evento' as const,
-                title: event.name,
-                description: event.type,
-                rawItem: event,
-                orderIndex: event.orderIndex ?? 0,
-            };
+          const event = item as CrmEvent;
+          if (!event.startDate || !isValid(parseISO(event.startDate))) {
+            return null; // Skip invalid or dateless events
+          }
+          return {
+            id: event.id,
+            date: parseISO(event.startDate),
+            type: 'evento' as const,
+            title: event.name,
+            description: event.type,
+            rawItem: event,
+            orderIndex: event.orderIndex ?? 0,
+          };
         }
-    }).filter(item => isValid(item.date));
+      })
+      .filter((item): item is AgendaItem => item !== null && isValid(item.date));
 
     setAllAgendaItems(formattedItems);
     setTeamMembers(initialTeamMembers);
@@ -928,3 +936,5 @@ export default function MyAgendaClientPage({ initialAgendaItems, initialTeamMemb
     </>
   );
 }
+
+    

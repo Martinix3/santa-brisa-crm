@@ -55,24 +55,24 @@ export async function getDailyTasks(params: {
 
   if (userRole === 'Admin') {
     // Admin sees all tasks/events in the date range
-    orderQueries.push(query(collection(db, 'orders'), ...scheduledOrderConditions));
-    orderQueries.push(query(collection(db, 'orders'), ...followUpOrderConditions));
-    eventQueries.push(query(collection(db, 'events'), ...baseEventQueryConditions));
+    orderQueries.push(db.collection('orders').where('visitDate', '>=', todayTimestamp).where('visitDate', '<=', sevenDaysTimestamp));
+    orderQueries.push(db.collection('orders').where('nextActionDate', '>=', todayTimestamp).where('nextActionDate', '<=', sevenDaysTimestamp));
+    eventQueries.push(db.collection('events').where('startDate', '>=', todayTimestamp).where('startDate', '<=', sevenDaysTimestamp));
   } else {
     // Non-admins see tasks assigned to them
-    orderQueries.push(query(collection(db, 'orders'), ...scheduledOrderConditions, where('salesRep', '==', userName)));
-    orderQueries.push(query(collection(db, 'orders'), ...followUpOrderConditions, where('salesRep', '==', userName)));
+    orderQueries.push(db.collection('orders').where('salesRep', '==', userName).where('visitDate', '>=', todayTimestamp).where('visitDate', '<=', sevenDaysTimestamp));
+    orderQueries.push(db.collection('orders').where('salesRep', '==', userName).where('nextActionDate', '>=', todayTimestamp).where('nextActionDate', '<=', sevenDaysTimestamp));
 
     if(userRole === 'Clavadista' || userRole === 'Líder Clavadista'){
-        orderQueries.push(query(collection(db, 'orders'), ...scheduledOrderConditions, where('clavadistaId', '==', userId)));
-        orderQueries.push(query(collection(db, 'orders'), ...followUpOrderConditions, where('clavadistaId', '==', userId)));
+        orderQueries.push(db.collection('orders').where('clavadistaId', '==', userId).where('visitDate', '>=', todayTimestamp).where('visitDate', '<=', sevenDaysTimestamp));
+        orderQueries.push(db.collection('orders').where('clavadistaId', '==', userId).where('nextActionDate', '>=', todayTimestamp).where('nextActionDate', '<=', sevenDaysTimestamp));
     }
-    eventQueries.push(query(collection(db, 'events'), ...baseEventQueryConditions, where('assignedTeamMemberIds', 'array-contains', userId)));
+    eventQueries.push(db.collection('events').where('assignedTeamMemberIds', 'array-contains', userId).where('startDate', '>=', todayTimestamp).where('startDate', '<=', sevenDaysTimestamp));
   }
 
   const [orderSnapshots, eventSnapshots] = await Promise.all([
-    Promise.all(orderQueries.map(q => getDocs(q))),
-    Promise.all(eventQueries.map(q => getDocs(q))),
+    Promise.all(orderQueries.map(q => q.get())),
+    Promise.all(eventQueries.map(q => q.get())),
   ]);
 
   const uniqueOrders = new Map<string, Order>();
@@ -86,7 +86,10 @@ export async function getDailyTasks(params: {
 
   const uniqueEvents = new Map<string, CrmEvent>();
   eventSnapshots.flat().forEach(snapshot => snapshot.docs.forEach(doc => {
-      uniqueEvents.set(doc.id, fromFirestoreEvent(doc));
+      const eventData = fromFirestoreEvent(doc);
+      if (['Planificado', 'Confirmado', 'En Curso'].includes(eventData.status)){
+        uniqueEvents.set(doc.id, eventData);
+      }
   }));
   
   // --- Formatting ---

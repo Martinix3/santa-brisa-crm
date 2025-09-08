@@ -38,7 +38,13 @@ export async function getAgendaDataAction(userRole: UserRole | null, userId?: st
             notes = await getNotesForUserFS(userId);
         }
 
-        return { orders, events, teamMembers, notes, accounts };
+        return { 
+            orders: JSON.parse(JSON.stringify(orders)), 
+            events: JSON.parse(JSON.stringify(events)), 
+            teamMembers: JSON.parse(JSON.stringify(teamMembers)), 
+            notes: JSON.parse(JSON.stringify(notes)), 
+            accounts: JSON.parse(JSON.stringify(accounts)) 
+        };
     } catch (error) {
         console.error("Error in getAgendaDataAction:", error);
         throw new Error("Failed to fetch agenda data. Please check server logs.");
@@ -48,7 +54,7 @@ export async function getAgendaDataAction(userRole: UserRole | null, userId?: st
 export async function getDailyTasksAction(params: { userId: string, userName: string, userRole: UserRole }): Promise<any[]> {
     try {
         const items = await getDailyTasksService(params);
-        return items;
+        return JSON.parse(JSON.stringify(items));
     } catch (error) {
         console.error("Error in getDailyTasks server action:", error);
         throw new Error("Failed to fetch agenda items.");

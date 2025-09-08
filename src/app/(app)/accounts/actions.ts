@@ -2,33 +2,95 @@
 'use server';
 
 import { adminDb as db } from '@/lib/firebaseAdmin';
-import { addDoc, updateDoc, doc, FieldValue, getDocs, query, where, Timestamp, collection } from 'firebase-admin/firestore';
+import {
+  collection,
+  doc,
+  getDoc,
+  updateDoc,
+  Timestamp,
+  getDocs,
+  query,
+  where,
+  addDoc,
+  writeBatch,
+  FieldValue
+} from 'firebase-admin/firestore';
 import { accountSchema, type AccountFormValues, toSearchName } from '@/lib/schemas/account-schema';
+import { fromFirestore } from '@/services/account-mapper';
+import type { Account, CrmEvent, Order, TeamMember } from '@/types';
+import { getAccountsFS } from '@/services/account-service';
+import { getTeamMembersFS } from '@/services/team-member-service';
+import { getInteractionsForAccountFS } from '@/services/order-service';
+import { getEventsForAccountFS } from '@/services/event-service';
 
-const ACCOUNTS_COLLECTION = 'accounts';
 
-// ⚠️ Esta es una simulación. En una app real, obtendrías el usuario de la sesión.
-async function getCurrentUser() {
-  return { id: 'currentUserId', name: 'Usuario Actual', role: 'Ventas' };
+// --- SERVER ACTIONS ---
+
+export async function getAccountDetailsAction(accountId: string): Promise<{
+  account: Account | null;
+  interactions: Order[];
+  events: CrmEvent[];
+  allAccounts: Account[];
+  allTeamMembers: TeamMember[];
+}> {
+    if (!accountId) return { account: null, interactions: [], events: [], allAccounts: [], allTeamMembers: [] };
+
+    const accountDocRef = db.collection(ACCOUNTS_COLLECTION).doc(accountId);
+    const snap = await accountDocRef.get();
+    const account = snap.exists ? fromFirestore({ id: snap.id, ...snap.data() }) : null;
+
+    if (!account) {
+        return { account: null, interactions: [], events: [], allAccounts: [], allTeamMembers: [] };
+    }
+
+    const [interactions, events, allAccounts, allTeamMembers] = await Promise.all([
+      getInteractionsForAccountFS(accountId, account.name),
+      getEventsForAccountFS(accountId),
+      getAccountsFS(),
+      getTeamMembersFS(['Ventas', 'Admin', 'Clavadista', 'Líder Clavadista']),
+    ]);
+
+    return {
+      account,
+      interactions,
+      events,
+      allAccounts,
+      allTeamMembers,
+    };
 }
 
-// Check de permisos básico.
-function canEditAccounts(user: {role: string}) {
-  return ['Admin','Manager','Ventas'].includes(user.role ?? '');
+
+export async function updateAccountAction(accountId: string, data: Partial<Account>): Promise<void> {
+  const batch = db.batch();
+  const accountDocRef = db.collection(ACCOUNTS_COLLECTION).doc(accountId);
+
+  const firestoreData = { ...toFirestore(data), updatedAt: Timestamp.now() };
+  batch.update(accountDocRef, firestoreData);
+
+  // If the account name changes, we must update all related interactions.
+  if (data.name) {
+    const currentAccountSnap = await accountDocRef.get();
+    const currentName = currentAccountSnap.exists() ? currentAccountSnap.data()?.name : null;
+    if (currentName && currentName !== data.name) {
+      const ordersQuery = db.collection(ORDERS_COLLECTION).where("accountId", "==", accountId);
+      const ordersSnapshot = await ordersQuery.get();
+      ordersSnapshot.forEach(orderDoc => {
+        batch.update(orderDoc.ref, { clientName: data.name });
+      });
+    }
+  }
+
+  await batch.commit();
 }
 
 /**
- * Crea o actualiza una cuenta en Firestore.
- * - Valida los datos de entrada con Zod.
- * - Normaliza el nombre para búsquedas.
- * - Usa FieldValue.serverTimestamp() para las fechas, compatible con Server Actions.
+ * Creates or updates an account in Firestore.
+ * - Validates the data with Zod.
+ * - Normalizes the name for searching.
+ * - Uses FieldValue.serverTimestamp() for dates.
  */
 export async function upsertAccountAction(input: AccountFormValues) {
-  const user = await getCurrentUser();
-  if (!canEditAccounts(user)) {
-    throw new Error('No tienes permisos para crear/editar cuentas.');
-  }
-
+  const user = { id: 'system', name: 'System' }; // Placeholder for actual user logic
   const data = accountSchema.parse(input);
   const searchName = toSearchName(data.name);
 
@@ -46,58 +108,55 @@ export async function upsertAccountAction(input: AccountFormValues) {
     searchName,
     updatedAt: FieldValue.serverTimestamp(),
     updatedBy: user.id,
-    // --- Campos de estado inicial ---
     status: 'lead',
     potencial: 'medio',
     leadScore: 50,
   };
 
   if (data.id) {
-    await updateDoc(doc(db, ACCOUNTS_COLLECTION, data.id), payload);
+    await db.collection(ACCOUNTS_COLLECTION).doc(data.id).update(payload);
     return { ok: true, id: data.id, op: 'updated' as const };
   } else {
-    const accountsCollection = db.collection(ACCOUNTS_COLLECTION);
-    const ref = await addDoc(accountsCollection, {
+    const ref = await db.collection(ACCOUNTS_COLLECTION).add({
       ...payload,
       createdAt: FieldValue.serverTimestamp(),
       createdBy: user.id,
-      owner_user_id: user.id, 
-      responsibleName: user.name, 
+      owner_user_id: user.id,
+      responsibleName: user.name,
     });
     return { ok: true, id: ref.id, op: 'created' as const };
   }
 }
 
 /**
- * Busca una cuenta por searchName; si no existe, la crea.
- * Devuelve { id, name, ownership, distributorId }
+ * Finds an account by searchName; if it doesn't exist, it creates a minimal one.
+ * Returns { id, name, ownership, distributorId }
  */
 export async function findOrCreateAccountByName(input: {
   name: string;
   ownership?: "propio" | "distribuidor";
   distributorId?: string | null;
 }) {
-  const user = await getCurrentUser();
+  const user = { id: 'system', name: 'System' };
   const name = input.name.trim();
   const searchName = toSearchName(name);
 
   const accountsCollection = db.collection(ACCOUNTS_COLLECTION);
+  const q = accountsCollection.where("searchName", "==", searchName).limit(1);
+  const snap = await getDocs(q);
 
-  // 1) buscar por searchName
-  const snap = await getDocs(query(accountsCollection, where("searchName", "==", searchName)));
   if (!snap.empty) {
     const d = snap.docs[0];
     const x = d.data() as any;
     return { id: d.id, name: x.name as string, ownership: x.ownership ?? "propio", distributorId: x.distributorId ?? null };
   }
 
-  // 2) crear mínima si no existe
   const now = Timestamp.now();
   const ownership = input.ownership ?? "propio";
   const docRef = await addDoc(accountsCollection, {
     name,
     searchName,
-    type: "prospect",                 // por defecto
+    type: "prospect",
     ownership,
     distributorId: ownership === "distribuidor" ? (input.distributorId ?? null) : null,
     createdAt: now,

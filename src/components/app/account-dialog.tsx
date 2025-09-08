@@ -36,8 +36,6 @@ import type { Account, TeamMember } from "@/types";
 import { TIPOS_CUENTA, PROVINCIAS_ES, type TipoCuenta } from "@ssot";
 import { Loader2, Truck } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { getTeamMembersFS } from "@/services/team-member-service";
-import { getAccountsFS } from "@/services/account-service";
 import { accountToForm, formToAccountPartial } from "@/services/account-mapper";
 
 const NO_SALES_REP_VALUE = "##NONE##";
@@ -122,6 +120,7 @@ interface AccountDialogProps {
   onOpenChange: (open: boolean) => void;
   onSave: (data: Partial<Account>) => void;
   allAccounts: Account[];
+  allTeamMembers: TeamMember[];
   isReadOnly?: boolean;
 }
 
@@ -131,11 +130,20 @@ export default function AccountDialog({
   onOpenChange,
   onSave,
   allAccounts,
+  allTeamMembers,
   isReadOnly = false,
 }: AccountDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
-  const [salesRepList, setSalesRepList] = React.useState<TeamMember[]>([]);
-  const [distributors, setDistributors] = React.useState<Account[]>([]);
+  
+  const salesRepList = React.useMemo(() => 
+    allTeamMembers.filter(m => m.role === 'Ventas' || m.role === 'Admin' || m.role === 'Manager'),
+    [allTeamMembers]
+  );
+  const distributors = React.useMemo(() => 
+    allAccounts.filter(a => isB2B(a.type)),
+    [allAccounts]
+  );
+
 
   const accountFormSchema = React.useMemo(() => {
     return accountFormSchemaBase.refine(
@@ -158,24 +166,6 @@ export default function AccountDialog({
 
   const accountType = form.watch("type");
   const showDistributorField = !!accountType && !isB2B(accountType);
-
-  React.useEffect(() => {
-    async function loadDataForDialog() {
-      try {
-        const [reps, allAccountsForDistro] = await Promise.all([
-          getTeamMembersFS(["Ventas", "Admin", "Manager"]),
-          getAccountsFS(),
-        ]);
-        setSalesRepList(reps);
-        setDistributors(allAccountsForDistro.filter((a) => isB2B(a.type)));
-      } catch (error) {
-        console.error("Failed to load data for account dialog", error);
-      }
-    }
-    if (isOpen) {
-      loadDataForDialog();
-    }
-  }, [isOpen]);
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -275,3 +265,5 @@ export default function AccountDialog({
     </Dialog>
   );
 }
+
+    

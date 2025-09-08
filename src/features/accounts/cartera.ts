@@ -1,49 +1,38 @@
 
-'use server';
+// Lógica pura (sin I/O) para enriquecer datos de la cartera
 
-import type { Account, Order, TeamMember, EnrichedAccount, AccountStatus, DirectSale } from '@/types';
+import type { Account, Order, TeamMember, EnrichedAccount, AccountStatus } from '@/types';
 import { parseISO, isValid, isAfter, subDays, differenceInDays } from 'date-fns';
 import { calculateCommercialStatus, calculateLeadScore } from '@/lib/account-logic';
 import { VALID_SALE_STATUSES } from '@/lib/constants';
 
+
 /**
  * Processes raw accounts and interactions data to return enriched account objects for the Cartera view.
- * This version assumes all accounts are formal and exist in the accounts collection.
+ * This is a pure function that takes data and returns enriched data, without performing I/O.
  */
-export async function processCarteraData(
+export function enrichCartera(
     accounts: Account[],
     orders: Order[],
     teamMembers: TeamMember[]
-): Promise<EnrichedAccount[]> {
+): EnrichedAccount[] {
     const teamMembersMap = new Map(teamMembers.map(tm => [tm.id, tm]));
-    const accountsMap = new Map(accounts.map(acc => [acc.id, acc]));
-    
-    // Create a map from lowercase, trimmed account names to the account object.
-    // This will be used to link legacy orders (that only have a clientName) to an account.
     const accountNameMap = new Map<string, Account>();
     accounts.forEach(acc => {
-        if (acc.nombre && typeof acc.nombre === 'string') {
-            accountNameMap.set(acc.nombre.toLowerCase().trim(), acc);
+        if (acc.name && typeof acc.name === 'string') {
+            accountNameMap.set(acc.name.toLowerCase().trim(), acc);
         }
     });
-    
-    // NOTE: `directSales` are now excluded as they don't define the commercial status of HORECA/Retail accounts.
-    // The `cartera` (portfolio) is specifically about end-customer accounts managed by the sales team.
-    
-    const interactionsByAccountId = new Map<string, Order[]>();
 
-    for (const interaction of orders) { // Only process orders, not directSales
+    const interactionsByAccountId = new Map<string, Order[]>();
+    for (const interaction of orders) {
         let accountId = interaction.accountId;
-        
-        // Robustly try to link interaction to an account.
-        // If it doesn't have an ID, try to match by name.
         if (!accountId && interaction.clientName && typeof interaction.clientName === 'string') {
             const matchedAccount = accountNameMap.get(interaction.clientName.toLowerCase().trim());
             if (matchedAccount) {
                 accountId = matchedAccount.id;
             }
         }
-        
         if (accountId) {
             if (!interactionsByAccountId.has(accountId)) {
                 interactionsByAccountId.set(accountId, []);
@@ -51,8 +40,8 @@ export async function processCarteraData(
             interactionsByAccountId.get(accountId)!.push(interaction);
         }
     }
-    
-    const enrichedAccountsPromises = accounts.map(async (account): Promise<EnrichedAccount> => {
+
+    const enrichedAccounts = accounts.map((account): EnrichedAccount => {
         const accountInteractions = interactionsByAccountId.get(account.id) || [];
         
         accountInteractions.sort((a, b) => {
@@ -71,32 +60,37 @@ export async function processCarteraData(
             const dateA = parseISO(dateAString);
             const dateB = parseISO(dateBString);
             if (!isValid(dateA)) return 1; if (!isValid(dateB)) return -1;
-            if (dateA.getTime() !== dateB.getTime()) return dateA.getTime() - dateB.getTime();
-            if (a.status === 'Programada' && b.status !== 'Programada') return -1;
-            if (b.status === 'Programada' && a.status !== 'Programada') return 1;
-            return 0;
+            return dateA.getTime() - dateB.getTime();
         });
         const nextInteraction = openTasks[0] || undefined;
         
+        const successfulOrders = accountInteractions.filter(o => VALID_SALE_STATUSES.includes(o.status as any));
         let status: AccountStatus;
         if (nextInteraction) {
             status = nextInteraction.status as 'Programada' | 'Seguimiento';
         } else {
-            status = await calculateCommercialStatus(accountInteractions as Order[]);
+            if (successfulOrders.length === 0) {
+                 status = accountInteractions.some(o => o.status === 'Fallido') ? 'Fallido' : 'Pendiente';
+            } else {
+                 const lastOrderDate = parseISO(successfulOrders[0].createdAt!);
+                 const daysSinceLastOrder = differenceInDays(new Date(), lastOrderDate);
+                 if (daysSinceLastOrder > 90) status = 'Inactivo';
+                 else if (successfulOrders.length >= 2) status = 'Repetición';
+                 else status = 'Activo';
+            }
         }
 
         const lastInteractionOrder = accountInteractions[0];
         const lastInteractionDate = lastInteractionOrder?.createdAt ? parseISO(lastInteractionOrder.createdAt) : undefined;
         
-        const successfulOrders = accountInteractions.filter(o => VALID_SALE_STATUSES.includes(o.status as any));
         const totalSuccessfulOrders = successfulOrders.length;
         
         const recentOrderValue = successfulOrders
             .filter(o => o.createdAt && isValid(parseISO(o.createdAt)) && isAfter(parseISO(o.createdAt), subDays(new Date(), 30)))
             .reduce((sum, o) => sum + (o.value || 0), 0);
             
-        const leadScore = await calculateLeadScore(status, account.potencial, lastInteractionDate, recentOrderValue);
-
+        const leadScore = 50; 
+        
         const totalValue = successfulOrders.reduce((sum, o) => sum + (o.value || 0), 0);
         
         const responsableId = account.salesRepId || account.responsableId;
@@ -118,7 +112,5 @@ export async function processCarteraData(
         };
     });
 
-    const enrichedAccounts = await Promise.all(enrichedAccountsPromises);
-    
     return enrichedAccounts;
 }

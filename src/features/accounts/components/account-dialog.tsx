@@ -121,7 +121,7 @@ export default function AccountDialog({ open, onOpenChange, initial, onSaved, di
               <Select value={ownership} onValueChange={(v) => form.setValue("ownership", v as any, { shouldDirty: true })}>
                 <SelectTrigger><SelectValue placeholder="Selecciona"/></SelectTrigger>
                 <SelectContent>
-                  {OWNERSHIP_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                  {(OWNERSHIP_OPTIONS ?? []).map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </Field>

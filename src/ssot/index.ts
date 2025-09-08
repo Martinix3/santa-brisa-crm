@@ -56,60 +56,81 @@ export type InteractionStatus = typeof ESTADOS_INTERACCION[number];
 export const ESTADOS_PEDIDO = ["Programada", "Pendiente", "Confirmado", "Procesando", "Enviado", "Entregado", "Facturado", "Pagado", "Cancelado", "Fallido", "Seguimiento", "Completado"] as const;
 export type EstadoPedido = typeof ESTADOS_PEDIDO[number];
 
+export const SIGUIENTES_ACCIONES = ['Llamar', 'Visitar', 'Enviar Muestras', 'Preparar Propuesta', 'Opción personalizada'] as const;
+export type SiguienteAccion = typeof SIGUIENTES_ACCIONES[number];
+
+export const MOTIVOS_FALLO = ['Precio', 'No Interesado', 'Sin Stock', 'Competencia', 'Otro (especificar)'] as const;
+export type MotivoFallo = typeof MOTIVOS_FALLO[number];
+
+export const TIPOS_CLIENTE = ['HORECA', 'Retail Minorista', 'Gran Superficie', 'Distribuidor', 'Importador', 'Cliente Final Directo', 'Evento Especial', 'Otro'] as const;
+export type TipoCliente = typeof TIPOS_CLIENTE[number];
+
+export const METODOS_PAGO = ['Adelantado', 'Giro Bancario', 'Transferencia', 'Confirming'] as const;
+export type MetodoPago = typeof METODOS_PAGO[number];
+
 // ------------------------------------------------------------
 // Eventos y Material PLV
 // ------------------------------------------------------------
-export const TIPOS_EVENTO = ["ACTIVACION", "EVENTO", "FORMACION", "DEGUSTACION", "OTRO"] as const;
-export type EventKind = typeof TIPOS_EVENTO[number];
+export const TIPOS_EVENTO = ["Activación en Tienda", "Evento Patrocinado", "Feria Comercial", "Formación de Producto", "Cata / Degustación"] as const;
+export type TipoEventoCrm = typeof TIPOS_EVENTO[number];
+
+export const ESTADOS_EVENTO_CRM = ["Planificado", "Confirmado", "En Curso", "Completado", "Cancelado", "Pospuesto"] as const;
+export type EstadoEventoCrm = typeof ESTADOS_EVENTO_CRM[number];
 
 export const ESTADOS_PLV = ["SOLICITADO", "ENTREGADO", "INSTALADO", "RETIRADO"] as const;
 export type PlvStatus = typeof ESTADOS_PLV[number];
 
 
 // ------------------------------------------------------------
-// Mapeos de compatibilidad (Legacy -> Canónico)
+// ERP: Compras, Inventario, Producción
 // ------------------------------------------------------------
-export const MAPEO_ESTADO_CUENTA_LEGACY: Record<string, AccountStage | undefined> = Object.freeze({
-  "Activo": "ACTIVA",
-  "Repetición": "ACTIVA", // Repetición es un estado derivado de 'ACTIVA' con >1 pedido
-  "Seguimiento": "SEGUIMIENTO",
-  "Programada": "SEGUIMIENTO",
-  "Inactivo": "INACTIVA",
-  "Pendiente": "POTENCIAL",
-  "Fallido": "FALLIDA",
-  "lead": "POTENCIAL", // si usas slugs en inglés
-});
+export const ESTADOS_DOCUMENTO = ['proforma', 'factura_pendiente', 'factura_recibida', 'factura_validada'] as const;
+export type EstadoDocumento = typeof ESTADOS_DOCUMENTO[number];
 
-export const MAPEO_TIPO_CUENTA_LEGACY: Record<string, TipoCuenta | undefined> = Object.freeze({
-    "HORECA": "HORECA",
-    "Distribuidor": "DISTRIBUIDOR",
-    "Importador": "IMPORTADOR",
-    "Retail Minorista": "RETAIL",
-    "Gran Superficie": "RETAIL",
-    "Cliente Final Directo": "CLIENTE_FINAL",
-    "Otro": "OTRO",
-    // slugs
-    "customer": "CLIENTE_FINAL",
-    "distributor": "DISTRIBUIDOR",
-    "importer": "IMPORTADOR",
-    "prospect": "HORECA", // Asumimos que los prospectos son HORECA por defecto
-});
+export const ESTADOS_PAGO = ['pendiente', 'parcial', 'pagado', 'pagado_adelantado'] as const;
+export type EstadoPago = typeof ESTADOS_PAGO[number];
 
+export const ESTADOS_PRODUCCION = ['Draft', 'En curso', 'Pausada', 'Finalizada', 'Cancelada'] as const;
+export type ProductionRunStatus = typeof ESTADOS_PRODUCCION[number];
 
-export function normalizarEstadoCuenta(v: string | undefined): AccountStage | undefined {
-  if (!v) return undefined;
-  const m = MAPEO_ESTADO_CUENTA_LEGACY[v];
-  if (m) return m;
-  if ((ESTADOS_CUENTA as readonly string[]).includes(v)) return v as AccountStage;
-  return undefined; // No lanzar error, solo ignorar si no se puede mapear
-}
+export const ESTADOS_QC = ['Pending', 'Released', 'Rejected'] as const;
+export type EstadoQC = typeof ESTADOS_QC[number];
 
-export function normalizarTipoCuenta(v: string | undefined): TipoCuenta | undefined {
-    if (!v) return undefined;
-    const m = MAPEO_TIPO_CUENTA_LEGACY[v];
-    if (m) return m;
-    if ((TIPOS_CUENTA_VALUES as readonly string[]).includes(v)) return v as TipoCuenta;
-    return "OTRO";
+export const ESTADOS_TANQUE = ['Libre', 'Ocupado', 'Limpieza'] as const;
+export type EstadoTanque = typeof ESTADOS_TANQUE[number];
+
+export const ESTADOS_VENTA_DIRECTA = ['borrador', 'confirmado', 'enviado', 'entregado', 'facturado', 'pagado', 'cancelado', 'en depósito'] as const;
+export type EstadoVentaDirecta = typeof ESTADOS_VENTA_DIRECTA[number];
+
+export const CANALES_VENTA_DIRECTA = ['directo', 'online', 'estrategico', 'exportacion'] as const;
+export type CanalVentaDirecta = typeof CANALES_VENTA_DIRECTA[number];
+
+export const PROPOSITOS_MUESTRA = ['Primera Visita', 'Seguimiento', 'Evento', 'Negociación', 'Apoyo Marketing'] as const;
+export type PropositoMuestra = typeof PROPOSITOS_MUESTRA[number];
+
+export const ESTADOS_SOLICITUD_MUESTRA = ['Pendiente', 'Aprobada', 'Rechazada', 'Enviada'] as const;
+export type EstadoSolicitudMuestra = typeof ESTADOS_SOLICITUD_MUESTRA[number];
+
+export const UDM = ['unit', 'kg', 'g', 'l', 'ml'] as const;
+export type UdM = typeof UDM[number];
+
+export const TIPOS_BOM = ["blend", "fill"] as const;
+export type TipoBOM = typeof TIPOS_BOM[number];
+
+export const TIPOS_EJECUCION = ['blend', 'fill'] as const;
+export type TipoEjecucion = typeof TIPOS_EJECUCION[number];
+
+export const TIPOS_PEDIDO = ['directa', 'deposito'] as const;
+export type TipoPedido = typeof TIPOS_PEDIDO[number];
+
+export const TIPOS_CATEGORIA = ['inventory', 'cost'] as const;
+export type TipoCategoria = typeof TIPOS_CATEGORIA[number];
+
+export interface AmbassadorSettings {
+    horeca: { pago_apertura: number; bonus_segundo_pedido: number; comision_inicial: number; comision_indefinida: number; min_pedido: number; segundo_pedido_plazo_dias: number; };
+    distribuidor_mediano: { pago_apertura: number; bonus_segundo_pedido: number; comision_inicial: number; comision_indefinida: number; min_pedido: number; segundo_pedido_plazo_dias: number; };
+    distribuidor_grande: { pago_apertura: number; bonus_segundo_pedido: number; comision_inicial: number; comision_indefinida: number; min_pedido: number; segundo_pedido_plazo_dias: number; };
+    distribuidor_top: { pago_apertura: number; bonus_segundo_pedido: number; comision_inicial: number; comision_indefinida: number; min_pedido: number; segundo_pedido_plazo_dias: number; };
 }
 
 // ------------------------------------------------------------
@@ -160,15 +181,37 @@ export const RESULTADOS_INTERACCION = [
     { value: 'pendiente', label: 'Pendiente de registrar'},
 ] as const;
 
+export const MONEDAS = ["EUR", "USD", "MXN"] as const;
+export type Moneda = typeof MONEDAS[number];
+
+export const orderChannelOptions = [
+    { value: 'propio', label: 'Propio' },
+    { value: 'distribuidor', label: 'Distribuidor' },
+] as const;
+
+export const userRolesList = ["Admin", "Ventas", "Distributor", "Clavadista", "Líder Clavadista"] as const;
 
 // ------------------------------------------------------------
-// Aliases de transición (DEPRECADO).
+// Listas para el diálogo de edición de pedidos
 // ------------------------------------------------------------
-/** @deprecated Usa RolUsuario */
-export const USER_ROLES = ROLES_USUARIO;
-/** @deprecated Usa RolUsuario */
-export type UserRole = RolUsuario;
-/** @deprecated Usa AccountStage */
-export const ACCOUNT_STATUSES = ESTADOS_CUENTA;
-/** @deprecated Usa TipoCuenta */
-export const ACCOUNT_TYPES = TIPOS_CUENTA_VALUES;
+
+export const paymentMethodList = METODOS_PAGO;
+export const nextActionTypeList = SIGUIENTES_ACCIONES;
+export const failureReasonList = MOTIVOS_FALLO;
+export const clientTypeList = TIPOS_CLIENTE;
+export const crmEventTypeList = TIPOS_EVENTO;
+export const crmEventStatusList = ESTADOS_EVENTO_CRM;
+
+
+// ------------------------------------------------------------
+// Listas para geografía, etc.
+// ------------------------------------------------------------
+export const PROVINCIAS_ES = [
+  "Álava", "Albacete", "Alicante", "Almería", "Asturias", "Ávila", "Badajoz", "Barcelona",
+  "Burgos", "Cáceres", "Cádiz", "Cantabria", "Castellón", "Ciudad Real", "Córdoba",
+  "La Coruña", "Cuenca", "Gerona", "Granada", "Guadalajara", "Guipúzcoa", "Huelva",
+  "Huesca", "Islas Baleares", "Jaén", "León", "Lérida", "Lugo", "Madrid", "Málaga",
+  "Murcia", "Navarra", "Orense", "Palencia", "Las Palmas", "Pontevedra", "La Rioja",
+  "Salamanca", "Segovia", "Sevilla", "Soria", "Tarragona", "Santa Cruz de Tenerife",
+  "Teruel", "Toledo", "Valencia", "Valladolid", "Vizcaya", "Zamora", "Zaragoza"
+] as const;

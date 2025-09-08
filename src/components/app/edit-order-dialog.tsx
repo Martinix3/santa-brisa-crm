@@ -1,4 +1,5 @@
 
+
       
 "use client";
 
@@ -49,9 +50,9 @@ import Link from "next/link";
 import { 
     EstadoPedido as OrderStatus, 
     RolUsuario as UserRole, 
-    SiguienteAccion as NextActionType, 
-    MotivoFallo as FailureReasonType, 
-    TipoCliente as ClientType, 
+    SiguienteAccion, 
+    MotivoFallo, 
+    TipoCliente, 
     ESTADOS_PEDIDO as orderStatusesList, 
     SIGUIENTES_ACCIONES as nextActionTypeList, 
     MOTIVOS_FALLO as failureReasonList, 
@@ -59,7 +60,7 @@ import {
     METODOS_PAGO as paymentMethodList,
     CanalOrigenColocacion,
     CANALES_ORIGEN_COLOCACION as canalOrigenColocacionList,
-    MetodoPago as PaymentMethod,
+    MetodoPago,
 } from "@ssot";
 
 const NO_CLAVADISTA_VALUE = "##NONE##";
@@ -72,21 +73,21 @@ const editOrderFormSchema = z.object({
   salesRep: z.string().optional(),
   clavadistaId: z.string().optional().nullable(),
   canalOrigenColocacion: z.enum(canalOrigenColocacionList as [CanalOrigenColocacion, ...CanalOrigenColocacion[]]).optional(),
-  paymentMethod: z.enum(paymentMethodList as [PaymentMethod, ...PaymentMethod[]]).optional(),
+  paymentMethod: z.enum(paymentMethodList as [MetodoPago, ...MetodoPago[]]).optional(),
   invoiceUrl: z.string().trim().url("Debe ser una URL válida.").or(z.literal("")).optional().nullable(),
   invoiceFileName: z.string().optional(),
   assignedMaterials: z.array(z.object({
     materialId: z.string().min(1, "Debe seleccionar un material."),
     quantity: z.coerce.number().min(1, "La cantidad debe ser al menos 1."),
   })).optional().default([]),
-  clientType: z.enum(clientTypeList as [ClientType, ...ClientType[]]).optional(),
+  clientType: z.enum(clientTypeList as [TipoCliente, ...TipoCliente[]]).optional(),
   numberOfUnits: z.coerce.number({ invalid_type_error: "Debe ser un número." }).positive("El número de unidades debe ser positivo.").optional().nullable(),
   unitPrice: z.coerce.number({ invalid_type_error: "Debe ser un número." }).positive("El precio unitario debe ser positivo.").optional().nullable(),
   notes: z.string().optional(),
-  nextActionType: z.enum(nextActionTypeList as [NextActionType, ...NextActionType[]]).optional(),
+  nextActionType: z.enum(nextActionTypeList as [SiguienteAccion, ...SiguienteAccion[]]).optional(),
   nextActionCustom: z.string().optional(),
   nextActionDate: z.date().optional(),
-  failureReasonType: z.enum(failureReasonList as [FailureReasonType, ...FailureReasonType[]]).optional(),
+  failureReasonType: z.enum(failureReasonList as [MotivoFallo, ...MotivoFallo[]]).optional(),
   failureReasonCustom: z.string().optional(),
 });
 
@@ -128,7 +129,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     if (order.accountId) {
       return allAccounts.find(acc => acc.id === order.accountId) || null;
     }
-    return allAccounts.find(acc => acc.nombre.toLowerCase().trim() === order.clientName.toLowerCase().trim()) || null;
+    return allAccounts.find(acc => acc.nombre && order.clientName && acc.nombre.toLowerCase().trim() === order.clientName.toLowerCase().trim()) || null;
   }, [order, allAccounts]);
 
   const formatAddressForDisplay = (address?: AddressDetails): string => {
@@ -579,5 +580,3 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     </Dialog>
   );
 }
-
-    

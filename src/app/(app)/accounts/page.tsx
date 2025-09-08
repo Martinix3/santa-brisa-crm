@@ -344,3 +344,4 @@ export default function AccountsPage() {
 type BucketFilter = "Todos" | "Vencidas" | "Para Hoy";
 type SortOption = "leadScore_desc" | "nextAction_asc" | "lastInteraction_desc";
 type AccountFormValues = import('@/lib/schemas/account-schema').AccountFormValues;
+

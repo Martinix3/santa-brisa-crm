@@ -7,8 +7,11 @@ import { getTeamMembersFS } from '@/services/team-member-service';
 import { getAllNotesFS, getNotesForUserFS } from '@/services/note-service';
 import { getAccountsFS } from '@/services/account-service';
 import type { Order, CrmEvent, TeamMember, RolUsuario as UserRole, NewScheduledTaskData, EventFormValues, StickyNote, Account } from '@/types';
-import { AgendaItemType } from '@/app/(app)/my-agenda/page';
 import { getDailyTasks as getDailyTasksService } from '@/services/agenda-service';
+
+// This is now an empty type definition for the page, as it's not used elsewhere.
+export type AgendaItemType = 'tarea_comercial' | 'evento' | 'tarea_administrativa';
+
 
 export async function getAgendaDataAction(userRole: UserRole | null, userId?: string): Promise<{
     orders: Order[],

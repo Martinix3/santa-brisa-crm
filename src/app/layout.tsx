@@ -3,6 +3,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
+import "@/styles/sb-table.css"; // Import the new styles
 
 export const metadata: Metadata = {
   title: "CRM de Santa Brisa",
@@ -20,7 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body className={cn("min-h-screen bg-background font-sans antialiased")}>
+      <body className={cn("min-h-screen bg-background font-sans antialiased", "sb-theme")}>
         <AuthProvider>
           {children}
           <Toaster />

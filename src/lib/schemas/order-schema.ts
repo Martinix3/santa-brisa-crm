@@ -1,7 +1,6 @@
 import * as z from "zod";
-import { OrderChannel, LineType, Currency } from "@ssot";
+import { Currency, LineType, OrderChannel } from "@ssot";
 
-// Opciones para los Selects, importados desde el SSOT
 export const orderChannelOptions = [
   { value: "propio", label: "Propio" },
   { value: "distribuidor", label: "Distribuidor" },
@@ -26,13 +25,14 @@ export const orderLineSchema = z.object({
 export type OrderLine = z.infer<typeof orderLineSchema>;
 
 export const orderSchema = z.object({
-  accountId: z.string(),
-  accountName: z.string(),
+  accountId: z.string().optional(),
+  accountName: z.string().min(1, "El nombre de la cuenta es obligatorio."),
   channel: z.custom<OrderChannel>(),
   distributorId: z.string().optional().nullable(),
   currency: z.custom<Currency>().default("EUR"),
   lines: z.array(orderLineSchema).min(1, "Debe añadir al menos una línea al pedido."),
   notes: z.string().optional().nullable(),
+  ownershipHint: z.string().optional(), // Hint for account creation
 });
 
 export type OrderFormValues = z.infer<typeof orderSchema>;

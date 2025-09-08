@@ -1,16 +1,23 @@
 import * as z from "zod";
 import { 
-    interactionTypeOptions, 
-    interactionOutcomeOptions,
-    type InteractionType,
-    type InteractionOutcome
+    TIPOS_INTERACCION,
+    RESULTADOS_INTERACCION,
+    type TipoInteraccion,
+    type ResultadoInteraccion
 } from "@ssot";
+import { OWNERSHIP_VALUES, type Ownership } from "./account-schema";
 
 export const interactionSchema = z.object({
-  accountId: z.string().min(1, "Selecciona una cuenta"),
-  type: z.enum(interactionTypeOptions.map(o => o.value) as [InteractionType, ...InteractionType[]]),
+  // Puede ser un ID existente o un nombre nuevo
+  accountId: z.string().optional(),
+  accountName: z.string().min(2, "El nombre de la cuenta es obligatorio."),
+  
+  // Hint de ownership para creación implícita
+  ownershipHint: z.enum(OWNERSHIP_VALUES as [Ownership, ...Ownership[]]).default("propio"),
+
+  type: z.enum(TIPOS_INTERACCION.map(o => o.value) as [TipoInteraccion, ...TipoInteraccion[]]),
   date: z.coerce.date().default(() => new Date()),
-  outcome: z.enum(interactionOutcomeOptions.map(o => o.value) as [InteractionOutcome, ...InteractionOutcome[]]).optional().nullable(),
+  outcome: z.enum(RESULTADOS_INTERACCION.map(o => o.value) as [ResultadoInteraccion, ...ResultadoInteraccion[]]).optional().nullable(),
   note: z.string().optional().nullable(),
   nextActionAt: z.coerce.date().optional().nullable(), // próxima cita/recordatorio
   originatingTaskId: z.string().optional().nullable(), // si viene de una tarea programada

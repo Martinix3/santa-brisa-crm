@@ -4,15 +4,17 @@
 import { adminDb as db } from '@/lib/firebaseAdmin';
 import {
   collection, addDoc, updateDoc, doc, Timestamp,
-  getDocs, query, orderBy, limit, where
+  getDocs, query, orderBy, limit, where, getDoc
 } from 'firebase-admin/firestore';
 import type { InteractionFormValues } from '@/lib/schemas/interaction-schema';
+import { toSearchName } from '@/lib/schemas/account-schema';
 
 const INTERACTIONS_COLLECTION = 'orders'; // Using 'orders' collection with a different status
 const ACCOUNTS_COLLECTION = 'accounts';
 
 // This is a placeholder. Replace with your actual user authentication logic.
 async function getCurrentUser() {
+  // In a real app, you'd get this from the session/headers.
   return { id: 'currentUserId', name: 'Usuario Actual', role: 'Ventas' };
 }
 
@@ -27,13 +29,52 @@ export async function createInteractionAction(input: InteractionFormValues) {
     throw new Error('No tienes permisos para registrar interacciones.');
   }
 
-  // const data = interactionSchema.parse(input);
   const now = Timestamp.now();
+  let accountId = input.accountId;
+  let accountName = input.accountName;
+
+  // Handle implicit account creation
+  if (!accountId && accountName) {
+    const searchName = toSearchName(accountName);
+    const existingQuery = query(collection(db, ACCOUNTS_COLLECTION), where('searchName', '==', searchName), limit(1));
+    const existingSnap = await getDocs(existingQuery);
+
+    if (!existingSnap.empty) {
+      accountId = existingSnap.docs[0].id;
+    } else {
+      const newAccountData = {
+          name: accountName,
+          searchName,
+          type: 'prospect', // Default type for implicit creation
+          ownership: input.ownershipHint || 'propio',
+          status: 'lead',
+          potencial: 'medio',
+          leadScore: 50,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: user.id,
+          owner_user_id: user.id,
+          responsibleName: user.name,
+      };
+      const accountRef = await addDoc(collection(db, ACCOUNTS_COLLECTION), newAccountData);
+      accountId = accountRef.id;
+    }
+  } else if(accountId) {
+      const accountSnap = await getDoc(doc(db, ACCOUNTS_COLLECTION, accountId));
+      if(accountSnap.exists()) {
+          accountName = accountSnap.data()?.name || accountName;
+      }
+  }
+
+  if (!accountId) {
+    throw new Error("La cuenta es obligatoria para registrar una interacción.");
+  }
+
 
   // 1) Save interaction
   const ref = await addDoc(collection(db, INTERACTIONS_COLLECTION), {
-    accountId: input.accountId,
-    clientName: 'Hardcoded Name', // This needs to be fixed by fetching account name
+    accountId: accountId,
+    clientName: accountName,
     type: input.type,
     status: 'Completado',
     date: Timestamp.fromDate(input.date),
@@ -47,7 +88,6 @@ export async function createInteractionAction(input: InteractionFormValues) {
 
   // 2) If this interaction came from a scheduled task, mark it as completed
   if (input.originatingTaskId) {
-    // Assuming tasks are in the 'orders' collection with a specific status
     await updateDoc(doc(db, 'orders', input.originatingTaskId), {
       status: 'Completado',
       lastUpdated: now,
@@ -56,13 +96,13 @@ export async function createInteractionAction(input: InteractionFormValues) {
   }
 
   // 3) Touch the account with useful info for scoring/status calculation
-  await updateDoc(doc(db, ACCOUNTS_COLLECTION, input.accountId), {
+  await updateDoc(doc(db, ACCOUNTS_COLLECTION, accountId), {
     lastInteractionAt: Timestamp.fromDate(input.date),
     lastUpdated: now,
     lastTouchedBy: user.id,
   });
 
-  return { ok: true, id: ref.id };
+  return { ok: true, id: ref.id, accountId: accountId };
 }
 
 /** For a simple account selector (top recent) */
@@ -90,7 +130,7 @@ export const saveInteractionFS = async (
     }
 
     const accountRef = doc(db, 'accounts', accountId);
-    const accountSnap = await accountRef.get();
+    const accountSnap = await getDoc(accountRef);
     if (!accountSnap.exists()) throw new Error("Account not found");
 
     const newOrderRef = doc(collection(db, 'orders'));

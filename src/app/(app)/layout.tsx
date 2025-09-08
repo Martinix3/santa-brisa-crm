@@ -5,7 +5,7 @@ import * as React from 'react';
 import { useEffect } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { useRouter, usePathname } from 'next/navigation';
-import { Loader2, AlertTriangle, GlassWater, Citrus, Palette } from 'lucide-react';
+import { Loader2, AlertTriangle, GlassWater, Citrus, Palette, Plus, Zap } from 'lucide-react';
 import Logo from '@/components/icons/Logo';
 import { Button } from '@/components/ui/button';
 
@@ -40,6 +40,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import { RolUsuario as UserRole } from "@ssot";
+import QuickHubDialog from "@/features/hub/quick-hub-dialog";
+
 
 // --- Auth Guard Component ---
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -81,6 +83,19 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
 export default function MainAppLayout({ children }: { children: React.ReactNode }) {
   const { user, logout, dataSignature } = useAuth();
+  const [hubOpen, setHubOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const mod = navigator.platform.toLowerCase().includes("mac") ? e.metaKey : e.ctrlKey;
+      if (mod && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setHubOpen(true);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   
   return (
     <AuthGuard>
@@ -99,7 +114,10 @@ export default function MainAppLayout({ children }: { children: React.ReactNode 
               <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
                  <SidebarTrigger className="md:hidden" />
                  <div className="ml-auto flex items-center gap-2">
-                   {/* <DailyTasksWidget/> */}
+                    <Button onClick={() => setHubOpen(true)} size="sm" className="gap-2">
+                      <Zap className="size-4" />
+                      <span className="hidden sm:inline">Acciones</span>
+                    </Button>
                    <UserMenu userEmail={user?.email} logout={logout}/>
                  </div>
               </header>
@@ -111,6 +129,7 @@ export default function MainAppLayout({ children }: { children: React.ReactNode 
             </div>
           </div>
         </SidebarProvider>
+        <QuickHubDialog open={hubOpen} onOpenChange={setHubOpen} />
       </CategoriesProvider>
     </AuthGuard>
   );
@@ -329,7 +348,7 @@ function UserMenu({ userEmail, logout }: UserMenuProps) {
             </div>
           </DropdownMenuLabel>
           <Separator />
-           <DropdownMenuItem asChild disabled={userRole !== 'Clavadista' || !teamMember}>
+           <DropdownMenuItem asChild disabled={userRole !== 'Clavadista'}>
               <Link href={profileLink}>
                 <UserCircle className="mr-2 h-4 w-4" />
                 <span>Mi Perfil</span>

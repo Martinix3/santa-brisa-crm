@@ -260,19 +260,38 @@ export default function AccountsPage() {
         return false;
       });
 
-    const hasActiveOrder = (acc: EnrichedAccount) => ['Activo', 'Repetición'].includes(acc.status);
-    const isInactive = (acc: EnrichedAccount) => acc.status === 'Inactivo';
-    const isPotential = (acc: EnrichedAccount) => acc.status === 'Seguimiento';
-    const isPending = (acc: EnrichedAccount) => acc.status === 'Programada' || acc.status === 'Pendiente';
-    const isFailed = (acc: EnrichedAccount) => acc.status === 'Fallido';
+    return filtered.sort(sortFunction).reduce((groups, acc) => {
+      switch (acc.status) {
+        case 'Activo':
+        case 'Repetición':
+          groups.activeAccounts.push(acc);
+          break;
+        case 'Seguimiento':
+          groups.potentialAccounts.push(acc);
+          break;
+        case 'Programada':
+        case 'Pendiente':
+          groups.pendingAccounts.push(acc);
+          break;
+        case 'Inactivo':
+          groups.inactiveAccounts.push(acc);
+          break;
+        case 'Fallido':
+          groups.failedAccounts.push(acc);
+          break;
+        default:
+          // You might want to handle uncategorized accounts, maybe add them to a separate group
+          break;
+      }
+      return groups;
+    }, {
+      activeAccounts: [] as EnrichedAccount[],
+      potentialAccounts: [] as EnrichedAccount[],
+      pendingAccounts: [] as EnrichedAccount[],
+      inactiveAccounts: [] as EnrichedAccount[],
+      failedAccounts: [] as EnrichedAccount[],
+    });
 
-    return {
-      activeAccounts: filtered.filter(acc => hasActiveOrder(acc)).sort(sortFunction),
-      potentialAccounts: filtered.filter(acc => isPotential(acc)).sort(sortFunction),
-      pendingAccounts: filtered.filter(acc => isPending(acc)).sort(sortFunction),
-      failedAccounts: filtered.filter(acc => isFailed(acc)).sort(sortFunction),
-      inactiveAccounts: filtered.filter(acc => isInactive(acc)).sort(sortFunction),
-    };
   }, [searchTerm, typeFilter, enrichedAccounts, responsibleFilter, bucketFilter, isAdmin, sortOption]);
 
   

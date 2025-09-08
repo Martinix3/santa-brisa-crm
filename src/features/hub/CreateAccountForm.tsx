@@ -27,7 +27,7 @@ export function CreateAccountForm({
       const res = await upsertAccountAction({
         id: initialAccount?.id,
         ...data,
-      } as any); // Type assertion might be needed depending on upsert function signature
+      } as any);
 
       toast({
         title: res.op === "created" ? "Cuenta creada" : "Cuenta actualizada",
@@ -44,9 +44,6 @@ export function CreateAccountForm({
     }
   };
 
-  // We render the full AccountDialog but stripped of its Dialog shell
-  // The state for this needs to be managed carefully. We pass a fake isOpen=true
-  // and an empty onOpenChange because the visibility is controlled by the parent Tabs component.
   return (
     <div className="p-1">
       <AccountDialog

@@ -3,7 +3,8 @@
 
 import * as React from 'react';
 import { useEffect, useRef } from 'react';
-import * as monaco from 'monaco-editor';
+import type * as monaco from 'monaco-editor';
+import { Loader2 } from 'lucide-react';
 
 interface EditorProps {
   value: string;
@@ -16,29 +17,41 @@ export default function Editor({ value, language = 'typescript', onChange, optio
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const subscriptionRef = useRef<monaco.IDisposable | null>(null);
+  const [isLoading, setIsLoading] = React.useState(true);
 
   useEffect(() => {
-    if (containerRef.current) {
-      editorRef.current = monaco.editor.create(containerRef.current, {
-        value,
-        language,
-        automaticLayout: true,
-        theme: 'vs-dark',
-        minimap: { enabled: false },
-        ...options,
-      });
+    let cancelled = false;
 
-      if (onChange) {
-        subscriptionRef.current = editorRef.current.onDidChangeModelContent(() => {
-          const currentValue = editorRef.current?.getValue();
-          if (currentValue !== undefined) {
-            onChange(currentValue);
-          }
+    const initMonaco = async () => {
+        const monacoLoader = await import('@monaco-editor/loader');
+        const monacoInstance = await monacoLoader.default.init();
+        
+        if (cancelled || !containerRef.current) return;
+        
+        editorRef.current = monacoInstance.editor.create(containerRef.current, {
+            value,
+            language,
+            automaticLayout: true,
+            theme: 'vs-dark',
+            minimap: { enabled: false },
+            ...options,
         });
-      }
-    }
+
+        if (onChange) {
+            subscriptionRef.current = editorRef.current.onDidChangeModelContent(() => {
+            const currentValue = editorRef.current?.getValue();
+            if (currentValue !== undefined) {
+                onChange(currentValue);
+            }
+            });
+        }
+        setIsLoading(false);
+    };
+
+    initMonaco();
 
     return () => {
+      cancelled = true;
       if (subscriptionRef.current) {
         subscriptionRef.current.dispose();
       }
@@ -63,11 +76,21 @@ export default function Editor({ value, language = 'typescript', onChange, optio
     if (editorRef.current) {
       const model = editorRef.current.getModel();
       if (model) {
-        monaco.editor.setModelLanguage(model, language);
+        // Since we are using an instance, we access editor.setModelLanguage this way
+        editorRef.current._editorService.setModelLanguage(model, language);
       }
     }
   }, [language]);
 
 
-  return <div ref={containerRef} className="h-full w-full border rounded-md" />;
+  return (
+    <div className="relative h-full w-full">
+        {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-800 bg-opacity-50 z-10">
+                <Loader2 className="h-8 w-8 animate-spin text-white" />
+            </div>
+        )}
+        <div ref={containerRef} className="h-full w-full border rounded-md" />
+    </div>
+    );
 }

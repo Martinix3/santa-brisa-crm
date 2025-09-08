@@ -4,7 +4,7 @@
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Users, Goal, Target, Settings, Archive, PackageCheck, Wrench, Waypoints, KeyRound, Award, Euro, Receipt, HardHat, Briefcase, Server, Cog } from "lucide-react"; 
+import { Users, Goal, Target, Settings, Archive, PackageCheck, Wrench, Waypoints, KeyRound, Award, Euro, Receipt, HardHat, Briefcase, Server, Cog, TestTube2 } from "lucide-react"; 
 import { useAuth } from "@/contexts/auth-context";
 import { AlertTriangle } from "lucide-react";
 
@@ -35,6 +35,13 @@ const adminSections = [
     description: "Visualizar los permisos detallados para cada rol de usuario.",
     href: "/admin/permissions",
     icon: KeyRound,
+    group: "General"
+  },
+  {
+    title: "Depuración de Cuentas",
+    description: "Analizar todas las relaciones y datos de una cuenta.",
+    href: "/admin/account-debugger",
+    icon: TestTube2,
     group: "General"
   },
   {

@@ -1,25 +1,16 @@
-
 'use server';
 
 import { adminDb as db } from '@/lib/firebaseAdmin';
 import { collection, addDoc, updateDoc, doc, Timestamp, getDocs, query, where } from 'firebase-admin/firestore';
 import { accountSchema, type AccountFormValues, toSearchName } from '@/lib/schemas/account-schema';
-import { getAccounts, getTeamMembers } from '@/features/accounts/repo';
-import { getOrders } from '@/services/order-service';
-import { enrichCartera } from '@/features/accounts/cartera';
-import type { Order } from '@/types';
-
 
 // Colecciones (ajusta si tu naming difiere)
 const ACCOUNTS = 'accounts';
 
 // ⚠️ Sustituye por tu auth real
 async function getCurrentUser() {
-  // Esta es una implementación placeholder. En una app real, obtendrías el UID del usuario de la sesión.
-  // Aquí simulamos que obtenemos un usuario admin para que las pruebas funcionen.
-  const users = await getTeamMembersFS(['Admin']);
-  if(users.length > 0) return users[0];
-  return { id: 'adminUserId', name: 'Admin User', role: 'Admin' };
+  // p.ej. lee sesión/headers. Placeholder seguro:
+  return { id: 'currentUserId', name: 'Usuario Actual', role: 'Ventas' };
 }
 
 // (Opcional) check permisos básicos
@@ -77,7 +68,6 @@ export async function upsertAccountAction(input: AccountFormValues) {
     const now = Timestamp.now();
     const ref = await db.collection(ACCOUNTS).add({
       ...payload,
-      status: 'prospect', // Default status for new accounts
       createdAt: now,
       createdBy: user.id,
       owner_user_id: user.id,
@@ -85,46 +75,4 @@ export async function upsertAccountAction(input: AccountFormValues) {
     });
     return { ok: true, id: ref.id, op: 'created' as const };
   }
-}
-
-export async function getCarteraBundle() {
-    const [accounts, orders, teamMembers] = await Promise.all([
-        getAccounts(),
-        getOrders(),
-        getTeamMembers()
-    ]);
-    
-    const enrichedAccounts = enrichCartera(accounts, orders, teamMembers);
-    
-    return { enrichedAccounts, teamMembers };
-}
-
-
-export async function getAccountHistory(accountId: string) {
-    const history = await getRecentHistoryByAccount(accountId);
-    return history.map((item: Order) => ({
-      id: item.id,
-      date: item.createdAt,
-      title: item.notes || item.nextActionType || `Pedido de ${item.value?.toFixed(2) ?? '0.00'} €`,
-      kind: item.value ? 'order' : 'interaction',
-      amount: item.value,
-      status: item.status,
-    }));
-}
-
-// Helper function import moved from another file.
-// We need to move this from where it was before, as it caused a circular dependency
-async function getTeamMembersFS(roles?: any[]): Promise<TeamMember[]> {
-  const membersCol = collection(db, 'teamMembers');
-  let q;
-
-  if (roles && roles.length > 0) {
-    q = query(membersCol, where('role', 'in', roles));
-  } else {
-    q = query(membersCol);
-  }
-  
-  const snapshot = await getDocs(q);
-  // This is a simplified converter. You should use your `fromFirestoreTeamMember`
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TeamMember));
 }

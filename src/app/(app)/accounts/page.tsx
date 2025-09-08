@@ -12,7 +12,7 @@ import AccountDialog from "@/features/accounts/components/account-dialog";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { OPCIONES_CANAL_ORIGEN, OPCIONES_TIPO_CUENTA } from "@ssot";
+import { OPCIONES_TIPO_CUENTA, OPCIONES_CANAL_ORIGEN } from "@ssot";
 import { startOfDay, isBefore, isEqual, parseISO, isValid } from 'date-fns';
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
@@ -189,7 +189,7 @@ export default function AccountsPage(){
                   <SelectTrigger className="w-full sm:w-[160px]"><SelectValue placeholder="Tipo de Cuenta..." /></SelectTrigger>
                   <SelectContent>
                       <SelectItem value="Todos">Todos los Tipos</SelectItem>
-                      {OPCIONES_TIPO_CUENTA.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                      {(OPCIONES_TIPO_CUENTA ?? []).map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                   </SelectContent>
               </Select>
               <MultiSelect

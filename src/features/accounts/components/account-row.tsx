@@ -2,7 +2,7 @@
 'use client';
 
 import * as React from 'react';
-import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Loader2, AlertTriangle } from 'lucide-react';
 import type { Order } from '@/types';
 import { cn } from '@/lib/utils';
 import AccountHistoryTable from '@/components/app/account-history-table';
@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { Send } from 'lucide-react';
 import Link from 'next/link';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 function LazyHistory({ accountId, accountName }: { accountId: string; accountName: string }) {
   const [loading, setLoading] = React.useState(true);
@@ -78,6 +79,8 @@ export function AccountRow({
   const nextInteractionDate = account.nextInteraction?.status === 'Programada'
     ? account.nextInteraction.visitDate
     : account.nextInteraction?.nextActionDate;
+  
+  const hasMissingFiscalData = !account.cif || !account.legalName;
 
   return (
     <React.Fragment>
@@ -94,9 +97,25 @@ export function AccountRow({
           </Button>
         </TableCell>
         <TableCell className={cn("font-medium p-2", tdClassName)}>
-            <Link href={`/accounts/${account.id}`} className="hover:underline text-primary">
-                {account.name}
-            </Link>
+            <div className="flex items-center gap-1.5">
+                {hasMissingFiscalData && (
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button type="button" onClick={() => onOpenHub(account.id, 'editar')}>
+                                    <AlertTriangle className="h-4 w-4 text-amber-500 cursor-pointer" />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Faltan datos fiscales. Haz clic para completar.</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                )}
+                <Link href={`/accounts/${account.id}`} className="hover:underline text-primary">
+                    {account.name}
+                </Link>
+            </div>
             <p className="text-xs text-muted-foreground">{account.city ?? '--'}</p>
         </TableCell>
         <TableCell className={cn("p-2", tdClassName)}>{account.responsableName || 'N/A'}</TableCell>

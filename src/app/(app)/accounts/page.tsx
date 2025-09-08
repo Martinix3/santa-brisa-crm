@@ -193,7 +193,7 @@ export default function AccountsPage(){
                   </SelectContent>
               </Select>
               <MultiSelect
-                options={OPCIONES_CANAL_ORIGEN as any}
+                options={OPCIONES_CANAL_ORIGEN}
                 selected={channelFilter}
                 onChange={setChannelFilter}
                 className="w-full sm:w-[200px]"

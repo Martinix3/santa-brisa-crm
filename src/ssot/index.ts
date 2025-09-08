@@ -24,28 +24,37 @@ export const ROLES_USUARIO = [
 ] as const;
 export type RolUsuario = typeof ROLES_USUARIO[number];
 
+export const CANALES_ORIGEN_COLOCACION = ["EVENTO_SB", "CONTACTO_DIRECTO", "REFERIDO", "CLAVADISTA", "OTRO"] as const;
+export type CanalOrigenColocacion = typeof CANALES_ORIGEN_COLOCACION[number];
+
+
 // ------------------------------------------------------------
 // Cuentas de Cliente
 // ------------------------------------------------------------
-export const TIPOS_CUENTA = ["CLIENTE_FINAL", "DISTRIBUIDOR", "IMPORTADOR", "HORECA", "RETAIL", "OTRO"] as const;
-export type TipoCuenta = typeof TIPOS_CUENTA[number];
+export const TIPOS_CUENTA_VALUES = ["CLIENTE_FINAL", "DISTRIBUIDOR", "IMPORTADOR", "HORECA", "RETAIL", "OTRO"] as const;
+export type TipoCuenta = typeof TIPOS_CUENTA_VALUES[number];
 
 export const ESTADOS_CUENTA = ["SEGUIMIENTO", "FALLIDA", "ACTIVA", "POTENCIAL", "INACTIVA"] as const;
 export type AccountStage = typeof ESTADOS_CUENTA[number];
+
+export const OWNERSHIP_VALUES = ["propio", "distribuidor"] as const;
+export type Ownership = typeof OWNERSHIP_VALUES[number];
 
 
 // ------------------------------------------------------------
 // Pedidos, Interacciones y Tareas
 // ------------------------------------------------------------
-export const TIPOS_INTERACCION = ["LLAMADA", "VISITA", "EMAIL", "WHATSAPP", "OTRO"] as const;
-export type InteractionKind = typeof TIPOS_INTERACCION[number];
+export const TIPOS_INTERACCION_VALUES = ["LLAMADA", "VISITA", "EMAIL", "WHATSAPP", "OTRO"] as const;
+export type InteractionKind = typeof TIPOS_INTERACCION_VALUES[number];
 
-export const RESULTADOS_INTERACCION = ["VISITA_OK", "VISITA_FALLIDA", "SIN_CONTACTO", "PENDIENTE", "OTRO"] as const;
-export type InteractionResult = typeof RESULTADOS_INTERACCION[number];
+export const RESULTADOS_INTERACCION_VALUES = ["VISITA_OK", "VISITA_FALLIDA", "SIN_CONTACTO", "PENDIENTE", "OTRO"] as const;
+export type InteractionResult = typeof RESULTADOS_INTERACCION_VALUES[number];
 
 export const ESTADOS_INTERACCION = ["PROGRAMADA", "COMPLETADA", "CANCELADA"] as const;
 export type InteractionStatus = typeof ESTADOS_INTERACCION[number];
 
+export const ESTADOS_PEDIDO = ["Programada", "Pendiente", "Confirmado", "Procesando", "Enviado", "Entregado", "Facturado", "Pagado", "Cancelado", "Fallido", "Seguimiento", "Completado"] as const;
+export type EstadoPedido = typeof ESTADOS_PEDIDO[number];
 
 // ------------------------------------------------------------
 // Eventos y Material PLV
@@ -99,7 +108,7 @@ export function normalizarTipoCuenta(v: string | undefined): TipoCuenta | undefi
     if (!v) return undefined;
     const m = MAPEO_TIPO_CUENTA_LEGACY[v];
     if (m) return m;
-    if ((TIPOS_CUENTA as readonly string[]).includes(v)) return v as TipoCuenta;
+    if ((TIPOS_CUENTA_VALUES as readonly string[]).includes(v)) return v as TipoCuenta;
     return "OTRO";
 }
 
@@ -123,6 +132,34 @@ export const OPCIONES_ESTADO_CUENTA = [
     { value: "FALLIDA", label: "Fallida" },
 ] as const;
 
+export const OWNERSHIP_OPTIONS = [
+    { value: 'propio', label: 'Propia (gestionada por Santa Brisa)' },
+    { value: 'distribuidor', label: 'De Distribuidor' },
+] as const;
+
+export const OPCIONES_CANAL_ORIGEN = [
+    { value: "EVENTO_SB", label: "Evento SB" },
+    { value: "CONTACTO_DIRECTO", label: "Contacto Directo" },
+    { value: "REFERIDO", label: "Referido" },
+    { value: "CLAVADISTA", label: "Clavadista" },
+    { value: "OTRO", label: "Otro" },
+] as const;
+
+export const TIPOS_INTERACCION = [
+    { value: 'visita', label: 'Visita'},
+    { value: 'llamada', label: 'Llamada'},
+    { value: 'email', label: 'Email'},
+    { value: 'whatsapp', label: 'WhatsApp'},
+    { value: 'otro', label: 'Otro'},
+] as const;
+
+export const RESULTADOS_INTERACCION = [
+    { value: 'pedido', label: 'Pedido Exitoso'},
+    { value: 'seguimiento', label: 'Requiere Seguimiento'},
+    { value: 'fallida', label: 'Fallida / Sin Pedido'},
+    { value: 'pendiente', label: 'Pendiente de registrar'},
+] as const;
+
 
 // ------------------------------------------------------------
 // Aliases de transición (DEPRECADO).
@@ -134,4 +171,4 @@ export type UserRole = RolUsuario;
 /** @deprecated Usa AccountStage */
 export const ACCOUNT_STATUSES = ESTADOS_CUENTA;
 /** @deprecated Usa TipoCuenta */
-export const ACCOUNT_TYPES = TIPOS_CUENTA;
+export const ACCOUNT_TYPES = TIPOS_CUENTA_VALUES;

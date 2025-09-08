@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -7,7 +8,7 @@ import {
   accountSchema,
   type AccountFormValues,
 } from "@/lib/schemas/account-schema";
-import { TIPOS_CUENTA, OWNERSHIP_OPTIONS } from "@ssot";
+import { OPCIONES_TIPO_CUENTA, OWNERSHIP_OPTIONS } from "@ssot";
 import { upsertAccountAction } from "@/app/(app)/accounts/actions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -111,7 +112,7 @@ export default function AccountDialog({ open, onOpenChange, initial, onSaved, di
               <Select value={form.watch("type")} onValueChange={(v) => form.setValue("type", v as any, { shouldDirty: true })}>
                 <SelectTrigger><SelectValue placeholder="Selecciona"/></SelectTrigger>
                 <SelectContent>
-                  {TIPOS_CUENTA.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                  {OPCIONES_TIPO_CUENTA.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </Field>

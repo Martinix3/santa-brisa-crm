@@ -154,29 +154,32 @@ export default function AdminSettingsPage() {
         Accede a las diferentes secciones de configuración para gestionar usuarios, objetivos y KPIs.
       </CardDescription>
 
-      {groupOrder.map(groupName => (
-        <div key={groupName} className="space-y-4">
-          <h2 className="text-2xl font-semibold border-b pb-2">{groupName}</h2>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {groupedSections[groupName]?.map((section) => (
-              <Card key={section.title} className="shadow-subtle hover:shadow-md transition-shadow duration-300 flex flex-col">
-                <CardHeader>
-                  <div className="flex items-center space-x-3 mb-2">
-                    <section.icon className="h-7 w-7 text-primary" />
-                    <CardTitle className="text-xl">{section.title}</CardTitle>
-                  </div>
-                  <CardDescription>{section.description}</CardDescription>
-                </CardHeader>
-                <CardContent className="flex-grow flex items-end">
-                  <Button asChild className="w-full mt-auto">
-                    <Link href={section.href}>Ir a {section.title}</Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+      {groupOrder.map(groupName => {
+        if (!groupedSections[groupName]) return null;
+        return (
+          <div key={groupName} className="space-y-4">
+            <h2 className="text-2xl font-semibold border-b pb-2">{groupName}</h2>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {groupedSections[groupName]?.map((section) => (
+                <Card key={section.title} className="shadow-subtle hover:shadow-md transition-shadow duration-300 flex flex-col">
+                  <CardHeader>
+                    <div className="flex items-center space-x-3 mb-2">
+                      <section.icon className="h-7 w-7 text-primary" />
+                      <CardTitle className="text-xl">{section.title}</CardTitle>
+                    </div>
+                    <CardDescription>{section.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex-grow flex items-end">
+                    <Button asChild className="w-full mt-auto">
+                      <Link href={section.href}>Ir a {section.title}</Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   );
 }

@@ -106,7 +106,7 @@ export const mockMarketingResources: MarketingResourceCategory[] = [
   },
 ];
 
-export const userRolesList: UserRole[] = ['Admin', 'SalesRep', 'Distributor', 'Clavadista', 'Líder Clavadista'];
+export const userRolesList: UserRole[] = ['Admin', 'Ventas', 'Distributor', 'Marketing', 'Manager', 'Operaciones', 'Finanzas', 'Clavadista', 'Líder Clavadista'];
 export const accountTypeList: AccountType[] = [
   'HORECA', 'Retail Minorista', 'Gran Superficie', 'Distribuidor', 'Importador', 'Cliente Final Directo', 'Otro'
 ];

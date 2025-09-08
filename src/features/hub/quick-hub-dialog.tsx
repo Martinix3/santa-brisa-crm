@@ -38,7 +38,7 @@ import {
 } from "@/lib/schemas/order-schema";
 import { createOrderAction } from "@/app/(app)/orders/actions";
 import { getHubDialogDataAction } from "./actions";
-import type { InventoryItem } from "@/types";
+import type { InventoryItem, Account } from "@/types";
 
 
 type HubMode = "cuenta" | "interaccion" | "pedido";
@@ -72,7 +72,7 @@ export default function QuickHubDialog({
   );
 
   React.useEffect(() => {
-    if (!open) {
+    if (open) {
       setMode(defaultMode);
       setSelectedAccount(initialAccount ?? null);
     }
@@ -207,12 +207,19 @@ function CreateAccountForm({
 
         {ownership === "distribuidor" && (
           <Field label="Distribuidor" error={form.formState.errors.distributorId?.message as string | undefined}>
-            <Select value={form.watch("distributorId") ?? ""} onValueChange={(v)=> form.setValue("distributorId", v, { shouldDirty:true })}>
-              <SelectTrigger><SelectValue placeholder="Selecciona distribuidor" /></SelectTrigger>
-              <SelectContent>
-                {distributors.map(d=> <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            {(distributors ?? []).length > 0 ? (
+              <Select
+                value={form.watch("distributorId") ?? ""}
+                onValueChange={(v) => form.setValue("distributorId", v, { shouldDirty: true })}
+              >
+                <SelectTrigger><SelectValue placeholder="Selecciona distribuidor"/></SelectTrigger>
+                <SelectContent>
+                  {distributors.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input placeholder="ID distribuidor" {...form.register("distributorId")} />
+            )}
           </Field>
         )}
 

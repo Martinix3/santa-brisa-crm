@@ -129,7 +129,7 @@ export default function AccountDialog({ open, onOpenChange, initial, onSaved, di
 
             {ownership === "distribuidor" && (
               <Field label="Distribuidor" error={form.formState.errors.distributorId?.message as string | undefined}>
-                {distributors.length > 0 ? (
+                {(distributors ?? []).length > 0 ? (
                   <Select
                     value={form.watch("distributorId") ?? ""}
                     onValueChange={(v) => form.setValue("distributorId", v, { shouldDirty: true })}
@@ -155,7 +155,7 @@ export default function AccountDialog({ open, onOpenChange, initial, onSaved, di
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>Cancelar</Button>
             <Button type="submit" disabled={busy}>
-              {busy && <Loader2 className="mr-2 size-4 animate-spin" />}
+              {busy && <Loader2 className="size-4 mr-2 animate-spin" />}
               {initial?.id ? "Guardar cambios" : "Crear cuenta"}
             </Button>
           </div>

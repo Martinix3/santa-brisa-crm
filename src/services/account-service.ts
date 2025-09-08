@@ -58,11 +58,11 @@ export const updateAccountFS = async (id: string, data: Partial<Account>): Promi
   batch.update(accountDocRef, firestoreData);
 
   // If the account name changes, we must update all related interactions.
-  // This is a heavy operation, but necessary for data consistency until all documents are linked by ID.
   if (data.name) {
-      const currentAccount = await getAccountByIdFS(id);
+      const currentAccountSnap = await accountDocRef.get();
+      const currentAccount = currentAccountSnap.exists ? fromFirestore(currentAccountSnap) : null;
       if (currentAccount && currentAccount.name !== data.name) {
-          const ordersQuery = adminDb.collection(ORDERS_COLLECTION).where("clientName", "==", currentAccount.name);
+          const ordersQuery = adminDb.collection(ORDERS_COLLECTION).where("accountId", "==", id);
           const ordersSnapshot = await ordersQuery.get();
           ordersSnapshot.forEach(orderDoc => {
               batch.update(orderDoc.ref, { clientName: data.name });

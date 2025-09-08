@@ -8,6 +8,8 @@ import {
 } from 'firebase-admin/firestore';
 import type { InteractionFormValues } from '@/lib/schemas/interaction-schema';
 import { toSearchName } from '@/lib/schemas/account-schema';
+import type { Order } from '@/types';
+import { fromFirestoreOrder } from './order-service';
 
 const INTERACTIONS_COLLECTION = 'orders'; // Using 'orders' collection with a different status
 const ACCOUNTS_COLLECTION = 'accounts';
@@ -140,7 +142,7 @@ export const saveInteractionFS = async (
     
     let salesRepName = userName;
     if (data.assignedSalesRepId && data.assignedSalesRepId !== userId) {
-        const assignedRepDoc = await doc(db, 'teamMembers', data.assignedSalesRepId).get();
+        const assignedRepDoc = await getDoc(doc(db, 'teamMembers', data.assignedSalesRepId));
         if(assignedRepDoc.exists()) salesRepName = assignedRepDoc.data()?.name;
     }
 
@@ -179,7 +181,18 @@ export const saveInteractionFS = async (
         newInteractionData.visitDate = now;
         newInteractionData.failureReasonType = data.failureReasonType;
         newInteractionData.failureReasonCustom = data.failureReasonType === 'Otro (especificar)' ? data.failureReasonCustom : null;
+    } else { // Fallback for simple interactions without outcome
+        newInteractionData.status = 'Completado';
+        newInteractionData.visitDate = now;
+        newInteractionData.type = data.outcome;
     }
 
     await setDoc(newOrderRef, newInteractionData);
+};
+
+
+export const fromFirestoreInteraction = (docSnap: any): Order => {
+  const data = docSnap.data();
+  if (!data) return {} as Order; // Should not happen
+  return fromFirestoreOrder(docSnap); // Use the main order converter
 };

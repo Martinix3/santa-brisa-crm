@@ -16,7 +16,7 @@ import { TableCell, TableRow } from '@/components/ui/table';
 import { Send } from 'lucide-react';
 import Link from 'next/link';
 
-function LazyHistory({ accountId }: { accountId: string }) {
+function LazyHistory({ accountId, accountName }: { accountId: string; accountName: string }) {
   const [loading, setLoading] = React.useState(true);
   const [history, setHistory] = React.useState<Order[] | null>(null);
 
@@ -25,7 +25,7 @@ function LazyHistory({ accountId }: { accountId: string }) {
     (async () => {
       setLoading(true);
       try {
-        const response = await fetch(`/api/accounts/history?accountId=${accountId}`);
+        const response = await fetch(`/api/accounts/history?accountId=${accountId}&accountName=${encodeURIComponent(accountName)}`);
         if (!response.ok) {
           throw new Error(`Failed to fetch history: ${response.statusText}`);
         }
@@ -39,7 +39,7 @@ function LazyHistory({ accountId }: { accountId: string }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [accountId]);
+  }, [accountId, accountName]);
 
   if (loading) {
     return (
@@ -119,7 +119,7 @@ export function AccountRow({
       {isExpanded && (
         <TableRow>
           <TableCell colSpan={8} className="p-0 border-t-2 border-primary/50">
-             <LazyHistory accountId={account.id} />
+             <LazyHistory accountId={account.id} accountName={account.name} />
           </TableCell>
         </TableRow>
       )}

@@ -106,14 +106,7 @@ const adminSections = [
     href: "/admin/sample-management",
     icon: PackageCheck,
     group: "Ventas & Marketing"
-  },
-  {
-    title: "Prueba de Integración Cloud",
-    description: "Verificar la autenticación y la conexión con los servicios de Google AI.",
-    href: "/admin/cloud-test",
-    icon: HardHat,
-    group: "Integraciones"
-  },
+  }
 ];
 
 const groupOrder = ["Producción", "Finanzas", "Ventas & Marketing", "General", "Integraciones"];

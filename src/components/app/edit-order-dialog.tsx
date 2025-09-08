@@ -36,8 +36,7 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { Order, TeamMember, InventoryItem, Account, CanalOrigenColocacion, PaymentMethod, AddressDetails } from "@/types"; 
-import { canalOrigenColocacionList } from "@/lib/data"; 
+import type { Order, TeamMember, InventoryItem, Account, AddressDetails } from "@/types"; 
 import { Loader2, Calendar as CalendarIcon, Printer, Award, Package, PlusCircle, Trash2, Zap, CreditCard, UploadCloud, Link2, AlertTriangle } from "lucide-react"; 
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -47,7 +46,21 @@ import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { getInventoryItemsAction } from "@/services/server/inventory-actions";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
-import { EstadoPedido as OrderStatus, RolUsuario as UserRole, SiguienteAccion as NextActionType, MotivoFallo as FailureReasonType, TipoCliente as ClientType, ESTADOS_PEDIDO as orderStatusesList, SIGUIENTES_ACCIONES as nextActionTypeList, MOTIVOS_FALLO as failureReasonList, TIPOS_CLIENTE as clientTypeList, METODOS_PAGO as paymentMethodList } from "@ssot";
+import { 
+    EstadoPedido as OrderStatus, 
+    RolUsuario as UserRole, 
+    SiguienteAccion as NextActionType, 
+    MotivoFallo as FailureReasonType, 
+    TipoCliente as ClientType, 
+    ESTADOS_PEDIDO as orderStatusesList, 
+    SIGUIENTES_ACCIONES as nextActionTypeList, 
+    MOTIVOS_FALLO as failureReasonList, 
+    TIPOS_CLIENTE as clientTypeList, 
+    METODOS_PAGO as paymentMethodList,
+    CanalOrigenColocacion,
+    CANALES_ORIGEN_COLOCACION as canalOrigenColocacionList,
+    MetodoPago as PaymentMethod,
+} from "@ssot";
 
 const NO_CLAVADISTA_VALUE = "##NONE##";
 
@@ -107,7 +120,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   const { toast } = useToast();
 
   const clavadistas = React.useMemo(() => allTeamMembers.filter(m => m.role === 'Clavadista' || m.role === 'Líder Clavadista'), [allTeamMembers]);
-  const salesReps = React.useMemo(() => allTeamMembers.filter(m => m.role === 'SalesRep' || m.role === 'Admin'), [allTeamMembers]);
+  const salesReps = React.useMemo(() => allTeamMembers.filter(m => m.role === 'Ventas' || m.role === 'Admin'), [allTeamMembers]);
 
 
   const associatedAccount = React.useMemo(() => {
@@ -254,7 +267,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     window.print();
   };
   
-  const isSalesRep = currentUserRole === 'SalesRep';
+  const isSalesRep = currentUserRole === 'Ventas';
   
   const canEditOrderDetailsOverall = isAdmin;
   const canEditStatusAndNotesOnly = isDistributor && !isAdmin; 
@@ -307,7 +320,7 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
           <form onSubmit={form.handleSubmit(onSubmit)}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="clientName" render={({ field }) => (<FormItem><FormLabel>Nombre del Cliente</FormLabel><FormControl><Input placeholder="Nombre del cliente" {...field} value={field.value ?? ""} disabled={!canEditOrderDetailsOverall || formFieldsGenericDisabled} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="salesRep" render={({ field }) => (<FormItem><FormLabel>Representante de Ventas</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={salesRepFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un representante" /></SelectTrigger></FormControl><SelectContent>{salesReps.map((member: TeamMember) => (<SelectItem key={member.id} value={member.name}>{member.name} ({member.role === 'SalesRep' ? 'Rep. Ventas' : member.role})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="salesRep" render={({ field }) => (<FormItem><FormLabel>Representante de Ventas</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={salesRepFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un representante" /></SelectTrigger></FormControl><SelectContent>{salesReps.map((member: TeamMember) => (<SelectItem key={member.id} value={member.name}>{member.name} ({member.role === 'Ventas' ? 'Rep. Ventas' : member.role})</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={statusFieldDisabled}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un estado" /></SelectTrigger></FormControl><SelectContent>{orderStatusesList.filter(s => s !== 'Programada' && s !== 'Fallido' && s !== 'Seguimiento').map((statusVal) => (<SelectItem key={statusVal} value={statusVal}>{statusVal}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>

@@ -78,8 +78,8 @@ export const tankStatusList: TankStatus[] = ["Libre", "Ocupado", "Limpieza"];
 export const uomList: UoM[] = ['unit', 'kg', 'g', 'l', 'ml'];
 
 export const orderStatusesList: OrderStatus[] = [
-  'Programada', 'Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado',
-  'Facturado', 'Pagado', 'Cancelado', 'Fallido', 'Seguimiento', 'Completado',
+  'Programada', 'Pendiente', 'Procesando', 'Enviado', 'Entregado',
+  'Facturado', 'Pagado', 'Fallido', 'Seguimiento', 'Completado',
   'draft', 'confirmed', 'invoiced', 'shipped'
 ];
 

@@ -1,5 +1,6 @@
 import type { Timestamp } from "firebase/firestore";
-import type { AccountType as UnifiedAccountType } from '@/types';
+import type { TipoCuenta, AccountStatus, PotencialType, Canal, TipoDistribucion } from '@ssot';
+
 
 export interface AddressDetails {
   street?: string | null;
@@ -9,9 +10,6 @@ export interface AddressDetails {
   postalCode?: string | null;
   country?: string | null;
 }
-
-export type AccountStatus = 'Activo' | 'Repetición' | 'Seguimiento' | 'Inactivo' | 'Pendiente' | 'Fallido' | 'Programada';
-export type PotencialType = 'alto' | 'medio' | 'bajo';
 
 export interface Account {
   id: string;
@@ -23,10 +21,10 @@ export interface Account {
   nombre?: string;
 
   legalName?: string;
-  type: UnifiedAccountType;
+  type: TipoCuenta;
   status: AccountStatus;
-  channel?: 'horeca' | 'retail' | 'online' | 'b2b';
-  distribution_type?: 'direct' | 'via_distributor';
+  channel?: Canal;
+  distribution_type?: TipoDistribucion;
 
   distributorId?: string | null;
   owner_user_id?: string;

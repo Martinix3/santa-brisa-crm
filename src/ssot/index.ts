@@ -91,6 +91,12 @@ export type OrigenPedido = typeof ORIGENES_PEDIDO[number];
 export const TIPOS_CLIENTE = ["Distribuidor", "HORECA", "Retail", "Cliente Final", "Otro"] as const;
 export type TipoCliente = typeof TIPOS_CLIENTE[number];
 
+export const POTENCIAL_TYPES = ['alto', 'medio', 'bajo'] as const;
+export type PotencialType = typeof POTENCIAL_TYPES[number];
+
+export const ACCOUNT_STATUSES = ['Activo', 'Repetición', 'Seguimiento', 'Inactivo', 'Pendiente', 'Fallido', 'Programada'] as const;
+export type AccountStatus = typeof ACCOUNT_STATUSES[number];
+
 /**
  * Unificamos tipos de cuenta. "Retail Minorista" y "Gran Superficie" se
  * manejan vía tags/atributos, no como tipos distintos.

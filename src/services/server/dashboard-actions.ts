@@ -7,7 +7,7 @@ import { getAccountsFS } from '@/services/account-service';
 import { getTeamMembersFS } from '@/services/team-member-service';
 import type { Account, Order, TeamMember, DirectSale } from '@/types';
 import { EstadoPedido as OrderStatus } from "@ssot";
-import { updateFullOrderFS } from '@/services/order-service'; // Corrected import
+import { updateFullOrderFS } from '@/services/order-service'; 
 
 export async function getDashboardDataAction(): Promise<{
   orders: Order[];

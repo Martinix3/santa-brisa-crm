@@ -17,7 +17,12 @@ export async function processCarteraData(
 ): Promise<EnrichedAccount[]> {
     const teamMembersMap = new Map(teamMembers.map(tm => [tm.id, tm]));
     const accountsMap = new Map(accounts.map(acc => [acc.id, acc]));
-    const accountNameMap = new Map(accounts.map(acc => [acc.nombre.toLowerCase().trim(), acc]));
+    
+    const accountNameMap = new Map(
+      accounts
+        .filter(acc => acc.nombre && typeof acc.nombre === 'string') // FIX: Ensure acc.nombre is a non-empty string
+        .map(acc => [acc.nombre.toLowerCase().trim(), acc])
+    );
     
     // NOTE: `directSales` are now excluded as they don't define the commercial status of HORECA/Retail accounts.
     // The `cartera` (portfolio) is specifically about end-customer accounts managed by the sales team.

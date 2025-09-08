@@ -40,7 +40,7 @@ export async function createInteractionAction(input: InteractionFormValues) {
   if (!accountId && accountName) {
     const searchName = toSearchName(accountName);
     const existingQuery = db.collection(ACCOUNTS_COLLECTION).where('searchName', '==', searchName).limit(1);
-    const existingSnap = await existingQuery.get();
+    const existingSnap = await getDocs(existingQuery);
 
     if (!existingSnap.empty) {
       accountId = existingSnap.docs[0].id;

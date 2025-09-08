@@ -43,9 +43,9 @@ export default function InteractionDialog({
     resolver: zodResolver(interactionSchema),
     defaultValues: {
       accountId: defaultAccountId ?? "",
-      type: "visita",
+      type: "VISITA",
       date: new Date(),
-      outcome: "pendiente",
+      outcome: "PENDIENTE",
       note: "",
       nextActionAt: undefined,
     },
@@ -60,9 +60,9 @@ export default function InteractionDialog({
     
     form.reset({
       accountId: defaultAccountId ?? "",
-      type: "visita",
+      type: "VISITA",
       date: new Date(),
-      outcome: "pendiente",
+      outcome: "PENDIENTE",
       note: "",
       nextActionAt: undefined,
     });
@@ -151,7 +151,7 @@ export default function InteractionDialog({
               <Input
                 type="datetime-local"
                 defaultValue={toLocalInputValue(form.watch("nextActionAt") ?? undefined)}
-                onChange={(e) => form.setValue("nextActionAt", e.target.value ? new Date(e.target.value) : null)}
+                onChange={(e) => form.setValue("nextActionAt", e.target.value ? new Date(e.target.value) : undefined)}
               />
             </Field>
           </div>

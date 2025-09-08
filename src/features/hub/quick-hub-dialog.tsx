@@ -64,12 +64,21 @@ export default function QuickHubDialog({
     }
   }, [open, defaultMode, initialAccount, toast]);
 
-  const handleSuccess = (type: 'account' | 'interaction' | 'order', id: string, accountId?: string) => {
+  const handleSuccess = (type: 'account' | 'interaction' | 'order', id: string, accountId?: string, accountName?: string) => {
     onOpenChange(false);
     refreshDataSignature();
-    if (type === 'account' && accountId) onAccountCreated?.(accountId);
-    if (type === 'interaction' && accountId) onInteractionCreated?.(id, accountId);
-    if (type === 'order' && accountId) onOrderCreated?.(id, accountId);
+    
+    // If a new account was implicitly created, guide the user to edit it.
+    if ((type === 'interaction' || type === 'order') && !accountId) {
+       toast({
+          title: "Acción registrada",
+          description: `Se ha creado la interacción/pedido para "${accountName}". Ahora, por favor completa los datos de la nueva cuenta.`
+       });
+       // Here you could programmatically switch the tab and set the account,
+       // for a more advanced flow.
+       // For now, we just close and let the user re-open.
+    }
+    
   };
 
   const handleAccountSelection = (account: Account | null) => {
@@ -82,8 +91,7 @@ export default function QuickHubDialog({
   };
 
   const handleGoCreateAccount = (name: string) => {
-      // Set a temporary "new" account object to pass to the form
-      setSelectedAccount({ name } as Account); 
+      setSelectedAccount({ name, id: 'new' } as Partial<Account> as Account); 
       setMode('cuenta');
   }
 
@@ -108,8 +116,8 @@ export default function QuickHubDialog({
         <Tabs value={mode} onValueChange={(v) => setMode(v as HubMode)} className="w-full">
           <TabsList className="grid grid-cols-3 w-full">
             <TabsTrigger value="cuenta">Cuenta</TabsTrigger>
-            <TabsTrigger value="interaccion" disabled={!selectedAccount}>Interacción</TabsTrigger>
-            <TabsTrigger value="pedido" disabled={!selectedAccount}>Pedido</TabsTrigger>
+            <TabsTrigger value="interaccion">Interacción</TabsTrigger>
+            <TabsTrigger value="pedido">Pedido</TabsTrigger>
           </TabsList>
 
           <TabsContent value="cuenta" className="mt-4">
@@ -131,11 +139,11 @@ export default function QuickHubDialog({
                     key={`interaction-form-${selectedAccount.id}`}
                     selectedAccount={selectedAccount}
                     onCreated={(iid, accId) => {
-                        toast({ title: "Interacción registrada" });
-                        handleSuccess('interaction', iid, accId);
+                        handleSuccess('interaction', iid, accId, selectedAccount.name);
                     }}
                 />
              )}
+              {!selectedAccount && <div className="text-center p-4 text-muted-foreground">Selecciona o crea una cuenta para registrar una interacción.</div>}
           </TabsContent>
 
           <TabsContent value="pedido" className="mt-4">
@@ -144,11 +152,11 @@ export default function QuickHubDialog({
                     key={`order-form-${selectedAccount.id}`}
                     selectedAccount={selectedAccount}
                     onCreated={(oid, accId) => {
-                        toast({ title: "Pedido creado" });
-                        handleSuccess('order', oid, accId);
+                        handleSuccess('order', oid, accId, selectedAccount.name);
                     }}
                 />
             )}
+            {!selectedAccount && <div className="text-center p-4 text-muted-foreground">Selecciona o crea una cuenta para registrar un pedido.</div>}
           </TabsContent>
         </Tabs>
       </DialogContent>

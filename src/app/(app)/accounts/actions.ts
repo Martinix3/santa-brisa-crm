@@ -175,4 +175,3 @@ export async function findOrCreateAccountByName(input: {
   return { id: docRef.id, name, ownership, distributorId: ownership === "distribuidor" ? (input.distributorId ?? null) : null };
 }
 
-    

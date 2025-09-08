@@ -46,7 +46,7 @@ export function useInteractionWizard(
   const [clavadistas, setClavadistas] = React.useState<TeamMember[]>([]);
   const [distributorAccounts, setDistributorAccounts] = React.useState<Account[]>([]);
 
-  const form = useForm<InteractionFormValues>({
+  const form = useForm<any>({
     resolver: zodResolver(interactionFormSchema),
     mode: "onBlur",
     defaultValues: {
@@ -56,7 +56,7 @@ export function useInteractionWizard(
       precioUnitario: undefined,
       assignedMaterials: [],
       accountId: client?.id,
-      clientName: client?.nombre,
+      clientName: client?.name,
       distributorId: client?.distributorId ?? undefined,
     },
   });
@@ -115,11 +115,11 @@ export function useInteractionWizard(
     form.reset({
       ...form.getValues(),
       accountId: client.id,
-      clientName: client.nombre,
+      clientName: client.name,
       distributorId: client.distributorId ?? undefined,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client?.id, client?.nombre, client?.distributorId]); 
+  }, [client?.id, client?.name, client?.distributorId]); 
 
   const onSubmit = async (values: InteractionFormValues) => {
     if (!teamMember) {

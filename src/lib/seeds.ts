@@ -1,14 +1,14 @@
-
 import type { 
-    AccountType, 
+    TipoCuenta,
     Kpi, 
     StrategicObjective, 
     CrmEvent,
-    TankStatus,
-    UoM,
+    EstadoTanque as TankStatus,
+    UdM as UoM,
     Category,
-    MarketingResourceCategory
+    TipoRecursoMarketing as MarketingResourceType
 } from "@/types";
+import type { MarketingResourceCategory } from "@/types";
 import { TrendingUp, Users, Briefcase, CalendarPlus, Repeat } from "lucide-react"; 
 
 // --- SEMILLAS DE DESARROLLO ---
@@ -26,12 +26,12 @@ export const mockInitialAccounts: Array<Pick<Account, 'nombre' | 'type' | 'poten
     "ella Sky Bar", "Botania", "Dofia Tomasa", "Mantequerias Bravo", "Catering Samantha",
     "Grupo Mentidero", "Catering Laurel", "Cristine Bedfor", "Estrella Galicia", "Tierra del Queiles",
     "Restaurante Her", "Noneta", "Makila", "Golda", "Vinoteca Collado", "Petit Apetit",
-].map((nombre) => ({ nombre, type: "HORECA", potencial: "medio" }));
+].map((nombre) => ({ nombre, type: "HORECA" as TipoCuenta, potencial: "medio" as const }));
 
 export const mockTanks: Array<{ name: string, capacity: number, status: TankStatus, location: string, currentUom?: UoM }> = [
-    { name: "Tanque Mezcla 1", capacity: 1000, status: "Libre", location: "Zona de Mezcla", currentUom: 'l' },
-    { name: "Tanque Mezcla 2", capacity: 1000, status: "Libre", location: "Zona de Mezcla", currentUom: 'l' },
-    { name: "Tanque Pulmón 1", capacity: 500, status: "Libre", location: "Línea 1", currentUom: 'l' },
+    { name: "Tanque Mezcla 1", capacity: 1000, status: "libre", location: "Zona de Mezcla", currentUom: 'l' },
+    { name: "Tanque Mezcla 2", capacity: 1000, status: "libre", location: "Zona de Mezcla", currentUom: 'l' },
+    { name: "Tanque Pulmón 1", capacity: 500, status: "libre", location: "Línea 1", currentUom: 'l' },
 ];
 
 export const mockCategories: Array<Omit<Category, 'id' | 'createdAt' | 'updatedAt'>> = [

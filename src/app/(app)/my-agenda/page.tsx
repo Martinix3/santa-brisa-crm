@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { getAgendaDataAction, updateTaskOrderAction, deleteAgendaItemAction, addScheduledTaskAction, updateScheduledTaskAction, addEventAction, updateEventAction, markTaskAsCompleteAction } from "@/services/server/agenda-actions";
-import type { Order, CrmEvent, TeamMember, UserRole, OrderStatus, FollowUpResultFormValues, NewScheduledTaskData, EventFormValues, StickyNote } from "@/types";
+import type { Order, CrmEvent, TeamMember, UserRole, OrderStatus, FollowUpResultFormValues, NewScheduledTaskData, EventFormValues, StickyNote, Account } from "@/types";
 import StatusBadge from "@/components/app/status-badge";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -177,6 +177,7 @@ export default function MyAgendaPage() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [allAgendaItems, setAllAgendaItems] = React.useState<AgendaItem[]>([]);
   const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([]);
+  const [accounts, setAccounts] = React.useState<Account[]>([]);
   const [selectedItem, setSelectedItem] = React.useState<AgendaItem | null>(null);
   const [notes, setNotes] = React.useState<StickyNote[]>([]);
   const [assignableUsers, setAssignableUsers] = React.useState<TeamMember[]>([]);
@@ -225,7 +226,7 @@ export default function MyAgendaPage() {
     async function loadAgendaData() {
       setIsLoading(true);
       try {
-        const { orders, events, teamMembers: members, notes } = await getAgendaDataAction(userRole, teamMember?.id);
+        const { orders, events, teamMembers: members, notes, accounts: fetchedAccounts } = await getAgendaDataAction(userRole, teamMember?.id);
 
         const tareaItems: AgendaItem[] = orders
             .filter(o => (o.status === 'Programada' || o.status === 'Seguimiento') && (o.status === 'Programada' ? o.visitDate : o.nextActionDate) && isValid(parseISO((o.status === 'Programada' ? o.visitDate : o.nextActionDate)!)))
@@ -253,6 +254,7 @@ export default function MyAgendaPage() {
         
         setAllAgendaItems([...tareaItems, ...eventItems].map(item => ({ ...item, orderIndex: item.orderIndex ?? 0 })));
         setTeamMembers(members);
+        setAccounts(fetchedAccounts);
         setNotes(notes);
         setAssignableUsers(members.filter(m => m.role === 'Admin' || m.role === 'Ventas'));
 
@@ -908,6 +910,8 @@ export default function MyAgendaPage() {
         onSave={handleSaveTask}
         taskCategory={newTaskCategory}
         taskToEdit={taskToEdit}
+        allAccounts={accounts}
+        teamMembers={teamMembers}
       />
       <NewEntryTypeDialog
         isOpen={isEntryTypeDialogOpen}
@@ -926,11 +930,9 @@ export default function MyAgendaPage() {
             onSave={handleSaveEvent}
             isReadOnly={false}
             allTeamMembers={teamMembers}
-            allAccounts={[]}
+            allAccounts={accounts}
         />
         )}
     </>
   );
 }
-
-

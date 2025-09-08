@@ -13,8 +13,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Calendar } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
-import { getAccountsFS } from "@/services/account-service";
-import { getTeamMembersFS } from "@/services/team-member-service";
 import type { Account, TeamMember, UserRole, NewScheduledTaskData, Order } from "@/types";
 import { format, parseISO } from "date-fns";
 import { es } from 'date-fns/locale';
@@ -49,14 +47,13 @@ interface NewTaskDialogProps {
   selectedDate: Date | undefined;
   taskCategory: 'Commercial' | 'General';
   taskToEdit?: Order | null;
+  allAccounts: Account[];
+  teamMembers: TeamMember[];
 }
 
-export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDate, taskCategory, taskToEdit }: NewTaskDialogProps) {
+export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDate, taskCategory, taskToEdit, allAccounts, teamMembers }: NewTaskDialogProps) {
   const { userRole, teamMember } = useAuth();
   const [isSaving, setIsSaving] = React.useState(false);
-  const [accounts, setAccounts] = React.useState<Account[]>([]);
-  const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
   
   const isEditMode = !!taskToEdit;
   const title = isEditMode
@@ -81,26 +78,6 @@ export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDa
       visitDate: selectedDate ?? new Date(),
     }
   });
-
-  React.useEffect(() => {
-    async function loadData() {
-      if (!isOpen) return;
-      setIsLoading(true);
-      try {
-        const [fetchedAccounts, fetchedMembers] = await Promise.all([
-          taskCategory === 'Commercial' ? getAccountsFS() : Promise.resolve([]),
-          userRole === 'Admin' ? getTeamMembersFS(['SalesRep', 'Clavadista', 'Admin']) : Promise.resolve([]),
-        ]);
-        setAccounts(fetchedAccounts);
-        setTeamMembers(fetchedMembers);
-      } catch (error) {
-        console.error("Failed to load data for new task dialog", error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    loadData();
-  }, [isOpen, userRole, taskCategory]);
 
   React.useEffect(() => {
     if (isOpen) {
@@ -142,79 +119,75 @@ export default function NewTaskDialog({ isOpen, onOpenChange, onSave, selectedDa
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        {isLoading ? (
-          <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin" /></div>
-        ) : (
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              {taskCategory === 'Commercial' && (
-                <>
-                  <FormField control={form.control} name="clientSelectionMode" render={({ field }) => (
+        
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {taskCategory === 'Commercial' && (
+              <>
+                <FormField control={form.control} name="clientSelectionMode" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Cliente</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value} disabled={isEditMode}>
+                      <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="existing">Cliente Existente</SelectItem>
+                        <SelectItem value="new">Cliente Nuevo</SelectItem>
+                      </SelectContent>
+                    </FormItem>
+                )} />
+                {clientMode === 'existing' ? (
+                   <FormField control={form.control} name="accountId" render={({ field }) => (
+                     <FormItem>
+                       <FormLabel>Seleccionar Cuenta</FormLabel>
+                       <Select onValueChange={field.onChange} value={field.value ?? ''}>
+                         <FormControl><SelectTrigger><SelectValue placeholder="Busca y selecciona una cuenta..." /></SelectTrigger></FormControl>
+                         <SelectContent>
+                           {allAccounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.nombre}</SelectItem>)}
+                         </SelectContent>
+                       </Select>
+                       <FormMessage />
+                     </FormItem>
+                   )} />
+                ) : (
+                  <FormField control={form.control} name="newClientName" render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Cliente</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value} disabled={isEditMode}>
-                        <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
-                        <SelectContent>
-                          <SelectItem value="existing">Cliente Existente</SelectItem>
-                          <SelectItem value="new">Cliente Nuevo</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <FormLabel>Nombre del Nuevo Cliente</FormLabel>
+                      <FormControl><Input placeholder="Ej: Café del Puerto" {...field} value={field.value ?? ''} /></FormControl>
+                      <FormMessage />
                     </FormItem>
                   )} />
-                  {clientMode === 'existing' ? (
-                     <FormField control={form.control} name="accountId" render={({ field }) => (
-                       <FormItem>
-                         <FormLabel>Seleccionar Cuenta</FormLabel>
-                         <Select onValueChange={field.onChange} value={field.value ?? ''}>
-                           <FormControl><SelectTrigger><SelectValue placeholder="Busca y selecciona una cuenta..." /></SelectTrigger></FormControl>
-                           <SelectContent>
-                             {accounts.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.nombre}</SelectItem>)}
-                           </SelectContent>
-                         </Select>
-                         <FormMessage />
-                       </FormItem>
-                     )} />
-                  ) : (
-                    <FormField control={form.control} name="newClientName" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nombre del Nuevo Cliente</FormLabel>
-                        <FormControl><Input placeholder="Ej: Café del Puerto" {...field} value={field.value ?? ''} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-                  )}
-                </>
-              )}
-               <FormField control={form.control} name="notes" render={({ field }) => (
+                )}
+              </>
+            )}
+             <FormField control={form.control} name="notes" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Objetivo / Notas de la Tarea</FormLabel>
+                <FormControl><Textarea placeholder={taskCategory === 'Commercial' ? "Ej: Presentar nuevo producto..." : "Ej: Preparar informe trimestral..."} {...field} value={field.value ?? ''}/></FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+            {userRole === 'Admin' && (
+              <FormField control={form.control} name="assignedToId" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Objetivo / Notas de la Tarea</FormLabel>
-                  <FormControl><Textarea placeholder={taskCategory === 'Commercial' ? "Ej: Presentar nuevo producto..." : "Ej: Preparar informe trimestral..."} {...field} value={field.value ?? ''}/></FormControl>
+                  <FormLabel>Asignar A</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value ?? ''}>
+                    <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar responsable..." /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      {teamMembers.map(tm => <SelectItem key={tm.id} value={tm.id}>{tm.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )} />
-              {userRole === 'Admin' && (
-                <FormField control={form.control} name="assignedToId" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Asignar A</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value ?? ''}>
-                      <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar responsable..." /></SelectTrigger></FormControl>
-                      <SelectContent>
-                        {teamMembers.map(tm => <SelectItem key={tm.id} value={tm.id}>{tm.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-              )}
-              <DialogFooter>
-                <DialogClose asChild><Button type="button" variant="outline">Cancelar</Button></DialogClose>
-                <Button type="submit" disabled={isSaving}>
-                  {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Guardando...</> : "Guardar Tarea"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        )}
+            )}
+            <DialogFooter>
+              <DialogClose asChild><Button type="button" variant="outline">Cancelar</Button></DialogClose>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Guardando...</> : "Guardar Tarea"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

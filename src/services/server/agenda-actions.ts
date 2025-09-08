@@ -4,8 +4,9 @@
 import { getOrdersFS, addScheduledTaskFS, deleteOrderFS, updateScheduledTaskFS, reorderTasksBatchFS, updateOrderStatusFS } from '@/services/order-service';
 import { getEventsFS, addEventFS, deleteEventFS, updateEventFS, reorderEventsBatchFS } from '@/services/event-service';
 import { getTeamMembersFS } from '@/services/team-member-service';
-import { getNotesForUserFS, getAllNotesFS } from '@/services/note-service';
-import type { Order, CrmEvent, TeamMember, UserRole, NewScheduledTaskData, EventFormValues, StickyNote } from '@/types';
+import { getAllNotesFS, getNotesForUserFS } from '@/services/note-service';
+import { getAccountsFS } from '@/services/account-service';
+import type { Order, CrmEvent, TeamMember, UserRole, NewScheduledTaskData, EventFormValues, StickyNote, Account } from '@/types';
 import { AgendaItemType } from '@/app/(app)/my-agenda/page';
 
 
@@ -14,15 +15,17 @@ export async function getAgendaDataAction(userRole: UserRole | null, userId?: st
     events: CrmEvent[],
     teamMembers: TeamMember[],
     notes: StickyNote[],
+    accounts: Account[],
 }> {
     if (!userRole) {
         throw new Error("User role is not defined.");
     }
     try {
-        const [orders, events, teamMembers] = await Promise.all([
+        const [orders, events, teamMembers, accounts] = await Promise.all([
             getOrdersFS(),
             getEventsFS(),
             getTeamMembersFS(['SalesRep', 'Clavadista', 'Admin', 'Líder Clavadista']),
+            getAccountsFS(),
         ]);
         
         let notes: StickyNote[] = [];
@@ -32,7 +35,7 @@ export async function getAgendaDataAction(userRole: UserRole | null, userId?: st
             notes = await getNotesForUserFS(userId);
         }
 
-        return { orders, events, teamMembers, notes };
+        return { orders, events, teamMembers, notes, accounts };
     } catch (error) {
         console.error("Error in getAgendaDataAction:", error);
         throw new Error("Failed to fetch agenda data. Please check server logs.");
@@ -111,4 +114,3 @@ export async function markTaskAsCompleteAction(id: string): Promise<void> {
         throw new Error("Failed to mark task as complete.");
     }
 }
-

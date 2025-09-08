@@ -30,7 +30,7 @@
  *   --limit 200     // procesa solo N cuentas (para pruebas)
  */
 
-import { getApps, initializeApp, cert } from "firebase-admin/app";
+import { getApps, initializeApp, cert, applicationDefault } from "firebase-admin/app";
 import { getFirestore, Timestamp, FieldValue } from "firebase-admin/firestore";
 
 // -------- CLI args --------
@@ -46,11 +46,13 @@ const CONFIRM_DELETE = process.env.CONFIRM_DELETE === "YES";
 
 // -------- Admin init --------
 function initDb() {
-  if (!getApps().length) {
-    const json = process.env.FIREBASE_ADMIN_JSON;
-    if (!json) throw new Error("FIREBASE_ADMIN_JSON no está definido");
-    initializeApp({ credential: cert(JSON.parse(json)) });
+  if (getApps().length) {
+    return getFirestore();
   }
+  // Use Application Default Credentials, which is standard for managed environments.
+  initializeApp({
+    credential: applicationDefault(),
+  });
   return getFirestore();
 }
 const db = initDb();

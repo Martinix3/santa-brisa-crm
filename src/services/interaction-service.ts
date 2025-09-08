@@ -1,101 +1,72 @@
 
 'use server';
 
-import { db } from '@/lib/firebase';
+import { adminDb as db } from '@/lib/firebaseAdmin';
 import {
-  collection,
-  query,
-  where,
-  getDocs,
-  doc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  Timestamp,
-  orderBy,
-  type DocumentSnapshot,
-  runTransaction,
-} from 'firebase/firestore';
-import type { Order } from '@/types';
+  collection, addDoc, updateDoc, doc, Timestamp,
+  getDocs, query, orderBy, limit, where
+} from 'firebase-admin/firestore';
 import type { InteractionFormValues } from '@/lib/schemas/interaction-schema';
 
-const INTERACTIONS_COLLECTION = 'orders'; // We keep using 'orders' for now to avoid a big migration
+const INTERACTIONS_COLLECTION = 'interactions'; // Using a separate collection now
+const ACCOUNTS_COLLECTION = 'accounts';
 
-export async function saveInteractionFS(
-  accountId: string, 
-  originatingTaskId: string | undefined,
-  data: InteractionFormValues, 
-  userId: string,
-  userName: string,
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    
-    await runTransaction(db, async (transaction) => {
-        // If there was an originating task (a 'Programada' or 'Seguimiento' task), we mark it as 'Completado'
-        if (originatingTaskId) {
-          const originalTaskRef = doc(db, INTERACTIONS_COLLECTION, originatingTaskId);
-          transaction.update(originalTaskRef, {
-            status: 'Completado',
-            lastUpdated: Timestamp.now(),
-          });
-        }
-        
-        const newInteractionRef = doc(collection(db, INTERACTIONS_COLLECTION));
-        
-        const subtotal = (data.unidades || 0) * (data.precioUnitario || 0);
-        const totalValue = subtotal * 1.21;
-        
-        const baseData: Partial<Order> = {
-            accountId: accountId,
-            clientName: data.clientName,
-            salesRep: userName,
-            notes: data.notes,
-            orderIndex: 0,
-            clientStatus: 'existing',
-            taskCategory: 'Commercial',
-            assignedMaterials: data.assignedMaterials || [],
-            originatingTaskId: originatingTaskId,
-            distributorId: data.distributorId,
-        };
-        
-        let interactionData: Partial<Order> = {};
+// This is a placeholder. Replace with your actual user authentication logic.
+async function getCurrentUser() {
+  return { id: 'currentUserId', name: 'Usuario Actual', role: 'Ventas' };
+}
 
-        switch (data.outcome) {
-          case 'Pedido':
-            interactionData = {
-              ...baseData,
-              status: 'Confirmado',
-              visitDate: new Date().toISOString(),
-              numberOfUnits: data.unidades,
-              unitPrice: data.precioUnitario,
-              value: totalValue,
-              paymentMethod: 'Adelantado',
-            };
-            break;
-          case 'Seguimiento':
-            interactionData = { ...baseData, status: 'Seguimiento', nextActionType: 'Visitar de nuevo', nextActionDate: new Date().toISOString() };
-            break;
-          case 'Visita':
-          case 'Llamada':
-          case 'Email':
-          case 'Otro':
-          default:
-            interactionData = { ...baseData, status: 'Completado', visitDate: new Date().toISOString() };
-            break;
-        }
-        
-        transaction.set(newInteractionRef, {
-            ...interactionData,
-            createdAt: Timestamp.now(),
-            lastUpdated: Timestamp.now(),
-            visitDate: interactionData.visitDate ? Timestamp.fromDate(new Date(interactionData.visitDate)) : null,
-            nextActionDate: interactionData.nextActionDate ? Timestamp.fromDate(new Date(interactionData.nextActionDate)) : null,
-        });
-    });
-    
-    return { success: true };
-  } catch (e: any) {
-    console.error("Error saving interaction: ", e);
-    return { success: false, error: e.message };
+function canCreateInteraction(user: { role: string }) {
+  return ['Admin','Manager','Ventas','Clavadista','Líder Clavadista'].includes(user.role ?? '');
+}
+
+/** Create interaction and update metadata on the account */
+export async function createInteractionAction(input: InteractionFormValues) {
+  const user = await getCurrentUser();
+  if (!canCreateInteraction(user)) {
+    throw new Error('No tienes permisos para registrar interacciones.');
   }
+
+  const data = interactionSchema.parse(input);
+  const now = Timestamp.now();
+
+  // 1) Save interaction
+  const ref = await addDoc(collection(db, INTERACTIONS_COLLECTION), {
+    accountId: data.accountId,
+    type: data.type,
+    date: Timestamp.fromDate(data.date),
+    outcome: data.outcome ?? null,
+    note: data.note ?? null,
+    nextActionAt: data.nextActionAt ? Timestamp.fromDate(data.nextActionAt) : null,
+    createdAt: now,
+    createdBy: user.id,
+  });
+
+  // 2) If this interaction came from a scheduled task, mark it as completed
+  if (data.originatingTaskId) {
+    // Assuming tasks might be in the 'orders' collection with a specific status
+    await updateDoc(doc(db, 'orders', data.originatingTaskId), {
+      status: 'Completado',
+      lastUpdated: now,
+    });
+  }
+
+  // 3) Touch the account with useful info for scoring/status calculation
+  await updateDoc(doc(db, ACCOUNTS_COLLECTION, data.accountId), {
+    lastInteractionAt: Timestamp.fromDate(data.date),
+    lastUpdated: now,
+    lastTouchedBy: user.id,
+  });
+
+  return { ok: true, id: ref.id };
+}
+
+/** For a simple account selector (top recent) */
+export async function listAccountsForSelectAction(params?: { q?: string }) {
+  // Minimal implementation: if you have advanced search, change it here.
+  const snap = await getDocs(query(collection(db, ACCOUNTS_COLLECTION), orderBy('name', 'asc'), limit(20)));
+  return snap.docs.map(d => {
+    const x = d.data() as any;
+    return { id: d.id, name: x.name as string };
+  });
 }

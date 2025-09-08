@@ -42,6 +42,27 @@ export type TipoDistribucion = typeof TIPOS_DISTRIBUCION[number];
 // ------------------------------------------------------------
 // Tareas / Interacciones
 // ------------------------------------------------------------
+export const TIPOS_INTERACCION = ["visita", "llamada", "mensaje", "seguimiento", "nota"] as const;
+export type TipoInteraccion = typeof TIPOS_INTERACCION[number];
+export const interactionTypeOptions = [
+  { value: "visita", label: "Visita" },
+  { value: "llamada", label: "Llamada" },
+  { value: "mensaje", label: "Mensaje" }, // email/whatsapp/dm
+  { value: "seguimiento", label: "Seguimiento" },
+  { value: "nota", label: "Nota interna" },
+] as const;
+
+
+export const RESULTADOS_INTERACCION = ["exito", "pendiente", "sin_respuesta", "no_interesado"] as const;
+export type ResultadoInteraccion = typeof RESULTADOS_INTERACCION[number];
+export const interactionOutcomeOptions = [
+  { value: "exito", label: "Éxito" },
+  { value: "pendiente", label: "Pendiente" },
+  { value: "sin_respuesta", label: "Sin respuesta" },
+  { value: "no_interesado", label: "No interesado" },
+] as const;
+
+
 export const ESTADOS_TAREA = ["programada", "seguimiento", "completado"] as const;
 export type EstadoTarea = typeof ESTADOS_TAREA[number];
 
@@ -51,11 +72,6 @@ export type AreaTarea = typeof AREAS_TAREA[number];
 export const PRIORIDADES_TAREA = ["low", "medium", "high"] as const;
 export type PrioridadTarea = typeof PRIORIDADES_TAREA[number];
 
-export const TIPOS_INTERACCION = ["visita", "llamada", "cata", "email", "evento"] as const;
-export type TipoInteraccion = typeof TIPOS_INTERACCION[number];
-
-export const RESULTADOS_INTERACCION = ["exito", "pendiente", "perdido"] as const;
-export type ResultadoInteraccion = typeof RESULTADOS_INTERACCION[number];
 
 // ------------------------------------------------------------
 // Pedidos/Documentos — ESTADOS CANÓNICOS (solo de pedido)

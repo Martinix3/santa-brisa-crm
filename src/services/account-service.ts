@@ -40,7 +40,7 @@ export const addAccountFS = async (data: Partial<Account>): Promise<string> => {
     updatedAt: new Date().toISOString(),
     ...data,
     name: data.name || 'Nombre Desconocido',
-    type: data.type || 'HORECA',
+    type: data.type || 'prospect',
   };
   const firestoreData = toFirestore(fullData);
   const docRef = await adminDb.collection(ACCOUNTS_COLLECTION).add(firestoreData);

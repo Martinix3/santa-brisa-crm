@@ -1,38 +1,19 @@
-
 import * as z from "zod";
-import { SIGUIENTES_ACCIONES as nextActionTypeList } from "@ssot";
+import { 
+    interactionTypeOptions, 
+    interactionOutcomeOptions,
+    type InteractionType,
+    type InteractionOutcome
+} from "@ssot";
 
-const assignedMaterialSchema = z.object({
-  materialId: z.string().min(1, "Debe seleccionar un material."),
-  quantity: z.coerce.number().min(1, "La cantidad debe ser al menos 1.").optional(),
+export const interactionSchema = z.object({
+  accountId: z.string().min(1, "Selecciona una cuenta"),
+  type: z.enum(interactionTypeOptions.map(o => o.value) as [InteractionType, ...InteractionType[]]),
+  date: z.coerce.date().default(() => new Date()),
+  outcome: z.enum(interactionOutcomeOptions.map(o => o.value) as [InteractionOutcome, ...InteractionOutcome[]]).optional().nullable(),
+  note: z.string().optional().nullable(),
+  nextActionAt: z.coerce.date().optional().nullable(), // próxima cita/recordatorio
+  originatingTaskId: z.string().optional().nullable(), // si viene de una tarea programada
 });
 
-export const interactionFormSchema = z.object({
-  // Internal state
-  accountId: z.string().optional(),
-  clientName: z.string().optional(),
-  distributorId: z.string().optional(),
-
-  // Step 1: Outcome
-  outcome: z.enum(['Visita', 'Llamada', 'Email', 'Seguimiento', 'Pedido', 'Otro']),
-  notes: z.string().optional(),
-  
-  // For 'Pedido' outcome
-  unidades: z.coerce.number().positive().optional(),
-  precioUnitario: z.coerce.number().positive().optional(),
-
-  // For all outcomes
-  assignedMaterials: z.array(assignedMaterialSchema).optional(),
-
-}).superRefine((data, ctx) => {
-  if (data.outcome === "Pedido") {
-    if (!data.unidades) {
-      ctx.addIssue({ path: ["unidades"], message: "Las unidades son obligatorias." });
-    }
-    if (!data.precioUnitario) {
-      ctx.addIssue({ path: ["precioUnitario"], message: "El precio es obligatorio." });
-    }
-  }
-});
-
-export type InteractionFormValues = z.infer<typeof interactionFormSchema>;
+export type InteractionFormValues = z.infer<typeof interactionSchema>;

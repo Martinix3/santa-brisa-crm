@@ -1,8 +1,30 @@
 
-import type { Account, AccountFormValues } from '@/types';
+import type { Account, AddressDetails } from '@/types';
+import type { AccountFormValues } from '@/components/app/account-dialog';
+import { parseISO, isValid } from 'date-fns';
 
 // Helper to normalize strings: ensures undefined for empty/whitespace strings.
 const norm = (s?: string | null): string | undefined => (s?.trim() ? s.trim() : undefined);
+
+// Helper to convert Firestore Timestamps or other date formats to ISO strings
+const toISOString = (dateValue: any): string | undefined => {
+  if (!dateValue) return undefined;
+  // Handle Firestore Timestamp objects (from both client and admin SDKs)
+  if (typeof dateValue.toDate === 'function') {
+    return dateValue.toDate().toISOString();
+  }
+  // Handle existing ISO strings
+  if (typeof dateValue === 'string') {
+    const d = parseISO(dateValue);
+    if (isValid(d)) return d.toISOString();
+  }
+  // Handle JS Date objects
+  if (dateValue instanceof Date && isValid(dateValue)) {
+    return dateValue.toISOString();
+  }
+  return undefined;
+};
+
 
 export function fromFirestore(raw: any): Account {
   const name = raw.name ?? raw.nombre ?? '';
@@ -38,17 +60,17 @@ export function fromFirestore(raw: any): Account {
     leadScore: raw.leadScore,
     sb_score: raw.sb_score,
     next_action: raw.next_action,
-    next_action_date: raw.next_action_date,
-    createdAt: raw.createdAt,
-    updatedAt: raw.updatedAt,
+    next_action_date: raw.next_action_date, // This field seems to be a Timestamp from your error log, handle it if needed
+    createdAt: toISOString(raw.createdAt)!,
+    updatedAt: toISOString(raw.updatedAt)!,
     iban: raw.iban,
     mainContactName: raw.mainContactName,
     mainContactEmail: raw.mainContactEmail,
     mainContactPhone: raw.mainContactPhone,
     notes: raw.notes,
     internalNotes: raw.internalNotes,
-    primer_pedido_fecha: raw.primer_pedido_fecha,
-    segundo_pedido_fecha: raw.segundo_pedido_fecha,
+    primer_pedido_fecha: toISOString(raw.primer_pedido_fecha),
+    segundo_pedido_fecha: toISOString(raw.segundo_pedido_fecha),
     total_orders_count: raw.total_orders_count,
   };
 }

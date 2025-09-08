@@ -3,125 +3,84 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper functions to simplify rule definitions
-    function isSignedIn() {
+    
+    // --- Helper Functions ---
+    function isAuthenticated() {
       return request.auth != null;
     }
-
-    function isRole(role) {
-      return isSignedIn() && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role == role;
-    }
     
-    function isOwner(doc) {
-      return request.auth.uid == doc.data.owner_user_id || request.auth.uid == doc.data.salesRepId || request.auth.uid == doc.data.responsableId;
+    function isUser(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Allow authenticated users to read most collections.
-    // The application logic will handle filtering what data to show to whom.
-    match /accounts/{accountId} {
-      allow read: if isSignedIn();
-      allow create, update: if isRole('Admin') || isRole('SalesRep');
-      allow delete: if isRole('Admin');
+    function isAdmin() {
+      return isAuthenticated() && get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role == 'Admin';
+    }
+    
+    function isSalesOrAdmin() {
+      let role = get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role;
+      return isAuthenticated() && (role == 'Admin' || role == 'Ventas' || role == 'Manager');
     }
 
-    match /orders/{orderId} {
-      allow read: if isSignedIn();
-      allow create, update: if isRole('Admin') || isRole('SalesRep') || isRole('Clavadista') || isRole('Distributor');
-      allow delete: if isRole('Admin');
-    }
-    
-    match /events/{eventId} {
-       allow read: if isSignedIn();
-       allow create, update, delete: if isRole('Admin');
-    }
-    
-    match /teamMembers/{userId} {
-      allow read: if isSignedIn();
-      // Only Admins can create or modify team members. Users can't edit their own profile directly via rules yet.
-      allow create, update: if isRole('Admin');
-      // Protect against self-deletion by mistake in a script
-      allow delete: if isRole('Admin') && request.auth.uid != userId;
-    }
-    
-    match /suppliers/{supplierId} {
-        allow read: if isSignedIn();
-        allow create, update, delete: if isRole('Admin');
-    }
-    
-    match /purchases/{purchaseId} {
-        allow read: if isRole('Admin');
-        allow create, update, delete: if isRole('Admin');
-    }
-
-    match /inventoryItems/{itemId} {
-        allow read: if isSignedIn();
-        allow create, update, delete: if isRole('Admin');
-    }
-    
-    match /itemBatches/{batchId} {
-        allow read: if isSignedIn();
-        allow create, update, delete: if isRole('Admin');
-    }
-
-    match /stockTxns/{txnId} {
-        allow read: if isRole('Admin');
-        allow create: if isRole('Admin'); // Transactions should be immutable
-        allow update, delete: if false; 
-    }
-
-    match /productionRuns/{runId} {
-        allow read: if isRole('Admin');
-        allow create, update, delete: if isRole('Admin');
-    }
-    
-    match /bomLines/{bomId} {
-        allow read: if isRole('Admin');
-        allow create, update, delete: if isRole('Admin');
-    }
-
-    match /tanks/{tankId} {
-        allow read: if isRole('Admin');
-        allow create, update: if isRole('Admin');
-    }
-    
-    match /directSales/{saleId} {
-        allow read: if isRole('Admin') || isRole('Distributor');
-        allow create, update, delete: if isRole('Admin');
-    }
-    
-    match /sampleRequests/{reqId} {
-        allow read: if isSignedIn();
-        allow create: if isSignedIn();
-        allow update, delete: if isRole('Admin');
-    }
-
-    match /settings/{docId} {
-      allow read: if isSignedIn();
-      allow write: if isRole('Admin');
-    }
-
-    match /counters/{counterId} {
-        allow read, write: if isRole('Admin'); // For SKU generation, etc.
-    }
-    
-    match /categories/{catId} {
-        allow read: if isSignedIn();
-        allow create, update, delete: if isRole('Admin');
-    }
-
-    match /costCenters/{ccId} {
-        allow read: if isRole('Admin');
-        allow create, update, delete: if isRole('Admin');
-    }
-    
-    match /stickyNotes/{noteId} {
-        allow read, create, update, delete: if isSignedIn(); // Allow users to manage their own notes
-    }
-
-    // Fallback for any other collections, default deny.
+    // --- Global Catch-All ---
+    // Deny all reads and writes by default
     match /{document=**} {
       allow read, write: if false;
+    }
+    
+    // --- Generic Read-Only Access for most collections ---
+    // Any authenticated user can read data from these collections.
+    // The application logic is responsible for filtering what a specific role can see.
+    match /{collection}/{docId} 
+      where collection in [
+        'accounts', 'events', 'purchases', 'suppliers', 
+        'inventoryItems', 'itemBatches', 'stockTxns', 'productionRuns', 
+        'bomLines', 'categories', 'costCenters', 'sampleRequests', 
+        'directSales', 'tanks', 'counters', 'migrationFlags'
+      ] {
+      allow get, list: if isAuthenticated();
+    }
+
+    // --- teamMembers Collection ---
+    // Users can read the full list, get their own profile,
+    // and admins can do anything.
+    match /teamMembers/{userId} {
+      allow get: if isAuthenticated();
+      allow list: if isAuthenticated();
+      allow create, delete: if isAdmin();
+      allow update: if isUser(userId) || isAdmin();
+    }
+    
+    // --- orders (Interactions) Collection ---
+    // Complex rules: Authenticated can create. Admins can manage all.
+    // Sales reps can update orders assigned to them.
+    match /orders/{orderId} {
+        allow get: if isAuthenticated();
+        allow list: if isSalesOrAdmin();
+        allow create: if isAuthenticated();
+        allow update: if isAdmin() || (isSalesOrAdmin() && resource.data.salesRep == get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.name);
+        allow delete: if isAdmin();
+    }
+
+    // --- stickyNotes Collection ---
+    // Users can read/write notes assigned to them or created by them.
+    // Admins have full access.
+    match /stickyNotes/{noteId} {
+        allow get, list: if isAuthenticated();
+        allow create: if isAuthenticated() && request.resource.data.creatorId == request.auth.uid;
+        allow update, delete: if isAuthenticated() && (resource.data.creatorId == request.auth.uid || resource.data.assignedToId == request.auth.uid || isAdmin());
+    }
+
+    // --- Admin-Only Write Access ---
+    // Admins have write access to all these collections.
+    match /{collection}/{docId} 
+      where collection in [
+        'accounts', 'events', 'purchases', 'suppliers', 'inventoryItems', 
+        'itemBatches', 'stockTxns', 'productionRuns', 'bomLines', 
+        'categories', 'costCenters', 'sampleRequests', 'directSales', 
+        'tanks', 'counters'
+      ] {
+        allow write: if isAdmin();
     }
   }
 }

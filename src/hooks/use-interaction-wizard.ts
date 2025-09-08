@@ -8,21 +8,21 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { saveInteractionFS } from "@/services/interaction-service";
 import type { Account, TeamMember, Order, InventoryItem } from "@/types";
-import { interactionFormSchema, type InteractionFormValues } from "@/lib/schemas/interaction-schema";
+import { orderFormSchema, type OrderFormValues } from "@/lib/schemas/order-form-schema";
 import { getAccountsAction } from "@/services/server/account-actions";
 import { getInventoryItemsAction } from "@/services/server/inventory-actions";
 import { RolUsuario as UserRole } from "@ssot";
 
 type UseInteractionWizardReturn = {
-  form: ReturnType<typeof useForm<InteractionFormValues>>;
-  onSubmit: (values: InteractionFormValues) => Promise<void>;
+  form: ReturnType<typeof useForm<OrderFormValues>>;
+  onSubmit: (values: OrderFormValues) => Promise<void>;
   isLoading: boolean;
   isSubmitting: boolean;
   errorLoadingData: boolean; // New state to indicate data loading failure
   availableMaterials: InventoryItem[];
   materialFields: { id: string }[];
-  appendMaterial: ReturnType<typeof useFieldArray<InteractionFormValues>["append"]>;
-  removeMaterial: ReturnType<typeof useFieldArray<InteractionFormValues>["remove"]>;
+  appendMaterial: ReturnType<typeof useFieldArray<OrderFormValues>["append"]>;
+  removeMaterial: ReturnType<typeof useFieldArray<OrderFormValues>["remove"]>;
   userRole: UserRole | null;
   salesRepsList: TeamMember[];
   clavadistas: TeamMember[];
@@ -47,7 +47,7 @@ export function useInteractionWizard(
   const [distributorAccounts, setDistributorAccounts] = React.useState<Account[]>([]);
 
   const form = useForm<any>({
-    resolver: zodResolver(interactionFormSchema),
+    resolver: zodResolver(orderFormSchema),
     mode: "onBlur",
     defaultValues: {
       outcome: "Visita",
@@ -79,7 +79,7 @@ export function useInteractionWizard(
         if (!mounted) return;
 
         setSalesRepsList(
-          teamMembers.filter(m => m.role === 'SalesRep' || m.role === 'Admin').sort((a, b) => a.name.localeCompare(b.name, "es"))
+          teamMembers.filter(m => m.role === 'Ventas' || m.role === 'Admin').sort((a, b) => a.name.localeCompare(b.name, "es"))
         );
         setClavadistas(
             teamMembers.filter(m => m.role === 'Clavadista' || m.role === 'Líder Clavadista').sort((a, b) => a.name.localeCompare(b.name, "es"))
@@ -121,7 +121,7 @@ export function useInteractionWizard(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client?.id, client?.name, client?.distributorId]); 
 
-  const onSubmit = async (values: InteractionFormValues) => {
+  const onSubmit = async (values: OrderFormValues) => {
     if (!teamMember) {
       toast({ title: "Error", description: "Falta información del usuario.", variant: "destructive" });
       return;

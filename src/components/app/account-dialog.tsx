@@ -265,9 +265,9 @@ export default function AccountDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-lg md:max-w-xl lg:max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl">
-            {dialogContent}
-        </DialogContent>
+      <DialogContent className="sm:max-w-lg md:max-w-xl lg:max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl p-0">
+        {dialogContent}
+      </DialogContent>
     </Dialog>
   );
 }

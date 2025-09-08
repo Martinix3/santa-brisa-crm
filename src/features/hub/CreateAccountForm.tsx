@@ -12,7 +12,7 @@ type Props = {
   onCreated: (id: string, name: string) => void;
   allAccounts: Account[];
   allTeamMembers: TeamMember[];
-  onOpenChange: (open: boolean) => void;
+  onCancel: () => void;
 };
 
 export function CreateAccountForm({ 
@@ -20,7 +20,7 @@ export function CreateAccountForm({
   onCreated, 
   allAccounts, 
   allTeamMembers,
-  onOpenChange,
+  onCancel,
 }: Props) {
   const { toast } = useToast();
 
@@ -37,7 +37,6 @@ export function CreateAccountForm({
       });
 
       onCreated(res.id, data.name!);
-      onOpenChange(false);
     } catch (e: any) {
       toast({
         title: "Error al guardar",
@@ -48,15 +47,15 @@ export function CreateAccountForm({
   };
   
   return (
-     <div className="p-1">
-         <AccountDialog
+    <div className="p-1">
+        <AccountDialog
             isOpen={true} // It's always "open" inside its container
-            onOpenChange={() => {}} // Controlled by parent Tabs
+            onOpenChange={(open) => { if(!open) onCancel() }}
             account={initialAccount}
             onSave={handleSave}
             allAccounts={allAccounts}
             allTeamMembers={allTeamMembers}
         />
-     </div>
+    </div>
   );
 }

@@ -58,27 +58,25 @@ export default function QuickHubDialog({
     }
   }, [open, defaultMode, initialAccount, toast]);
 
-  const handleSuccess = (type: 'account' | 'interaction' | 'order', id: string, accountId?: string, accountName?: string) => {
-    onOpenChange(false);
+  const handleSuccess = (type: 'account' | 'interaction' | 'order', id: string, name: string) => {
     refreshDataSignature();
+    onOpenChange(false);
     
-    if ((type === 'interaction' || type === 'order') && !accountId) {
+    if (type === 'interaction' || type === 'order') {
        toast({
           title: "Acción registrada",
-          description: `Se ha creado la interacción/pedido para "${accountName}". Ahora, por favor completa los datos de la nueva cuenta.`
+          description: `Se ha creado la interacción/pedido para "${name}".`,
        });
-       // Programmatically switch tab and set account
-       setMode('cuenta');
-       setSelectedAccount({id: id, name: accountName, type: 'prospect'} as any);
+       // If a new account was implicitly created, we don't automatically switch tabs anymore
+       // The user can do it manually if they want to add more details.
     }
   };
 
   const handleAccountSelection = (account: Account | null) => {
     setSelectedAccount(account);
-    if(account) {
+    if(account && account.id !== 'new') {
+        // if an existing account is selected, move to interaction
         if (mode === 'cuenta') setMode('interaccion');
-    } else {
-        setMode('cuenta');
     }
   };
 
@@ -108,8 +106,8 @@ export default function QuickHubDialog({
         <Tabs value={mode} onValueChange={(v) => setMode(v as HubMode)} className="w-full">
           <TabsList className="grid grid-cols-3 w-full">
             <TabsTrigger value="cuenta">Cuenta</TabsTrigger>
-            <TabsTrigger value="interaccion" disabled={!selectedAccount}>Interacción</TabsTrigger>
-            <TabsTrigger value="pedido" disabled={!selectedAccount}>Pedido</TabsTrigger>
+            <TabsTrigger value="interaccion">Interacción</TabsTrigger>
+            <TabsTrigger value="pedido">Pedido</TabsTrigger>
           </TabsList>
 
           <TabsContent value="cuenta" className="mt-4">
@@ -117,17 +115,20 @@ export default function QuickHubDialog({
               key={`account-form-${selectedAccount?.id || 'new'}`}
               initialAccount={selectedAccount}
               onCreated={(id, name) => {
-                toast({ title: "Cuenta creada/actualizada", description: name });
-                handleSuccess('account', id, id);
+                handleSuccess('account', id);
+                // After creating/editing, select the account and switch to interaction
+                const newOrUpdatedAccount = allAccounts.find(a => a.id === id) || {id, name} as Account;
+                setSelectedAccount(newOrUpdatedAccount);
+                setMode('interaccion');
               }}
               allAccounts={allAccounts}
               allTeamMembers={teamMembers}
-              onOpenChange={onOpenChange}
+              onCancel={() => onOpenChange(false)}
             />
           </TabsContent>
 
           <TabsContent value="interaccion" className="mt-4">
-             {selectedAccount && (
+             {selectedAccount ? (
                  <CreateInteractionForm
                     key={`interaction-form-${selectedAccount.id}`}
                     selectedAccount={selectedAccount}
@@ -135,21 +136,19 @@ export default function QuickHubDialog({
                         handleSuccess('interaction', iid, accId, selectedAccount.name);
                     }}
                 />
-             )}
-              {!selectedAccount && <div className="text-center p-4 text-muted-foreground">Selecciona o crea una cuenta para registrar una interacción.</div>}
+             ) : <div className="text-center p-4 text-muted-foreground">Selecciona o crea una cuenta para registrar una interacción.</div>}
           </TabsContent>
 
           <TabsContent value="pedido" className="mt-4">
-            {selectedAccount && (
+            {selectedAccount ? (
                 <CreateOrderFormLite
                     key={`order-form-${selectedAccount.id}`}
                     selectedAccount={selectedAccount}
                     onCreated={(oid, accId) => {
-                        handleSuccess('order', oid, accId, selectedAccount.name);
+                         handleSuccess('order', oid, accId, selectedAccount.name);
                     }}
                 />
-            )}
-            {!selectedAccount && <div className="text-center p-4 text-muted-foreground">Selecciona o crea una cuenta para registrar un pedido.</div>}
+            ) : <div className="text-center p-4 text-muted-foreground">Selecciona o crea una cuenta para registrar un pedido.</div>}
           </TabsContent>
         </Tabs>
       </DialogContent>

@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { adminDb as db } from '@/lib/firebaseAdmin';
@@ -48,17 +47,12 @@ export async function createInteractionAction(input: InteractionFormValues) {
       const newAccountData = {
           name: accountName,
           searchName,
-          type: 'HORECA', // Default type for implicit creation
+          accountType: 'OTRO', // Default type for implicit creation
           ownership: input.ownershipHint || 'propio',
-          status: 'POTENCIAL',
-          potencial: 'medio',
-          leadScore: 50,
+          accountStage: 'POTENCIAL',
           createdAt: now,
           updatedAt: now,
-          createdBy: user.id,
-          salesRepId: user.id,
-          responsableId: user.id,
-          responsableName: user.name,
+          owner_user_id: user.id,
       };
       const accountRef = await db.collection(ACCOUNTS_COLLECTION).add(newAccountData);
       accountId = accountRef.id;

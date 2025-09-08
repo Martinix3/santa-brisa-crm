@@ -1,9 +1,10 @@
+
 "use client";
 
 import * as React from "react";
 import { Table, TableBody, TableCell, TableRow, TableHead, TableHeader } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import type { Order } from "@/types";
+import type { Order, Account } from "@/types";
 import { format, parseISO, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 import StatusBadge from "@/components/app/status-badge";
@@ -15,7 +16,7 @@ import { getInteractionType } from '@/lib/interaction-utils';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { saveInteractionFS } from "@/services/interaction-service";
 import { useToast } from "@/hooks/use-toast";
-import { InteractionDialog } from "./interaction-dialog";
+import InteractionDialog from "./interaction-dialog";
 
 interface AccountHistoryTableProps {
   interactions: Order[];
@@ -101,8 +102,11 @@ export default function AccountHistoryTable({ interactions }: AccountHistoryTabl
         <InteractionDialog
             open={isInteractionDialogOpen}
             onOpenChange={setIsInteractionDialogOpen}
-            client={account as Account}
-            originatingTask={null}
+            defaultAccountId={account.id}
+            onCreated={() => {
+                toast({ title: "Interacción Creada", description: `Se ha registrado una nueva interacción para ${account.name}.` });
+                refreshDataSignature();
+            }}
         />
       )}
     </>

@@ -13,8 +13,9 @@ import StatusBadge from '@/components/app/status-badge';
 import { CalendarCheck, ClipboardList, PartyPopper, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
-import { getDailyTasks } from '@/services/server/agenda-actions';
+import { getDailyTasksAction } from '@/services/server/agenda-actions';
 import { EstadoEventoCrm as CrmEventStatus } from "@ssot";
+import { RolUsuario as UserRole, EstadoPedido as OrderStatus } from "@ssot";
 
 interface AgendaItem {
   id: string;
@@ -44,7 +45,7 @@ export default function DailyTasksWidget() {
     async function loadTasks() {
       setIsLoading(true);
       try {
-        const items = await getDailyTasks({
+        const items = await getDailyTasksAction({
           userId: teamMember!.id,
           userName: teamMember!.name,
           userRole: userRole!,

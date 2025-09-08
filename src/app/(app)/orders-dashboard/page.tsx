@@ -1,4 +1,5 @@
 
+      
 "use client";
 
 import * as React from "react";
@@ -7,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import type { Order, UserRole, Account, OrderStatus } from "@/types";
+import type { Order, UserRole, Account, OrderStatus, TeamMember } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { Loader2, Search, PlusCircle, Eye } from "lucide-react";
 import EditOrderDialog, { type EditOrderFormValues } from "@/components/app/edit-order-dialog";
@@ -28,7 +29,7 @@ export default function OrdersDashboardPage() {
   
   const [orders, setOrders] = React.useState<Order[]>([]);
   const [accounts, setAccounts] = React.useState<Account[]>([]);
-  const [teamMembers, setTeamMembers] = React.useState<any[]>([]); // Use any temporarily if type is complex
+  const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   
   const [editingOrder, setEditingOrder] = React.useState<Order | null>(null);
@@ -45,10 +46,9 @@ export default function OrdersDashboardPage() {
         const [fetchedOrders, fetchedAccounts, fetchedMembers] = await Promise.all([
           getOrdersFS(),
           getAccountsFS(),
-          getTeamMembersFS(['SalesRep', 'Admin', 'Clavadista'])
+          getTeamMembersFS(['SalesRep', 'Admin', 'Clavadista', 'Líder Clavadista'])
         ]);
         
-        // CORRECTION: Filter out agenda tasks, only show actual orders
         let relevantOrders = fetchedOrders.filter(o => o.status !== 'Programada' && o.status !== 'Seguimiento' && o.status !== 'Fallido' && o.status !== 'Completado');
 
         if (userRole === 'Distributor' && teamMember?.accountId) {
@@ -213,8 +213,11 @@ export default function OrdersDashboardPage() {
             onSave={handleSaveOrder}
             currentUserRole={userRole!}
             allAccounts={accounts}
+            allTeamMembers={teamMembers}
         />
       )}
     </div>
   );
 }
+
+    

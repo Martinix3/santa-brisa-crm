@@ -6,12 +6,12 @@ import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
-import { getAccountsFS } from "@/services/account-service";
-import { getTeamMembersFS } from "@/services/team-member-service";
-import { getInventoryItemsFS } from "@/services/inventory-item-service";
 import { saveInteractionFS } from "@/services/interaction-service";
 import type { Account, TeamMember, Order, InventoryItem, UserRole } from "@/types";
 import { interactionFormSchema, type InteractionFormValues } from "@/lib/schemas/interaction-schema";
+import { getAccountsAction } from "@/services/server/account-actions";
+import { getInventoryItemsAction } from "@/services/server/inventory-actions";
+
 
 type UseInteractionWizardReturn = {
   form: ReturnType<typeof useForm<InteractionFormValues>>;
@@ -72,33 +72,31 @@ export function useInteractionWizard(
       setIsLoading(true);
       setErrorLoadingData(false);
       try {
-        const [fetchedAccounts, fetchedSalesReps, fetchedClavadistas, fetchedMaterials] = await Promise.all([
-          getAccountsFS(),
-          getTeamMembersFS(["SalesRep", "Admin"]),
-          getTeamMembersFS(["Clavadista", "Líder Clavadista"]),
-          getInventoryItemsFS(),
+        const [{ accounts, teamMembers }, fetchedMaterials] = await Promise.all([
+            getAccountsAction(),
+            getInventoryItemsAction()
         ]);
         if (!mounted) return;
 
         setSalesRepsList(
-          [...fetchedSalesReps].sort((a, b) => a.name.localeCompare(b.name, "es"))
+          teamMembers.filter(m => m.role === 'SalesRep' || m.role === 'Admin').sort((a, b) => a.name.localeCompare(b.name, "es"))
         );
         setClavadistas(
-          [...fetchedClavadistas].sort((a, b) => a.name.localeCompare(b.name, "es"))
+            teamMembers.filter(m => m.role === 'Clavadista' || m.role === 'Líder Clavadista').sort((a, b) => a.name.localeCompare(b.name, "es"))
         );
         setAvailableMaterials(
           fetchedMaterials.filter(m => Number(m.stock) > 0)
                           .sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "", "es"))
         );
         setDistributorAccounts(
-          fetchedAccounts
-            .filter(acc => acc.type === "distributor" || acc.type === "importer")
+          accounts
+            .filter(acc => acc.type === "Distribuidor" || acc.type === "Importador")
             .sort((a, b) => (a.nombre ?? "").localeCompare(b.nombre ?? "", "es"))
         );
       } catch (error: any) {
         toast({
           title: "Error cargando datos",
-          description: "No se pudieron cargar los materiales o miembros del equipo.",
+          description: "No se pudieron cargar los datos necesarios para el formulario.",
           variant: "destructive",
         });
         setErrorLoadingData(true);

@@ -1,4 +1,5 @@
 
+      
 "use client";
 
 import React, { useMemo, useState, useEffect } from "react";
@@ -33,10 +34,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { DateRange } from "react-day-picker";
 import EditOrderDialog, { type EditOrderFormValues } from "@/components/app/edit-order-dialog";
-import { getAccountsAction } from "@/services/server/account-actions";
 import { getDashboardDataAction, updateDistributorOrderStatusAction } from "@/services/server/dashboard-actions";
-import { getTeamMembersFS } from "@/services/team-member-service";
-import { updateFullOrderFS } from "@/services/order-service";
 
 // --- Distributor Portal Component ---
 function DistributorPortal({ teamMember, dataSignature, refreshDataSignature }: { teamMember: TeamMember, dataSignature: number, refreshDataSignature: () => void }) {
@@ -47,6 +45,7 @@ function DistributorPortal({ teamMember, dataSignature, refreshDataSignature }: 
   const [allManagedOrders, setAllManagedOrders] = useState<Order[]>([]);
   const [allInvoices, setAllInvoices] = useState<DirectSale[]>([]);
   const [allAccounts, setAllAccounts] = useState<Account[]>([]);
+  const [allTeamMembers, setAllTeamMembers] = useState<TeamMember[]>([]);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
 
   // Filters
@@ -64,9 +63,10 @@ function DistributorPortal({ teamMember, dataSignature, refreshDataSignature }: 
       }
       setIsLoading(true);
       try {
-        const { orders, directSales, accounts } = await getDashboardDataAction();
+        const { orders, directSales, accounts, teamMembers } = await getDashboardDataAction();
         
         setAllAccounts(accounts);
+        setAllTeamMembers(teamMembers);
         const managedAccountIds = new Set(accounts.filter(acc => acc.distributorId === teamMember.accountId).map(acc => acc.id));
 
         const managedOrders = orders.filter(o => {
@@ -208,6 +208,7 @@ function DistributorPortal({ teamMember, dataSignature, refreshDataSignature }: 
             onSave={handleEditOrderSave}
             currentUserRole={teamMember.role}
             allAccounts={allAccounts}
+            allTeamMembers={allTeamMembers}
         />
       )}
     </div>
@@ -222,9 +223,10 @@ export default function DashboardPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [salesReps, setSalesReps] = useState<TeamMember[]>([]);
   const [directSales, setDirectSales] = useState<DirectSale[]>([]);
+  const [allTeamMembers, setAllTeamMembers] = useState<TeamMember[]>([]);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   
   useEffect(() => {
-    // For distributors, data is fetched in their specific portal component
     if (userRole === 'Distributor') {
       setIsLoadingData(false);
       return;
@@ -237,6 +239,7 @@ export default function DashboardPage() {
 
         setOrders(orders);
         setAccounts(accounts);
+        setAllTeamMembers(teamMembers);
         setSalesReps(teamMembers.filter(m => m.role === 'SalesRep'));
         setDirectSales(directSales);
         
@@ -254,13 +257,11 @@ export default function DashboardPage() {
         return null;
     }
 
-    // Common data processing
     const successfulPlacementOrders = orders
       .filter(o => VALID_SALE_STATUSES.includes(o.status) && (o.createdAt || o.visitDate))
       .map(o => ({ ...o, relevantDate: parseISO((o.visitDate || o.createdAt)!) }))
       .filter(o => isValid(o.relevantDate));
 
-    // Clavadista-specific data
     if (userRole === 'Clavadista' || userRole === 'Líder Clavadista') {
         const clavadistaOrders = orders.filter(o => o.embajadorId === teamMember.id);
         const clavadistaAccounts = accounts.filter(acc => acc.embajadorId === teamMember.id);
@@ -274,11 +275,10 @@ export default function DashboardPage() {
             totalComisiones: teamMember.total_comisiones || 0,
             totalBonus: teamMember.total_bonus || 0,
             totalSales: 0,
-            objectives: mockStrategicObjectives, // Add this for consistency
+            objectives: mockStrategicObjectives,
         };
     }
 
-    // Existing logic for other roles
     const salesRepNamesSet = new Set(salesReps.map(m => m.name));
     salesRepNamesSet.add("Federica");
     const currentDate = new Date();
@@ -347,10 +347,8 @@ export default function DashboardPage() {
       ];
     }
     
-    // Ventas del equipo de colocación a 8€ por botella
     const teamPlacementSalesValue = successfulPlacementOrders.reduce((sum, o) => sum + ((o.numberOfUnits || 0) * 8), 0);
 
-    // Ventas en depósito
     const inConsignmentValue = directSales
         .filter(s => s.type === 'deposito' && s.status === 'en depósito')
         .reduce((sum, s) => {
@@ -360,7 +358,6 @@ export default function DashboardPage() {
             return sum + (remainingQty * item.netUnitPrice);
         }, 0);
 
-    // Ventas directas
     const directSalesValue = directSales
         .filter(s => s.type === 'directa' && ['confirmado', 'facturado', 'pagado', 'entregado'].includes(s.status))
         .reduce((sum, s) => sum + s.totalAmount, 0);
@@ -507,3 +504,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    

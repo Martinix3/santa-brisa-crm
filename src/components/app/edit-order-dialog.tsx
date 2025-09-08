@@ -1,4 +1,5 @@
 
+      
 "use client";
 
 import * as React from "react";
@@ -43,7 +44,6 @@ import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-import { getTeamMembersFS } from "@/services/team-member-service";
 import { getInventoryItemsAction } from "@/services/server/inventory-actions";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
@@ -86,6 +86,7 @@ interface EditOrderDialogProps {
   onSave: (data: EditOrderFormValues, orderId: string) => void;
   currentUserRole: UserRole;
   allAccounts?: Account[];
+  allTeamMembers?: TeamMember[];
 }
 
 function isValidUrl(urlString: string | undefined | null): boolean {
@@ -98,13 +99,15 @@ function isValidUrl(urlString: string | undefined | null): boolean {
   }
 }
 
-export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, currentUserRole, allAccounts = [] }: EditOrderDialogProps) {
+export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, currentUserRole, allAccounts = [], allTeamMembers = [] }: EditOrderDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
-  const [clavadistas, setClavadistas] = React.useState<TeamMember[]>([]);
-  const [salesReps, setSalesReps] = React.useState<TeamMember[]>([]);
   const [availableMaterials, setAvailableMaterials] = React.useState<InventoryItem[]>([]);
   const [isLoadingDropdownData, setIsLoadingDropdownData] = React.useState(true);
   const { toast } = useToast();
+
+  const clavadistas = React.useMemo(() => allTeamMembers.filter(m => m.role === 'Clavadista' || m.role === 'Líder Clavadista'), [allTeamMembers]);
+  const salesReps = React.useMemo(() => allTeamMembers.filter(m => m.role === 'SalesRep' || m.role === 'Admin'), [allTeamMembers]);
+
 
   const associatedAccount = React.useMemo(() => {
     if (!order) return null;
@@ -164,20 +167,17 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
   React.useEffect(() => {
     if (isOpen) {
         setIsLoadingDropdownData(true);
-        Promise.all([
-            getTeamMembersFS(['Clavadista', 'Líder Clavadista']),
-            getTeamMembersFS(['SalesRep', 'Admin']),
-            getInventoryItemsAction()
-        ]).then(([fetchedClavadistas, fetchedSalesReps, fetchedMaterials]) => {
-            setClavadistas(fetchedClavadistas);
-            setSalesReps(fetchedSalesReps);
-            setAvailableMaterials(fetchedMaterials.filter(m => m.latestPurchase && m.latestPurchase.calculatedUnitCost > 0));
-        }).catch(error => {
-            console.error("Error loading data for edit order dialog:", error);
-            toast({ title: "Error de carga de datos", description: "No se pudieron cargar los materiales o miembros del equipo.", variant: "destructive"});
-        }).finally(() => {
-            setIsLoadingDropdownData(false);
-        });
+        getInventoryItemsAction()
+          .then(fetchedMaterials => {
+              setAvailableMaterials(fetchedMaterials.filter(m => m.latestPurchase && m.latestPurchase.calculatedUnitCost > 0));
+          })
+          .catch(error => {
+              console.error("Error loading data for edit order dialog:", error);
+              toast({ title: "Error de carga de datos", description: "No se pudieron cargar los materiales.", variant: "destructive"});
+          })
+          .finally(() => {
+              setIsLoadingDropdownData(false);
+          });
     }
   }, [isOpen, toast]);
 
@@ -565,3 +565,5 @@ export default function EditOrderDialog({ order, isOpen, onOpenChange, onSave, c
     </Dialog>
   );
 }
+
+    

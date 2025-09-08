@@ -7,8 +7,9 @@ import {
   collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
   type DocumentSnapshot, writeBatch, runTransaction, where,
 } from "firebase-admin/firestore";
-import type { Order, Account, TeamMember, OrderStatus, NewScheduledTaskData } from '@/types';
+import type { Order, Account, TeamMember, NewScheduledTaskData } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
+import { EstadoPedido as OrderStatus } from "@ssot";
 
 const ORDERS_COLLECTION = 'orders'; 
 

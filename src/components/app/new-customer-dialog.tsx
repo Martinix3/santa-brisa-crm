@@ -33,11 +33,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Account, AccountType, AccountFormValues } from "@/types";
-import { accountTypeList } from "@/lib/data"; 
 import { Loader2 } from "lucide-react";
 import { addAccountFS } from "@/services/account-service";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
+import { TIPOS_CUENTA as accountTypeList } from "@ssot";
 
 const accountFormSchema = z.object({
   name: z.string().min(2, "El nombre comercial debe tener al menos 2 caracteres."),

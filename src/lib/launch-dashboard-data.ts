@@ -1,7 +1,8 @@
 
 
-import type { Kpi, StrategicObjective, OrderStatus } from "@/types";
-import { TrendingUp, Users, Briefcase, CalendarPlus, Repeat } from "lucide-react"; 
+import type { Kpi, StrategicObjective } from "@/types";
+import { TrendingUp, Users, Briefcase, CalendarPlus, Repeat } from "lucide-react";
+import { EstadoPedido as OrderStatus } from "@ssot";
 
 // Datos de KPI para el lanzamiento del producto
 // These currentValue fields will be dynamically calculated in the dashboard by fetching data from Firestore.

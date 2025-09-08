@@ -1,12 +1,13 @@
 import { db } from '@/lib/firebase';
 import { collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, runTransaction, where, limit, type DocumentReference, type DocumentSnapshot, setDoc, increment, FieldValue, arrayUnion } from "firebase/firestore";
-import type { ProductionRun, ProductionRunFormValues, InventoryItem, BomLine, ItemBatch, RunType, Shortage, ConsumptionPlanItem, FinishProductionRunFormValues, CleaningLog } from '@/types';
+import type { ProductionRun, ProductionRunFormValues, InventoryItem, BomLine, ItemBatch, Shortage, ConsumptionPlanItem, FinishProductionRunFormValues, CleaningLog } from '@/types';
 import { format, parseISO, isValid, differenceInMilliseconds } from 'date-fns';
 import { fromFirestoreBomLine } from './utils/firestore-converters';
 import { addStockTxnFSTransactional } from './stock-txn-service';
 import { addProductCostSnapshotFSTransactional } from './product-cost-snapshot-service';
 import { createFinishedGoodBatchFSTransactional, planBatchConsumption } from './batch-service';
 import { generateProductionRunCode } from '@/lib/coding';
+import { TipoEjecucion as RunType } from "@ssot";
 
 const PRODUCTION_RUNS_COLLECTION = 'productionRuns';
 const INVENTORY_ITEMS_COLLECTION = 'inventoryItems';

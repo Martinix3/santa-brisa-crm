@@ -25,10 +25,10 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
-import type { TankFormValues, Tank, TankStatus, UoM } from "@/types";
-import { tankStatusList, uomList } from "@/lib/data";
+import type { TankFormValues, Tank } from "@/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "../ui/separator";
+import { EstadoTanque as TankStatus, UdM as UoM, ESTADOS_TANQUE as tankStatusList, UDM as uomList } from "@ssot";
 
 const tankFormSchema = z.object({
   name: z.string().min(2, "El nombre del tanque es obligatorio."),

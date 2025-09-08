@@ -3,7 +3,8 @@
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { OrderStatus, AccountStatus, CrmEventStatus, DocumentStatus, PaymentStatus, ProductionRunStatus, QcStatus, TankStatus, DirectSaleStatus, SampleRequestStatus } from "@/types";
+import type { AccountStatus, PaymentStatus, ProductionRunStatus } from "@/types";
+import { EstadoPedido as OrderStatus, EstadoEventoCrm as CrmEventStatus, EstadoDocumento as DocumentStatus, EstadoQC as QcStatus, EstadoTanque as TankStatus, EstadoVentaDirecta as DirectSaleStatus, EstadoSolicitudMuestra as SampleRequestStatus } from "@ssot";
 
 type BadgeType = 'order' | 'account' | 'event' | 'document' | 'payment' | 'production' | 'qc' | 'tank' | 'directSale' | 'sampleRequest';
 

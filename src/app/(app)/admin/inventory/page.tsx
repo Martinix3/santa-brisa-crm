@@ -6,7 +6,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import type { InventoryItem, ItemBatch, QcStatus } from "@/types";
+import type { InventoryItem, ItemBatch } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, Loader2, Archive, AlertCircle } from "lucide-react";
 import InventoryItemDialog from "@/components/app/inventory-item-dialog";
@@ -20,6 +20,7 @@ import { InventoryFilters, type StockFilter, type ExpiryFilter } from "@/compone
 import { InventoryTable } from "@/components/app/inventory/inventory-table";
 import BatchDialog from "@/components/app/inventory/batch-dialog";
 import type { BatchFormValues } from "@/components/app/inventory/batch-dialog";
+import { EstadoQC as QcStatus } from "@ssot";
 
 // Custom hook for debouncing
 function useDebounce<T>(value: T, delay: number): T {

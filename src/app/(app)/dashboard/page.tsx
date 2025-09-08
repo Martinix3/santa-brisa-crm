@@ -4,7 +4,7 @@
 "use client";
 
 import React, { useMemo, useState, useEffect } from "react";
-import type { Order, Account, TeamMember, UserRole, Kpi, StrategicObjective, StickyNote, DirectSale, OrderStatus } from "@/types";
+import type { Order, Account, TeamMember, Kpi, StrategicObjective, StickyNote, DirectSale } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { parseISO, isSameYear, isSameMonth, isValid, subDays, addDays } from 'date-fns';
 import { Loader2, PlusCircle, SendHorizonal, FileText, Target, AlertTriangle, Briefcase, ShoppingCart, Award, TrendingUp, DollarSign, Truck, Users, Activity, Banknote, ChevronDown, Filter, CalendarDays, Eye } from "lucide-react";
@@ -14,7 +14,6 @@ import {
   kpiDataLaunch as initialKpiDataLaunch,
   mockStrategicObjectives,
 } from "@/lib/seeds";
-import { orderStatusesList } from "@/lib/data";
 import { VALID_SALE_STATUSES, ALL_VISIT_STATUSES } from "@/lib/constants";
 import { KpiGrid } from "@/components/app/dashboard/kpi-grid";
 import { MonthlyProgress } from "@/components/app/dashboard/monthly-progress";
@@ -36,6 +35,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { DateRange } from "react-day-picker";
 import EditOrderDialog, { type EditOrderFormValues } from "@/components/app/edit-order-dialog";
 import { getDashboardDataAction, updateDistributorOrderStatusAction } from "@/services/server/dashboard-actions";
+import { RolUsuario as UserRole, EstadoPedido as OrderStatus, ESTADOS_PEDIDO as orderStatusesList } from "@ssot";
 
 // --- Distributor Portal Component ---
 function DistributorPortal({ teamMember, dataSignature, refreshDataSignature }: { teamMember: TeamMember, dataSignature: number, refreshDataSignature: () => void }) {

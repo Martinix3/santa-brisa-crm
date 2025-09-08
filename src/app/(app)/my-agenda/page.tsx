@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { getAgendaDataAction, updateTaskOrderAction, deleteAgendaItemAction, addScheduledTaskAction, updateScheduledTaskAction, addEventAction, updateEventAction, markTaskAsCompleteAction } from "@/services/server/agenda-actions";
-import type { Order, CrmEvent, TeamMember, UserRole, OrderStatus, FollowUpResultFormValues, NewScheduledTaskData, EventFormValues, StickyNote, Account } from "@/types";
+import type { Order, CrmEvent, TeamMember, FollowUpResultFormValues, NewScheduledTaskData, EventFormValues, StickyNote, Account } from "@/types";
 import StatusBadge from "@/components/app/status-badge";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -38,7 +38,7 @@ import { StickyNotesWidget } from '@/components/app/dashboard/sticky-notes-widge
 import { getInteractionType } from '@/lib/interaction-utils';
 import { MODIFIER_NAMES, COLOR_MAP } from "@/lib/agenda-colors";
 import { saveInteractionFS } from "@/services/interaction-service";
-
+import { RolUsuario as UserRole, EstadoPedido as OrderStatus } from "@ssot";
 
 // --- TYPE DEFINITIONS ---
 export type AgendaItemType = 'tarea_comercial' | 'evento' | 'tarea_administrativa';

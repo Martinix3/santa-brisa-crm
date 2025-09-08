@@ -7,11 +7,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { saveInteractionFS } from "@/services/interaction-service";
-import type { Account, TeamMember, Order, InventoryItem, UserRole } from "@/types";
+import type { Account, TeamMember, Order, InventoryItem } from "@/types";
 import { interactionFormSchema, type InteractionFormValues } from "@/lib/schemas/interaction-schema";
 import { getAccountsAction } from "@/services/server/account-actions";
 import { getInventoryItemsAction } from "@/services/server/inventory-actions";
-
+import { RolUsuario as UserRole } from "@ssot";
 
 type UseInteractionWizardReturn = {
   form: ReturnType<typeof useForm<InteractionFormValues>>;

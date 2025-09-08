@@ -12,11 +12,12 @@ import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { ItemBatch, QcStatus } from "@/types";
+import type { ItemBatch } from "@/types";
 import { Loader2, Calendar as CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { EstadoQC as QcStatus } from "@ssot";
 
 const qcStatusList: QcStatus[] = ['Pending', 'Released', 'Rejected'];
 

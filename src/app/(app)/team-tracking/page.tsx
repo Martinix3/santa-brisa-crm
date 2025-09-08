@@ -5,7 +5,7 @@ import React, { useMemo, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { TeamMember, Order, OrderStatus, Account } from "@/types";
+import type { TeamMember, Order, Account } from "@/types";
 import { Package, Briefcase, Footprints, Users, Eye, Loader2 } from 'lucide-react';
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
 import { Progress } from "@/components/ui/progress";
@@ -19,6 +19,7 @@ import { parseISO, isSameMonth, isSameYear, isValid } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from "@/contexts/auth-context";
 import { VALID_SALE_STATUSES, ALL_VISIT_STATUSES } from '@/lib/constants';
+import { EstadoPedido as OrderStatus } from "@ssot";
 
 interface EnrichedTeamMember extends TeamMember {
   monthlyAccountsAchieved: number;

@@ -1,9 +1,10 @@
 
 import { adminDb } from '@/lib/firebaseAdmin';
 import { collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, where, type DocumentSnapshot, orderBy, Timestamp, limit, writeBatch } from "firebase-admin/firestore";
-import type { Category, CategoryKind } from '@/types';
+import type { Category } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 import { mockCategories } from '@/lib/data';
+import { TipoCategoria as CategoryKind } from "@ssot";
 
 const CATEGORIES_COLLECTION = 'categories';
 

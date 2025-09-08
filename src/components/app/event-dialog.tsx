@@ -38,8 +38,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { CrmEvent, CrmEventType, CrmEventStatus, TeamMember, InventoryItem, AssignedPromotionalMaterial, CostCenter, Currency, Account } from "@/types";
-import { crmEventTypeList, crmEventStatusList } from "@/lib/data";
+import type { CrmEvent, TeamMember, InventoryItem, AssignedPromotionalMaterial, CostCenter, Account } from "@/types";
 import { Loader2, Calendar as CalendarIcon, PlusCircle, Trash2, Package, Briefcase, Building2, ChevronsUpDown, Check } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -50,6 +49,7 @@ import { getInventoryItemsAction } from "@/services/server/inventory-actions";
 import { getCostCentersFS } from "@/services/costcenter-service";
 import { useToast } from "@/hooks/use-toast";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { TipoEventoCrm as CrmEventType, EstadoEventoCrm as CrmEventStatus, Moneda as Currency, TIPOS_EVENTO_CRM as crmEventTypeList, ESTADOS_EVENTO_CRM as crmEventStatusList } from "@ssot";
 
 const assignedMaterialSchema = z.object({
   materialId: z.string().min(1, "Debe seleccionar un material."),

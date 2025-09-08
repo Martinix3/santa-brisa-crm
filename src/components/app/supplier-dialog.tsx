@@ -33,9 +33,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Supplier, SupplierFormValues } from "@/types";
-import { provincesSpainList } from "@/lib/data"; 
 import { Loader2 } from "lucide-react";
 import { Separator } from "../ui/separator";
+import { PROVINCIAS_ES as provincesSpainList } from "@ssot";
 
 const supplierFormSchema = z.object({
   name: z.string().min(2, "El nombre del proveedor debe tener al menos 2 caracteres."),

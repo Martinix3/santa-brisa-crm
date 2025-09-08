@@ -6,9 +6,10 @@ import { db } from '@/lib/firebase';
 import {
   collection, query, getDocs, doc as firestoreDoc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, where, writeBatch, runTransaction
 } from "firebase/firestore";
-import type { BomLine, UoM, BomKind, InventoryItemFormValues, Category } from '@/types';
+import type { BomLine, InventoryItemFormValues, Category } from '@/types';
 import { fromFirestoreBomLine } from './utils/firestore-converters';
 import { addInventoryItemFS } from './inventory-item-service';
+import { UdM as UoM, TipoBOM as BomKind } from "@ssot";
 
 const BOM_LINES_COLLECTION = 'bomLines';
 

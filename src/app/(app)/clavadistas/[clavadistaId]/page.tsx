@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import type { TeamMember, Order, Account, UserRole } from "@/types";
+import type { TeamMember, Order, Account } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { ArrowLeft, Mail, Award, AlertTriangle, Loader2, FileText, CalendarDays, DollarSign, Briefcase } from "lucide-react";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
@@ -21,6 +21,7 @@ import { getAccountsFS } from "@/services/account-service";
 import { getTeamMemberByIdFS } from "@/services/team-member-service";
 import { useToast } from "@/hooks/use-toast";
 import { VALID_SALE_STATUSES } from '@/lib/constants';
+import { RolUsuario as UserRole } from "@ssot";
 
 export default function ClavadistaProfilePage() {
   const params = useParams();

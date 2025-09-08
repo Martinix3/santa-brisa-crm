@@ -7,14 +7,15 @@ import { Button } from '@/components/ui/button';
 import { DialogFooter } from '@/components/ui/dialog';
 import { Loader2, ArrowLeft, Send, Package, CreditCard, Award, Zap, Trash2, PlusCircle, Truck } from "lucide-react";
 import type { InteractionFormValues } from '@/lib/schemas/interaction-schema';
-import type { InventoryItem, TeamMember, UserRole, Account } from '@/types';
+import type { InventoryItem, TeamMember, Account } from '@/types';
 import { FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { paymentMethodList, canalOrigenColocacionList } from '@/lib/data';
+import { canalOrigenColocacionList } from '@/lib/data';
 import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
+import { RolUsuario as UserRole, METODOS_PAGO as paymentMethodList } from "@ssot";
 
 const NO_CLAVADISTA_VALUE = "##NONE##";
 const DIRECT_SALE_VALUE = "##DIRECT##";

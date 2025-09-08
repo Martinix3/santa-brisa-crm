@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import type { Order, UserRole, Account, OrderStatus, TeamMember } from "@/types";
+import type { Order, Account, TeamMember } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { Loader2, Search, PlusCircle, Eye } from "lucide-react";
 import EditOrderDialog, { type EditOrderFormValues } from "@/components/app/edit-order-dialog";
@@ -17,11 +17,11 @@ import { getOrdersFS, updateFullOrderFS } from "@/services/order-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import StatusBadge from "@/components/app/status-badge";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-import { orderStatusesList } from "@/lib/data";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
 import Link from 'next/link';
+import { RolUsuario as UserRole, EstadoPedido as OrderStatus, ESTADOS_PEDIDO as orderStatusesList } from "@ssot";
 
 export default function OrdersDashboardPage() {
   const { toast } = useToast();

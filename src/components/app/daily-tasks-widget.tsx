@@ -3,7 +3,7 @@
 
 import * as React from 'react';
 import { useAuth } from '@/contexts/auth-context';
-import type { Order, CrmEvent, CrmEventStatus } from '@/types';
+import type { Order, CrmEvent } from '@/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -14,6 +14,7 @@ import { CalendarCheck, ClipboardList, PartyPopper, Loader2 } from 'lucide-react
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { getDailyTasks } from '@/services/server/agenda-actions';
+import { EstadoEventoCrm as CrmEventStatus } from "@ssot";
 
 interface AgendaItem {
   id: string;

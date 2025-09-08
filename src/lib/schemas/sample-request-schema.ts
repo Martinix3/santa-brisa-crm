@@ -1,8 +1,7 @@
 
 
 import * as z from "zod";
-import { sampleRequestPurposeList, provincesSpainList } from "@/lib/data";
-import type { SampleRequestPurpose } from "@/types";
+import { PROPOSITOS_MUESTRA as sampleRequestPurposeList, PROVINCIAS_ES as provincesSpainList, PropositoMuestra as SampleRequestPurpose } from "@ssot";
 
 export type Step = "client" | "details" | "verify";
 

@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuCheckboxItem, DropdownMenuContent } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import type { DirectSale, DirectSaleStatus, UserRole, Account, PaidStatus, OrderType, AccountType, Order } from "@/types";
+import type { DirectSale, Account, AccountType, Order } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, Filter, ChevronDown, Briefcase, Loader2, DollarSign, Package } from "lucide-react";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
@@ -21,6 +21,7 @@ import { DirectSaleTableRow } from "@/components/app/direct-sale-table-row";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import DeliveryNoteDialog from "@/components/app/delivery-note-dialog";
 import InvoiceDialog from "@/components/app/invoice-dialog";
+import { EstadoVentaDirecta as DirectSaleStatus, RolUsuario as UserRole, EstadoPago as PaidStatus, TipoPedido as OrderType } from "@ssot";
 
 const directSaleStatusList: DirectSaleStatus[] = ['borrador', 'confirmado', 'enviado', 'entregado', 'facturado', 'pagado', 'cancelado', 'en depósito'];
 const paidStatusList: PaidStatus[] = ['Pendiente', 'Pagado', 'Parcial'];

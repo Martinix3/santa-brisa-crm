@@ -2,8 +2,9 @@ import { adminDb } from '@/lib/firebaseAdmin';
 import {
   collection, query, getDocs, getDoc, doc, Timestamp, orderBy, type DocumentSnapshot, updateDoc, addDoc,
 } from "firebase-admin/firestore";
-import type { Tank, TankStatus, TankFormValues } from '@/types';
+import type { Tank, TankFormValues } from '@/types';
 import { format } from 'date-fns';
+import { EstadoTanque as TankStatus } from "@ssot";
 
 const TANKS_COLLECTION = 'tanks';
 

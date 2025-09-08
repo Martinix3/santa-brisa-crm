@@ -37,10 +37,9 @@ import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/comp
 import DailyTasksWidget from '@/components/app/daily-tasks-widget';
 import { CategoriesProvider } from '@/contexts/categories-context';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import type { UserRole } from '@/types';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
-
+import { RolUsuario as UserRole } from "@ssot";
 
 // --- Auth Guard Component ---
 function AuthGuard({ children }: { children: React.ReactNode }) {

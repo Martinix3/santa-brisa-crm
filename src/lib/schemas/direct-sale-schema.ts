@@ -1,8 +1,8 @@
 
 
 import * as z from "zod";
-import type { OrderType, DirectSaleStatus, PaymentMethod } from "@/types";
-import { paymentMethodList, directSaleStatusList } from '@/lib/data';
+import type { PaymentMethod } from "@/types";
+import { TipoPedido as OrderType, EstadoVentaDirecta as DirectSaleStatus, METODOS_PAGO as paymentMethodList, ESTADOS_VENTA_DIRECTA as directSaleStatusList } from "@ssot";
 
 const orderItemSchema = z.object({
   productId: z.string().min(1, "Selecciona un producto."),

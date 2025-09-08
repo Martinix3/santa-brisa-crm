@@ -36,8 +36,8 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { Order, OrderStatus, UserRole, TeamMember, NextActionType, FailureReasonType, ClientType, InventoryItem, Account, CanalOrigenColocacion, PaymentMethod, AddressDetails } from "@/types"; 
-import { orderStatusesList, nextActionTypeList, failureReasonList, clientTypeList, canalOrigenColocacionList, paymentMethodList } from "@/lib/data"; 
+import type { Order, TeamMember, InventoryItem, Account, CanalOrigenColocacion, PaymentMethod, AddressDetails } from "@/types"; 
+import { canalOrigenColocacionList } from "@/lib/data"; 
 import { Loader2, Calendar as CalendarIcon, Printer, Award, Package, PlusCircle, Trash2, Zap, CreditCard, UploadCloud, Link2, AlertTriangle } from "lucide-react"; 
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -47,6 +47,7 @@ import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { getInventoryItemsAction } from "@/services/server/inventory-actions";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
+import { EstadoPedido as OrderStatus, RolUsuario as UserRole, SiguienteAccion as NextActionType, MotivoFallo as FailureReasonType, TipoCliente as ClientType, ESTADOS_PEDIDO as orderStatusesList, SIGUIENTES_ACCIONES as nextActionTypeList, MOTIVOS_FALLO as failureReasonList, TIPOS_CLIENTE as clientTypeList, METODOS_PAGO as paymentMethodList } from "@ssot";
 
 const NO_CLAVADISTA_VALUE = "##NONE##";
 

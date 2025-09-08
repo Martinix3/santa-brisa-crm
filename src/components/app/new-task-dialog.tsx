@@ -13,9 +13,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Calendar } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
-import type { Account, TeamMember, UserRole, NewScheduledTaskData, Order } from "@/types";
+import type { Account, TeamMember, NewScheduledTaskData, Order } from "@/types";
 import { format, parseISO } from "date-fns";
 import { es } from 'date-fns/locale';
+import { RolUsuario as UserRole } from "@ssot";
 
 const getNewTaskFormSchema = (taskCategory: 'Commercial' | 'General') => {
   return z.object({

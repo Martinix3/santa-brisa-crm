@@ -5,8 +5,9 @@ import {
   collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
   type DocumentSnapshot,
 } from "firebase/firestore";
-import type { SampleRequest, SampleRequestFormValues, SampleRequestStatus, AddressDetails } from '@/types';
+import type { SampleRequest, SampleRequestFormValues, AddressDetails } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
+import { EstadoSolicitudMuestra as SampleRequestStatus } from "@ssot";
 
 const SAMPLE_REQUESTS_COLLECTION = 'sampleRequests';
 

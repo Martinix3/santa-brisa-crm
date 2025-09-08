@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import type { TeamMember, Order, Account, OrderStatus, EnrichedAccount, AccountStatus, UserRole } from "@/types";
+import type { TeamMember, Order, Account, EnrichedAccount, AccountStatus } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { ArrowLeft, Mail, Package, Briefcase, Footprints, AlertTriangle, ShoppingCart, Loader2 } from "lucide-react";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
@@ -24,7 +24,7 @@ import { getTeamMemberByIdFS } from "@/services/team-member-service";
 import { useToast } from "@/hooks/use-toast";
 import { calculateCommercialStatus } from "@/lib/account-logic";
 import { VALID_SALE_STATUSES, ALL_VISIT_STATUSES } from '@/lib/constants';
-
+import { EstadoPedido as OrderStatus, RolUsuario as UserRole } from "@ssot";
 
 const chartConfig = (color: string) => ({
   bottles: { 

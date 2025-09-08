@@ -11,11 +11,11 @@ import {
   signOut as firebaseSignOut 
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import type { TeamMember, TeamMemberFormValues, UserRole } from '@/types';
+import type { TeamMember, TeamMemberFormValues } from '@/types';
 import { useToast } from "@/hooks/use-toast";
 import { getTeamMemberByAuthUidFS } from '@/services/client/team-member-service.client';
 import { createTeamMemberAction } from '@/services/server/team-member-actions';
-
+import { RolUsuario as UserRole } from "@ssot";
 
 interface AuthContextType {
   user: FirebaseUser | null;

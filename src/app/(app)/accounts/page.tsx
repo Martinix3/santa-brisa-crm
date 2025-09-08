@@ -12,9 +12,6 @@ import { es } from 'date-fns/locale';
 import { cn } from "@/lib/utils";
 import { Loader2, Search, PlusCircle, ChevronDown, Eye } from "lucide-react";
 import Link from "next/link";
-import { accountTypeList } from '@/lib/data';
-
-
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -26,7 +23,7 @@ import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import AccountHistoryTable from "@/components/app/account-history-table";
 import { InteractionDialog } from "@/components/app/interaction-dialog";
 import { getAccountsAction } from "@/services/server/account-actions";
-
+import { TIPOS_CUENTA as accountTypeList } from "@ssot";
 
 function AccountTableRow({ account, isExpanded, onToggleExpand }: { account: EnrichedAccount; isExpanded: boolean; onToggleExpand: () => void; }) {
     const [isInteractionDialogOpen, setIsInteractionDialogOpen] = React.useState(false);

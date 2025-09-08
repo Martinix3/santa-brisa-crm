@@ -7,8 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import type { SampleRequest, SampleRequestStatus, UserRole, TeamMember, Account } from "@/types";
-import { sampleRequestStatusList } from "@/lib/data";
+import type { SampleRequest, TeamMember, Account } from "@/types";
 import { Filter, ChevronDown, Loader2, PackageCheck, ListOrdered, Users, Printer, MoreHorizontal, Trash2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from 'date-fns/locale';
@@ -21,7 +20,7 @@ import { getAccountsFS } from "@/services/account-service";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import ShippingLabelDialog from "@/components/app/shipping-label-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-
+import { EstadoSolicitudMuestra as SampleRequestStatus, RolUsuario as UserRole, ESTADOS_SOLICITUD_MUESTRA as sampleRequestStatusList } from "@ssot";
 
 export default function SampleManagementPage() {
   const { toast } = useToast();

@@ -34,8 +34,7 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { DirectSale, DirectSaleStatus, DirectSaleChannel, PaidStatus } from "@/types";
-import { directSaleChannelList } from "@/lib/data";
+import type { DirectSale } from "@/types";
 import { Loader2, Calendar as CalendarIcon } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -44,6 +43,7 @@ import { es } from 'date-fns/locale';
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
+import { EstadoVentaDirecta as DirectSaleStatus, CanalVentaDirecta as DirectSaleChannel, EstadoPago as PaidStatus, CANALES_VENTA_DIRECTA as directSaleChannelList } from "@ssot";
 
 const paidStatusList: PaidStatus[] = ['Pendiente', 'Pagado', 'Parcial'];
 const directSaleStatusList: DirectSaleStatus[] = ['borrador', 'confirmado', 'enviado', 'entregado', 'facturado', 'pagado', 'cancelado', 'en depósito'];

@@ -3,8 +3,9 @@ import {
   collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, limit,
   type DocumentSnapshot,
 } from "firebase-admin/firestore";
-import type { TeamMember, TeamMemberFormValues, UserRole } from '@/types';
+import type { TeamMember, TeamMemberFormValues } from '@/types';
 import { format, parseISO } from 'date-fns';
+import { RolUsuario as UserRole } from "@ssot";
 
 const TEAM_MEMBERS_COLLECTION = 'teamMembers';
 

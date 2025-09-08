@@ -1,8 +1,8 @@
 
 
 import * as z from "zod";
-import { canalOrigenColocacionList, paymentMethodList, nextActionTypeList, failureReasonList, clientTypeList, userRolesList } from "@/lib/data";
-import type { UserRole } from "@/types";
+import { canalOrigenColocacionList, userRolesList } from "@/lib/data";
+import { METODOS_PAGO as paymentMethodList, SIGUIENTES_ACCIONES as nextActionTypeList, MOTIVOS_FALLO as failureReasonList, TIPOS_CLIENTE as clientTypeList, RolUsuario as UserRole } from "@ssot";
 
 export const NO_CLAVADISTA_VALUE = "##NONE##";
 export const ADMIN_SELF_REGISTER_VALUE = "##ADMIN_SELF##";

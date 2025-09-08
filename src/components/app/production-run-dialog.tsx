@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import type { ProductionRun, InventoryItem, BomLine, Tank, RunType, Shortage, ConsumptionPlanItem, ProductionRunFormValues } from "@/types";
+import type { ProductionRun, InventoryItem, BomLine, Tank, Shortage, ConsumptionPlanItem, ProductionRunFormValues } from "@/types";
 import { Loader2, AlertTriangle, CheckCircle, Calendar as CalendarIcon } from "lucide-react";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { useToast } from "@/hooks/use-toast";
@@ -27,7 +27,7 @@ import { getStockDetailsForItem } from "@/services/batch-service";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { getTeamMembersFS } from "@/services/team-member-service";
-
+import { TipoEjecucion as RunType } from "@ssot";
 
 const productionRunFormSchema = z.object({
   type: z.enum(["blend", "fill"], { required_error: "Debe seleccionar un tipo de orden." }),

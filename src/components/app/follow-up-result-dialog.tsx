@@ -20,8 +20,8 @@ import { es } from 'date-fns/locale';
 import { Calendar as CalendarIcon, Check, Loader2, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { nextActionTypeList, failureReasonList, paymentMethodList } from "@/lib/data";
-import type { Order, TeamMember, UserRole, FollowUpResultFormValues, PaymentMethod, NextActionType, FailureReasonType } from "@/types";
+import type { Order, TeamMember, FollowUpResultFormValues, PaymentMethod } from "@/types";
+import { SIGUIENTES_ACCIONES as nextActionTypeList, MOTIVOS_FALLO as failureReasonList, METODOS_PAGO as paymentMethodList, RolUsuario as UserRole, SiguienteAccion as NextActionType, MotivoFallo as FailureReasonType } from "@ssot";
 
 const followUpResultFormSchema = z.object({
   outcome: z.enum(["successful", "failed", "follow-up"], { required_error: "Por favor, seleccione un resultado." }),

@@ -4,10 +4,11 @@
 
 import { db } from '@/lib/firebase';
 import { collection, doc, query, where, orderBy, getDocs, Timestamp, type Transaction, type DocumentSnapshot, updateDoc } from "firebase/firestore";
-import type { ItemBatch, InventoryItem, UoM, BatchFormValues } from '@/types';
+import type { ItemBatch, InventoryItem, BatchFormValues } from '@/types';
 import { fromFirestoreItemBatch } from './utils/firestore-converters';
 import { generateRawMaterialInternalCode, generateFinishedGoodBatchCode } from '@/lib/coding';
 import { format, parseISO, add } from 'date-fns';
+import { UdM as UoM } from "@ssot";
 
 const BATCHES_COLLECTION = 'itemBatches';
 

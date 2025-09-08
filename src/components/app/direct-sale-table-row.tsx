@@ -7,14 +7,14 @@ import { Button } from "@/components/ui/button";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from "date-fns/locale";
 import { MoreHorizontal, Eye, Edit, Trash2, ChevronRight, ChevronDown, RefreshCw, Printer, FileText } from "lucide-react";
-import type { DirectSale, DirectSaleStatus, PaidStatus } from "@/types";
+import type { DirectSale } from "@/types";
 import StatusBadge from "@/components/app/status-badge";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuSubContent, DropdownMenuRadioGroup, DropdownMenuRadioItem } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import Link from 'next/link';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-
+import { EstadoVentaDirecta as DirectSaleStatus, EstadoPago as PaidStatus } from "@ssot";
 
 const directSaleStatusList: DirectSaleStatus[] = ['borrador', 'confirmado', 'enviado', 'entregado', 'facturado', 'pagado', 'cancelado', 'en depósito'];
 const paidStatusList: PaidStatus[] = ['Pendiente', 'Pagado', 'Parcial'];

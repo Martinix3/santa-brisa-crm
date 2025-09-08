@@ -11,9 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { CategoryKind } from "@/types";
 import { Loader2 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { TipoCategoria as CategoryKind } from "@ssot";
 
 const categoryFormSchema = z.object({
   name: z.string().min(3, "El nombre de la categoría debe tener al menos 3 caracteres."),

@@ -5,9 +5,10 @@ import * as React from "react";
 import { Table, TableBody, TableRow, TableCell, TableHead, TableHeader } from "@/components/ui/table";
 import { useCategories } from "@/contexts/categories-context";
 import { addDays, parseISO, isValid, isAfter } from 'date-fns';
-import type { InventoryItem, ItemBatch, QcStatus } from "@/types";
+import type { InventoryItem, ItemBatch } from "@/types";
 import { InventoryRow } from "./inventory-row";
 import { BatchSubTable } from "./batch-sub-table";
+import { EstadoQC as QcStatus } from "@ssot";
 
 interface InventoryTableProps {
   items: InventoryItem[];

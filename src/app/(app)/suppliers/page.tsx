@@ -8,13 +8,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import type { Supplier, UserRole } from "@/types";
+import type { Supplier } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, Edit, Trash2, MoreHorizontal, Eye, Loader2, MapPin, Truck } from "lucide-react";
 import SupplierDialog, { type SupplierFormValues } from "@/components/app/supplier-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import Link from "next/link";
 import { getSuppliersFS, addSupplierFS, deleteSupplierFS, updateSupplierFS } from "@/services/supplier-service";
+import { RolUsuario as UserRole } from "@ssot";
 
 export default function SuppliersPage() {
   const { toast } = useToast();

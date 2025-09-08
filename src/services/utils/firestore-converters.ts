@@ -2,7 +2,8 @@
 
 import { Timestamp, type DocumentSnapshot } from "firebase/firestore";
 import { format, parseISO, isValid } from "date-fns";
-import type { Order, TeamMember, CrmEvent, Account, Supplier, Expense, BomLine, ItemBatch, Tank, DirectSale, DirectSaleItem, DirectSaleChannel } from '@/types';
+import type { Order, TeamMember, CrmEvent, Account, Supplier, Expense, BomLine, ItemBatch, Tank, DirectSale, DirectSaleItem } from '@/types';
+import { CanalVentaDirecta as DirectSaleChannel } from "@ssot";
 
 const toDateString = (ts: any, defaultNow = true): string | undefined => {
     if (ts === null || ts === undefined) {

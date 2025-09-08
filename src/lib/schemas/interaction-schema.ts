@@ -1,6 +1,6 @@
 
 import * as z from "zod";
-import { nextActionTypeList } from "@/lib/data";
+import { SIGUIENTES_ACCIONES as nextActionTypeList } from "@ssot";
 
 const assignedMaterialSchema = z.object({
   materialId: z.string().min(1, "Debe seleccionar un material."),

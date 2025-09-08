@@ -26,11 +26,11 @@ import { Loader2, Calendar as CalendarIcon, Briefcase, PlusCircle, Trash2, Check
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import type { Account, InventoryItem, ItemBatch, OrderType, DirectSaleStatus, AccountType } from "@/types";
+import type { Account, InventoryItem, ItemBatch, AccountType } from "@/types";
 import { NewCustomerDialog } from "@/components/app/new-customer-dialog";
 import { useCategories } from "@/contexts/categories-context";
 import { generateOrderSchema } from '@/lib/schemas/direct-sale-schema';
-import { paymentMethodList, directSaleStatusList } from '@/lib/data';
+import { TipoPedido as OrderType, EstadoVentaDirecta as DirectSaleStatus, METODOS_PAGO as paymentMethodList, ESTADOS_VENTA_DIRECTA as directSaleStatusList } from "@ssot";
 
 type GenerateOrderFormValues = z.infer<ReturnType<typeof generateOrderSchema>>;
 

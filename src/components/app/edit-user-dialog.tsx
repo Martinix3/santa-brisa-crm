@@ -32,7 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { TeamMember, UserRole, TeamMemberFormValues as TeamMemberFormValuesType, AmbassadorSettings, Account } from "@/types";
+import type { TeamMember, TeamMemberFormValues as TeamMemberFormValuesType, AmbassadorSettings, Account } from "@/types";
 import { userRolesList } from "@/lib/data";
 import { Loader2, UserPlus, Info } from "lucide-react";
 import { getTeamMembersFS } from "@/services/team-member-service";
@@ -40,6 +40,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getAccountsFS } from "@/services/account-service";
+import { RolUsuario as UserRole } from "@ssot";
 
 const conditionSchema = z.object({
   pago_apertura: z.coerce.number().min(0),

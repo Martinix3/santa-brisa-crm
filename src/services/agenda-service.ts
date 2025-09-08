@@ -3,8 +3,9 @@
 
 import { getOrdersFS } from '@/services/order-service';
 import { getEventsFS } from '@/services/event-service';
-import type { Order, CrmEvent, UserRole } from '@/types';
+import type { Order, CrmEvent } from '@/types';
 import { startOfToday, endOfToday, addDays, parseISO, isValid } from 'date-fns';
+import { RolUsuario as UserRole } from "@ssot";
 
 interface AgendaItem {
   id: string;
@@ -29,7 +30,7 @@ export async function getDailyTasks(params: {
   ]);
 
   const today = startOfToday();
-  const sevenDaysFromNow = endOfToday();
+  const sevenDaysFromNow = addDays(endOfToday(), 7); // Include tasks for the next 7 days
 
   const relevantOrders = orders.filter(order => {
     const isAssigned =

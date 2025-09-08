@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { BomLine, InventoryItem, UoM, BomKind } from "@/types";
+import type { BomLine, InventoryItem } from "@/types";
 import { Loader2, PlusCircle, Trash2, Sparkles } from "lucide-react";
 import { useCategories } from "@/contexts/categories-context";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -40,6 +40,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { createNewProductAndRecipeFS, saveRecipeFS } from "@/services/bom-service";
+import { UdM as UoM, TipoBOM as BomKind } from "@ssot";
 
 const uomList: UoM[] = ['unit', 'kg', 'g', 'l', 'ml'];
 

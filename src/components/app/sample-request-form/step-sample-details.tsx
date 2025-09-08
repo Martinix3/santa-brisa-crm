@@ -8,8 +8,8 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, ArrowRight, Package, Users } from 'lucide-react';
-import { sampleRequestPurposeList, provincesSpainList } from '@/lib/data';
 import type { useSampleRequestWizard } from '@/hooks/use-sample-request-wizard';
+import { PROPOSITOS_MUESTRA as sampleRequestPurposeList, PROVINCIAS_ES as provincesSpainList } from "@ssot";
 
 type WizardHookReturn = ReturnType<typeof useSampleRequestWizard>;
 

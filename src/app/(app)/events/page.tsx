@@ -8,8 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { crmEventTypeList, crmEventStatusList } from "@/lib/data";
-import type { CrmEvent, CrmEventType, CrmEventStatus, TeamMember, UserRole, Account } from "@/types";
+import type { CrmEvent, TeamMember, Account } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { PlusCircle, Edit, Trash2, MoreHorizontal, PartyPopper, Filter, ChevronDown, Eye, Loader2, Building2 } from "lucide-react";
 import EventDialog, { type EventFormValues } from "@/components/app/event-dialog";
@@ -22,6 +21,7 @@ import { getAccountsFS } from "@/services/account-service";
 import { getEventsFS, addEventFS, updateEventFS, deleteEventFS, initializeMockEventsInFirestore } from "@/services/event-service";
 import { mockCrmEvents as initialMockEventsForSeeding } from "@/lib/seeds"; 
 import Link from 'next/link';
+import { TIPOS_EVENTO_CRM as crmEventTypeList, ESTADOS_EVENTO_CRM as crmEventStatusList, TipoEventoCrm as CrmEventType, EstadoEventoCrm as CrmEventStatus, RolUsuario as UserRole } from "@ssot";
 
 export default function EventsPage() {
   const { toast } = useToast();

@@ -22,7 +22,7 @@ import { getOrdersFS, addScheduledTaskFS, deleteOrderFS, updateScheduledTaskFS, 
 import { getEventsFS, addEventFS, deleteEventFS, updateEventFS, reorderEventsBatchFS } from "@/services/event-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { getAllNotesFS, getNotesForUserFS } from "@/services/note-service";
-import type { Order, CrmEvent, TeamMember, UserRole, OrderStatus, FollowUpResultFormValues, NewScheduledTaskData, EventFormValues, StickyNote } from "@/types";
+import type { Order, CrmEvent, TeamMember, FollowUpResultFormValues, NewScheduledTaskData, EventFormValues, StickyNote } from "@/types";
 import StatusBadge from "@/components/app/status-badge";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -40,7 +40,7 @@ import { DayDots } from "@/components/app/DayDots";
 import { StickyNotesWidget } from '@/components/app/dashboard/sticky-notes-widget';
 import { getInteractionType } from '@/lib/interaction-utils';
 import { MODIFIER_NAMES, COLOR_MAP } from "@/lib/agenda-colors";
-
+import { RolUsuario as UserRole, EstadoPedido as OrderStatus } from "@ssot";
 
 // --- TYPE DEFINITIONS ---
 type AgendaItemType = 'tarea_comercial' | 'evento' | 'tarea_administrativa';

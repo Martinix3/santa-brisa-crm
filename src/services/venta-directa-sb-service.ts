@@ -3,11 +3,12 @@ import {
   collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
   type DocumentSnapshot, runTransaction, FieldValue, increment, where
 } from "firebase-admin/firestore";
-import type { DirectSale, ItemBatch, InventoryItem, DirectSaleItem, OrderType } from '@/types';
+import type { DirectSale, ItemBatch, InventoryItem, DirectSaleItem } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 import { addStockTxnFSTransactional } from './stock-txn-service';
 import { generateDirectSaleCode } from '@/lib/coding';
 import { fromFirestoreDirectSale, toFirestoreDirectSale } from './utils/firestore-converters';
+import { TipoPedido as OrderType } from "@ssot";
 
 const DIRECT_SALES_COLLECTION = 'directSales'; 
 

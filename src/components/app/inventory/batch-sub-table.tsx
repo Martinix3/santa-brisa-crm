@@ -9,8 +9,9 @@ import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { format, parseISO, isValid, differenceInDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from "@/lib/utils";
-import type { ItemBatch, QcStatus } from "@/types";
+import type { ItemBatch } from "@/types";
 import { Edit, CheckCircle, XCircle, History, EyeOff } from "lucide-react";
+import { EstadoQC as QcStatus } from "@ssot";
 
 interface BatchSubTableProps {
   batches: ItemBatch[];

@@ -6,7 +6,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { Account, Order, UserRole, AddressDetails, OrderStatus, TeamMember, AccountStatus, CrmEvent } from "@/types";
+import type { Account, Order, AddressDetails, TeamMember, AccountStatus, CrmEvent } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { Building2, Edit, ArrowLeft, AlertTriangle, UserCircle, Mail, Phone, FileText, ShoppingCart, CalendarDays, Send, Info, Euro, Printer, Loader2, MapPin, Link as LinkIcon, CheckCircle, PartyPopper, Award, Truck } from "lucide-react";
 import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
@@ -22,6 +22,7 @@ import { getInteractionsForAccountFS } from "@/services/order-service";
 import { getEventsForAccountFS } from "@/services/event-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { calculateCommercialStatus } from "@/lib/account-logic";
+import { RolUsuario as UserRole, EstadoPedido as OrderStatus } from "@ssot";
 
 type InteractionItem = (Order | CrmEvent) & { itemType: 'order' | 'event' };
 

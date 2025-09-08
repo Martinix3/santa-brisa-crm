@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { useAuth } from "@/contexts/auth-context";
-import type { EnrichedAccount, TeamMember } from "@/types";
+import type { EnrichedAccount, TeamMember, AccountStatus } from "@/types";
 import { startOfDay, endOfDay, isBefore, isEqual, parseISO, isValid } from 'date-fns';
 import { Loader2, Search, PlusCircle, AlertCircle, ChevronDown, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -166,15 +166,16 @@ export default function AccountsPage() {
     };
     
     filtered.forEach(acc => {
-        if (acc.status === 'Activo' || acc.status === 'Repetición') {
-            groups.activeAccounts.push(acc);
-        } else if (acc.status === 'Fallido') {
-            groups.failedAccounts.push(acc);
-        } else if (acc.status === 'Seguimiento' || acc.status === 'Programada') {
-            groups.followUpAccounts.push(acc);
-        } else if (acc.status === 'Pendiente') {
-            groups.potentialAccounts.push(acc);
-        }
+      const status: AccountStatus = acc.status;
+      if (status === 'Activo' || status === 'Repetición' || status === 'Inactivo') {
+          groups.activeAccounts.push(acc);
+      } else if (status === 'Fallido') {
+          groups.failedAccounts.push(acc);
+      } else if (status === 'Seguimiento' || status === 'Programada') {
+          groups.followUpAccounts.push(acc);
+      } else if (status === 'Pendiente') {
+          groups.potentialAccounts.push(acc);
+      }
     });
 
     Object.values(groups).forEach(group => group.sort(sortFunction));
@@ -351,3 +352,5 @@ export default function AccountsPage() {
 type BucketFilter = "Todos" | "Vencidas" | "Para Hoy";
 type SortOption = "leadScore_desc" | "nextAction_asc" | "lastInteraction_desc";
 type AccountFormValues = import('@/lib/schemas/account-schema').AccountFormValues;
+
+    

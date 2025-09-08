@@ -41,7 +41,7 @@ export default function AccountDialog({ open, onOpenChange, initial, onSaved, di
       id: initial?.id,
       name: initial?.name ?? "",
       cif: (initial?.cif as any) ?? "",
-      type: (initial?.type as any) ?? "prospect",
+      type: (initial?.type as any) ?? "HORECA",
       phone: (initial?.phone as any) ?? "",
       email: (initial?.email as any) ?? "",
       address: (initial?.address as any) ?? "",
@@ -79,7 +79,7 @@ export default function AccountDialog({ open, onOpenChange, initial, onSaved, di
         id: initial?.id,
         name: initial?.name ?? "",
         cif: (initial?.cif as any) ?? "",
-        type: (initial?.type as any) ?? "prospect",
+        type: (initial?.type as any) ?? "HORECA",
         phone: (initial?.phone as any) ?? "",
         email: (initial?.email as any) ?? "",
         address: (initial?.address as any) ?? "",
@@ -105,7 +105,7 @@ export default function AccountDialog({ open, onOpenChange, initial, onSaved, di
               <Input placeholder="Bar Las Tablas" {...form.register("name")} />
             </Field>
 
-            <Field label="CIF/NIF">
+            <Field label="CIF/NIF" error={form.formState.errors.cif?.message}>
               <Input placeholder="Opcional" {...form.register("cif")} />
             </Field>
 

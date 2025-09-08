@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from 'react';
@@ -139,8 +140,8 @@ const navigationStructure: NavGroup[] = [
     items: [
       { href: '/dashboard', label: 'Panel Principal', icon: LayoutDashboard, roles: ['Admin', 'Ventas', 'Distributor', 'Clavadista', 'Líder Clavadista'], exact: true },
       { href: '/my-agenda', label: 'Mi Agenda', icon: CalendarCheck, roles: ['Admin', 'Ventas', 'Clavadista', 'Líder Clavadista'] },
-      { href: '/accounts', label: 'Cuentas y Seguimiento', icon: Building2, roles: ['Admin', 'Ventas', 'Clavadista', 'Líder Clavadista'] }, 
-      { href: '/orders-dashboard', label: 'Pedidos de Colocación', icon: ShoppingCart, roles: ['Admin', 'Ventas', 'Distributor', 'Clavadista', 'Líder Clavadista'] },
+      { href: '/accounts', label: 'Cuentas y Seguimiento', icon: Building2, roles: ['Admin', 'Ventas'] }, 
+      { href: '/orders-dashboard', label: 'Pedidos de Colocación', icon: ShoppingCart, roles: ['Admin', 'Ventas', 'Distributor'] },
     ],
   },
   {

@@ -48,22 +48,23 @@ export async function createInteractionAction(input: InteractionFormValues) {
       const newAccountData = {
           name: accountName,
           searchName,
-          type: 'prospect', // Default type for implicit creation
+          type: 'HORECA', // Default type for implicit creation
           ownership: input.ownershipHint || 'propio',
-          status: 'lead',
+          status: 'POTENCIAL',
           potencial: 'medio',
           leadScore: 50,
           createdAt: now,
           updatedAt: now,
           createdBy: user.id,
-          owner_user_id: user.id,
-          responsibleName: user.name,
+          salesRepId: user.id,
+          responsableId: user.id,
+          responsableName: user.name,
       };
       const accountRef = await db.collection(ACCOUNTS_COLLECTION).add(newAccountData);
       accountId = accountRef.id;
     }
   } else if(accountId) {
-      const accountSnap = await db.collection(ACCOUNTS_COLlection).doc(accountId).get();
+      const accountSnap = await db.collection(ACCOUNTS_COLLECTION).doc(accountId).get();
       if(accountSnap.exists) {
           accountName = accountSnap.data()?.name || accountName;
       }
@@ -73,13 +74,12 @@ export async function createInteractionAction(input: InteractionFormValues) {
     throw new Error("La cuenta es obligatoria para registrar una interacción.");
   }
 
-
-  // 1) Save interaction
+  // 1) Save interaction as a special type of 'order'
   const ref = await db.collection(INTERACTIONS_COLLECTION).add({
     accountId: accountId,
     clientName: accountName,
     type: input.type,
-    status: 'Completado',
+    status: 'Completado', // Using a generic status for simple interactions
     date: Timestamp.fromDate(input.date),
     notes: input.note ?? null,
     nextActionDate: input.nextActionAt ? Timestamp.fromDate(input.nextActionAt) : null,
@@ -87,6 +87,7 @@ export async function createInteractionAction(input: InteractionFormValues) {
     lastUpdated: now,
     createdBy: user.id,
     salesRep: user.name,
+    taskCategory: 'General', // Distinguish from 'Commercial' tasks
   });
 
   // 2) If this interaction came from a scheduled task, mark it as completed
@@ -161,11 +162,12 @@ export const saveInteractionFS = async (
         orderIndex: 0
     };
 
-    if (data.outcome === "successful") {
+    if (data.outcome === "successful" || data.outcome === 'Pedido') {
         newInteractionData.status = 'Confirmado';
         newInteractionData.visitDate = now;
-        newInteractionData.numberOfUnits = data.numberOfUnits;
-        newInteractionData.unitPrice = data.unitPrice;
+        newInteractionData.products = ["Santa Brisa 750ml"];
+        newInteractionData.numberOfUnits = data.numberOfUnits || data.unidades;
+        newInteractionData.unitPrice = data.unitPrice || data.precioUnitario;
         newInteractionData.value = totalValue;
         newInteractionData.paymentMethod = data.paymentMethod;
     } else if (data.outcome === "follow-up") {

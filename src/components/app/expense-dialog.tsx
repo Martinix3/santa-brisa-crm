@@ -1,28 +1,27 @@
+
 "use client";
 
 import * as React from "react";
-import { useForm, useWatch, useFieldArray } from "react-hook-form";
+import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Loader2, PlusCircle, Trash2, FileText, Calendar as CalendarIcon, Wallet, Warehouse, Building, Repeat, FileUp, Info } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup } from "@/components/ui/select";
+import { Form } from "@/components/ui/form";
+import { Loader2, ArrowLeft, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
-import { useCategories } from "@/contexts/categories-context";
-import type { InventoryItem, Supplier, Expense } from "@/types";
 import { addPurchaseFS, updatePurchaseFS } from "@/services/purchase-service";
 import { getInventoryItemsFS } from "@/services/inventory-item-service";
 import { getSuppliersFS } from "@/services/supplier-service";
 import { parseISO } from "date-fns";
-import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
 import { purchaseFormSchema, type PurchaseFormValues } from "@/lib/schemas/purchase-schema";
+import { useCategories } from "@/contexts/categories-context";
+import { StepGeneral } from './purchases/step-general';
+import { StepDetails } from './purchases/step-details';
+import { StepInvoice } from './purchases/step-invoice';
+import type { InventoryItem, Supplier, Expense } from '@/types';
 
-const NEW_ITEM_SENTINEL = '##NEW##';
+type Step = 'general' | 'details' | 'invoice';
 
 interface ExpenseDialogProps {
   isOpen: boolean;
@@ -33,37 +32,28 @@ interface ExpenseDialogProps {
 export function ExpenseDialog({ isOpen, onOpenChange, expense }: ExpenseDialogProps) {
   const { toast } = useToast();
   const { user, refreshDataSignature } = useAuth();
-  const { inventoryCategories, costCategories } = useCategories();
-  
   const [inventoryItems, setInventoryItems] = React.useState<InventoryItem[]>([]);
   const [suppliers, setSuppliers] = React.useState<Supplier[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
+  const [step, setStep] = React.useState<Step>('general');
 
+  const { inventoryCategories, costCategories } = useCategories();
   const isEditMode = !!expense?.id;
 
-  const form = useForm<PurchaseFormValues>({
+  const formMethods = useForm<PurchaseFormValues>({
     resolver: zodResolver(purchaseFormSchema),
+    mode: "onChange",
     defaultValues: {
-      categoriaId: undefined,
       isInventoryPurchase: false,
       estadoDocumento: 'proforma',
       estadoPago: 'pendiente',
-      concepto: "",
-      monto: undefined,
-      fechaEmision: new Date(),
       items: [],
-      proveedorNombre: ""
     },
   });
   
-  const { control, watch, setValue } = form;
-  const watchedIsInventory = watch("isInventoryPurchase");
-  
-  const { fields, append, remove } = useFieldArray({
-    control,
-    name: "items",
-  });
+  const { watch, reset, trigger, handleSubmit } = formMethods;
+  const isInventoryPurchase = watch("isInventoryPurchase");
 
   React.useEffect(() => {
     if (isOpen) {
@@ -79,7 +69,7 @@ export function ExpenseDialog({ isOpen, onOpenChange, expense }: ExpenseDialogPr
       
       if(expense) {
         const categoryOfExpense = allKnownCategories.find(c => c.id === expense.categoriaId);
-        form.reset({
+        reset({
             ...(expense as any),
             monto: expense.monto ?? undefined,
             isInventoryPurchase: categoryOfExpense?.kind === 'inventory',
@@ -89,20 +79,44 @@ export function ExpenseDialog({ isOpen, onOpenChange, expense }: ExpenseDialogPr
             fechaVencimiento: expense.fechaVencimiento ? parseISO(expense.fechaVencimiento) : undefined,
         });
       } else {
-        form.reset({
-            categoriaId: undefined,
+        reset({
             isInventoryPurchase: false,
             estadoDocumento: 'proforma',
             estadoPago: 'pendiente',
-            concepto: "",
-            monto: undefined,
-            fechaEmision: new Date(),
             items: [],
-            proveedorNombre: ""
         });
       }
+      setStep('general');
     }
-  }, [isOpen, expense, form, inventoryCategories, costCategories]);
+  }, [isOpen, expense, reset, inventoryCategories, costCategories]);
+  
+  React.useEffect(() => {
+    const isInv = watch("categoriaId") ? inventoryCategories.some(c => c.id === watch("categoriaId")) : false;
+    if (watch('isInventoryPurchase') !== isInv) {
+        formMethods.setValue('isInventoryPurchase', isInv);
+    }
+  }, [watch('categoriaId'), inventoryCategories, watch, formMethods]);
+  
+  const handleNext = async () => {
+    let fieldsToValidate: (keyof PurchaseFormValues)[] = [];
+    if (step === 'general') {
+        fieldsToValidate = ['categoriaId', 'concepto', 'proveedorId', 'proveedorNombre'];
+        if (!isInventoryPurchase) fieldsToValidate.push('monto');
+    } else if (step === 'details' && isInventoryPurchase) {
+        fieldsToValidate = ['items'];
+    }
+    
+    const isValid = await trigger(fieldsToValidate);
+    if(isValid) {
+        if(step === 'general') setStep(isInventoryPurchase ? 'details' : 'invoice');
+        else if(step === 'details') setStep('invoice');
+    }
+  };
+
+  const handleBack = () => {
+    if(step === 'invoice') setStep(isInventoryPurchase ? 'details' : 'general');
+    else if(step === 'details') setStep('general');
+  };
 
   const onSubmit = async (data: PurchaseFormValues) => {
     if (!user) return;
@@ -126,27 +140,34 @@ export function ExpenseDialog({ isOpen, onOpenChange, expense }: ExpenseDialogPr
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-xl md:max-w-2xl lg:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditMode ? "Editar Gasto/Compra" : "Registrar Gasto o Compra"}</DialogTitle>
           <DialogDescription>Completa los detalles. Los campos se adaptarán según tus selecciones.</DialogDescription>
         </DialogHeader>
-        {isLoading ? <Loader2 className="animate-spin" /> : (
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <Separator />
-                <h3 className="text-lg font-semibold flex items-center gap-2"><FileText className="h-5 w-5 text-primary"/>Información General</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField control={control} name="categoriaId" render={({ field }) => (<FormItem><FormLabel>Categoría *</FormLabel><Select onValueChange={(value) => { const cat = [...inventoryCategories, ...costCategories].find(c => c.id === value); field.onChange(value); setValue('isInventoryPurchase', cat?.kind === 'inventory'); }} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder={'Selecciona una categoría...'} /></SelectTrigger></FormControl><SelectContent>{costCategories.length > 0 && <SelectGroup><FormLabel className="px-2 text-xs text-muted-foreground">Gastos Generales</FormLabel>{costCategories.map(cat => (<SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>))}</SelectGroup>}{inventoryCategories.length > 0 && <SelectGroup><FormLabel className="px-2 text-xs text-muted-foreground">Compras de Inventario</FormLabel>{inventoryCategories.map(cat => (<SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>))}</SelectGroup>}</SelectContent></Select><FormMessage /></FormItem>)}/>
-                  <FormField control={form.control} name="concepto" render={({ field }) => (<FormItem><FormLabel>Concepto *</FormLabel><FormControl><Input placeholder="Ej: Compra de botellas, Licencia Adobe" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                </div>
+        {isLoading ? <Loader2 className="animate-spin m-auto" /> : (
+            <FormProvider {...formMethods}>
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                 
-                <DialogFooter className="pt-4">
-                  <DialogClose asChild><Button type="button" variant="outline" disabled={isSaving}>Cancelar</Button></DialogClose>
-                  <Button type="submit" disabled={isSaving || isLoading}><>{isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Guardando...</>) : "Guardar Registro"}</></Button>
+                {step === 'general' && <StepGeneral suppliers={suppliers} />}
+                {step === 'details' && <StepDetails inventoryItems={inventoryItems} />}
+                {step === 'invoice' && <StepInvoice />}
+
+                <DialogFooter className="pt-4 flex justify-between w-full">
+                    <div>
+                        {step !== 'general' && <Button type="button" variant="ghost" onClick={handleBack} disabled={isSaving}><ArrowLeft className="mr-2 h-4 w-4"/> Volver</Button>}
+                    </div>
+                    <div className="flex gap-2">
+                        <DialogClose asChild><Button type="button" variant="outline" disabled={isSaving}>Cancelar</Button></DialogClose>
+                        {step === 'invoice' || (step === 'general' && !isInventoryPurchase) ? (
+                            <Button type="submit" disabled={isSaving || isLoading}><>{isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Guardando...</>) : "Guardar Registro"}</></Button>
+                        ) : (
+                            <Button type="button" onClick={handleNext} disabled={isSaving}>Siguiente <ArrowRight className="ml-2 h-4 w-4"/></Button>
+                        )}
+                    </div>
                 </DialogFooter>
               </form>
-            </Form>
+            </FormProvider>
         )}
       </DialogContent>
     </Dialog>

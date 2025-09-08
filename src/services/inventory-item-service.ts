@@ -1,15 +1,14 @@
 
+
 import { adminDb } from '@/lib/firebaseAdmin';
-import {
-  collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, type DocumentSnapshot, runTransaction, FieldValue, where, type Transaction, setDoc
-} from "firebase-admin/firestore";
+import { Timestamp, type Transaction } from "firebase-admin/firestore";
 import type { InventoryItem, InventoryItemFormValues, LatestPurchaseInfo, Category } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 import { generateSku } from '@/lib/coding';
 
 const INVENTORY_ITEMS_COLLECTION = 'inventoryItems';
 
-const fromFirestoreInventoryItem = (docSnap: DocumentSnapshot): InventoryItem => {
+const fromFirestoreInventoryItem = (docSnap: FirebaseFirestore.DocumentSnapshot): InventoryItem => {
   const data = docSnap.data();
   if (!data) throw new Error("Document data is undefined for InventoryItem.");
 
@@ -57,17 +56,16 @@ const toFirestoreInventoryItem = (data: Partial<InventoryItemFormValues>): any =
 };
 
 export const getInventoryItemsFS = async (): Promise<InventoryItem[]> => {
-  const itemsCol = collection(adminDb, INVENTORY_ITEMS_COLLECTION);
-  const q = query(itemsCol, orderBy('name', 'asc'));
-  const snapshot = await getDocs(q);
+  const q = adminDb.collection(INVENTORY_ITEMS_COLLECTION).orderBy('name', 'asc');
+  const snapshot = await q.get();
   return snapshot.docs.map(docSnap => fromFirestoreInventoryItem(docSnap));
 };
 
 export const getInventoryItemByIdFS = async (id: string): Promise<InventoryItem | null> => {
   if (!id) return null;
-  const docRef = doc(adminDb, INVENTORY_ITEMS_COLLECTION, id);
-  const snapshot = await getDoc(docRef);
-  if (snapshot.exists()) {
+  const docRef = adminDb.collection(INVENTORY_ITEMS_COLLECTION).doc(id);
+  const snapshot = await docRef.get();
+  if (snapshot.exists) {
     return fromFirestoreInventoryItem(snapshot);
   }
   return null;
@@ -77,10 +75,10 @@ export const addInventoryItemFS = async (
   data: InventoryItemFormValues,
   transaction?: Transaction
 ): Promise<{ id: string; sku: string }> => {
-  const categoryDocRef = doc(adminDb, 'categories', data.categoryId);
+  const categoryDocRef = adminDb.collection('categories').doc(data.categoryId);
   
-  const categoryDoc = await (transaction ? transaction.get(categoryDocRef) : getDoc(categoryDocRef));
-  if (!categoryDoc.exists()) throw new Error(`Category with ID ${data.categoryId} not found.`);
+  const categoryDoc = await (transaction ? transaction.get(categoryDocRef) : categoryDocRef.get());
+  if (!categoryDoc.exists) throw new Error(`Category with ID ${data.categoryId} not found.`);
   
   const category = { id: categoryDoc.id, ...categoryDoc.data() } as Category;
   const newSku = await generateSku(data.name, category);
@@ -93,12 +91,12 @@ export const addInventoryItemFS = async (
     updatedAt: Timestamp.now(),
   };
 
-  const newDocRef = doc(collection(adminDb, INVENTORY_ITEMS_COLLECTION));
+  const newDocRef = adminDb.collection(INVENTORY_ITEMS_COLLECTION).doc();
 
   if (transaction) {
     transaction.set(newDocRef, firestoreData);
   } else {
-    await setDoc(newDocRef, firestoreData);
+    await newDocRef.set(firestoreData);
   }
 
   return { id: newDocRef.id, sku: newSku };
@@ -106,16 +104,16 @@ export const addInventoryItemFS = async (
 
 
 export const updateInventoryItemFS = async (id: string, data: Partial<InventoryItemFormValues>): Promise<void> => {
-  const itemDocRef = doc(adminDb, INVENTORY_ITEMS_COLLECTION, id);
+  const itemDocRef = adminDb.collection(INVENTORY_ITEMS_COLLECTION).doc(id);
   const firestoreData = {
     ...toFirestoreInventoryItem(data),
     updatedAt: Timestamp.now(),
   };
-  await updateDoc(itemDocRef, firestoreData);
+  await itemDocRef.update(firestoreData);
 };
 
 export const deleteInventoryItemFS = async (id: string): Promise<void> => {
-  const itemDocRef = doc(adminDb, INVENTORY_ITEMS_COLLECTION, id);
+  const itemDocRef = adminDb.collection(INVENTORY_ITEMS_COLLECTION).doc(id);
   // Add logic here to check if item is used in BOMs or has stock before deleting
-  await deleteDoc(itemDocRef);
+  await itemDocRef.delete();
 };

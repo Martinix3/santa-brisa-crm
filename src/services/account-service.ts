@@ -1,6 +1,7 @@
 
+
 import { adminDb } from '@/lib/firebaseAdmin'; // Use Admin SDK
-import { collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, where, writeBatch, runTransaction, FieldValue } from "firebase-admin/firestore";
+import { Timestamp } from "firebase-admin/firestore";
 import type { Account, AccountFormValues } from '@/types';
 import { accountToForm, fromFirestore, toFirestore } from './account-mapper';
 import { getTeamMembersFS } from './team-member-service';
@@ -9,8 +10,7 @@ const ACCOUNTS_COLLECTION = 'accounts';
 const ORDERS_COLLECTION = 'orders';
 
 export const getAccountsFS = async (): Promise<Account[]> => {
-  const accountsCol = adminDb.collection(ACCOUNTS_COLLECTION);
-  const q = accountsCol.orderBy('name', 'asc');
+  const q = adminDb.collection(ACCOUNTS_COLLECTION).orderBy('name', 'asc');
   const accountSnapshot = await q.get();
   return accountSnapshot.docs.map(docSnap => fromFirestore({ id: docSnap.id, ...docSnap.data() }));
 };

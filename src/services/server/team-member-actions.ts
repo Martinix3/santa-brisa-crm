@@ -1,10 +1,10 @@
 
+
 'use server';
 
 import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
-import { addTeamMemberFS } from '@/services/team-member-service';
+import { addTeamMemberFS, getTeamMemberByAuthUidFS as getTeamMemberByAuthUidFromService } from '@/services/team-member-service';
 import type { TeamMember, TeamMemberFormValues, RolUsuario as UserRole } from '@/types';
-import { fromFirestoreTeamMember } from '../utils/firestore-converters';
 
 /**
  * Fetches a team member profile from Firestore using their Firebase Authentication UID.
@@ -13,14 +13,7 @@ import { fromFirestoreTeamMember } from '../utils/firestore-converters';
  * @returns The team member profile or null if not found.
  */
 export async function getTeamMemberByAuthUidFS(authUid: string): Promise<TeamMember | null> {
-    if (!authUid) return null;
-    const membersCol = adminDb.collection('teamMembers');
-    const q = membersCol.where('authUid', '==', authUid).limit(1);
-    const snapshot = await q.get();
-    if (!snapshot.empty) {
-        return fromFirestoreTeamMember(snapshot.docs[0]);
-    }
-    return null;
+    return getTeamMemberByAuthUidFromService(authUid);
 }
 
 /**

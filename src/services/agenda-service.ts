@@ -1,8 +1,9 @@
 
+
 'use server';
 
 import { adminDb as db } from '@/lib/firebaseAdmin';
-import { collection, query, where, getDocs, Timestamp } from "firebase-admin/firestore";
+import { Timestamp } from "firebase-admin/firestore";
 import type { Order, CrmEvent } from '@/types';
 import { startOfToday, endOfToday, addDays, parseISO, isValid } from 'date-fns';
 import { RolUsuario as UserRole } from "@ssot";
@@ -39,18 +40,14 @@ export async function getDailyTasks(params: {
   // to avoid Firestore's "cannot have range filters on different fields" limitation.
   // We will filter by status after fetching the data.
   const scheduledOrderConditions = [
-      where('visitDate', '>=', todayTimestamp),
-      where('visitDate', '<=', sevenDaysTimestamp),
+      db.collection('orders').where('visitDate', '>=', todayTimestamp).where('visitDate', '<=', sevenDaysTimestamp),
   ];
   const followUpOrderConditions = [
-      where('nextActionDate', '>=', todayTimestamp),
-      where('nextActionDate', '<=', sevenDaysTimestamp),
+      db.collection('orders').where('nextActionDate', '>=', todayTimestamp).where('nextActionDate', '<=', sevenDaysTimestamp),
   ];
 
   const baseEventQueryConditions = [
-      where('status', 'in', ['Planificado', 'Confirmado', 'En Curso']),
-      where('startDate', '>=', todayTimestamp),
-      where('startDate', '<=', sevenDaysTimestamp),
+      db.collection('events').where('status', 'in', ['Planificado', 'Confirmado', 'En Curso']).where('startDate', '>=', todayTimestamp).where('startDate', '<=', sevenDaysTimestamp),
   ];
 
   if (userRole === 'Admin') {

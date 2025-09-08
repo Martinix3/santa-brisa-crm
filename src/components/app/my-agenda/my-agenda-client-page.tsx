@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from "react";
@@ -22,7 +23,7 @@ import type { Order, CrmEvent, TeamMember, FollowUpResultFormValues, NewSchedule
 import StatusBadge from "@/components/app/status-badge";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import FollowUpResultDialog from "@/components/app/follow-up-result-dialog";
 import NewTaskDialog from "@/components/app/new-task-dialog";
 import NewEntryTypeDialog, { type EntryType } from "@/components/app/new-entry-type-dialog";
@@ -881,7 +882,12 @@ export default function MyAgendaClientPage({ initialAgendaItems, initialTeamMemb
         order={currentTask}
         isOpen={isFollowUpDialogOpen}
         onOpenChange={setIsFollowUpDialogOpen}
-        onSave={handleSaveFollowUp}
+        onSave={() => {
+          // The onSave logic is now inside the dialog calling a server action
+          setIsFollowUpDialogOpen(false);
+          setCurrentTask(null);
+          refreshDataSignature();
+        }}
         allTeamMembers={teamMembers}
         currentUser={teamMember}
         currentUserRole={userRole}
@@ -917,8 +923,6 @@ export default function MyAgendaClientPage({ initialAgendaItems, initialTeamMemb
             isReadOnly={false}
             allTeamMembers={teamMembers}
             allAccounts={accounts}
-            allInventoryItems={inventoryItems}
-            allCostCenters={costCenters}
         />
         )}
     </>

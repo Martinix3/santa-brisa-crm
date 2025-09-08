@@ -14,7 +14,7 @@ export const sampleRequestWizardSchema = z.object({
   clientName: z.string().min(2, "El nombre de la cuenta debe tener al menos 2 caracteres."),
 
   // From Step 2: Details
-  purpose: z.enum(sampleRequestPurposeList as [SampleRequestPurpose, ...SampleRequestPurpose[]], { required_error: "Debe seleccionar un propósito." }),
+  purpose: z.string({ required_error: "Debe seleccionar un propósito." }).min(1, "Debe seleccionar un propósito."),
   numberOfSamples: z.coerce.number().min(1, "Debe solicitar al menos 1 muestra.").max(50, "No se pueden solicitar más de 50 muestras a la vez."),
   justificationNotes: z.string().min(10, "La justificación debe tener al menos 10 caracteres."),
   

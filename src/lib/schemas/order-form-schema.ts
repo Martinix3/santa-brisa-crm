@@ -32,14 +32,14 @@ const baseOrderFormSchema = z.object({
   // Step 3: Details - Common
   distributorId: z.string().optional(),
   clavadistaId: z.string().optional(),
-  canalOrigenColocacion: z.enum(OPCIONES_CANAL_ORIGEN.map(o => o.value) as [string, ...string[]]).optional(),
+  canalOrigenColocacion: z.string().optional(),
   notes: z.string().optional(),
   assignedMaterials: z.array(assignedMaterialSchema).optional(),
 
   // Step 3: Details - Pedido Exitoso
-  paymentMethod: z.enum(METODOS_PAGO.map(o => o.value) as [string, ...string[]]).optional(),
+  paymentMethod: z.string().optional(),
   iban: z.string().optional(),
-  clientType: z.enum(TIPOS_CLIENTE.map(o => o.value) as [string, ...string[]]).optional(),
+  clientType: z.string().optional(),
   numberOfUnits: z.coerce.number().optional(),
   unitPrice: z.coerce.number().optional(),
   
@@ -65,14 +65,14 @@ const baseOrderFormSchema = z.object({
   observacionesAlta: z.string().optional(),
 
   // Step 3: Details - Seguimiento
-  nextActionType: z.enum(SIGUIENTES_ACCIONES.map(o => o.value) as [string, ...string[]]).optional(),
+  nextActionType: z.string().optional(),
   nextActionCustom: z.string().optional(),
   nextActionDate: z.date().optional(),
   selectedSalesRepId: z.string().optional(), // For Admin to re-assign
   clavadistaSelectedSalesRepId: z.string().optional(), // For Clavadista to assign
   
   // Step 3: Details - Fallido
-  failureReasonType: z.enum(MOTIVOS_FALLO.map(o => o.value) as [string, ...string[]]).optional(),
+  failureReasonType: z.string().optional(),
   failureReasonCustom: z.string().optional(),
 });
 

@@ -33,14 +33,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { TeamMember, TeamMemberFormValues as TeamMemberFormValuesType, AmbassadorSettings, Account } from "@/types";
-import { userRolesList } from "@/lib/data";
 import { Loader2, UserPlus, Info } from "lucide-react";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getAccountsFS } from "@/services/account-service";
-import { RolUsuario as UserRole } from "@ssot";
+import { RolUsuario as UserRole, ROLES_USUARIO } from "@ssot";
 
 const conditionSchema = z.object({
   pago_apertura: z.coerce.number().min(0),
@@ -61,7 +60,7 @@ const settingsSchema = z.object({
 
 const editUserFormSchema = z.object({
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres."),
-  role: z.enum(userRolesList as [UserRole, ...UserRole[]], { required_error: "El rol es obligatorio." }),
+  role: z.enum(ROLES_USUARIO as [UserRole, ...UserRole[]], { required_error: "El rol es obligatorio." }),
   monthlyTargetAccounts: z.coerce.number().positive("El objetivo de cuentas debe ser un número positivo.").optional(),
   monthlyTargetVisits: z.coerce.number().positive("El objetivo de visitas debe ser un número positivo.").optional(),
   avatarUrl: z.string().url("Debe ser una URL válida.").optional().or(z.literal("")),
@@ -72,7 +71,7 @@ const editUserFormSchema = z.object({
   condiciones_personalizadas: settingsSchema.optional(),
   accountId: z.string().optional(),
 }).superRefine((data, ctx) => {
-  if (data.role === "SalesRep") {
+  if (data.role === "Ventas") {
     if (data.monthlyTargetAccounts === undefined || data.monthlyTargetAccounts <= 0) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El objetivo mensual de cuentas es obligatorio y debe ser positivo para un Representante de Ventas.", path: ["monthlyTargetAccounts"] });
     }
@@ -151,8 +150,8 @@ export default function EditUserDialog({ user, isOpen, onOpenChange, onSave }: E
         name: user.name,
         email: user.email,
         role: user.role,
-        monthlyTargetAccounts: user.role === 'SalesRep' ? user.monthlyTargetAccounts : undefined,
-        monthlyTargetVisits: user.role === 'SalesRep' ? user.monthlyTargetVisits : undefined,
+        monthlyTargetAccounts: user.role === 'Ventas' ? user.monthlyTargetAccounts : undefined,
+        monthlyTargetVisits: user.role === 'Ventas' ? user.monthlyTargetVisits : undefined,
         avatarUrl: user.avatarUrl || "",
         authUid: user.authUid || user.id,
         liderId: user.liderId || undefined,
@@ -191,10 +190,14 @@ export default function EditUserDialog({ user, isOpen, onOpenChange, onSave }: E
   const getRoleDisplayName = (role: UserRole): string => {
     const roleMap: Record<UserRole, string> = {
         'Admin': 'Admin',
-        'SalesRep': 'Rep. Ventas',
+        'Ventas': 'Rep. Ventas',
         'Distributor': 'Distribuidor',
         'Clavadista': 'Clavadista',
-        'Líder Clavadista': 'Líder Clavadista'
+        'Líder Clavadista': 'Líder Clavadista',
+        'Marketing': 'Marketing',
+        'Manager': 'Manager',
+        'Operaciones': 'Operaciones',
+        'Finanzas': 'Finanzas',
     };
     return roleMap[role];
   };
@@ -212,7 +215,7 @@ export default function EditUserDialog({ user, isOpen, onOpenChange, onSave }: E
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
             <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Nombre Completo</FormLabel><FormControl><Input placeholder="Nombre y apellidos" {...field} /></FormControl><FormMessage /></FormItem>)} />
             <FormField control={form.control} name="email" render={({ field }) => (<FormItem><FormLabel>Correo Electrónico (Login)</FormLabel><FormControl><Input type="email" {...field} value={field.value ?? ""} disabled /></FormControl><FormMessage /></FormItem>)} />
-            <FormField control={form.control} name="role" render={({ field }) => (<FormItem><FormLabel>Rol del Usuario</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un rol" /></SelectTrigger></FormControl><SelectContent>{userRolesList.map(roleValue => (<SelectItem key={roleValue} value={roleValue}>{getRoleDisplayName(roleValue)}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="role" render={({ field }) => (<FormItem><FormLabel>Rol del Usuario</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un rol" /></SelectTrigger></FormControl><SelectContent>{ROLES_USUARIO.map(roleValue => (<SelectItem key={roleValue} value={roleValue}>{getRoleDisplayName(roleValue)}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
             <FormField control={form.control} name="avatarUrl" render={({ field }) => (<FormItem><FormLabel>URL del Avatar (Opcional)</FormLabel><FormControl><Input placeholder="https://example.com/avatar.png" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>)}/>
             
             {selectedRole === 'Distributor' && (
@@ -230,7 +233,7 @@ export default function EditUserDialog({ user, isOpen, onOpenChange, onSave }: E
               )} />
             )}
 
-            {selectedRole === "SalesRep" && (
+            {selectedRole === "Ventas" && (
               <>
                 <FormField control={form.control} name="monthlyTargetAccounts" render={({ field }) => (<FormItem><FormLabel>Objetivo Mensual de Cuentas</FormLabel><FormControl><Input type="number" placeholder="p. ej., 20" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)}/>
                 <FormField control={form.control} name="monthlyTargetVisits" render={({ field }) => (<FormItem><FormLabel>Objetivo Mensual de Visitas</FormLabel><FormControl><Input type="number" placeholder="p. ej., 80" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)} />

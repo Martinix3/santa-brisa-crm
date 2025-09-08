@@ -45,13 +45,14 @@ import { es } from 'date-fns/locale';
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { useCategories } from "@/contexts/categories-context";
 import { Label } from "../ui/label";
+import { UDM as uomList } from "@ssot";
 
 
 const itemFormSchema = z.object({
   name: z.string().min(3, "El nombre del artículo debe tener al menos 3 caracteres."),
   description: z.string().optional(),
   categoryId: z.string().min(1, "La categoría es obligatoria."),
-  uom: z.enum(['unit', 'kg', 'g', 'l', 'ml']).optional(),
+  uom: z.string().optional(),
   safetyStock: z.coerce.number().min(0, "El stock de seguridad no puede ser negativo.").optional(),
 });
 

@@ -2,18 +2,24 @@
 // This script creates a set of test accounts, each representing a specific commercial status.
 // It's designed to be idempotent; it won't create duplicate accounts if they already exist.
 
-import { initializeApp, applicationDefault } from 'firebase-admin/app';
-import { getFirestore, Timestamp, WriteBatch, CollectionReference } from 'firebase-admin/firestore';
+import { initializeApp, applicationDefault, getApps } from 'firebase-admin/app';
+import { getFirestore, Timestamp, type Transaction } from 'firebase-admin/firestore';
 import { subDays } from 'date-fns';
 import { fromFirestore } from '@/services/account-mapper';
-import type { Account, Order } from '@/types';
+import type { Account, Order, AccountStage, PotencialType } from '@/types';
 import { toSearchName } from '@/lib/schemas/account-schema';
 
 // --- Admin SDK Initialization ---
 let db: FirebaseFirestore.Firestore;
 try {
-  initializeApp({ credential: applicationDefault(), projectId: process.env.GCLOUD_PROJECT || 'santa-brisa-crm' });
-  db = getFirestore();
+  const appName = 'firebase-admin-script-seed-test-accounts';
+  const existingApp = getApps().find(app => app.name === appName);
+  if (existingApp) {
+    db = getFirestore(existingApp);
+  } else {
+    initializeApp({ credential: applicationDefault(), projectId: process.env.GCLOUD_PROJECT || 'santa-brisa-crm' }, appName);
+    db = getFirestore();
+  }
 } catch (e: any) {
   if (e.code === 'app/duplicate-app') {
     db = getFirestore();
@@ -27,50 +33,50 @@ const ORDERS_COLLECTION = 'orders';
 
 const TEST_REP = { id: 'TEST_USER_ID', name: 'Comercial de Pruebas' };
 
-const accountsToSeed = [
+const accountsToSeed: { name: string, statusTarget: AccountStage, interactions: Partial<Order>[] }[] = [
     { name: 'Test Potencial (Sin Interacciones)', statusTarget: 'Pendiente', interactions: [] },
     { 
         name: 'Test Activa (1 Pedido)', 
         statusTarget: 'Activo',
         interactions: [
-            { status: 'Entregado', value: 100, createdAt: subDays(new Date(), 15) }
+            { status: 'Entregado', value: 100, createdAt: subDays(new Date(), 15).toISOString() }
         ]
     },
     { 
         name: 'Test Repetición (2 Pedidos)', 
         statusTarget: 'Repetición',
         interactions: [
-            { status: 'Entregado', value: 150, createdAt: subDays(new Date(), 20) },
-            { status: 'Facturado', value: 120, createdAt: subDays(new Date(), 50) }
+            { status: 'Entregado', value: 150, createdAt: subDays(new Date(), 20).toISOString() },
+            { status: 'Facturado', value: 120, createdAt: subDays(new Date(), 50).toISOString() }
         ]
     },
     { 
         name: 'Test Inactiva (>90 días)', 
         statusTarget: 'Inactivo',
         interactions: [
-            { status: 'Pagado', value: 200, createdAt: subDays(new Date(), 100) }
+            { status: 'Pagado', value: 200, createdAt: subDays(new Date(), 100).toISOString() }
         ]
     },
     { 
         name: 'Test Seguimiento (Interacción sin Venta)', 
         statusTarget: 'Seguimiento',
         interactions: [
-            { status: 'Completado', value: 0, createdAt: subDays(new Date(), 10) }
+            { status: 'Completado', value: 0, createdAt: subDays(new Date(), 10).toISOString() }
         ]
     },
      { 
         name: 'Test Fallida (Última Interacción Fallida)', 
         statusTarget: 'Fallido',
         interactions: [
-            { status: 'Fallido', value: 0, createdAt: subDays(new Date(), 5) },
-            { status: 'Completado', value: 0, createdAt: subDays(new Date(), 30) },
+            { status: 'Fallido', value: 0, createdAt: subDays(new Date(), 5).toISOString() },
+            { status: 'Completado', value: 0, createdAt: subDays(new Date(), 30).toISOString() },
         ]
     },
     { 
         name: 'Test Programada (Visita Futura)', 
         statusTarget: 'Programada',
         interactions: [
-            { status: 'Programada', value: 0, visitDate: subDays(new Date(), -5) } // 5 days in the future
+            { status: 'Programada', value: 0, visitDate: subDays(new Date(), -5).toISOString() } // 5 days in the future
         ]
     }
 ];
@@ -82,8 +88,8 @@ async function seedTestAccounts() {
     const ordersRef = db.collection(ORDERS_COLLECTION);
 
     for (const seed of accountsToSeed) {
-        // Check if account already exists
-        const accountQuery = await accountsRef.where('name', '==', seed.name).limit(1).get();
+        const searchName = toSearchName(seed.name);
+        const accountQuery = await accountsRef.where('searchName', '==', searchName).limit(1).get();
         
         let accountId: string;
         let account: Account;
@@ -92,27 +98,24 @@ async function seedTestAccounts() {
             console.log(`  - Creating account: "${seed.name}"`);
             const newAccountData = {
                 name: seed.name,
-                searchName: toSearchName(seed.name),
+                searchName: searchName,
                 type: 'customer',
-                status: 'lead',
+                accountStage: seed.statusTarget,
                 potencial: 'medio',
                 leadScore: 50,
                 createdAt: Timestamp.now(),
                 updatedAt: Timestamp.now(),
                 owner_user_id: TEST_REP.id,
-                salesRepId: TEST_REP.id,
-                responsableId: TEST_REP.id,
-                responsableName: TEST_REP.name
+                city: 'Madrid', // Add a default city
             };
             const docRef = await accountsRef.add(newAccountData);
             accountId = docRef.id;
             const newDocSnap = await docRef.get();
             account = fromFirestore({ id: newDocSnap.id, ...newDocSnap.data() });
-
         } else {
             console.log(`  - Account "${seed.name}" already exists. Skipping creation, checking interactions.`);
             accountId = accountQuery.docs[0].id;
-            account = fromFirestore(accountQuery.docs[0]);
+            account = fromFirestore({id: accountId, ...accountQuery.docs[0].data()});
         }
 
         // Check and create interactions if they don't exist
@@ -127,11 +130,11 @@ async function seedTestAccounts() {
                 const newInteractionData: Partial<Order> = {
                     accountId: accountId,
                     clientName: account.name,
-                    status: interaction.status as any,
+                    status: interaction.status,
                     value: interaction.value,
-                    createdAt: interaction.createdAt ? interaction.createdAt.toISOString() : new Date().toISOString(),
-                    visitDate: interaction.visitDate ? interaction.visitDate.toISOString() : undefined,
-                    nextActionDate: interaction.visitDate ? interaction.visitDate.toISOString() : undefined,
+                    createdAt: interaction.createdAt,
+                    visitDate: interaction.visitDate,
+                    nextActionDate: interaction.visitDate,
                     salesRep: TEST_REP.name,
                     taskCategory: 'Commercial',
                     orderIndex: 0,

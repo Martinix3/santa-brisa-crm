@@ -468,10 +468,10 @@ function CreateOrderFormLite({
                 <td className="py-2 px-3">{lines[i]?.name}</td>
                 <td className="px-3">{lines[i]?.sku}</td>
                 <td className="px-3 text-right">
-                  <Input className="text-right" type="number" min={1} step="1" value={lines[i]?.qty} onChange={(e)=> updateLine(i,{ qty: Number(e.target.value||0) })} />
+                  <Input className="text-right" type="number" min={1} step="1" value={lines[i]?.qty ?? ''} onChange={(e)=> updateLine(i,{ qty: Number(e.target.value||0) })} />
                 </td>
                 <td className="px-3 text-right">
-                  <Input className="text-right" type="number" min={0} step="0.01" value={lines[i]?.unitPrice} onChange={(e)=> updateLine(i,{ unitPrice: Number(e.target.value||0) })} />
+                  <Input className="text-right" type="number" min={0} step="0.01" value={lines[i]?.unitPrice ?? ''} onChange={(e)=> updateLine(i,{ unitPrice: Number(e.target.value||0) })} />
                 </td>
                 <td className="px-3 text-right tabular-nums">{lines[i]?.total.toFixed(2)}</td>
                 <td className="px-3 text-right"><Button size="icon" variant="ghost" onClick={()=> removeLine(i)}><Trash2 className="h-4 w-4" /></Button></td>

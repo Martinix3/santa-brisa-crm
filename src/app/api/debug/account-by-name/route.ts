@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { adminDb as db } from "@/lib/firebaseAdmin";
 import type { FirebaseFirestore } from "firebase-admin/firestore";
+import type { Account, Order, TeamMember, EnrichedAccount, AccountStatus } from '@/types';
+import { calculateCommercialStatus } from "@/lib/account-logic";
+
 
 /** ---------- helpers ---------- */
 const normalize = (s: string) =>
@@ -121,6 +124,8 @@ async function listTopCollections(db: FirebaseFirestore.Firestore) {
   return cols.filter(c => !skip.has(c.id));
 }
 
+const toSearchName = (s:string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g," ").trim().replace(/\s/g, "_");
+
 async function findAccountsByName(name: string, db: FirebaseFirestore.Firestore) {
   const n = normalize(name);
   const acc = db.collection("accounts");
@@ -135,8 +140,6 @@ async function findAccountsByName(name: string, db: FirebaseFirestore.Firestore)
   const c = await acc.limit(500).get();
   return c.docs.filter(d => normalize(String(d.get("name") || "")) === n);
 }
-
-const toSearchName = (s:string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g," ").trim().replace(/\s/g, "_");
 
 async function readAccountSubcollections(db: FirebaseFirestore.Firestore, accountId: string) {
   const ref = db.collection("accounts").doc(accountId);
@@ -198,33 +201,56 @@ export async function POST(req: Request) {
       return NextResponse.json({ matches: 0, bundles: [], message: "Sin resultados" });
     }
 
-    const top = await listTopCollections(db);
+    const topCollections = await listTopCollections(db);
     const bundles = [];
 
-    for (const m of matches) {
-      const accountId = m.id;
-      const account = { id: accountId, ...(m.data() as any) };
+    // Pre-fetch all team members and accounts for mapping
+    const [allTeamMembersSnap, allAccountsSnap] = await Promise.all([
+        db.collection('teamMembers').get(),
+        db.collection('accounts').get()
+    ]);
+    const teamMembersMap = new Map(allTeamMembersSnap.docs.map(d => [d.id, d.data() as TeamMember]));
+    const accountsMap = new Map(allAccountsSnap.docs.map(d => [d.id, d.data() as Account]));
 
-      // related (todas las colecciones + subcolecciones)
+    for (const match of matches) {
+      const accountId = match.id;
+      const accountData = match.data() as Account;
+
+      // START ENRICHMENT
+      const accountInteractions = await queryRelated(db, 'orders', accountId);
+      const accountStatus = await calculateCommercialStatus(accountInteractions as Order[]);
+      
+      const owner = accountData.owner_user_id ? teamMembersMap.get(accountData.owner_user_id) : null;
+      const distributor = accountData.distributorId ? accountsMap.get(accountData.distributorId) : null;
+
+      const enrichedAccount = {
+          ...accountData,
+          id: accountId,
+          name: accountData.name,
+          accountStage: accountStatus, // Calculated status
+          distributorName: distributor?.name || null,
+          responsableName: owner?.name || null,
+      };
+      // END ENRICHMENT
+
       const related: Record<string, any[]> = {};
-      for (const c of top) {
+      for (const c of topCollections) {
         if (c.id === "accounts") continue;
         const docs = await queryRelated(db, c.id, accountId);
         if (docs.length) related[c.id] = docs;
       }
       Object.assign(related, await readAccountSubcollections(db, accountId));
 
-      // schema (raw) por colección
       const schema: Record<string, any> = {};
-      schema["accounts"] = analyzeCollectionDocs([account]);
+      schema["accounts"] = analyzeCollectionDocs([enrichedAccount]);
       for (const [cid, docs] of Object.entries(related)) {
         schema[cid] = analyzeCollectionDocs(docs);
       }
 
       const metrics = basicMetrics(related);
-      const duplicates = await findDuplicates(db, account);
+      const duplicates = await findDuplicates(db, enrichedAccount);
 
-      bundles.push({ account, related, schema, metrics, duplicates });
+      bundles.push({ account: enrichedAccount, related, schema, metrics, duplicates });
     }
 
     return NextResponse.json({ matches: bundles.length, bundles });

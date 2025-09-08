@@ -98,8 +98,10 @@ export interface EnrichedAccount extends Account {
   totalValue: number;
   lastInteractionDate?: string;
   interactions?: Order[];
+  responsableId: string;
   responsableName?: string;
   responsableAvatar?: string;
+  distributorName?: string;
 }
 
 export interface Interaction extends Order {

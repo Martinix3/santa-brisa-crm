@@ -2,7 +2,7 @@
 'use server';
 
 import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
-import { addTeamMemberFS, getTeamMemberByAuthUid as getTeamMemberByAuthUidFromService } from '@/services/team-member-service';
+import { addTeamMemberFS } from '@/services/team-member-service';
 import type { TeamMember, TeamMemberFormValues, RolUsuario as UserRole } from '@/types';
 import { fromFirestoreTeamMember } from '../utils/firestore-converters';
 

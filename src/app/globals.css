@@ -68,6 +68,8 @@
     --foreground: 222 47% 11%;
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
     --primary: 45 90% 67%;
     --primary-foreground: 222 47% 11%;
     --secondary: 181 40% 75%;
@@ -150,3 +152,5 @@
     box-shadow: 0 1px 2px rgba(16,24,40,0.08);
   }
 }
+
+    

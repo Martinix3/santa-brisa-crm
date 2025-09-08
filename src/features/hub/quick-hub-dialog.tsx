@@ -20,7 +20,7 @@ import {
   type AccountFormValues,
 } from "@/lib/schemas/account-schema";
 import { upsertAccountAction } from "@/app/(app)/accounts/actions";
-import { TIPOS_CUENTA, OWNERSHIP_OPTIONS, TIPOS_INTERACCION, RESULTADOS_INTERACCION } from "@ssot";
+import { TIPOS_CUENTA, OWNERSHIP_OPTIONS, TIPOS_INTERACCION, RESULTADOS_INTERACCION, orderChannelOptions } from "@ssot";
 
 
 import {
@@ -33,7 +33,6 @@ import { createInteractionAction, listAccountsForSelectAction } from "@/services
 import {
   orderSchema,
   type OrderFormValues,
-  orderChannelOptions,
   type OrderLine
 } from "@/lib/schemas/order-schema";
 import { createOrderAction } from "@/app/(app)/orders/actions";
@@ -189,7 +188,7 @@ function CreateAccountForm({
 
         <Field label="Tipo">
           <Select value={form.watch("type")} onValueChange={(v)=> form.setValue("type", v as any, { shouldDirty:true })}>
-            <SelectTrigger><SelectValue placeholder="Selecciona" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder="Selecciona"/></SelectTrigger>
             <SelectContent>
               {TIPOS_CUENTA.map(o=> <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
             </SelectContent>
@@ -400,11 +399,11 @@ function CreateOrderFormLite({
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
       {!hasPreset && (
         <Field label="Cuenta (escribe para crear)">
-          <Input placeholder="Escribe el nombre si no existe" {...form.register("accountName")} />
+          <Input placeholder="Ej. Bar Las Tablas" {...form.register("accountName")} />
         </Field>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Field label="Canal">
           <Select value={form.watch("channel")} onValueChange={(v)=> form.setValue("channel", v as any)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
@@ -419,7 +418,7 @@ function CreateOrderFormLite({
           </Field>
         )}
         <Field label="Moneda">
-          <Select value={form.watch("currency")} onValueChange={(v)=> form.setValue("currency", v as any)}>
+          <Select value={form.watch("currency")} onValueChange={(v)=>form.setValue("currency", v as any)}>
             <SelectTrigger><SelectValue/></SelectTrigger>
             <SelectContent>
               <SelectItem value="EUR">EUR</SelectItem>
@@ -522,3 +521,5 @@ function toLocalInputValue(d?: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
+
+    

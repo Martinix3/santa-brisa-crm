@@ -35,14 +35,26 @@ import { getFirestore, Timestamp, FieldValue } from "firebase-admin/firestore";
 
 // -------- CLI args --------
 const args = new Map<string, string | boolean>();
-process.argv.slice(2).forEach((a) => {
-  const m = a.match(/^--([^=]+)(?:=(.*))?$/);
-  if (m) args.set(m[1], m[2] ?? true);
-});
-const MODE = String(args.get("mode") || "backfill") as "backfill" | "cleanup" | "both";
-const DRY = Boolean(args.get("dry") || false);
+const rawArgs = process.argv.slice(2);
+for (let i = 0; i < rawArgs.length; i++) {
+  const arg = rawArgs[i];
+  if (arg.startsWith('--')) {
+    const key = arg.slice(2);
+    // Check if the next argument is a value or another flag
+    if (i + 1 < rawArgs.length && !rawArgs[i + 1].startsWith('--')) {
+      args.set(key, rawArgs[i + 1]);
+      i++; // Skip the next argument since it's a value
+    } else {
+      args.set(key, true); // It's a boolean flag
+    }
+  }
+}
+
+const MODE = (args.get("mode") as "backfill" | "cleanup" | "both") || "backfill";
+const DRY = args.has("dry");
 const LIMIT = args.has("limit") ? Number(args.get("limit")) : undefined;
 const CONFIRM_DELETE = process.env.CONFIRM_DELETE === "YES";
+
 
 // -------- Admin init --------
 function initDb() {

@@ -1,3 +1,4 @@
+
 import { adminDb } from '@/lib/firebaseAdmin';
 import {
   collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
@@ -14,7 +15,7 @@ const DIRECT_SALES_COLLECTION = 'directSales';
 
 export const getDirectSalesFS = async (): Promise<DirectSale[]> => {
   const salesCol = adminDb.collection(DIRECT_SALES_COLLECTION);
-  const q = query(salesCol, orderBy('issueDate', 'desc'));
+  const q = salesCol.orderBy('issueDate', 'desc');
   const salesSnapshot = await q.get();
   return salesSnapshot.docs.map(docSnap => fromFirestoreDirectSale(docSnap));
 };

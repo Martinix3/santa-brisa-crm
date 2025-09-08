@@ -2,38 +2,38 @@
   "hosting": {
     "source": ".",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "frameworksBackend": { "region": "europe-west1" },
-    "rewrites": [
-      {
-        "source": "/api/holded/projects",
-        "function": { "functionId": "holdedProjects", "region": "europe-west1" }
-      }
-    ]
-  },
-  "firestore": { "rules": "firestore.rules" },
-  "functions": [
-    {
-      "source": "functions",
-      "codebase": "default",
-      "ignore": ["node_modules", ".git", "firebase-debug.log", "firebase-debug.*.log", "*.local"],
-      "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"],
-      "endpoints": {
-        "holdedProjects": {
-          "entryPoint": "holdedProjects",
-          "region": "europe-west1",
-          "httpsTrigger": {}
-        }
-      }
+    "frameworksBackend": {
+      "region": "europe-west1"
     }
-  ],
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  },
   "emulators": {
-    "ui":        { "enabled": true, "port": 4000 },
-    "hub":       { "port": 4400 },
-    "logging":   { "port": 4500 },
-    "functions": { "port": 5001 },
-    "firestore": { "port": 8080 },
-    "auth":      { "port": 9099 },
-    "storage":   { "port": 9199 },
-    "pubsub":    { "port": 8085 }
+    "ui": {
+      "enabled": true,
+      "port": 4000
+    },
+    "hub": {
+      "port": 4400
+    },
+    "logging": {
+      "port": 4500
+    },
+    "functions": {
+      "port": 5001
+    },
+    "firestore": {
+      "port": 8080
+    },
+    "auth": {
+      "port": 9099
+    },
+    "storage": {
+      "port": 9199
+    },
+    "pubsub": {
+      "port": 8085
+    }
   }
 }

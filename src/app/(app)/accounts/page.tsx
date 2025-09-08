@@ -252,7 +252,15 @@ export default function AccountsPage() {
         return false;
       });
 
-    return filtered.sort(sortFunction).reduce((groups, acc) => {
+    const groups = {
+        activeAccounts: [] as EnrichedAccount[],
+        potentialAccounts: [] as EnrichedAccount[],
+        pendingAccounts: [] as EnrichedAccount[],
+        inactiveAccounts: [] as EnrichedAccount[],
+        failedAccounts: [] as EnrichedAccount[],
+    };
+
+    filtered.forEach(acc => {
       switch (acc.status) {
         case 'Activo':
         case 'Repetición':
@@ -272,17 +280,17 @@ export default function AccountsPage() {
           groups.failedAccounts.push(acc);
           break;
         default:
-          // You might want to handle uncategorized accounts, maybe add them to a separate group
+          groups.pendingAccounts.push(acc);
           break;
       }
-      return groups;
-    }, {
-      activeAccounts: [] as EnrichedAccount[],
-      potentialAccounts: [] as EnrichedAccount[],
-      pendingAccounts: [] as EnrichedAccount[],
-      inactiveAccounts: [] as EnrichedAccount[],
-      failedAccounts: [] as EnrichedAccount[],
     });
+
+    // Sort each group individually
+    for (const key in groups) {
+      (groups as any)[key].sort(sortFunction);
+    }
+    
+    return groups;
 
   }, [searchTerm, typeFilter, enrichedAccounts, responsibleFilter, bucketFilter, isAdmin, sortOption]);
 
@@ -391,3 +399,5 @@ export default function AccountsPage() {
 
 type BucketFilter = "Todos" | "Vencidas" | "Para Hoy" | "Pendientes";
 type SortOption = "leadScore_desc" | "nextAction_asc" | "lastInteraction_desc";
+
+    

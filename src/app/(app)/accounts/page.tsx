@@ -43,20 +43,22 @@ function AccountTableRow({ account, isExpanded, onToggleExpand }: { account: Enr
         >
           <TableCell className="font-medium">
             <div className="flex items-center gap-2">
-              <ChevronDown
+               <ChevronDown
                 className={cn('h-4 w-4 transition-transform', isExpanded && 'rotate-180')}
               />
-              <Link
-                href={`/accounts/${account.id}`}
-                onClick={(e: React.MouseEvent<HTMLAnchorElement>) => e.stopPropagation()}
-                className="hover:underline text-primary"
-              >
-                {account.nombre}
-              </Link>
+              <div className="flex flex-col">
+                <Link
+                  href={`/accounts/${account.id}`}
+                  onClick={(e: React.MouseEvent<HTMLAnchorElement>) => e.stopPropagation()}
+                  className="hover:underline text-primary font-semibold"
+                >
+                  {account.nombre}
+                </Link>
+                <p className="text-xs text-muted-foreground">
+                  {account.city || account.ciudad || 'Ubicación no especificada'}
+                </p>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground pl-6">
-              {(account as any).city || (account as any).ciudad || 'Ubicación no especificada'}
-            </p>
           </TableCell>
           <TableCell>{account.responsableName || <span className="text-muted-foreground">Sin Asignar</span>}</TableCell>
           <TableCell className="text-xs">

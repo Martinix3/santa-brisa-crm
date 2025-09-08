@@ -1,12 +1,12 @@
 
 import type { Timestamp } from "firebase/firestore";
-import type { Account, AccountStatus, AccountType, AddressDetails, PotencialType } from '@/domain/accounts/types';
+import type { Account as DomainAccount, AccountStatus as DomainAccountStatus, AccountType as DomainAccountType, AddressDetails, PotencialType } from '@/domain/accounts/types';
 
 export * from '@/domain/accounts/types';
 
 // --- ENUMS & SHARED TYPES ---
 
-export type UserRole = 'Admin' | 'SalesRep' | 'Distributor' | 'Clavadista' | 'Líder Clavadista' | 'Manager' | 'Operaciones' | 'Marketing' | 'Finanzas';
+export type UserRole = 'Admin' | 'Ventas' | 'Distributor' | 'Marketing' | 'Manager' | 'Operaciones' | 'Finanzas' | 'Clavadista' | 'Líder Clavadista';
 export type Channel = 'horeca' | 'retail' | 'online' | 'b2b';
 export type DistributionType = 'direct' | 'via_distributor';
 export type TaskStatus = 'Programada' | 'Seguimiento' | 'Completado';
@@ -368,7 +368,7 @@ export interface Purchase {
     adjuntos?: { name: string; url: string }[];
 }
 
-export interface EnrichedAccount extends Account {
+export interface EnrichedAccount extends DomainAccount {
   totalValue: number;
   lastInteractionDate?: Date;
   nextInteraction?: Order;
@@ -593,18 +593,31 @@ export interface Tank {
 }
 export interface TankFormValues extends Omit<Tank, 'id' | 'createdAt' | 'updatedAt'> {}
 
-export interface TeamMemberFormValues {
+export interface AccountFormValues {
   name: string;
-  email: string;
-  role: UserRole;
-  monthlyTargetAccounts?: number;
-  monthlyTargetVisits?: number;
-  authUid?: string;
-  avatarUrl?: string;
-  liderId?: string;
-  uses_custom_conditions?: boolean;
-  condiciones_personalizadas?: any;
-  accountId?: string;
+  legalName?: string;
+  cif?: string;
+  type: DomainAccountType;
+  iban?: string;
+  distributorId?: string;
+  addressBilling_street?: string;
+  addressBilling_number?: string;
+  addressBilling_city?: string;
+  addressBilling_province?: string;
+  addressBilling_postalCode?: string;
+  addressBilling_country?: string;
+  addressShipping_street?: string;
+  addressShipping_number?: string;
+  addressShipping_city?: string;
+  addressShipping_province?: string;
+  addressShipping_postalCode?: string;
+  addressShipping_country?: string;
+  mainContactName?: string;
+  mainContactEmail?: string;
+  mainContactPhone?: string;
+  notes?: string;
+  internalNotes?: string;
+  salesRepId?: string;
 }
 
 export interface EnrichedTeamMember extends TeamMember {
@@ -724,3 +737,27 @@ export interface EarningsConfig {
 }
 
 export type OrderType = 'directa' | 'deposito';
+
+export interface Supplier {
+  id: string;
+  name: string;
+  code: string;
+  cif?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  address?: AddressDetails;
+  iban?: string;
+  notes?: string;
+  createdAt: string; // ISO String
+  updatedAt: string; // ISO String
+}
+
+export interface SupplierFormValues extends Omit<Supplier, 'id' | 'createdAt' | 'updatedAt' | 'address'> {
+  address_street?: string;
+  address_number?: string;
+  address_city?: string;
+  address_province?: string;
+  address_postalCode?: string;
+  address_country?: string;
+}

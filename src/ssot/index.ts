@@ -1,3 +1,4 @@
+
 /*
  * Santa Brisa CRM — Única Fuente de Verdad (SSOT)
  * ------------------------------------------------
@@ -44,17 +45,23 @@ export type TipoDistribucion = typeof TIPOS_DISTRIBUCION[number];
 // ------------------------------------------------------------
 export const TIPOS_INTERACCION_VALUES = ["visita", "llamada", "mensaje", "seguimiento", "nota"] as const;
 export type TipoInteraccion = typeof TIPOS_INTERACCION_VALUES[number];
-export const TIPOS_INTERACCION = Object.freeze(TIPOS_INTERACCION_VALUES.map(v => ({
-  value: v,
-  label: v.charAt(0).toUpperCase() + v.slice(1).replace(/_/g, ' ')
-})));
+export const TIPOS_INTERACCION = Object.freeze([
+    { value: "visita", label: "Visita" },
+    { value: "llamada", label: "Llamada" },
+    { value: "mensaje", label: "Mensaje" },
+    { value: "seguimiento", label: "Seguimiento" },
+    { value: "nota", label: "Nota interna" },
+]);
 
 export const RESULTADOS_INTERACCION_VALUES = ["exito", "pendiente", "sin_respuesta", "no_interesado"] as const;
 export type ResultadoInteraccion = typeof RESULTADOS_INTERACCION_VALUES[number];
-export const RESULTADOS_INTERACCION = Object.freeze(RESULTADOS_INTERACCION_VALUES.map(v => ({
-  value: v,
-  label: v.charAt(0).toUpperCase() + v.slice(1).replace(/_/g, ' ')
-})));
+export const RESULTADOS_INTERACCION = Object.freeze([
+    { value: "exito", label: "Éxito" },
+    { value: "pendiente", label: "Pendiente" },
+    { value: "sin_respuesta", label: "Sin respuesta" },
+    { value: "no_interesado", label: "No interesado" },
+]);
+
 
 export const ESTADOS_TAREA = ["programada", "seguimiento", "completado"] as const;
 export type EstadoTarea = typeof ESTADOS_TAREA[number];
@@ -112,26 +119,20 @@ export type AccountStatus = typeof ACCOUNT_STATUSES[number];
  */
 export const TIPOS_CUENTA_VALUES = ["prospect", "customer", "distributor", "importer"] as const;
 export type TipoCuenta = typeof TIPOS_CUENTA_VALUES[number];
-export const TIPOS_CUENTA = Object.freeze(TIPOS_CUENTA_VALUES.map(v => {
-    const labels: Record<TipoCuenta, string> = {
-        prospect: "Prospecto",
-        customer: "Cliente",
-        distributor: "Distribuidor",
-        importer: "Importador"
-    };
-    return { value: v, label: labels[v] };
-}));
+export const TIPOS_CUENTA = Object.freeze([
+    { value: "prospect", label: "Prospecto" },
+    { value: "customer", label: "Cliente" },
+    { value: "distributor", label: "Distribuidor" },
+    { value: "importer", label: "Importador" }
+]);
 
 
 export const OWNERSHIP_VALUES = ["propio", "distribuidor"] as const;
 export type Ownership = typeof OWNERSHIP_VALUES[number];
-export const OWNERSHIP_OPTIONS = Object.freeze(OWNERSHIP_VALUES.map(v => {
-    const labels: Record<Ownership, string> = {
-        propio: "Nosotros",
-        distribuidor: "Distribuidor"
-    };
-    return { value: v, label: labels[v] };
-}));
+export const OWNERSHIP_OPTIONS = Object.freeze([
+    { value: "propio", label: "Nosotros" },
+    { value: "distribuidor", label: "Distribuidor" }
+]);
 
 
 // ------------------------------------------------------------
@@ -471,3 +472,5 @@ export const esTipoCliente = (v: unknown): v is TipoCliente => typeof v === "str
 /** @deprecated */ export type AccountType = TipoCuenta;
 /** @deprecated */ export const LABELS = ETIQUETAS;
 /** @deprecated */ export const UI_COLORS = COLORES_UI;
+
+    

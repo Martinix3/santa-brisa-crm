@@ -471,7 +471,7 @@ function CreateOrderFormLite({
                   <Input className="text-right" type="number" min={0} step="0.01" value={l.unitPrice} onChange={(e)=> updateLine(i,{ unitPrice: Number(e.target.value||0) })} />
                 </td>
                 <td className="px-3 text-right tabular-nums">{l.total.toFixed(2)}</td>
-                <td className="px-3 text-right"><Button size="icon" variant="ghost" onClick={()=> removeLine(i)}><Trash2 className="size-4" /></Button></td>
+                <td className="px-3 text-right"><Button size="icon" variant="ghost" onClick={()=> removeLine(i)}><Trash2 className="h-4 w-4" /></Button></td>
               </tr>
             ))}
           </tbody>
@@ -520,3 +520,5 @@ function toLocalInputValue(d?: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
+
+    

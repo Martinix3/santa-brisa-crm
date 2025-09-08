@@ -1,9 +1,27 @@
 
 'use server';
 
-import { adminAuth } from '@/lib/firebaseAdmin';
-import { addTeamMemberFS } from '@/services/team-member-service';
-import type { TeamMemberFormValues, RolUsuario as UserRole } from '@/types';
+import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
+import { addTeamMemberFS, getTeamMemberByAuthUid as getTeamMemberByAuthUidFromService } from '@/services/team-member-service';
+import type { TeamMember, TeamMemberFormValues, RolUsuario as UserRole } from '@/types';
+import { fromFirestoreTeamMember } from '../utils/firestore-converters';
+
+/**
+ * Fetches a team member profile from Firestore using their Firebase Authentication UID.
+ * This is a server-side action.
+ * @param authUid The Firebase Authentication UID of the user.
+ * @returns The team member profile or null if not found.
+ */
+export async function getTeamMemberByAuthUidFS(authUid: string): Promise<TeamMember | null> {
+    if (!authUid) return null;
+    const membersCol = adminDb.collection('teamMembers');
+    const q = membersCol.where('authUid', '==', authUid).limit(1);
+    const snapshot = await q.get();
+    if (!snapshot.empty) {
+        return fromFirestoreTeamMember(snapshot.docs[0]);
+    }
+    return null;
+}
 
 /**
  * A Server Action to create a new user in Firebase Authentication and a corresponding

@@ -1,8 +1,9 @@
 
 
-import { Timestamp, type DocumentSnapshot } from "firebase/firestore";
+import { Timestamp, type DocumentSnapshot } from "firebase-admin/firestore";
 import { format, parseISO, isValid } from "date-fns";
 import type { Order, TeamMember, CrmEvent, Account, Supplier, Expense, BomLine, ItemBatch, Tank, DirectSale, DirectSaleItem } from '@/types';
+import { fromFirestoreOrder } from '../order-service';
 import { CanalVentaDirecta as DirectSaleChannel } from "@ssot";
 
 const toDateString = (ts: any, defaultNow = true): string | undefined => {
@@ -286,4 +287,10 @@ export const toFirestoreSupplier = (data: any, isNew: boolean): any => {
         payload.createdAt = Timestamp.now();
     }
     return payload;
+};
+
+export const fromFirestoreInteraction = (docSnap: any): Order => {
+  const data = docSnap.data();
+  if (!data) return {} as Order; // Should not happen
+  return fromFirestoreOrder(docSnap); // Use the main order converter
 };

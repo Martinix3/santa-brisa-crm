@@ -1,10 +1,11 @@
 
+
 'use server';
 
 import { adminDb as db } from '@/lib/firebaseAdmin';
 import {
   collection, addDoc, updateDoc, doc, Timestamp,
-  getDocs, query, orderBy, limit, where, getDoc
+  getDocs, query, orderBy, limit, where, getDoc, setDoc
 } from 'firebase-admin/firestore';
 import type { InteractionFormValues } from '@/lib/schemas/interaction-schema';
 import { toSearchName } from '@/lib/schemas/account-schema';
@@ -188,11 +189,4 @@ export const saveInteractionFS = async (
     }
 
     await setDoc(newOrderRef, newInteractionData);
-};
-
-
-export const fromFirestoreInteraction = (docSnap: any): Order => {
-  const data = docSnap.data();
-  if (!data) return {} as Order; // Should not happen
-  return fromFirestoreOrder(docSnap); // Use the main order converter
 };

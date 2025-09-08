@@ -11,12 +11,13 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { getCarteraBundle } from "@/app/(app)/accounts/actions";
-import { AccountRow } from "@/features/accounts/components/account-row";
 import AccountDialog from "@/features/accounts/components/account-dialog";
 import { TIPOS_CUENTA_VALUES, type TipoCuenta } from "@ssot";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { getCarteraBundle } from "@/features/accounts/repo";
+import { AccountRow } from "@/features/accounts/components/account-row";
+
 
 const AccountGroup = ({ title, accounts, expandedRowId, onToggleExpand, onOpenHub }: { title: string; accounts: EnrichedAccount[]; expandedRowId: string | null; onToggleExpand: (id: string) => void; onOpenHub: (accountId: string, mode: 'registrar' | 'editar' | 'pedido') => void; }) => {
     if (accounts.length === 0) return null;
@@ -66,28 +67,30 @@ export default function AccountsPage() {
   const isAdmin = userRole === 'Admin';
   const salesAndAdminMembers = teamMembers.filter(m => m.role === 'Admin' || m.role === 'Ventas');
 
-  React.useEffect(() => {
-    async function loadData() {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const { enrichedAccounts, teamMembers: members } = await getCarteraBundle();
-        setEnrichedAccounts(enrichedAccounts);
-        setTeamMembers(members);
-      } catch (err: any) {
-        console.error("Error fetching data:", err);
-        setError("No se pudieron cargar los datos de las cuentas. Por favor, inténtalo de nuevo más tarde.");
-        toast({
-            title: "Error de Red",
-            description: err.message || "Error al conectar con el servidor.",
-            variant: "destructive"
-        });
-      } finally {
-        setIsLoading(false);
-      }
+  const loadData = React.useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const { enrichedAccounts, teamMembers: members } = await getCarteraBundle();
+      setEnrichedAccounts(enrichedAccounts);
+      setTeamMembers(members);
+    } catch (err: any) {
+      console.error("Error fetching data:", err);
+      setError("No se pudieron cargar los datos de las cuentas. Por favor, inténtalo de nuevo más tarde.");
+      toast({
+          title: "Error de Red",
+          description: err.message || "Error al conectar con el servidor.",
+          variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
     }
-    loadData();
   }, [toast]);
+
+
+  React.useEffect(() => {
+    loadData();
+  }, [loadData]);
   
   const { activeAccounts, potentialAccounts, pendingAccounts, failedAccounts, inactiveAccounts } = React.useMemo(() => {
     const todayStart = startOfDay(new Date());

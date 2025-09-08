@@ -468,7 +468,7 @@ export const esTipoCliente = (v: unknown): v is TipoCliente => typeof v === "str
 /** @deprecated */ export type TaskStatus = EstadoTarea;
 /** @deprecated */ export const CLIENT_TYPES = TIPOS_CLIENTE;
 /** @deprecated */ export type ClientType = TipoCliente;
-/** @deprecated */ export const ACCOUNT_TYPES = TIPOS_CUENTA_VALUES;
+/** @deprecated */ export const ACCOUNT_TYPES = TIPOS_CUENTA;
 /** @deprecated */ export type AccountType = TipoCuenta;
 /** @deprecated */ export const LABELS = ETIQUETAS;
 /** @deprecated */ export const UI_COLORS = COLORES_UI;

@@ -1,7 +1,7 @@
 import * as z from "zod";
 import { 
-    TIPOS_CUENTA,
-    OWNERSHIP_OPTIONS, 
+    TIPOS_CUENTA as accountTypeOptions,
+    OWNERSHIP_OPTIONS as ownershipOptions, 
     type TipoCuenta,
     type Ownership,
 } from "@ssot";
@@ -12,13 +12,13 @@ export const accountSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2, "Mínimo 2 caracteres"),
   cif: z.string().optional().nullable(),
-  type: z.enum(TIPOS_CUENTA.map(o => o.value) as [TipoCuenta, ...TipoCuenta[]]),
+  type: z.enum(accountTypeOptions.map(o => o.value) as [TipoCuenta, ...TipoCuenta[]]),
   phone: z.string().optional().nullable(),
   email: z.string().email("Email inválido").optional().nullable(),
   address: z.string().optional().nullable(),
   city: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
-  ownership: z.enum(OWNERSHIP_OPTIONS.map(o => o.value) as [Ownership, ...Ownership[]]),
+  ownership: z.enum(ownershipOptions.map(o => o.value) as [Ownership, ...Ownership[]]),
   distributorId: z.string().optional().nullable(),
 }).superRefine((val, ctx) => {
   if (val.ownership === "distribuidor" && !val.distributorId) {

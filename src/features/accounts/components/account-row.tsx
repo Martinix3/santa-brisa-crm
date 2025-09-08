@@ -3,32 +3,36 @@
 
 import * as React from 'react';
 import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
-import type { Account } from '@/types';
+import type { Order } from '@/types';
 import { cn } from '@/lib/utils';
-import { getAccountHistory } from '@/app/(app)/accounts/actions'; // Asumiendo que esta acción existe
-
-type HistoryItem = {
-  id: string;
-  kind?: 'order' | 'interaction';
-  date: string;          // ISO
-  title?: string;
-  amount?: number;       // si es pedido
-  note?: string;         // si es interacción
-  status?: string;
-};
+import AccountHistoryTable from '@/components/app/account-history-table';
+import { EnrichedAccount } from '@/types';
+import StatusBadge from '@/components/app/status-badge';
+import { format, isValid, parseISO } from 'date-fns';
+import { es } from 'date-fns/locale';
+import FormattedNumericValue from '@/components/lib/formatted-numeric-value';
+import { Button } from '@/components/ui/button';
+import { Send } from 'lucide-react';
+import Link from 'next/link';
 
 function LazyHistory({ accountId }: { accountId: string }) {
   const [loading, setLoading] = React.useState(true);
-  const [history, setHistory] = React.useState<HistoryItem[] | null>(null);
+  const [history, setHistory] = React.useState<Order[] | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
       try {
-        const data = await getAccountHistory(accountId);
-        if (!cancelled) setHistory(data as HistoryItem[]);
-      } catch {
+        // Use the new API route to fetch history
+        const response = await fetch(`/api/accounts/history?accountId=${accountId}`);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch history: ${response.statusText}`);
+        }
+        const data = await response.json();
+        if (!cancelled) setHistory(data);
+      } catch (err) {
+        console.error("Failed to load account history", err);
         if (!cancelled) setHistory([]);
       } finally {
         if (!cancelled) setLoading(false);
@@ -50,64 +54,71 @@ function LazyHistory({ accountId }: { accountId: string }) {
     return <div className="text-sm text-muted-foreground p-3">Sin historial reciente.</div>;
   }
 
-  return (
-    <div className="p-2 bg-muted/20">
-      <ul className="space-y-1">
-        {history.map(item => (
-          <li key={item.id} className="grid grid-cols-12 items-center rounded-lg bg-background p-2 text-xs">
-            <span className="col-span-2 text-muted-foreground">
-              {new Date(item.date).toLocaleDateString('es-ES')}
-            </span>
-            <span className={cn(
-              'col-span-2 rounded px-2 py-0.5 w-fit',
-              item.kind === 'order' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-            )}>
-              {item.kind === 'order' ? 'Pedido' : 'Interacción'}
-            </span>
-            <span className="col-span-4 truncate">{item.title ?? item.note ?? '—'}</span>
-            <span className="col-span-2 text-right tabular-nums">
-              {typeof item.amount === 'number' ? `${item.amount.toFixed(2)} €` : '—'}
-            </span>
-            <span className="col-span-2 text-right text-xs text-muted-foreground">
-              {item.status ?? '—'}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
+  return <AccountHistoryTable interactions={history} />;
 }
 
 
 export function AccountRow({
   account,
+  isExpanded,
+  onToggleExpand,
+  onOpenHub,
 }: {
-  account: Account;
+  account: EnrichedAccount;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  onOpenHub: (accountId: string, mode: 'registrar' | 'editar' | 'pedido') => void;
 }) {
-  const [expanded, setExpanded] = React.useState(false);
-  
+  const nextInteractionDate = account.nextInteraction?.status === 'Programada'
+    ? account.nextInteraction.visitDate
+    : account.nextInteraction?.nextActionDate;
+
   return (
     <React.Fragment>
-      <tr className="group">
-        <td className="w-8">
-          <button
+      <tr className={cn("group", isExpanded && "bg-muted/50")}>
+        <td className="w-8 pl-2">
+          <Button
             aria-label={expanded ? 'Contraer' : 'Expandir'}
-            className="p-1 rounded hover:bg-muted"
-            onClick={() => setExpanded(v => !v)}
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            onClick={onToggleExpand}
           >
             {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-          </button>
+          </Button>
         </td>
-        <td className="font-medium">{account.name}</td>
-        <td className="text-muted-foreground">{account.city ?? '--'}</td>
-        <td>{/* próxima tarea, estado, etc. */}</td>
-        <td className="text-right">{/* valor total */}</td>
-        <td className="text-right">{/* acciones (Registrar, etc.) */}</td>
+        <td className="font-medium p-2">
+            <Link href={`/accounts/${account.id}`} className="hover:underline text-primary">
+                {account.name}
+            </Link>
+            <p className="text-xs text-muted-foreground">{account.city ?? '--'}</p>
+        </td>
+        <td className="p-2">{account.responsableName || 'N/A'}</td>
+        <td className="p-2 text-sm">
+            {account.lastInteractionDate && isValid(parseISO(account.lastInteractionDate))
+                ? format(parseISO(account.lastInteractionDate), 'dd MMM yyyy', {locale: es})
+                : 'Nunca'
+            }
+        </td>
+        <td className="p-2 text-sm">
+            {nextInteractionDate && isValid(parseISO(nextInteractionDate))
+                ? format(parseISO(nextInteractionDate), 'dd MMM yyyy', {locale: es})
+                : 'No programada'
+            }
+        </td>
+        <td className="text-right p-2"><FormattedNumericValue value={account.totalValue}/></td>
+        <td className="text-center p-2"><StatusBadge type="account" status={account.status}/></td>
+        <td className="text-right p-2 pr-4">
+             <Button size="sm" onClick={() => onOpenHub(account.id, 'registrar')}>
+                <Send className="mr-2 h-4 w-4"/>
+                Registrar
+            </Button>
+        </td>
       </tr>
 
-      {expanded && (
+      {isExpanded && (
         <tr>
-          <td colSpan={6} className="bg-muted/30 p-0">
+          <td colSpan={8} className="p-0 border-t-2 border-primary/50">
              <LazyHistory accountId={account.id} />
           </td>
         </tr>

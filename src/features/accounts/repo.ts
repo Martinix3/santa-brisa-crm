@@ -13,8 +13,9 @@ import type {
   OrderStatus
 } from '@/types';
 import { fromFirestore } from '@/services/account-mapper';
-import { fromFirestoreOrder } from '@/services/order-service';
+import { fromFirestoreOrder, getOrders } from '@/services/order-service';
 import { fromFirestoreTeamMember } from '@/services/utils/firestore-converters';
+import { enrichCartera } from './cartera';
 
 
 const ACCOUNTS = 'accounts';
@@ -58,6 +59,22 @@ export async function getTeamMembers(): Promise<TeamMember[]> {
   const snap = await db.collection(TEAM_MEMBERS).get();
   return snap.docs.map(d => fromFirestoreTeamMember(d));
 }
+
+export async function getCarteraBundle() {
+    const [accounts, orders, teamMembers] = await Promise.all([
+        getAccounts(),
+        getOrders(),
+        getTeamMembers()
+    ]);
+    
+    const enrichedAccounts = enrichCartera(accounts, orders, teamMembers);
+    
+    return {
+        enrichedAccounts,
+        teamMembers
+    };
+}
+
 
 // ---- Escrituras -------------------------------------------------------------
 export async function updateAccount(accountId: string, patch: Partial<Account>): Promise<void> {

@@ -1,35 +1,26 @@
 'use server';
 
 import { adminDb as db } from '@/lib/firebaseAdmin';
-import { collection, addDoc, updateDoc, doc, Timestamp, getDocs, query, where } from 'firebase-admin/firestore';
+import { collection, addDoc, updateDoc, doc, FieldValue } from 'firebase-admin/firestore';
 import { accountSchema, type AccountFormValues, toSearchName } from '@/lib/schemas/account-schema';
 
-// Colecciones (ajusta si tu naming difiere)
 const ACCOUNTS = 'accounts';
 
-// ⚠️ Sustituye por tu auth real
+// ⚠️ Esta es una simulación. En una app real, obtendrías el usuario de la sesión.
 async function getCurrentUser() {
-  // p.ej. lee sesión/headers. Placeholder seguro:
   return { id: 'currentUserId', name: 'Usuario Actual', role: 'Ventas' };
 }
 
-// (Opcional) check permisos básicos
+// Check de permisos básico.
 function canEditAccounts(user: {role: string}) {
   return ['Admin','Manager','Ventas'].includes(user.role ?? '');
 }
 
-// (Opcional) soft-check de duplicados por searchName
-async function existsAccountBySearchName(searchName: string) {
-  const snap = await db.collection(ACCOUNTS).where('searchName', '==', searchName).limit(1).get();
-  return !snap.empty;
-}
-
 /**
- * Crea o actualiza una cuenta.
- * - Valida con Zod
- * - Normaliza `searchName`
- * - Asigna responsable = creador (solo en creación)
- * - Control de permisos básico
+ * Crea o actualiza una cuenta en Firestore.
+ * - Valida los datos de entrada con Zod.
+ * - Normaliza el nombre para búsquedas.
+ * - Usa FieldValue.serverTimestamp() para las fechas, compatible con Server Actions.
  */
 export async function upsertAccountAction(input: AccountFormValues) {
   const user = await getCurrentUser();
@@ -42,36 +33,34 @@ export async function upsertAccountAction(input: AccountFormValues) {
 
   const payload = {
     name: data.name,
-    vat_number: data.cif ?? null,
+    cif: data.cif ?? null,
     type: data.type,
     phone: data.phone ?? null,
     email: data.email ?? null,
     address: data.address ?? null,
     city: data.city ?? null,
     notes: data.notes ?? null,
-    distribution_type: data.ownership,
-    distributor_id: data.ownership === 'distribuidor' ? (data.distributorId ?? null) : null,
+    ownership: data.ownership,
+    distributorId: data.ownership === 'distribuidor' ? (data.distributorId ?? null) : null,
     searchName,
-    updatedAt: Timestamp.now(),
+    updatedAt: FieldValue.serverTimestamp(),
     updatedBy: user.id,
+    // --- Campos de estado inicial ---
+    status: 'lead',
+    potencial: 'medio',
+    leadScore: 50,
   };
 
   if (data.id) {
-    await db.collection(ACCOUNTS).doc(data.id).update(payload);
+    await updateDoc(doc(db, ACCOUNTS, data.id), payload);
     return { ok: true, id: data.id, op: 'updated' as const };
   } else {
-    // Soft check de duplicado por nombre normalizado (no bloquea, solo si quieres)
-    // if (await existsAccountBySearchName(searchName)) {
-    //   throw new Error('Ya existe una cuenta con un nombre muy similar.');
-    // }
-
-    const now = Timestamp.now();
-    const ref = await db.collection(ACCOUNTS).add({
+    const ref = await addDoc(collection(db, ACCOUNTS), {
       ...payload,
-      createdAt: now,
+      createdAt: FieldValue.serverTimestamp(),
       createdBy: user.id,
-      owner_user_id: user.id,
-      responsibleName: user.name, // Legacy field, might be useful
+      owner_user_id: user.id, 
+      responsibleName: user.name, 
     });
     return { ok: true, id: ref.id, op: 'created' as const };
   }

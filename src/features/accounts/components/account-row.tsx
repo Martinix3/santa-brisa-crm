@@ -65,6 +65,7 @@ export function AccountRow({
   onOpenHub,
   className,
   tdClassName,
+  style,
 }: {
   account: EnrichedAccount;
   isExpanded: boolean;
@@ -72,6 +73,7 @@ export function AccountRow({
   onOpenHub: (accountId: string, mode: 'registrar' | 'editar' | 'pedido') => void;
   className?: string;
   tdClassName?: string;
+  style?: React.CSSProperties;
 }) {
   const nextInteractionDate = account.nextInteraction?.status === 'Programada'
     ? account.nextInteraction.visitDate
@@ -79,7 +81,7 @@ export function AccountRow({
 
   return (
     <React.Fragment>
-      <TableRow className={cn("group", className, isExpanded && "bg-muted/50")}>
+      <TableRow className={cn("group", className, isExpanded && "bg-muted/50")} style={style}>
         <TableCell className={cn("w-8 pl-2", tdClassName)}>
           <Button
             aria-label={isExpanded ? 'Contraer' : 'Expandir'}
@@ -121,7 +123,7 @@ export function AccountRow({
       </TableRow>
 
       {isExpanded && (
-        <TableRow>
+        <TableRow style={style}>
           <TableCell colSpan={8} className="p-0 border-t-2 border-primary/50">
              <LazyHistory accountId={account.id} accountName={account.name} />
           </TableCell>

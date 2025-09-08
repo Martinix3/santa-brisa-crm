@@ -18,22 +18,29 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getCarteraBundle } from "@/features/accounts/repo";
 import { AccountRow } from "@/features/accounts/components/account-row";
 
+const hexToRgba = (hex: string, alpha: number) => {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
 
 const AccountGroup = ({
-  title, accounts, expandedRowId, onToggleExpand, onOpenHub,
+  title, accounts, expandedRowId, onToggleExpand, onOpenHub, style,
 }: {
   title: string;
   accounts: EnrichedAccount[];
   expandedRowId: string | null;
   onToggleExpand: (id: string) => void;
   onOpenHub: (accountId: string, mode: 'registrar'|'editar'|'pedido') => void;
+  style: React.CSSProperties;
 }) => {
   const [open, setOpen] = React.useState(true);
   if (accounts.length === 0) return null;
 
   return (
     <React.Fragment>
-      <TableRow className="sb-group" role="rowgroup">
+      <TableRow className="sb-group" style={style} role="rowgroup">
         <TableCell colSpan={8} className="p-0">
           <button
             type="button"
@@ -56,6 +63,7 @@ const AccountGroup = ({
           onOpenHub={onOpenHub}
           className="sb-tr"
           tdClassName="sb-td"
+          style={{ backgroundColor: hexToRgba(style.backgroundColor as string, 0.1) }}
         />
       ))}
     </React.Fragment>
@@ -113,7 +121,7 @@ export default function AccountsPage() {
     loadData();
   }, [loadData]);
   
-  const { activeAccounts, potentialAccounts, pendingAccounts, failedAccounts, inactiveAccounts } = React.useMemo(() => {
+  const { activeAccounts, potentialAccounts, followUpAccounts, failedAccounts } = React.useMemo(() => {
     const todayStart = startOfDay(new Date());
 
     const sortFunction = (a: EnrichedAccount, b: EnrichedAccount) => {
@@ -147,21 +155,36 @@ export default function AccountsPage() {
         return false;
       });
 
-    const groups: Record<string, EnrichedAccount[]> = { activeAccounts: [], potentialAccounts: [], pendingAccounts: [], inactiveAccounts: [], failedAccounts: [] };
+    const groups: Record<string, EnrichedAccount[]> = { 
+        activeAccounts: [], 
+        followUpAccounts: [], 
+        potentialAccounts: [], 
+        failedAccounts: [] 
+    };
 
     filtered.forEach(acc => {
-      switch (acc.status) {
-        case 'Activo': case 'Repetición': groups.activeAccounts.push(acc); break;
-        case 'Seguimiento': groups.potentialAccounts.push(acc); break;
-        case 'Programada': case 'Pendiente': groups.pendingAccounts.push(acc); break;
-        case 'Inactivo': groups.inactiveAccounts.push(acc); break;
-        case 'Fallido': groups.failedAccounts.push(acc); break;
-        default: groups.pendingAccounts.push(acc); break;
+      const hasSuccessfulOrder = acc.totalSuccessfulOrders > 0;
+      const hasInteractions = acc.interactions && acc.interactions.length > 0;
+      const lastInteractionStatus = hasInteractions ? acc.interactions![0].status : null;
+      
+      if (hasSuccessfulOrder) {
+          groups.activeAccounts.push(acc);
+      } else if (lastInteractionStatus === 'Fallido') {
+          groups.failedAccounts.push(acc);
+      } else if (hasInteractions) {
+          groups.followUpAccounts.push(acc);
+      } else {
+          groups.potentialAccounts.push(acc);
       }
     });
 
     Object.values(groups).forEach(group => group.sort(sortFunction));
-    return groups as { activeAccounts: EnrichedAccount[], potentialAccounts: EnrichedAccount[], pendingAccounts: EnrichedAccount[], inactiveAccounts: EnrichedAccount[], failedAccounts: EnrichedAccount[] };
+    return groups as { 
+        activeAccounts: EnrichedAccount[], 
+        potentialAccounts: EnrichedAccount[], 
+        followUpAccounts: EnrichedAccount[], 
+        failedAccounts: EnrichedAccount[] 
+    };
 
   }, [searchTerm, typeFilter, enrichedAccounts, responsibleFilter, bucketFilter, isAdmin, sortOption]);
 
@@ -170,7 +193,7 @@ export default function AccountsPage() {
       console.log('Open hub for', accountId, 'in mode', mode);
   };
   
-  const totalCount = activeAccounts.length + potentialAccounts.length + pendingAccounts.length + inactiveAccounts.length + failedAccounts.length;
+  const totalCount = activeAccounts.length + potentialAccounts.length + followUpAccounts.length + failedAccounts.length;
 
   return (
     <div className="space-y-6">
@@ -226,7 +249,7 @@ export default function AccountsPage() {
 
             <div className="ml-auto flex items-center gap-2">
               <span className="sb-chip">Activas {activeAccounts.length}</span>
-              <span className="sb-chip">Seguimiento {potentialAccounts.length}</span>
+              <span className="sb-chip">Seguimiento {followUpAccounts.length}</span>
               <Button onClick={()=>setDialogOpen(true)} className="rounded-full bg-amber-400 hover:bg-amber-500 text-amber-950">
                 <PlusCircle className="mr-2 h-4 w-4"/> Nueva Cuenta
               </Button>
@@ -281,11 +304,11 @@ export default function AccountsPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <AccountGroup title="Cuentas Activas y en Repetición" accounts={activeAccounts} expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} onOpenHub={handleOpenHub}/>
-                        <AccountGroup title="Potenciales (en seguimiento)" accounts={potentialAccounts} expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} onOpenHub={handleOpenHub}/>
-                        <AccountGroup title="Pendientes (Nuevas y Programadas)" accounts={pendingAccounts} expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} onOpenHub={handleOpenHub}/>
-                        <AccountGroup title="Cuentas Inactivas" accounts={inactiveAccounts} expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} onOpenHub={handleOpenHub}/>
-                        <AccountGroup title="Fallidos / Descartados" accounts={failedAccounts} expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} onOpenHub={handleOpenHub}/>
+                        <AccountGroup title="Activas y en Repetición" accounts={activeAccounts} expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} onOpenHub={handleOpenHub} style={{ backgroundColor: hexToRgba('#9CD7D8', 0.15) }}/>
+                        <AccountGroup title="En Seguimiento" accounts={followUpAccounts} expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} onOpenHub={handleOpenHub} style={{ backgroundColor: hexToRgba('#F6C851', 0.15) }}/>
+                        <AccountGroup title="Potenciales (Nuevas)" accounts={potentialAccounts} expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} onOpenHub={handleOpenHub} style={{ backgroundColor: hexToRgba('#559091', 0.10) }}/>
+                        <AccountGroup title="Cuentas con Interacción Fallida" accounts={failedAccounts} expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} onOpenHub={handleOpenHub} style={{ backgroundColor: hexToRgba('#E06B2F', 0.15) }}/>
+                        
                         {totalCount === 0 && (
                             <TableRow>
                                 <TableCell colSpan={8} className="h-40">
@@ -321,4 +344,3 @@ export default function AccountsPage() {
 type BucketFilter = "Todos" | "Vencidas" | "Para Hoy";
 type SortOption = "leadScore_desc" | "nextAction_asc" | "lastInteraction_desc";
 type AccountFormValues = import('@/lib/schemas/account-schema').AccountFormValues;
-

@@ -101,18 +101,23 @@ export type AccountStatus = typeof ACCOUNT_STATUSES[number];
  * Unificamos tipos de cuenta. "Retail Minorista" y "Gran Superficie" se
  * manejan vía tags/atributos, no como tipos distintos.
  */
+export const TIPOS_CUENTA_VALUES = ["prospect", "customer", "distributor", "importer"] as const;
+export type TipoCuenta = typeof TIPOS_CUENTA_VALUES[number];
 export const TIPOS_CUENTA = [
-  "HORECA",
-  "Retail",
-  "Distribuidor",
-  "Importador",
-  "Cliente Final",
-  "Otro",
-  'distribuidor_mediano',
-  'distribuidor_grande',
-  'distribuidor_top',
+  { value: "prospect", label: "Prospecto" },
+  { value: "customer", label: "Cliente" },
+  { value: "distributor", label: "Distribuidor" },
+  { value: "importer", label: "Importador" },
 ] as const;
-export type TipoCuenta = typeof TIPOS_CUENTA[number];
+
+
+export const OWNERSHIP_VALUES = ["propio", "distribuidor"] as const;
+export type Ownership = typeof OWNERSHIP_VALUES[number];
+export const OWNERSHIP_OPTIONS = [
+  { value: "propio", label: "Nosotros" },
+  { value: "distribuidor", label: "Distribuidor" },
+] as const;
+
 
 // ------------------------------------------------------------
 // Productos/Stock
@@ -267,15 +272,10 @@ export const ETIQUETAS = Object.freeze({
     Otro: "Otro",
   } as const satisfies Record<TipoCliente, string>,
   TipoCuenta: {
-    HORECA: "HORECA",
-    Retail: "Retail",
-    Distribuidor: "Distribuidor",
-    Importador: "Importador",
-    "Cliente Final": "Cliente Final",
-    Otro: "Otro",
-    distribuidor_mediano: 'Distribuidor Mediano',
-    distribuidor_grande: 'Distribuidor Grande',
-    distribuidor_top: 'Distribuidor Top',
+    prospect: "Prospecto",
+    customer: "Cliente",
+    distributor: "Distribuidor",
+    importer: "Importador",
   } as const satisfies Record<TipoCuenta, string>,
 });
 
@@ -339,16 +339,17 @@ export const MAPEO_TIPO_CLIENTE_LEGACY: Record<string, TipoCliente | undefined> 
 });
 
 export const MAPEO_TIPO_CUENTA_LEGACY: Record<string, TipoCuenta | undefined> = Object.freeze({
-  HORECA: "HORECA",
-  Retail: "Retail",
-  "Retail Minorista": "Retail",
-  "Gran Superficie": "Retail",
-  Distribuidor: "Distribuidor",
-  Importador: "Importador",
-  "Cliente Final": "Cliente Final",
-  "Cliente Final Directo": "Cliente Final",
-  Otro: "Otro",
+  HORECA: "customer",
+  Retail: "customer",
+  "Retail Minorista": "customer",
+  "Gran Superficie": "customer",
+  Distribuidor: "distributor",
+  Importador: "importer",
+  "Cliente Final": "customer",
+  "Cliente Final Directo": "customer",
+  Otro: "prospect",
 });
+
 
 export function normalizarEstadoPedido(v: string): EstadoPedido {
   const m = MAPEO_ESTADO_PEDIDO_LEGACY[v];
@@ -367,9 +368,10 @@ export function normalizarTipoCliente(v: string): TipoCliente {
 export function normalizarTipoCuenta(v: string): TipoCuenta {
   const m = MAPEO_TIPO_CUENTA_LEGACY[v];
   if (m) return m;
-  if ((TIPOS_CUENTA as readonly string[]).includes(v)) return v as TipoCuenta;
+  if ((TIPOS_CUENTA_VALUES as readonly string[]).includes(v)) return v as TipoCuenta;
   throw new Error(`TipoCuenta desconocido: "${v}"`);
 }
+
 
 // ------------------------------------------------------------
 // Seeds de desarrollo (opcionales)
@@ -388,7 +390,7 @@ export const SEEDS_DESARROLLO = Object.freeze({
     "ella Sky Bar", "Botania", "Dofia Tomasa", "Mantequerias Bravo", "Catering Samantha",
     "Grupo Mentidero", "Catering Laurel", "Cristine Bedfor", "Estrella Galicia", "Tierra del Queiles",
     "Restaurante Her", "Noneta", "Makila", "Golda", "Vinoteca Collado", "Petit Apetit",
-  ].map((nombre) => ({ nombre, type: "HORECA" as TipoCuenta, potencial: "medio" as const })),
+  ].map((nombre) => ({ nombre, type: "customer" as TipoCuenta, potencial: "medio" as const })),
 
   tanques: [
     { name: "Tanque Mezcla 1", capacity: 1000, status: "Libre", location: "Zona de Mezcla" },
@@ -434,7 +436,7 @@ export const HOLDED_A_ESTADO_PAGO: Record<EstadoFacturaHolded, EstadoPago> = Obj
 // Type Guards
 // ------------------------------------------------------------
 export const esEstadoPedido = (v: unknown): v is EstadoPedido => typeof v === "string" && (ESTADOS_PEDIDO as readonly string[]).includes(v);
-export const esTipoCuenta = (v: unknown): v is TipoCuenta => typeof v === "string" && (TIPOS_CUENTA as readonly string[]).includes(v);
+export const esTipoCuenta = (v: unknown): v is TipoCuenta => typeof v === "string" && (TIPOS_CUENTA_VALUES as readonly string[]).includes(v);
 export const esTipoCliente = (v: unknown): v is TipoCliente => typeof v === "string" && (TIPOS_CLIENTE as readonly string[]).includes(v);
 
 // ------------------------------------------------------------
@@ -450,7 +452,7 @@ export const esTipoCliente = (v: unknown): v is TipoCliente => typeof v === "str
 /** @deprecated */ export type TaskStatus = EstadoTarea;
 /** @deprecated */ export const CLIENT_TYPES = TIPOS_CLIENTE;
 /** @deprecated */ export type ClientType = TipoCliente;
-/** @deprecated */ export const ACCOUNT_TYPES = TIPOS_CUENTA;
+/** @deprecated */ export const ACCOUNT_TYPES = TIPOS_CUENTA_VALUES;
 /** @deprecated */ export type AccountType = TipoCuenta;
 /** @deprecated */ export const LABELS = ETIQUETAS;
 /** @deprecated */ export const UI_COLORS = COLORES_UI;

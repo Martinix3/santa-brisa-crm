@@ -1,5 +1,5 @@
-import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, Timestamp } from "firebase/firestore";
+import { adminDb } from '@/lib/firebaseAdmin';
+import { doc, getDoc, setDoc, Timestamp } from "firebase-admin/firestore";
 import type { AmbassadorSettings } from '@/types';
 
 const SETTINGS_COLLECTION = 'settings';
@@ -14,11 +14,11 @@ const defaultSettings: AmbassadorSettings = {
 
 
 export const getAmbassadorSettingsFS = async (): Promise<AmbassadorSettings> => {
-    const docRef = doc(db, SETTINGS_COLLECTION, AMBASSADOR_DOC_ID);
-    const docSnap = await getDoc(docRef);
+    const docRef = adminDb.collection(SETTINGS_COLLECTION).doc(AMBASSADOR_DOC_ID);
+    const docSnap = await docRef.get();
 
-    if (docSnap.exists()) {
-        const data = docSnap.data();
+    if (docSnap.exists) {
+        const data = docSnap.data()!;
         // Merge with defaults to ensure all fields are present
         return {
             horeca: { ...defaultSettings.horeca, ...data.horeca },
@@ -28,12 +28,12 @@ export const getAmbassadorSettingsFS = async (): Promise<AmbassadorSettings> => 
         };
     } else {
         // If the document doesn't exist, create it with default values and return them
-        await setDoc(docRef, { ...defaultSettings, updatedAt: Timestamp.now() });
+        await docRef.set({ ...defaultSettings, updatedAt: Timestamp.now() });
         return defaultSettings;
     }
 };
 
 export const saveAmbassadorSettingsFS = async (settings: AmbassadorSettings): Promise<void> => {
-    const docRef = doc(db, SETTINGS_COLLECTION, AMBASSADOR_DOC_ID);
-    await setDoc(docRef, { ...settings, updatedAt: Timestamp.now() }, { merge: true });
+    const docRef = adminDb.collection(SETTINGS_COLLECTION).doc(AMBASSADOR_DOC_ID);
+    await docRef.set({ ...settings, updatedAt: Timestamp.now() }, { merge: true });
 };

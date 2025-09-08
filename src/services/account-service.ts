@@ -1,5 +1,5 @@
-import { db } from '@/lib/firebase';
-import { collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, where, writeBatch, runTransaction } from "firebase/firestore";
+import { adminDb } from '@/lib/firebaseAdmin'; // Use Admin SDK
+import { collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, where, writeBatch, runTransaction, FieldValue } from "firebase-admin/firestore";
 import type { Account, AccountFormValues } from '@/types';
 import { accountToForm, fromFirestore, toFirestore } from './account-mapper';
 import { getTeamMembersFS } from './team-member-service';
@@ -8,9 +8,9 @@ const ACCOUNTS_COLLECTION = 'accounts';
 const ORDERS_COLLECTION = 'orders';
 
 export const getAccountsFS = async (): Promise<Account[]> => {
-  const accountsCol = collection(db, ACCOUNTS_COLLECTION);
-  const q = query(accountsCol, orderBy('name', 'asc'));
-  const accountSnapshot = await getDocs(q);
+  const accountsCol = adminDb.collection(ACCOUNTS_COLLECTION);
+  const q = accountsCol.orderBy('name', 'asc');
+  const accountSnapshot = await q.get();
   return accountSnapshot.docs.map(docSnap => fromFirestore({ id: docSnap.id, ...docSnap.data() }));
 };
 
@@ -19,9 +19,9 @@ export const getAccountByIdFS = async (id: string): Promise<Account | null> => {
     console.warn("getAccountByIdFS called with no ID.");
     return null;
   }
-  const accountDocRef = doc(db, ACCOUNTS_COLLECTION, id);
-  const docSnap = await getDoc(accountDocRef);
-  if (docSnap.exists()) {
+  const accountDocRef = adminDb.collection(ACCOUNTS_COLLECTION).doc(id);
+  const docSnap = await accountDocRef.get();
+  if (docSnap.exists) {
     return fromFirestore({ id: docSnap.id, ...docSnap.data() });
   } else {
     console.warn(`Account with ID ${id} not found in Firestore.`);
@@ -42,13 +42,13 @@ export const addAccountFS = async (data: Partial<Account>): Promise<string> => {
     type: data.type || 'HORECA',
   };
   const firestoreData = toFirestore(fullData);
-  const docRef = await addDoc(collection(db, ACCOUNTS_COLLECTION), firestoreData);
+  const docRef = await adminDb.collection(ACCOUNTS_COLLECTION).add(firestoreData);
   return docRef.id;
 };
 
 export const updateAccountFS = async (id: string, data: Partial<Account>): Promise<void> => {
-  const batch = writeBatch(db);
-  const accountDocRef = doc(db, ACCOUNTS_COLLECTION, id);
+  const batch = adminDb.batch();
+  const accountDocRef = adminDb.collection(ACCOUNTS_COLLECTION).doc(id);
   
   const firestoreData = {
       ...toFirestore({ ...data, id } as Account),
@@ -56,17 +56,14 @@ export const updateAccountFS = async (id: string, data: Partial<Account>): Promi
   };
   batch.update(accountDocRef, firestoreData);
 
-  // If salesRepId is part of the update, find the rep's name and update open tasks
   if ('salesRepId' in data && data.salesRepId) {
-      const rep = await getDoc(doc(db, 'teamMembers', data.salesRepId));
-      if (rep.exists()) {
-          const repName = rep.data().name;
-          const openTasksQuery = query(
-              collection(db, ORDERS_COLLECTION),
-              where('accountId', '==', id),
-              where('status', 'in', ['Programada', 'Seguimiento'])
-          );
-          const openTasksSnapshot = await getDocs(openTasksQuery);
+      const rep = await adminDb.collection('teamMembers').doc(data.salesRepId).get();
+      if (rep.exists) {
+          const repName = rep.data()?.name;
+          const openTasksQuery = adminDb.collection(ORDERS_COLLECTION)
+              .where('accountId', '==', id)
+              .where('status', 'in', ['Programada', 'Seguimiento']);
+          const openTasksSnapshot = await openTasksQuery.get();
           openTasksSnapshot.forEach(taskDoc => {
               batch.update(taskDoc.ref, { salesRep: repName });
           });
@@ -77,12 +74,12 @@ export const updateAccountFS = async (id: string, data: Partial<Account>): Promi
 };
 
 export const deleteAccountFS = async (id: string): Promise<void> => {
-  const batch = writeBatch(db);
-  const accountDocRef = doc(db, ACCOUNTS_COLLECTION, id);
+  const batch = adminDb.batch();
+  const accountDocRef = adminDb.collection(ACCOUNTS_COLLECTION).doc(id);
   batch.delete(accountDocRef);
 
-  const ordersQuery = query(collection(db, ORDERS_COLLECTION), where("accountId", "==", id));
-  const ordersSnapshot = await getDocs(ordersQuery);
+  const ordersQuery = adminDb.collection(ORDERS_COLLECTION).where("accountId", "==", id);
+  const ordersSnapshot = await ordersQuery.get();
   ordersSnapshot.forEach(orderDoc => {
       batch.delete(orderDoc.ref);
   });

@@ -1,12 +1,10 @@
+// This service now exclusively uses the ADMIN SDK for all Firestore operations.
 
-
-"use client"; // This service is used by client components, so it must be marked as client-compatible.
-
-import { db } from '@/lib/firebase';
+import { adminDb } from '@/lib/firebaseAdmin';
 import {
   collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
   type DocumentSnapshot, writeBatch, runTransaction, where,
-} from "firebase/firestore";
+} from "firebase-admin/firestore";
 import type { Order, Account, TeamMember, OrderStatus, NewScheduledTaskData } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 
@@ -73,9 +71,9 @@ const fromFirestoreOrder = (docSnap: DocumentSnapshot): Order => {
 };
 
 export const getOrdersFS = async (): Promise<Order[]> => {
-  const ordersCol = collection(db, ORDERS_COLLECTION);
-  const q = query(ordersCol, orderBy('createdAt', 'desc'));
-  const salesSnapshot = await getDocs(q);
+  const ordersCol = adminDb.collection(ORDERS_COLLECTION);
+  const q = ordersCol.orderBy('createdAt', 'desc');
+  const salesSnapshot = await q.get();
   return salesSnapshot.docs.map(docSnap => fromFirestoreOrder(docSnap));
 };
 
@@ -84,17 +82,17 @@ export const getInteractionsForAccountFS = async (accountId: string, accountName
 
     const queriesToRun = [];
     if (accountId) {
-        queriesToRun.push(query(collection(db, ORDERS_COLLECTION), where("accountId", "==", accountId)));
+        queriesToRun.push(adminDb.collection(ORDERS_COLLECTION).where("accountId", "==", accountId));
     }
     // To handle legacy data, we also search by name if it's different from the ID
     if (accountName && accountName !== accountId) {
-        queriesToRun.push(query(collection(db, ORDERS_COLLECTION), where("clientName", "==", accountName)));
+        queriesToRun.push(adminDb.collection(ORDERS_COLLECTION).where("clientName", "==", accountName));
     }
 
     if (queriesToRun.length === 0) return [];
 
     // Execute all queries in parallel
-    const querySnapshots = await Promise.all(queriesToRun.map(q => getDocs(q)));
+    const querySnapshots = await Promise.all(queriesToRun.map(q => q.get()));
 
     const allInteractions = new Map<string, Order>();
     querySnapshots.forEach(snapshot => {
@@ -111,28 +109,28 @@ export const getInteractionsForAccountFS = async (accountId: string, accountName
 
 export const getOrderByIdFS = async (id: string): Promise<Order | null> => {
     if (!id) return null;
-    const docRef = doc(db, ORDERS_COLLECTION, id);
-    const docSnap = await getDoc(docRef);
-    return docSnap.exists() ? fromFirestoreOrder(docSnap) : null;
+    const docRef = adminDb.collection(ORDERS_COLLECTION).doc(id);
+    const docSnap = await docRef.get();
+    return docSnap.exists ? fromFirestoreOrder(docSnap) : null;
 };
 
 
 export const addOrderFS = async (data: Partial<Order>): Promise<string> => {
-  const docRef = await addDoc(collection(db, ORDERS_COLLECTION), { ...data, createdAt: Timestamp.now(), lastUpdated: Timestamp.now() });
+  const docRef = await adminDb.collection(ORDERS_COLLECTION).add({ ...data, createdAt: Timestamp.now(), lastUpdated: Timestamp.now() });
   return docRef.id;
 };
 
 
 export const updateFullOrderFS = async (id: string, data: Partial<Order>): Promise<void> => {
-  const orderDocRef = doc(db, ORDERS_COLLECTION, id);
+  const orderDocRef = adminDb.collection(ORDERS_COLLECTION).doc(id);
   const dataToUpdate: { [key: string]: any } = { ...data };
   dataToUpdate.lastUpdated = Timestamp.now();
-  await updateDoc(orderDocRef, dataToUpdate);
+  await orderDocRef.update(dataToUpdate);
 };
 
 export const deleteOrderFS = async (id: string): Promise<void> => {
-  const orderDocRef = doc(db, ORDERS_COLLECTION, id);
-  await deleteDoc(orderDocRef);
+  const orderDocRef = adminDb.collection(ORDERS_COLLECTION).doc(id);
+  await orderDocRef.delete();
 };
 
 export const addScheduledTaskFS = async (data: NewScheduledTaskData, currentUser: TeamMember): Promise<string> => {
@@ -166,9 +164,9 @@ export const updateScheduledTaskFS = async (id: string, data: NewScheduledTaskDa
 };
 
 export const reorderTasksBatchFS = async (updates: { id: string; orderIndex: number, date?: Date }[]): Promise<void> => {
-    const batch = writeBatch(db);
+    const batch = adminDb.batch();
     updates.forEach(update => {
-        const docRef = doc(db, ORDERS_COLLECTION, update.id);
+        const docRef = adminDb.collection(ORDERS_COLLECTION).doc(update.id);
         const payload: any = { orderIndex: update.orderIndex, updatedAt: Timestamp.now() };
         if(update.date) {
             payload.visitDate = Timestamp.fromDate(update.date);
@@ -180,8 +178,8 @@ export const reorderTasksBatchFS = async (updates: { id: string; orderIndex: num
 };
 
 export const updateOrderStatusFS = async (id: string, status: OrderStatus): Promise<void> => {
-  const orderDocRef = doc(db, ORDERS_COLLECTION, id);
-  await updateDoc(orderDocRef, {
+  const orderDocRef = adminDb.collection(ORDERS_COLLECTION).doc(id);
+  await orderDocRef.update({
     status,
     lastUpdated: Timestamp.now(),
   });

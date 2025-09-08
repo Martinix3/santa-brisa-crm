@@ -1,8 +1,8 @@
-import { db } from '@/lib/firebase';
+import { adminDb } from '@/lib/firebaseAdmin';
 import {
   collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, limit,
   type DocumentSnapshot,
-} from "firebase/firestore";
+} from "firebase-admin/firestore";
 import type { TeamMember, TeamMemberFormValues, UserRole } from '@/types';
 import { format, parseISO } from 'date-fns';
 import { mockTeamMembers as initialMockTeamMembersForSeeding } from '@/lib/data';
@@ -60,11 +60,11 @@ const toFirestoreTeamMember = (data: Partial<TeamMemberFormValues>, isNew: boole
 
 
   if (isNew) {
-    firestoreData.createdAt = Timestamp.fromDate(new Date());
+    firestoreData.createdAt = Timestamp.now();
     firestoreData.total_comisiones = 0;
     firestoreData.total_bonus = 0;
   }
-  firestoreData.updatedAt = Timestamp.fromDate(new Date());
+  firestoreData.updatedAt = Timestamp.now();
   
   Object.keys(firestoreData).forEach(key => {
     if (firestoreData[key] === undefined) {
@@ -76,15 +76,15 @@ const toFirestoreTeamMember = (data: Partial<TeamMemberFormValues>, isNew: boole
 };
 
 export const getTeamMembersFS = async (roles?: UserRole[]): Promise<TeamMember[]> => {
-  const membersCol = collection(db, TEAM_MEMBERS_COLLECTION);
-  let q;
+  const membersCol = adminDb.collection(TEAM_MEMBERS_COLLECTION);
+  let q: FirebaseFirestore.Query<FirebaseFirestore.DocumentData>;
   if (roles && roles.length > 0) {
-    q = query(membersCol, where('role', 'in', roles));
+    q = membersCol.where('role', 'in', roles);
   } else {
-    q = query(membersCol, orderBy('name', 'asc'));
+    q = membersCol.orderBy('name', 'asc');
   }
   
-  const snapshot = await getDocs(q);
+  const snapshot = await q.get();
   const members = snapshot.docs.map(docSnap => fromFirestoreTeamMember(docSnap));
 
   // Sort manually if we didn't order by name in the query to avoid composite indexes
@@ -97,16 +97,16 @@ export const getTeamMembersFS = async (roles?: UserRole[]): Promise<TeamMember[]
 
 export const getTeamMemberByIdFS = async (id: string): Promise<TeamMember | null> => {
   if (!id) return null;
-  const docRef = doc(db, TEAM_MEMBERS_COLLECTION, id);
-  const docSnap = await getDoc(docRef);
-  return docSnap.exists() ? fromFirestoreTeamMember(docSnap) : null;
+  const docRef = adminDb.collection(TEAM_MEMBERS_COLLECTION).doc(id);
+  const docSnap = await docRef.get();
+  return docSnap.exists ? fromFirestoreTeamMember(docSnap) : null;
 };
 
 export const getTeamMemberByEmailFS = async (email: string): Promise<TeamMember | null> => {
   if (!email) return null;
-  const membersCol = collection(db, TEAM_MEMBERS_COLLECTION);
-  const q = query(membersCol, where('email', '==', email.toLowerCase()), limit(1));
-  const snapshot = await getDocs(q);
+  const membersCol = adminDb.collection(TEAM_MEMBERS_COLLECTION);
+  const q = membersCol.where('email', '==', email.toLowerCase()).limit(1);
+  const snapshot = await q.get();
   if (!snapshot.empty) {
     return fromFirestoreTeamMember(snapshot.docs[0]);
   }
@@ -115,25 +115,25 @@ export const getTeamMemberByEmailFS = async (email: string): Promise<TeamMember 
 
 export const addTeamMemberFS = async (data: TeamMemberFormValues): Promise<string> => {
   const firestoreData = toFirestoreTeamMember(data, true);
-  const docRef = await addDoc(collection(db, TEAM_MEMBERS_COLLECTION), firestoreData);
+  const docRef = await adminDb.collection(TEAM_MEMBERS_COLLECTION).add(firestoreData);
   return docRef.id;
 };
 
 export const updateTeamMemberFS = async (id: string, data: Partial<TeamMemberFormValues>): Promise<void> => {
-  const docRef = doc(db, TEAM_MEMBERS_COLLECTION, id);
+  const docRef = adminDb.collection(TEAM_MEMBERS_COLLECTION).doc(id);
   const updateData = toFirestoreTeamMember(data, false);
-  await updateDoc(docRef, updateData);
+  await docRef.update(updateData);
 };
 
 export const deleteTeamMemberFS = async (id: string): Promise<void> => {
-  const docRef = doc(db, TEAM_MEMBERS_COLLECTION, id);
-  await deleteDoc(docRef);
+  const docRef = adminDb.collection(TEAM_MEMBERS_COLLECTION).doc(id);
+  await docRef.delete();
 };
 
 
 export const initializeMockTeamMembersInFirestore = async () => {
-    const membersCol = collection(db, TEAM_MEMBERS_COLLECTION);
-    const snapshot = await getDocs(query(membersCol, limit(1)));
+    const membersCol = adminDb.collection(TEAM_MEMBERS_COLLECTION);
+    const snapshot = await membersCol.limit(1).get();
     if (snapshot.empty && initialMockTeamMembersForSeeding.length > 0) {
         for (const member of initialMockTeamMembersForSeeding) {
             const { id, performanceData, bottlesSold, orders, visits, ...memberData } = member;
@@ -149,7 +149,7 @@ export const initializeMockTeamMembersInFirestore = async () => {
             };
             const firestoreReadyData = toFirestoreTeamMember(formValues, true);
             
-            await addDoc(membersCol, firestoreReadyData);
+            await membersCol.add(firestoreReadyData);
         }
         console.log('Mock team members initialized in Firestore.');
     } else if (initialMockTeamMembersForSeeding.length === 0) {

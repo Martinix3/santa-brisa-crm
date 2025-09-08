@@ -1,7 +1,7 @@
-import { db } from '@/lib/firebase';
-import { collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, where, type DocumentSnapshot, orderBy, Timestamp, limit, writeBatch } from 'firebase/firestore';
+import { adminDb } from '@/lib/firebaseAdmin';
+import { collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, where, type DocumentSnapshot, orderBy, Timestamp, limit, writeBatch } from "firebase-admin/firestore";
 import type { Category, CategoryKind } from '@/types';
-import { format } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
 import { mockCategories } from '@/lib/data';
 
 const CATEGORIES_COLLECTION = 'categories';
@@ -22,17 +22,17 @@ const fromFirestoreCategory = (snapshot: DocumentSnapshot): Category => {
 };
 
 export const getCategoriesFS = async (): Promise<Category[]> => {
-    const categoriesCol = collection(db, CATEGORIES_COLLECTION);
-    const q = query(categoriesCol, orderBy('name', 'asc'));
-    const snapshot = await getDocs(q);
+    const categoriesCol = adminDb.collection(CATEGORIES_COLLECTION);
+    const q = categoriesCol.orderBy('name', 'asc');
+    const snapshot = await q.get();
     return snapshot.docs.map(fromFirestoreCategory);
 };
 
 export const getCategoryByIdFS = async (id: string): Promise<Category | null> => {
     if (!id) return null;
-    const docRef = doc(db, CATEGORIES_COLLECTION, id);
-    const snapshot = await getDoc(docRef);
-    return snapshot.exists() ? fromFirestoreCategory(snapshot) : null;
+    const docRef = adminDb.collection(CATEGORIES_COLLECTION).doc(id);
+    const snapshot = await docRef.get();
+    return snapshot.exists ? fromFirestoreCategory(snapshot) : null;
 };
 
 export const addCategoryFS = async (category: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
@@ -44,12 +44,12 @@ export const addCategoryFS = async (category: Omit<Category, 'id' | 'createdAt' 
     if (category.kind === 'inventory') {
         delete dataToSave.costType;
     }
-    const docRef = await addDoc(collection(db, CATEGORIES_COLLECTION), dataToSave);
+    const docRef = await adminDb.collection(CATEGORIES_COLLECTION).add(dataToSave);
     return docRef.id;
 };
 
 export const updateCategoryFS = async (id: string, category: Partial<Omit<Category, 'id' | 'createdAt' | 'updatedAt'>>): Promise<void> => {
-    const docRef = doc(db, CATEGORIES_COLLECTION, id);
+    const docRef = adminDb.collection(CATEGORIES_COLLECTION).doc(id);
     const dataToUpdate: { [key: string]: any } = {
         ...category,
         updatedAt: Timestamp.now()
@@ -57,31 +57,29 @@ export const updateCategoryFS = async (id: string, category: Partial<Omit<Catego
      if (category.kind === 'inventory') {
         delete dataToUpdate.costType;
     }
-    await updateDoc(docRef, dataToUpdate);
+    await docRef.update(dataToUpdate);
 };
 
 export const deleteCategoryFS = async (id: string): Promise<void> => {
-    const docRef = doc(db, CATEGORIES_COLLECTION, id);
-    await deleteDoc(docRef);
+    const docRef = adminDb.collection(CATEGORIES_COLLECTION).doc(id);
+    await docRef.delete();
 };
 
 export const initializeMockCategoriesInFirestore = async () => {
     console.log("Checking categories and seeding if necessary...");
-    const categoriesCol = collection(db, CATEGORIES_COLLECTION);
+    const categoriesCol = adminDb.collection(CATEGORIES_COLLECTION);
     
-    // Get all existing categories indexed by their ID for quick lookup
-    const existingSnapshot = await getDocs(categoriesCol);
+    const existingSnapshot = await categoriesCol.get();
     const existingIds = new Set(existingSnapshot.docs.map(doc => doc.id));
 
-    const batch = writeBatch(db);
+    const batch = adminDb.batch();
     let newCategoriesAdded = 0;
 
     for (const category of mockCategories) {
-        // Use the idOverride as the document ID
         const { idOverride, ...categoryData } = category;
         
         if (idOverride && !existingIds.has(idOverride)) {
-            const docRef = doc(categoriesCol, idOverride);
+            const docRef = categoriesCol.doc(idOverride);
             const dataToSave = {
                 ...categoryData,
                 createdAt: Timestamp.now(),

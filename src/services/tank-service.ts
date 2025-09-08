@@ -1,7 +1,7 @@
-import { db } from '@/lib/firebase';
+import { adminDb } from '@/lib/firebaseAdmin';
 import {
   collection, query, getDocs, getDoc, doc, Timestamp, orderBy, type DocumentSnapshot, updateDoc, addDoc,
-} from "firebase/firestore";
+} from "firebase-admin/firestore";
 import type { Tank, TankStatus, TankFormValues } from '@/types';
 import { format } from 'date-fns';
 
@@ -32,14 +32,14 @@ const fromFirestoreTank = (snapshot: DocumentSnapshot): Tank => {
 };
 
 export const getTanksFS = async (): Promise<Tank[]> => {
-    const tanksCol = collection(db, TANKS_COLLECTION);
-    const q = query(tanksCol, orderBy('name', 'asc'));
-    const snapshot = await getDocs(q);
+    const tanksCol = adminDb.collection(TANKS_COLLECTION);
+    const q = tanksCol.orderBy('name', 'asc');
+    const snapshot = await q.get();
     return snapshot.docs.map(fromFirestoreTank);
 };
 
 export const updateTankFS = async (id: string, data: Partial<TankFormValues>): Promise<void> => {
-    const docRef = doc(db, TANKS_COLLECTION, id);
+    const docRef = adminDb.collection(TANKS_COLLECTION).doc(id);
     const updateData: { [key: string]: any } = {
         ...data,
         updatedAt: Timestamp.now(),
@@ -60,7 +60,7 @@ export const updateTankFS = async (id: string, data: Partial<TankFormValues>): P
         updateData.currentUom = null;
     }
     
-    await updateDoc(docRef, updateData);
+    await docRef.update(updateData);
 };
 
 
@@ -74,6 +74,6 @@ export const addTankFS = async (data: TankFormValues): Promise<string> => {
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
     };
-    const docRef = await addDoc(collection(db, TANKS_COLLECTION), newTankData);
+    const docRef = await adminDb.collection(TANKS_COLLECTION).add(newTankData);
     return docRef.id;
 };

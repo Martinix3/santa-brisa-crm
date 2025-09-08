@@ -10,10 +10,8 @@ import type { Account } from '@/types';
 export async function getAccountsAction(): Promise<Account[]> {
   try {
     const accounts = await getAccountsFS();
-    // The data received from Firestore is already mapped in getAccountsFS,
-    // but we can ensure it's JSON-serializable here if needed, although
-    // fromFirestore should already handle Timestamp conversions.
-    return JSON.parse(JSON.stringify(accounts));
+    // The data is already serializable because all services now use the Admin SDK and return plain objects/dates.
+    return accounts;
   } catch (error) {
     console.error("Error in getAccountsAction:", error);
     // In a real application, you might want to log this error to a monitoring service.

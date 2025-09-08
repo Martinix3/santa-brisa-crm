@@ -30,7 +30,7 @@
  *   --limit 200     // procesa solo N cuentas (para pruebas)
  */
 
-import { getApps, initializeApp, cert, applicationDefault } from "firebase-admin/app";
+import { getApps, initializeApp, applicationDefault } from "firebase-admin/app";
 import { getFirestore, Timestamp, FieldValue } from "firebase-admin/firestore";
 
 // -------- CLI args --------

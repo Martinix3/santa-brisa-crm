@@ -1,38 +1,15 @@
 
+
 import { adminDb } from '@/lib/firebaseAdmin';
 import {
   collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, limit,
   type DocumentSnapshot,
 } from "firebase-admin/firestore";
 import type { TeamMember, TeamMemberFormValues } from '@/types';
-import { format, parseISO } from 'date-fns';
 import { RolUsuario as UserRole } from "@ssot";
+import { fromFirestoreTeamMember } from './utils/firestore-converters';
 
 const TEAM_MEMBERS_COLLECTION = 'teamMembers';
-
-const fromFirestoreTeamMember = (docSnap: DocumentSnapshot): TeamMember => {
-  const data = docSnap.data();
-  if (!data) throw new Error("Document data is undefined.");
-
-  return {
-    id: docSnap.id,
-    authUid: data.authUid || docSnap.id,
-    name: data.name || '',
-    email: data.email || '',
-    avatarUrl: data.avatarUrl || '',
-    role: data.role || 'Ventas',
-    monthlyTargetAccounts: data.monthlyTargetAccounts,
-    monthlyTargetVisits: data.monthlyTargetVisits,
-    createdAt: data.createdAt instanceof Timestamp ? format(data.createdAt.toDate(), "yyyy-MM-dd") : (typeof data.createdAt === 'string' ? data.createdAt : undefined),
-    updatedAt: data.updatedAt instanceof Timestamp ? format(data.updatedAt.toDate(), "yyyy-MM-dd") : (typeof data.updatedAt === 'string' ? data.updatedAt : undefined),
-    liderId: data.liderId,
-    equipoIds: data.equipoIds,
-    condiciones_personalizadas: data.condiciones_personalizadas,
-    total_comisiones: data.total_comisiones,
-    total_bonus: data.total_bonus,
-    accountId: data.accountId,
-  };
-};
 
 const toFirestoreTeamMember = (data: Partial<TeamMemberFormValues>, isNew: boolean): any => {
   const firestoreData: { [key: string]: any } = {

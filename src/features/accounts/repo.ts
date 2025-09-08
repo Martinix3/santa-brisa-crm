@@ -1,4 +1,5 @@
 
+
 // Firestore I/O centralizado para el feature de Cuentas
 'use server';
 
@@ -13,7 +14,7 @@ import type {
 } from '@/types';
 import { fromFirestore } from '@/services/account-mapper';
 import { fromFirestoreOrder } from '@/services/order-service';
-import { fromFirestoreTeamMember } from '@/services/team-member-service';
+import { fromFirestoreTeamMember } from '@/services/utils/firestore-converters';
 
 
 const ACCOUNTS = 'accounts';

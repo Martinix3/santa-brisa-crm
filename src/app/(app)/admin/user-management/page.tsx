@@ -25,8 +25,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { userRolesList } from "@/lib/data"; 
-import type { TeamMember, UserRole, TeamMemberFormValues } from "@/types";
+import { ROLES_USUARIO as userRolesList } from "@/lib/data"; 
+import type { TeamMember, RolUsuario as UserRole, TeamMemberFormValues } from "@/types";
 import { Loader2, Check, Users, Edit, Trash2 } from "lucide-react";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { useAuth } from "@/contexts/auth-context";
@@ -43,7 +43,7 @@ const userFormSchema = z.object({
   monthlyTargetVisits: z.coerce.number().positive("El objetivo de visitas debe ser un número positivo.").optional(),
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres.").optional(),
 }).superRefine((data, ctx) => {
-  if (data.role === "SalesRep") {
+  if (data.role === "Ventas") {
     if (data.monthlyTargetAccounts === undefined || data.monthlyTargetAccounts <= 0) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "El objetivo mensual de cuentas es obligatorio y debe ser positivo para un Representante de Ventas.", path: ["monthlyTargetAccounts"] });
     }
@@ -115,8 +115,8 @@ export default function UserManagementPage() {
         name: values.name,
         email: values.email.toLowerCase(),
         role: values.role,
-        monthlyTargetAccounts: values.role === "SalesRep" ? values.monthlyTargetAccounts : undefined,
-        monthlyTargetVisits: values.role === "SalesRep" ? values.monthlyTargetVisits : undefined,
+        monthlyTargetAccounts: values.role === "Ventas" ? values.monthlyTargetAccounts : undefined,
+        monthlyTargetVisits: values.role === "Ventas" ? values.monthlyTargetVisits : undefined,
         avatarUrl: `https://placehold.co/100x100.png?text=${values.name.substring(0,2).toUpperCase()}`
     };
 
@@ -173,7 +173,7 @@ export default function UserManagementPage() {
       refreshDataSignature();
       toast({
         title: "Usuario Eliminado de Firestore",
-        description: <div><p>El usuario "{userToDelete.name}" ha sido eliminado de Firestore.</p><p className="mt-2 font-semibold text-destructive">Importante: Para revocar completamente el acceso del usuario, debes eliminarlo manualmente desde la consola de Firebase Authentication.</p></div>,
+        description: <div><p>El usuario "{userToDelete.name}" ha sido eliminado de la aplicación CRM (Firestore).</p><p className="mt-2 font-semibold text-destructive">Importante: Para revocar completamente el acceso del usuario, debes eliminarlo manualmente desde la consola de Firebase Authentication.</p></div>,
         variant: "destructive", duration: 9000, 
       });
     } catch (error) {
@@ -188,10 +188,14 @@ export default function UserManagementPage() {
   const getRoleDisplayName = (role: UserRole): string => {
     const roleMap: Record<UserRole, string> = {
         'Admin': 'Admin',
-        'SalesRep': 'Rep. Ventas',
+        'Ventas': 'Rep. Ventas',
         'Distributor': 'Distribuidor',
         'Clavadista': 'Clavadista',
-        'Líder Clavadista': 'Líder Clavadista'
+        'Líder Clavadista': 'Líder Clavadista',
+        'Marketing': 'Marketing',
+        'Manager': 'Manager',
+        'Operaciones': 'Operaciones',
+        'Finanzas': 'Finanzas',
     };
     return roleMap[role];
   };
@@ -216,7 +220,7 @@ export default function UserManagementPage() {
                 <FormField control={form.control} name="email" render={({ field }) => (<FormItem><FormLabel>Correo Electrónico (Login)</FormLabel><FormControl><Input type="email" placeholder="usuario@ejemplo.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="role" render={({ field }) => (<FormItem><FormLabel>Rol del Usuario</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un rol" /></SelectTrigger></FormControl><SelectContent>{userRolesList.map(roleValue => (<SelectItem key={roleValue} value={roleValue}>{getRoleDisplayName(roleValue)}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="password" render={({ field }) => (<FormItem><FormLabel>Contraseña Temporal</FormLabel><FormControl><Input type="text" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                {selectedRole === "SalesRep" && (
+                {selectedRole === "Ventas" && (
                   <>
                     <FormField control={form.control} name="monthlyTargetAccounts" render={({ field }) => (<FormItem><FormLabel>Objetivo Mensual de Cuentas</FormLabel><FormControl><Input type="number" placeholder="p. ej., 20" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name="monthlyTargetVisits" render={({ field }) => (<FormItem><FormLabel>Objetivo Mensual de Visitas</FormLabel><FormControl><Input type="number" placeholder="p. ej., 80" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage /></FormItem>)} />
@@ -245,8 +249,8 @@ export default function UserManagementPage() {
                   {users.length > 0 ? users.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell className="font-medium">{user.name}</TableCell><TableCell>{user.email}</TableCell><TableCell>{getRoleDisplayName(user.role)}</TableCell>
-                      <TableCell className="text-right">{user.role === "SalesRep" && user.monthlyTargetAccounts !== undefined ? (<FormattedNumericValue value={user.monthlyTargetAccounts} locale="es-ES" />) : ("—")}</TableCell>
-                      <TableCell className="text-right">{user.role === "SalesRep" && user.monthlyTargetVisits !== undefined ? (<FormattedNumericValue value={user.monthlyTargetVisits} locale="es-ES" />) : ("—")}</TableCell>
+                      <TableCell className="text-right">{user.role === "Ventas" && user.monthlyTargetAccounts !== undefined ? (<FormattedNumericValue value={user.monthlyTargetAccounts} locale="es-ES" />) : ("—")}</TableCell>
+                      <TableCell className="text-right">{user.role === "Ventas" && user.monthlyTargetVisits !== undefined ? (<FormattedNumericValue value={user.monthlyTargetVisits} locale="es-ES" />) : ("—")}</TableCell>
                       <TableCell className="text-right space-x-2">
                         <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}><Edit className="mr-1 h-3 w-3" />Editar</Button>
                         <AlertDialog>

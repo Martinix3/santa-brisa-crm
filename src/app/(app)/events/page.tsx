@@ -20,7 +20,7 @@ import StatusBadge from "@/components/app/status-badge";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { getAccountsFS } from "@/services/account-service";
 import { getEventsFS, addEventFS, updateEventFS, deleteEventFS, initializeMockEventsInFirestore } from "@/services/event-service";
-import { mockCrmEvents as initialMockEventsForSeeding } from "@/lib/data"; 
+import { mockCrmEvents as initialMockEventsForSeeding } from "@/lib/seeds"; 
 import Link from 'next/link';
 
 export default function EventsPage() {

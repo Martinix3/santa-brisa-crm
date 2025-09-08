@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { kpiDataLaunch } from "@/lib/launch-dashboard-data";
+import { kpiDataLaunch } from "@/lib/seeds";
 import type { Kpi } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { Edit, Target, AlertTriangle } from "lucide-react";

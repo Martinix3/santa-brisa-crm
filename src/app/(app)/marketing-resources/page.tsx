@@ -2,7 +2,7 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { MarketingResourceCategory, MarketingResourceType } from "@/types";
-import { mockMarketingResources } from "@/lib/data";
+import { mockMarketingResources } from "@/lib/seeds";
 import { Download, FileText, Image as ImageIcon, Presentation, BookOpen, Library } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";

@@ -6,9 +6,9 @@ import { getEventsFS, addEventFS, deleteEventFS, updateEventFS, reorderEventsBat
 import { getTeamMembersFS } from '@/services/team-member-service';
 import { getAllNotesFS, getNotesForUserFS } from '@/services/note-service';
 import { getAccountsFS } from '@/services/account-service';
-import type { Order, CrmEvent, TeamMember, UserRole, NewScheduledTaskData, EventFormValues, StickyNote, Account } from '@/types';
+import type { Order, CrmEvent, TeamMember, RolUsuario as UserRole, NewScheduledTaskData, EventFormValues, StickyNote, Account } from '@/types';
 import { AgendaItemType } from '@/app/(app)/my-agenda/page';
-
+import { getDailyTasks as getDailyTasksService } from '@/services/agenda-service';
 
 export async function getAgendaDataAction(userRole: UserRole | null, userId?: string): Promise<{
     orders: Order[],
@@ -24,7 +24,7 @@ export async function getAgendaDataAction(userRole: UserRole | null, userId?: st
         const [orders, events, teamMembers, accounts] = await Promise.all([
             getOrdersFS(),
             getEventsFS(),
-            getTeamMembersFS(['SalesRep', 'Clavadista', 'Admin', 'Líder Clavadista']),
+            getTeamMembersFS(['Ventas', 'Clavadista', 'Admin', 'Líder Clavadista']),
             getAccountsFS(),
         ]);
         
@@ -39,6 +39,16 @@ export async function getAgendaDataAction(userRole: UserRole | null, userId?: st
     } catch (error) {
         console.error("Error in getAgendaDataAction:", error);
         throw new Error("Failed to fetch agenda data. Please check server logs.");
+    }
+}
+
+export async function getDailyTasks(params: { userId: string, userName: string, userRole: UserRole }): Promise<any[]> {
+    try {
+        const items = await getDailyTasksService(params);
+        return items;
+    } catch (error) {
+        console.error("Error in getDailyTasks server action:", error);
+        throw new Error("Failed to fetch agenda items.");
     }
 }
 

@@ -3,7 +3,7 @@
 
 import { adminAuth } from '@/lib/firebaseAdmin';
 import { addTeamMemberFS } from '@/services/team-member-service';
-import type { TeamMemberFormValues } from '@/types';
+import type { TeamMemberFormValues, RolUsuario as UserRole } from '@/types';
 
 /**
  * A Server Action to create a new user in Firebase Authentication and a corresponding

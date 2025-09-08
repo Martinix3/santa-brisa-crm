@@ -1,4 +1,5 @@
 
+
       
 "use client";
 
@@ -12,8 +13,8 @@ import { Button } from "@/components/ui/button";
 import {
   kpiDataLaunch as initialKpiDataLaunch,
   mockStrategicObjectives,
-  orderStatusesList,
-} from "@/lib/launch-dashboard-data";
+} from "@/lib/seeds";
+import { orderStatusesList } from "@/lib/data";
 import { VALID_SALE_STATUSES, ALL_VISIT_STATUSES } from "@/lib/constants";
 import { KpiGrid } from "@/components/app/dashboard/kpi-grid";
 import { MonthlyProgress } from "@/components/app/dashboard/monthly-progress";

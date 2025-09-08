@@ -35,22 +35,17 @@ export async function getDailyTasks(params: {
   const orderQueries = [];
   const eventQueries = [];
 
-  const baseOrderQueryConditions = [
-      where('status', 'in', ['Programada', 'Seguimiento']),
-  ];
-
-  // This is the fix: Add date filters to order queries as well.
+  // This is the fix: We remove the 'status' filter from the query
+  // to avoid Firestore's "cannot have range filters on different fields" limitation.
+  // We will filter by status after fetching the data.
   const scheduledOrderConditions = [
-      ...baseOrderQueryConditions,
       where('visitDate', '>=', todayTimestamp),
       where('visitDate', '<=', sevenDaysTimestamp),
   ];
   const followUpOrderConditions = [
-      ...baseOrderQueryConditions,
       where('nextActionDate', '>=', todayTimestamp),
       where('nextActionDate', '<=', sevenDaysTimestamp),
   ];
-
 
   const baseEventQueryConditions = [
       where('status', 'in', ['Planificado', 'Confirmado', 'En Curso']),
@@ -83,13 +78,9 @@ export async function getDailyTasks(params: {
   const uniqueOrders = new Map<string, Order>();
   orderSnapshots.flat().forEach(snapshot => snapshot.docs.forEach(doc => {
       const order = fromFirestoreOrder(doc);
-      // Additional client-side validation just in case
-      const taskDateStr = order.status === 'Programada' ? order.visitDate : order.nextActionDate;
-      if (taskDateStr) {
-          const taskDate = parseISO(taskDateStr);
-          if (isValid(taskDate) && taskDate >= today && taskDate <= sevenDaysFromNow) {
-            uniqueOrders.set(doc.id, order);
-          }
+      // Filter by status here, after fetching
+      if (['Programada', 'Seguimiento'].includes(order.status)) {
+        uniqueOrders.set(doc.id, order);
       }
   }));
 

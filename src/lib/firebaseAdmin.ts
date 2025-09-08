@@ -1,5 +1,5 @@
-
 // src/lib/firebaseAdmin.ts
+import 'server-only';
 import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
@@ -12,18 +12,17 @@ let app: App;
 if (getApps().find(a => a.name === ADMIN_APP_NAME)) {
   app = getApps().find(a => a.name === ADMIN_APP_NAME)!;
 } else {
-  // Use explicit service account credentials from environment variables
-  // This is more robust for various cloud environments.
-  const serviceAccount = {
-      projectId: process.env.GCLOUD_PROJECT,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      // The private key needs to have its newlines properly escaped in the environment variable.
-      privateKey: (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+  // This is the recommended approach for server environments like Vercel or Cloud Run
+  const serviceAccountRaw = process.env.FIREBASE_SERVICE_ACCOUNT
+    ?? (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64
+        ? Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString('utf8')
+        : undefined);
+
+  if (!serviceAccountRaw) {
+    throw new Error('Firebase Admin SDK credentials are not set. Please set FIREBASE_SERVICE_ACCOUNT or FIREBASE_SERVICE_ACCOUNT_BASE64 environment variables.');
   }
 
-  if (!serviceAccount.projectId || !serviceAccount.clientEmail || !serviceAccount.privateKey) {
-    throw new Error('Firebase Admin SDK credentials are not set in environment variables. Please check GCLOUD_PROJECT, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY.');
-  }
+  const serviceAccount = JSON.parse(serviceAccountRaw);
 
   app = initializeApp({
     credential: cert(serviceAccount)

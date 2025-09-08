@@ -6,6 +6,7 @@ import { AccountForm } from "@/components/app/account-dialog";
 import type { Account, TeamMember } from "@/types";
 import { upsertAccountAction } from "@/app/(app)/accounts/actions";
 import { useToast } from "@/hooks/use-toast";
+import type { AccountFormValues } from "@/components/app/account-dialog";
 
 type Props = {
   initialAccount: Partial<Account> | null;

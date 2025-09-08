@@ -936,5 +936,3 @@ export default function MyAgendaClientPage({ initialAgendaItems, initialTeamMemb
     </>
   );
 }
-
-    

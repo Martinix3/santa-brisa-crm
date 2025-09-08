@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -120,7 +121,7 @@ export default function QuickHubDialog({
     selectAccount({
       id: "new",
       name: (draftAccountName || "Nueva cuenta").trim(),
-      accountType: "OTRO",
+      type: "HORECA",
     } as Account);
     setMode("cuenta");
   };
@@ -181,7 +182,7 @@ export default function QuickHubDialog({
                 ({
                   id: "new",
                   name: draftAccountName || "",
-                  accountType: "OTRO",
+                  type: "HORECA",
                 } as Account)
               }
               onCreated={(id, name) => {
@@ -223,4 +224,3 @@ export default function QuickHubDialog({
     </Dialog>
   );
 }
-

@@ -1,9 +1,7 @@
 
+'use client';
 
-      
-"use client";
-
-import * as React from "react";
+import { useState, useEffect, useMemo } from 'react';
 import type { Order, Account, TeamMember, Kpi, StrategicObjective, StickyNote, DirectSale } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { parseISO, isSameYear, isSameMonth, isValid, subDays, addDays } from 'date-fns';
@@ -505,3 +503,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    

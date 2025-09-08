@@ -106,14 +106,14 @@ export function AccountRow({
                 : 'No programada'
             }
         </TableCell>
-        <TableCell className="text-right p-2"><FormattedNumericValue value={account.totalValue}/>/td>
+        <TableCell className="text-right p-2"><FormattedNumericValue value={account.totalValue}/></TableCell>
         <TableCell className="text-center p-2"><StatusBadge type="account" status={account.status}/></TableCell>
         <TableCell className="text-right p-2 pr-4">
              <Button size="sm" onClick={() => onOpenHub(account.id, 'registrar')}>
                 <Send className="mr-2 h-4 w-4"/>
-                Registrar
-            </Button>
-        </TableCell>
+                    Registrar
+                </Button>
+            </TableCell>
       </TableRow>
 
       {isExpanded && (

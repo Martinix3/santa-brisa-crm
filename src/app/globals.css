@@ -2,6 +2,10 @@
    Santa Brisa — THEME GLOBAL
    ======================== */
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* 1) TOKENS */
 @layer base {
   :root {
@@ -23,8 +27,14 @@
     --sb-ink-700: #374151;
     --sb-ink-500: #6b7280;
     --sb-ink-300: #d1d5db;
+    --sb-ink-200: #e5e7eb;
     --sb-ink-100: #f1f5f9;
     --sb-paper:   #ffffff;
+
+    /* Superficies */
+    --sb-surface-1: #ffffff;
+    --sb-surface-2: #f8fafc;
+
 
     /* Espacios + radios */
     --sb-radius-sm: 8px;
@@ -37,23 +47,24 @@
     --sb-space-4: 1rem;    /* 16px */
     --sb-space-6: 1.5rem;  /* 24px */
 
-    /* Alturas controles */
     --sb-control-sm: 32px;
     --sb-control-md: 40px;
     --sb-control-lg: 48px;
 
     /* Sombras */
-    --sb-shadow-1: 0 1px 2px rgba(16,24,40,0.06),0 8px 24px -12px rgba(16,24,40,0.08);
-    --sb-shadow-2: 0 2px 6px rgba(16,24,40,0.08),0 10px 30px -12px rgba(16,24,40,0.10);
+    --sb-shadow-0: 0 0 0 rgba(0,0,0,0);
+    --sb-shadow-1: 0 1px 2px rgba(16,24,40,0.06), 0 8px 24px -12px rgba(16,24,40,0.08);
+    --sb-shadow-2: 0 2px 6px rgba(16,24,40,0.08), 0 10px 30px -12px rgba(16,24,40,0.10);
+    --sb-shadow-3: 0 4px 12px rgba(16,24,40,0.10), 0 12px 40px -16px rgba(16,24,40,0.12);
 
     /* Gradiente agua */
     --sb-water: radial-gradient(120px 80px at 12% 28%, rgb(var(--sb-primary-rgb)/.10), transparent 60%),
                 radial-gradient(160px 120px at 78% 35%, rgb(var(--sb-primary-rgb)/.09), transparent 68%),
                 radial-gradient(100px 70px at 42% 70%,  rgb(var(--sb-primary-rgb)/.07), transparent 70%),
                 linear-gradient(to bottom, rgb(var(--sb-primary-rgb)/.08), transparent);
-
+    
     /* Mapeo a ShadCN */
-    --background: 0 0% 100%;
+    --background: 240 10% 98%;
     --foreground: 222 47% 11%;
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
@@ -79,37 +90,63 @@
   }
 }
 
+
 /* 4) COMPONENTES BASE */
 @layer components {
+  /* Botones */
   .sb-btn {
     display:inline-flex;align-items:center;gap:.5rem;
     padding: var(--sb-space-3) var(--sb-space-4);
     border-radius: var(--sb-radius-md);
     font-size:.875rem;line-height:1.2;
+    transition: filter .15s, background-color .15s, box-shadow .15s;
     box-shadow: var(--sb-shadow-1);
-    transition: filter .15s, background-color .15s;
+  }
+  .sb-btn:hover {
+    box-shadow: var(--sb-shadow-2);
   }
   .sb-btn--solid { background: var(--sb-primary); color:#111; }
   .sb-btn--outline { border:1px solid hsl(var(--border)); background:#fff; }
   .sb-btn--subtle { background: var(--sb-ink-100); }
 
-  .sb-input {
+  /* Inputs */
+  .sb-input, .sb-select, .sb-textarea {
     width:100%;padding:var(--sb-space-3) var(--sb-space-4);
     border:1px solid hsl(var(--border));border-radius:var(--sb-radius-md);
     font-size:.875rem;color:var(--sb-ink-700);
     min-height:var(--sb-control-md);
+    box-shadow: var(--sb-shadow-0);
+    transition: box-shadow .15s;
+  }
+  .sb-input:focus, .sb-select:focus, .sb-textarea:focus {
+    box-shadow: var(--sb-shadow-1);
   }
 
+  /* Tablas */
   .sb-table {
     width:100%;border-collapse:separate;border-spacing:0;
     border:1px solid hsl(var(--border));
     border-radius: var(--sb-radius-lg);
     overflow:hidden;background: var(--sb-paper);
   }
+  
+  /* Relieve en bloques */
+  .sb-card,
+  .sb-results,
+  .sb-toolbar {
+    background: var(--sb-surface-1, #fff);
+    border: 1px solid var(--sb-ink-200,#e5e7eb);
+    border-radius: var(--sb-radius-lg,16px);
+    box-shadow: var(--sb-shadow-1);
+    transition: box-shadow .2s;
+  }
+  .sb-card:hover, .sb-results:hover {
+    box-shadow: var(--sb-shadow-2);
+  }
+
+  /* Headers / toolbars con sombra corta inferior */
+  .sb-header,
+  .sb-block-head {
+    box-shadow: 0 1px 2px rgba(16,24,40,0.08);
+  }
 }
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-@import "@/styles/sb-table.css";

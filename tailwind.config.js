@@ -85,8 +85,10 @@ module.exports = {
         sm: "calc(var(--radius) - 4px)",
       },
        boxShadow: {
+        sb0: "var(--sb-shadow-0)",
         sb1: "var(--sb-shadow-1)", 
-        sb2: "var(--sb-shadow-2)" 
+        sb2: "var(--sb-shadow-2)",
+        sb3: "var(--sb-shadow-3)",
       },
       height: {
         'sb-sm': "var(--sb-control-sm)",

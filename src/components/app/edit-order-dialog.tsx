@@ -38,7 +38,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { Order, OrderStatus, UserRole, TeamMember, NextActionType, FailureReasonType, ClientType, InventoryItem, Account, CanalOrigenColocacion, PaymentMethod, AddressDetails } from "@/types"; 
 import { orderStatusesList, nextActionTypeList, failureReasonList, clientTypeList, canalOrigenColocacionList, paymentMethodList } from "@/lib/data"; 
-import { Loader2, CalendarIcon, Printer, Award, Package, PlusCircle, Trash2, Zap, CreditCard, UploadCloud, Link2, AlertTriangle } from "lucide-react"; 
+import { Loader2, Calendar as CalendarIcon, Printer, Award, Package, PlusCircle, Trash2, Zap, CreditCard, UploadCloud, Link2, AlertTriangle } from "lucide-react"; 
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";

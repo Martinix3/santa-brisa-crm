@@ -6,8 +6,8 @@ import { getEventsFS, addEventFS, deleteEventFS, updateEventFS, reorderEventsBat
 import { getTeamMembersFS } from '@/services/team-member-service';
 import { getAllNotesFS, getNotesForUserFS } from '@/services/note-service';
 import { getAccountsFS } from '@/services/account-service';
-import { getInventoryItemsFS } from './inventory-actions';
-import { getCostCentersFS } from './costcenter-actions';
+import { getInventoryItemsFS } from '@/services/inventory-item-service';
+import { getCostCentersFS } from '@/services/costcenter-service';
 import type { Order, CrmEvent, TeamMember, RolUsuario as UserRole, NewScheduledTaskData, EventFormValues, StickyNote, Account, InventoryItem, CostCenter } from '@/types';
 import { getDailyTasks as getDailyTasksService } from '@/services/agenda-service';
 

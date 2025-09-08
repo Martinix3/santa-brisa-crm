@@ -24,7 +24,8 @@ export const getSupplierByIdFS = async (id: string): Promise<Supplier | null> =>
 
 export const getSupplierByNameFS = async (name: string): Promise<Supplier | null> => {
   if (!name || name.trim() === '') return null;
-  const q = adminDb.collection(SUPPLIERS_COLLECTION).where('name', '==', name);
+  const suppliersCol = adminDb.collection(SUPPLIERS_COLLECTION);
+  const q = suppliersCol.where('name', '==', name);
   const snapshot = await q.get();
   if (!snapshot.empty) {
     return fromFirestoreSupplier(snapshot.docs[0]);
@@ -34,7 +35,8 @@ export const getSupplierByNameFS = async (name: string): Promise<Supplier | null
 
 export const getSupplierByCifFS = async (cif: string): Promise<Supplier | null> => {
     if (!cif || cif.trim() === '') return null;
-    const q = adminDb.collection(SUPPLIERS_COLLECTION).where('cif', '==', cif);
+    const suppliersCol = adminDb.collection(SUPPLIERS_COLLECTION);
+    const q = suppliersCol.where('cif', '==', cif);
     const snapshot = await q.get();
     if (!snapshot.empty) {
         return fromFirestoreSupplier(snapshot.docs[0]);
@@ -45,7 +47,8 @@ export const getSupplierByCifFS = async (cif: string): Promise<Supplier | null> 
 export const addSupplierFS = async (data: SupplierFormValues): Promise<Supplier | null> => {
   const firestoreData = toFirestoreSupplier(data, true);
   // Check for duplicates before adding
-  const q = adminDb.collection(SUPPLIERS_COLLECTION).where('name', '==', firestoreData.name);
+  const suppliersCol = adminDb.collection(SUPPLIERS_COLLECTION);
+  const q = suppliersCol.where('name', '==', firestoreData.name);
   const snapshot = await q.get();
   if(!snapshot.empty) {
     throw new Error(`Ya existe un proveedor con el nombre "${firestoreData.name}".`);

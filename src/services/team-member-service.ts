@@ -1,3 +1,4 @@
+
 import { adminDb } from '@/lib/firebaseAdmin';
 import {
   collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, limit,
@@ -76,21 +77,16 @@ const toFirestoreTeamMember = (data: Partial<TeamMemberFormValues>, isNew: boole
 };
 
 export const getTeamMembersFS = async (roles?: UserRole[]): Promise<TeamMember[]> => {
-  let q: FirebaseFirestore.Query = adminDb.collection(TEAM_MEMBERS_COLLECTION);
+  const membersCol = adminDb.collection(TEAM_MEMBERS_COLLECTION);
+  let q: FirebaseFirestore.Query = membersCol;
 
   if (roles && roles.length > 0) {
     q = q.where('role', 'in', roles);
-  } else {
-    q = q.orderBy('name', 'asc');
   }
+  q = q.orderBy('name', 'asc');
   
   const snapshot = await q.get();
   const members = snapshot.docs.map(docSnap => fromFirestoreTeamMember(docSnap));
-
-  // Sort manually if we didn't order by name in the query to avoid composite indexes
-  if (roles && roles.length > 0) {
-    members.sort((a, b) => a.name.localeCompare(b.name));
-  }
   
   return members;
 };

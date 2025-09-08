@@ -29,7 +29,7 @@ if (getApps().find(a => a.name === ADMIN_APP_NAME)) {
     console.log("Initializing Firebase Admin with explicit Service Account credentials.");
     appOptions = {
         credential: cert(JSON.parse(serviceAccountKey)),
-        projectId: process.env.FIREBASE_PROJECT_ID,
+        projectId: process.env.FIREBASE_PROJECT_ID || 'santa-brisa-crm',
     };
   } else {
     // Fallback for local development, Cloud Workstations, etc.

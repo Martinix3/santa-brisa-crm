@@ -32,7 +32,8 @@ const fromFirestoreNote = (snapshot: DocumentSnapshot): StickyNote => {
 
 export const getNotesForUserFS = async (userId: string): Promise<StickyNote[]> => {
   if (!userId) return [];
-  const q = adminDb.collection(NOTES_COLLECTION).where('assignedToId', '==', userId);
+  const notesCol = adminDb.collection(NOTES_COLLECTION);
+  const q = notesCol.where('assignedToId', '==', userId);
   const snapshot = await q.get();
   const notes = snapshot.docs.map(fromFirestoreNote);
   
@@ -42,7 +43,8 @@ export const getNotesForUserFS = async (userId: string): Promise<StickyNote[]> =
 };
 
 export const getAllNotesFS = async (): Promise<StickyNote[]> => {
-  const q = adminDb.collection(NOTES_COLLECTION).orderBy('createdAt', 'desc');
+  const notesCol = adminDb.collection(NOTES_COLLECTION);
+  const q = notesCol.orderBy('createdAt', 'desc');
   const snapshot = await q.get();
   return snapshot.docs.map(fromFirestoreNote);
 };

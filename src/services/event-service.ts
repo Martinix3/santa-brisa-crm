@@ -1,4 +1,5 @@
-import { db, adminDb } from '@/lib/firebaseAdmin';
+
+import { adminDb } from '@/lib/firebaseAdmin';
 import {
   collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
   type DocumentSnapshot, writeBatch, runTransaction, where,
@@ -102,7 +103,8 @@ export const getEventsFS = async (): Promise<CrmEvent[]> => {
 
 export const getEventsForAccountFS = async (accountId: string): Promise<CrmEvent[]> => {
     if (!accountId) return [];
-    const q = adminDb.collection(EVENTS_COLLECTION).where("accountId", "==", accountId).orderBy('startDate', 'desc');
+    const eventsCol = adminDb.collection(EVENTS_COLLECTION);
+    const q = eventsCol.where("accountId", "==", accountId).orderBy('startDate', 'desc');
     const snapshot = await q.get();
     const events = snapshot.docs.map(fromFirestoreEvent);
     

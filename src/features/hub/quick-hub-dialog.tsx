@@ -20,14 +20,12 @@ import {
   type AccountFormValues,
 } from "@/lib/schemas/account-schema";
 import { upsertAccountAction } from "@/app/(app)/accounts/actions";
-import { TIPOS_CUENTA, OWNERSHIP_OPTIONS } from "@ssot";
+import { TIPOS_CUENTA, OWNERSHIP_OPTIONS, TIPOS_INTERACCION, RESULTADOS_INTERACCION } from "@ssot";
 
 
 import {
   interactionSchema,
   type InteractionFormValues,
-  TIPOS_INTERACCION,
-  RESULTADOS_INTERACCION,
 } from "@/lib/schemas/interaction-schema";
 import { createInteractionAction, listAccountsForSelectAction } from "@/services/interaction-service";
 
@@ -509,6 +507,7 @@ function Field({ label, children, error, colSpan }: { label: string; children: R
 }
 
 function useFormSafe<T>(schema: any, defaults: Partial<T>) {
+  // zodResolver con defaults seguros para evitar renders bruscos
   // @ts-ignore
   return (require("react-hook-form") as typeof import("react-hook-form")).useForm<T>({
     resolver: (require("@hookform/resolvers/zod") as any).zodResolver(schema),

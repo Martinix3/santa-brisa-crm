@@ -21,9 +21,16 @@ export async function getDashboardDataAction(): Promise<{
       getTeamMembersFS(),
       getDirectSalesFS(),
     ]);
-    return { orders, accounts, teamMembers, directSales };
+    // The data fetched with the admin SDK is serializable by default.
+    return { 
+        orders: JSON.parse(JSON.stringify(orders)), 
+        accounts: JSON.parse(JSON.stringify(accounts)), 
+        teamMembers: JSON.parse(JSON.stringify(teamMembers)), 
+        directSales: JSON.parse(JSON.stringify(directSales))
+    };
   } catch (error) {
     console.error("Error in getDashboardDataAction:", error);
+    // Re-throwing the error to let the client-side error boundary catch it.
     throw new Error("Failed to fetch dashboard data. Please check server logs.");
   }
 }

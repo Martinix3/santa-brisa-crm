@@ -45,7 +45,7 @@ export async function getAgendaDataAction(userRole: UserRole | null, userId?: st
     }
 }
 
-export async function getDailyTasks(params: { userId: string, userName: string, userRole: UserRole }): Promise<any[]> {
+export async function getDailyTasksAction(params: { userId: string, userName: string, userRole: UserRole }): Promise<any[]> {
     try {
         const items = await getDailyTasksService(params);
         return items;

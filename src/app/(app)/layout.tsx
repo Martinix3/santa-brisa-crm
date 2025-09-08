@@ -137,21 +137,21 @@ const navigationStructure: NavGroup[] = [
   {
     id: 'principal',
     label: 'Principal',
-    groupRoles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista', 'Líder Clavadista'],
+    groupRoles: ['Admin', 'Ventas', 'Distributor', 'Clavadista', 'Líder Clavadista'],
     items: [
-      { href: '/dashboard', label: 'Panel Principal', icon: LayoutDashboard, roles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista', 'Líder Clavadista'], exact: true },
-      { href: '/my-agenda', label: 'Mi Agenda', icon: CalendarCheck, roles: ['Admin', 'SalesRep', 'Clavadista', 'Líder Clavadista'] },
-      { href: '/accounts', label: 'Cuentas y Seguimiento', icon: Building2, roles: ['Admin', 'SalesRep', 'Clavadista', 'Líder Clavadista'] }, 
-      { href: '/orders-dashboard', label: 'Pedidos de Colocación', icon: ShoppingCart, roles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista', 'Líder Clavadista'] },
+      { href: '/dashboard', label: 'Panel Principal', icon: LayoutDashboard, roles: ['Admin', 'Ventas', 'Distributor', 'Clavadista', 'Líder Clavadista'], exact: true },
+      { href: '/my-agenda', label: 'Mi Agenda', icon: CalendarCheck, roles: ['Admin', 'Ventas', 'Clavadista', 'Líder Clavadista'] },
+      { href: '/accounts', label: 'Cuentas y Seguimiento', icon: Building2, roles: ['Admin', 'Ventas', 'Clavadista', 'Líder Clavadista'] }, 
+      { href: '/orders-dashboard', label: 'Pedidos de Colocación', icon: ShoppingCart, roles: ['Admin', 'Ventas', 'Distributor', 'Clavadista', 'Líder Clavadista'] },
     ],
   },
   {
     id: 'crm',
     label: 'CRM y Ventas',
-    groupRoles: ['Admin', 'SalesRep', 'Clavadista', 'Líder Clavadista'],
+    groupRoles: ['Admin', 'Ventas', 'Clavadista', 'Líder Clavadista'],
     items: [
-      { href: '/request-sample', label: 'Solicitar Muestras', icon: SendHorizonal, roles: ['Admin', 'SalesRep', 'Clavadista', 'Líder Clavadista'] },
-      { href: '/team-tracking', label: 'Equipo de Ventas', icon: Users, roles: ['Admin', 'SalesRep', 'Líder Clavadista'] },
+      { href: '/request-sample', label: 'Solicitar Muestras', icon: SendHorizonal, roles: ['Admin', 'Ventas', 'Clavadista', 'Líder Clavadista'] },
+      { href: '/team-tracking', label: 'Equipo de Ventas', icon: Users, roles: ['Admin', 'Ventas', 'Líder Clavadista'] },
     ],
   },
   {
@@ -179,12 +179,12 @@ const navigationStructure: NavGroup[] = [
   {
     id: 'marketing',
     label: 'Marketing y Soporte',
-    groupRoles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista', 'Líder Clavadista'],
+    groupRoles: ['Admin', 'Ventas', 'Distributor', 'Clavadista', 'Líder Clavadista'],
     items: [
-      { href: '/events', label: 'Eventos', icon: PartyPopper, roles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista', 'Líder Clavadista'] },
-      { href: '/clavadistas', label: 'Panel de Clavadistas', icon: Award, roles: ['Admin', 'SalesRep', 'Líder Clavadista'] }, 
-      { href: '/marketing-resources', label: 'Recursos de Marketing', icon: Library, roles: ['Admin', 'SalesRep', 'Distributor', 'Clavadista', 'Líder Clavadista'] },
-      { href: '/marketing/ai-assistant', label: 'Asistente IA', icon: Sparkles, roles: ['Admin', 'SalesRep', 'Clavadista', 'Líder Clavadista'] },
+      { href: '/events', label: 'Eventos', icon: PartyPopper, roles: ['Admin', 'Ventas', 'Distributor', 'Clavadista', 'Líder Clavadista'] },
+      { href: '/clavadistas', label: 'Panel de Clavadistas', icon: Award, roles: ['Admin', 'Ventas', 'Líder Clavadista'] }, 
+      { href: '/marketing-resources', label: 'Recursos de Marketing', icon: Library, roles: ['Admin', 'Ventas', 'Distributor', 'Clavadista', 'Líder Clavadista'] },
+      { href: '/marketing/ai-assistant', label: 'Asistente IA', icon: Sparkles, roles: ['Admin', 'Ventas', 'Clavadista', 'Líder Clavadista'] },
     ],
   },
    {
@@ -278,14 +278,18 @@ function AppNavigation() {
 
 function getRoleDisplayName(role: UserRole | null): string {
   if (!role) return "Usuario";
-  switch (role) {
-    case 'Admin': return 'Administrador';
-    case 'SalesRep': return 'Rep. Ventas';
-    case 'Distributor': return 'Distribuidor';
-    case 'Clavadista': return 'Clavadista';
-    case 'Líder Clavadista': return 'Líder Clavadista';
-    default: return 'Usuario';
-  }
+  const roleMap: Record<UserRole, string> = {
+    'Admin': 'Administrador',
+    'Ventas': 'Rep. Ventas',
+    'Distributor': 'Distribuidor',
+    'Clavadista': 'Clavadista',
+    'Líder Clavadista': 'Líder Clavadista',
+    'Marketing': 'Marketing',
+    'Manager': 'Manager',
+    'Operaciones': 'Operaciones',
+    'Finanzas': 'Finanzas',
+  };
+  return roleMap[role] || 'Usuario';
 }
 
 interface UserMenuProps {

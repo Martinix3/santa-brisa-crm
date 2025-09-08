@@ -17,7 +17,7 @@
     "migrate:categories": "tsx src/scripts/migrate-categories.ts",
     "assign-distributor": "tsx src/scripts/assign-distributor-to-orders.ts",
     "migrate:roles": "tsx src/scripts/migrate-team-roles.ts",
-    "migrate:accounts": "tsx src/scripts/migrate-accounts.ts"
+    "migrate:accounts": "tsx src/scripts/migrate_accounts_full.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",

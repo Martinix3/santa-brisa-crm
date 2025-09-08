@@ -14,7 +14,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Form } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -29,6 +29,7 @@ import { OPCIONES_TIPO_CUENTA, PROVINCIAS_ES, type TipoCuenta } from "@ssot";
 import { Loader2, Truck } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { accountToForm, formToAccountPartial } from "@/services/account-mapper";
+import { Label } from "../ui/label";
 
 const NO_SALES_REP_VALUE = "##NONE##";
 const DIRECT_SALE_VALUE = "##DIRECT##";

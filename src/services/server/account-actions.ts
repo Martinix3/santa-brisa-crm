@@ -1,21 +1,28 @@
+
 'use server';
 
 import { getAccountsFS } from '@/services/account-service';
-import type { Account } from '@/types';
+import { getOrdersFS } from '@/services/order-service';
+import { getTeamMembersFS } from '@/services/team-member-service';
+import type { Account, Order, TeamMember } from '@/types';
 
 /**
- * Server Action to fetch all accounts from Firestore.
+ * Server Action to fetch all data required for the Accounts page.
  * This function is intended to be called from client components.
  */
-export async function getAccountsAction(): Promise<Account[]> {
+export async function getAccountsAction(): Promise<{ accounts: Account[], orders: Order[], teamMembers: TeamMember[] }> {
   try {
-    const accounts = await getAccountsFS();
-    // The data is already serializable because all services now use the Admin SDK and return plain objects/dates.
-    return accounts;
+    const [accounts, orders, teamMembers] = await Promise.all([
+      getAccountsFS(),
+      getOrdersFS(),
+      getTeamMembersFS(['SalesRep', 'Admin', 'Clavadista', 'Líder Clavadista'])
+    ]);
+    
+    // Data is already serializable because services use the Admin SDK
+    return { accounts, orders, teamMembers };
   } catch (error) {
     console.error("Error in getAccountsAction:", error);
-    // In a real application, you might want to log this error to a monitoring service.
     // Re-throwing the error to let the client-side error boundary catch it.
-    throw new Error("Failed to fetch accounts. Please check server logs for details.");
+    throw new Error("Failed to fetch accounts data. Please check server logs for details.");
   }
 }

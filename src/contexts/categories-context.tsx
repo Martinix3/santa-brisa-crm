@@ -1,9 +1,8 @@
 
-
 "use client";
 
 import React, { createContext, useState, useEffect, useContext, useMemo } from 'react';
-import { getCategoriesFS } from '@/services/category-service';
+import { getCategoriesAction } from '@/services/server/category-actions';
 import type { Category } from '@/types';
 
 interface CategoriesContextType {
@@ -27,11 +26,18 @@ export function CategoriesProvider({ children, dataSignature }: { children: Reac
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    setIsLoading(true);
-    getCategoriesFS()
-      .then(setAllCategories)
-      .catch(console.error)
-      .finally(() => setIsLoading(false));
+    async function loadData() {
+      setIsLoading(true);
+      try {
+        const categories = await getCategoriesAction();
+        setAllCategories(categories);
+      } catch (error) {
+        console.error("Error fetching categories via action:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
   }, [dataSignature]);
 
   const value = useMemo(() => {

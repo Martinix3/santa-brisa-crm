@@ -5,8 +5,6 @@ import * as React from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import type { EnrichedAccount, TeamMember, Order, AccountStatus, AccountType } from "@/types";
-import { getTeamMembersFS } from "@/services/team-member-service";
-import { getOrdersFS } from "@/services/order-service";
 import { processCarteraData } from "@/services/cartera-service";
 import { startOfDay, endOfDay, isBefore, isEqual, parseISO, isValid } from 'date-fns';
 import { format } from "date-fns";
@@ -166,11 +164,8 @@ export default function AccountsPage() {
     async function loadData() {
       setIsLoading(true);
       try {
-        const [accounts, orders, members] = await Promise.all([
-          getAccountsAction(),
-          getOrdersFS(),
-          getTeamMembersFS(['SalesRep', 'Admin', 'Clavadista', 'Líder Clavadista'])
-        ]);
+        // Use the Server Action to get all necessary data
+        const { accounts, orders, teamMembers: members } = await getAccountsAction();
         
         let processedData = await processCarteraData(accounts, orders, members);
 

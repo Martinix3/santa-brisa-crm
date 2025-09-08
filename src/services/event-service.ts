@@ -1,3 +1,4 @@
+
 import { db } from '@/lib/firebase';
 import {
   collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
@@ -222,7 +223,7 @@ export const updateEventFS = async (id: string, data: EventFormValues): Promise<
     await updateStockAndCreateExpenseForMaterials(materialsToExpense, `Ajuste PLV para Evento: ${data.name}`, marketingCategoryId, false);
   }
   if (materialsToReturn.length > 0) {
-    await updateStockAndCreateExpenseForMaterials(materialsToReturn, `Devolución PLV de Evento: ${eventData.name}`, marketingCategoryId, true);
+    await updateStockAndCreateExpenseForMaterials(materialsToReturn, `Devolución PLV de Evento: ${data.name}`, marketingCategoryId, true);
   }
 };
 

@@ -13,8 +13,8 @@ import {
 import { auth } from '@/lib/firebase';
 import type { TeamMember, TeamMemberFormValues, UserRole } from '@/types';
 import { useToast } from "@/hooks/use-toast";
-import { addTeamMemberFS } from '@/services/team-member-service';
 import { getTeamMemberByAuthUidFS } from '@/services/client/team-member-service.client';
+import { createTeamMemberAction } from '@/services/server/team-member-actions';
 
 
 interface AuthContextType {
@@ -97,27 +97,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const createUserInAuthAndFirestore = async (userData: TeamMemberFormValues, pass: string): Promise<{firebaseUser: FirebaseUser | null, teamMemberId: string | null}> => {
-    let firebaseUser: FirebaseUser | null = null;
-    let teamMemberId: string | null = null;
-    const lowerCaseEmail = userData.email.toLowerCase();
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, lowerCaseEmail, pass);
-      firebaseUser = userCredential.user;
-      
-      if (firebaseUser) {
-        const memberDataForFirestore: TeamMemberFormValues = { ...userData, email: lowerCaseEmail, authUid: firebaseUser.uid };
-        teamMemberId = await addTeamMemberFS(memberDataForFirestore);
-        console.log(`AuthContext: User ${memberDataForFirestore.email} created in Auth and Firestore. Firestore ID: ${teamMemberId}`);
+      const result = await createTeamMemberAction(userData, pass);
+      if (result.error) {
+        throw new Error(result.error);
       }
-      return { firebaseUser, teamMemberId };
-
+      return { firebaseUser: result.user as FirebaseUser, teamMemberId: result.teamMemberId };
     } catch (error: any) {
-      console.error("AuthContext: Error creating user in Firebase Auth or Firestore:", error);
-      let description = "No se pudo crear el usuario.";
-      if (error.code === 'auth/email-already-in-use') { description = `El correo electrónico ${lowerCaseEmail} ya está registrado en Firebase Authentication.`; }
-      else if (error.code === 'auth/weak-password') { description = "La contraseña es demasiado débil. Debe tener al menos 6 caracteres."; }
-      toast({ title: "Error al Crear Usuario", description: description, variant: "destructive" });
-      if (firebaseUser && !teamMemberId) { console.warn(`AuthContext: User ${firebaseUser.email} created in Auth but FAILED to create in Firestore teamMembers collection.`); }
+      console.error("AuthContext: Error creating user via Server Action:", error);
+      toast({ title: "Error al Crear Usuario", description: error.message, variant: "destructive" });
       return { firebaseUser: null, teamMemberId: null };
     }
   };

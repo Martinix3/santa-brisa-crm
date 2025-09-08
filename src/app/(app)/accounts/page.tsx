@@ -5,7 +5,6 @@ import * as React from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import type { EnrichedAccount, TeamMember, Order, AccountStatus, AccountType } from "@/types";
-import { getAccountsFS, updateAccountFS, deleteAccountFS, addAccountFS } from "@/services/account-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { getOrdersFS } from "@/services/order-service";
 import { processCarteraData } from "@/services/cartera-service";
@@ -28,6 +27,7 @@ import StatusBadge from "@/components/app/status-badge";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import AccountHistoryTable from "@/components/app/account-history-table";
 import { InteractionDialog } from "@/components/app/interaction-dialog";
+import { getAccountsAction } from "@/services/server/account-actions";
 
 
 function AccountTableRow({ account, isExpanded, onToggleExpand }: { account: EnrichedAccount; isExpanded: boolean; onToggleExpand: () => void; }) {
@@ -167,7 +167,7 @@ export default function AccountsPage() {
       setIsLoading(true);
       try {
         const [accounts, orders, members] = await Promise.all([
-          getAccountsFS(),
+          getAccountsAction(),
           getOrdersFS(),
           getTeamMembersFS(['SalesRep', 'Admin', 'Clavadista', 'Líder Clavadista'])
         ]);

@@ -1,5 +1,3 @@
-
-'use server';
 import { db } from '@/lib/firebase';
 import { collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy, where, writeBatch, runTransaction } from "firebase/firestore";
 import type { Account, AccountFormValues } from '@/types';
@@ -34,14 +32,14 @@ export const getAccountByIdFS = async (id: string): Promise<Account | null> => {
 export const addAccountFS = async (data: Partial<Account>): Promise<string> => {
   const fullData: Account = {
     id: '', // Will be assigned by Firestore
-    status: 'lead',
+    status: 'Pendiente',
     potencial: 'medio',
     leadScore: 50,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     ...data,
     name: data.name || 'Nombre Desconocido',
-    type: data.type || 'prospect',
+    type: data.type || 'HORECA',
   };
   const firestoreData = toFirestore(fullData);
   const docRef = await addDoc(collection(db, ACCOUNTS_COLLECTION), firestoreData);

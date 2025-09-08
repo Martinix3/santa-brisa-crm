@@ -1,10 +1,13 @@
+
 'use server';
 
 import { adminDb as db } from '@/lib/firebaseAdmin';
 import { collection, addDoc, updateDoc, doc, Timestamp, getDocs, query, where } from 'firebase-admin/firestore';
 import { accountSchema, type AccountFormValues, toSearchName } from '@/lib/schemas/account-schema';
-import { getAuth } from 'firebase-admin/auth';
-import { getTeamMembersFS } from '@/services/team-member-service';
+import { getAccounts, getOrdersByAccount, getTeamMembers, getRecentHistoryByAccount, getOrders } from '@/features/accounts/repo';
+import { enrichCartera } from '@/features/accounts/cartera';
+import type { Order } from '@/types';
+
 
 // Colecciones (ajusta si tu naming difiere)
 const ACCOUNTS = 'accounts';
@@ -81,4 +84,29 @@ export async function upsertAccountAction(input: AccountFormValues) {
     });
     return { ok: true, id: ref.id, op: 'created' as const };
   }
+}
+
+export async function getCarteraBundle() {
+    const [accounts, orders, teamMembers] = await Promise.all([
+        getAccounts(),
+        getOrders(),
+        getTeamMembers()
+    ]);
+    
+    const enrichedAccounts = enrichCartera(accounts, orders, teamMembers);
+    
+    return { enrichedAccounts, teamMembers };
+}
+
+
+export async function getAccountHistory(accountId: string) {
+    const history = await getRecentHistoryByAccount(accountId);
+    return history.map((item: Order) => ({
+      id: item.id,
+      date: item.createdAt,
+      title: item.notes || item.nextActionType || `Pedido de ${item.value?.toFixed(2) ?? '0.00'} €`,
+      kind: item.value ? 'order' : 'interaction',
+      amount: item.value,
+      status: item.status,
+    }));
 }

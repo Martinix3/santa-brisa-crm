@@ -13,8 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getCarteraBundle } from "@/app/(app)/accounts/actions";
 import { AccountRow } from "@/features/accounts/components/account-row";
-import { AccountHubDialog } from "@/features/accounts/components/account-hub-dialog";
-import { TIPOS_CUENTA, type TipoCuenta } from "@ssot";
+import AccountDialog from "@/features/accounts/components/account-dialog";
+import { TIPOS_CUENTA_VALUES, type TipoCuenta } from "@ssot";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -51,9 +51,8 @@ export default function AccountsPage() {
   const [error, setError] = React.useState<string | null>(null);
 
   // Dialog state
-  const [hubOpen, setHubOpen] = React.useState(false);
-  const [selectedAccountId, setSelectedAccountId] = React.useState<string | null>(null);
-  const [hubMode, setHubMode] = React.useState<'registrar' | 'editar' | 'pedido'>('registrar');
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [selectedAccount, setSelectedAccount] = React.useState<Partial<AccountFormValues> | null>(null);
 
 
   // Filters
@@ -143,9 +142,8 @@ export default function AccountsPage() {
   }, [searchTerm, typeFilter, enrichedAccounts, responsibleFilter, bucketFilter, isAdmin, sortOption]);
 
   const handleOpenHub = (accountId: string, mode: 'registrar' | 'editar' | 'pedido') => {
-      setSelectedAccountId(accountId);
-      setHubMode(mode);
-      setHubOpen(true);
+      // Future implementation for Hub
+      console.log('Open hub for', accountId, 'in mode', mode);
   };
   
   return (
@@ -155,10 +153,11 @@ export default function AccountsPage() {
         <CardHeader>
           <div className="flex flex-col sm:flex-row items-center gap-4 flex-wrap">
               <div className="relative flex-grow w-full sm:w-auto"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Buscar cuenta, ciudad..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 w-full sm:max-w-xs"/></div>
-              <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as TipoCuenta | 'Todos')}><SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Tipo de Cuenta..." /></SelectTrigger><SelectContent><SelectItem value="Todos">Todos los Tipos</SelectItem>{TIPOS_CUENTA.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select>
+              <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as TipoCuenta | 'Todos')}><SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Tipo de Cuenta..." /></SelectTrigger><SelectContent><SelectItem value="Todos">Todos los Tipos</SelectItem>{(TIPOS_CUENTA_VALUES as readonly string[]).map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select>
               <Select value={bucketFilter} onValueChange={(v) => setBucketFilter(v as BucketFilter)}><SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Filtrar por fecha..." /></SelectTrigger><SelectContent><SelectItem value="Todos">Todas las Tareas</SelectItem><SelectItem value="Vencidas">Vencidas</SelectItem><SelectItem value="Para Hoy">Para Hoy</SelectItem></SelectContent></Select>
                {isAdmin && (<Select value={responsibleFilter} onValueChange={setResponsibleFilter}><SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Filtrar responsable..." /></SelectTrigger><SelectContent><SelectItem value="Todos">Todos</SelectItem>{salesAndAdminMembers.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent></Select>)}
                <Select value={sortOption} onValueChange={(v) => setSortOption(v as SortOption)}><SelectTrigger className="w-full sm:w-[240px]"><SelectValue placeholder="Ordenar por..." /></SelectTrigger><SelectContent><SelectItem value="leadScore_desc">Prioridad</SelectItem><SelectItem value="nextAction_asc">Fecha Próxima Tarea</SelectItem><SelectItem value="lastInteraction_desc">Fecha Última Interacción</SelectItem></SelectContent></Select>
+               <Button onClick={() => setDialogOpen(true)} className="ml-auto"><PlusCircle className="mr-2 h-4 w-4"/> Nueva Cuenta</Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -184,11 +183,11 @@ export default function AccountsPage() {
             )}
         </CardContent>
       </Card>
-      <AccountHubDialog
-        open={hubOpen}
-        onOpenChange={setHubOpen}
-        accountId={selectedAccountId}
-        defaultMode={hubMode}
+      <AccountDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        initial={selectedAccount}
+        onSaved={() => loadData()}
       />
     </div>
   );
@@ -196,3 +195,5 @@ export default function AccountsPage() {
 
 type BucketFilter = "Todos" | "Vencidas" | "Para Hoy";
 type SortOption = "leadScore_desc" | "nextAction_asc" | "lastInteraction_desc";
+type AccountFormValues = import('@/lib/schemas/account-schema').AccountFormValues;
+

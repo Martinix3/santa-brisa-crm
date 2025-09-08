@@ -244,7 +244,7 @@ function CreateInteractionForm({
       resolver: zodResolver(interactionSchema),
       defaultValues: {
             accountId: selectedAccount?.id ?? "",
-            accountName: selectedAccount ? "" : "",
+            accountName: selectedAccount?.name ?? "",
             type: "visita",
             date: new Date(),
             outcome: "pendiente",
@@ -280,7 +280,7 @@ function CreateInteractionForm({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Field label="Tipo">
-          <Select value={form.watch("type") as any} onValueChange={(v)=> form.setValue("type", v as any)}>
+          <Select value={form.watch("type")} onValueChange={(v)=> form.setValue("type", v as any)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {TIPOS_INTERACCION.map(o=> <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
@@ -288,7 +288,7 @@ function CreateInteractionForm({
           </Select>
         </Field>
         <Field label="Resultado">
-          <Select value={(form.watch("outcome") ?? "pendiente") as any} onValueChange={(v)=> form.setValue("outcome", v as any)}>
+          <Select value={form.watch("outcome") ?? "pendiente"} onValueChange={(v)=> form.setValue("outcome", v as any)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {RESULTADOS_INTERACCION.map(o=> <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
@@ -347,43 +347,47 @@ function CreateOrderFormLite({
   });
 
   const busy = form.formState.isSubmitting;
-  const { fields, append, remove, replace } = useForm({
-      defaultValues: { lines: form.getValues("lines") }
+  
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "lines",
   });
-
   const lines = form.watch("lines");
 
   function addFromInventory(id: string) {
     const p = inventory.find(x => x.id === id);
     if (!p) return;
-    const currentLines = form.getValues("lines");
-    form.setValue("lines", [...currentLines, {
+    append({
       inventoryId: p.id,
-      lineType: (p.categoryId === 'plv' ? 'plv' : 'product'),
+      lineType: (p.categoryId === 'INV_PROMO_MATERIAL' ? 'plv' : 'product'),
       sku: p.sku!,
       name: p.name,
       uom: p.uom ?? "unit",
       qty: 1,
       unitPrice: Number(p.latestPurchase?.calculatedUnitCost ?? 0),
       total: Number(p.latestPurchase?.calculatedUnitCost ?? 0),
-    }]);
+    });
   }
-  function updateLine(i: number, patch: Partial<(typeof lines)[number]>) {
-    const newLines = form.getValues("lines").map((l,idx)=> idx===i ? { ...l, ...patch, total: (patch.unitPrice ?? l.unitPrice) * (patch.qty ?? l.qty) } : l);
-    form.setValue("lines", newLines);
+  function updateLine(i: number, patch: Partial<OrderLine>) {
+    const currentLines = form.getValues("lines");
+    const updatedLine = { ...currentLines[i], ...patch };
+    updatedLine.total = (updatedLine.unitPrice || 0) * (updatedLine.qty || 0);
+    const newLines = currentLines.map((l, idx) => (idx === i ? updatedLine : l));
+    form.setValue("lines", newLines, { shouldValidate: true, shouldDirty: true });
   }
+
   function removeLine(i: number) {
-    const newLines = form.getValues("lines").filter((_,idx)=> idx!==i);
-    form.setValue("lines", newLines);
+    remove(i);
   }
-  const orderTotal = (form.watch("lines") || []).reduce((s,l)=> s + l.total, 0);
+
+  const orderTotal = (lines || []).reduce((s,l)=> s + (l.total || 0), 0);
 
   async function onSubmit(values: OrderFormValues) {
     const res = await createOrderAction({
       ...values,
       accountName: hasPreset ? selectedAccount!.name : values.accountName!,
       ownershipHint: values.channel === "distribuidor" ? "distribuidor" : "propio",
-    } as any);
+    });
     if (!hasPreset && res.accountId) {
       onResolvedAccount({ id: res.accountId, name: values.accountName! });
     }
@@ -443,7 +447,7 @@ function CreateOrderFormLite({
             <SelectContent>
               {inventory.map(p=> (
                 <SelectItem key={p.id} value={p.id}>
-                  {(p.categoryId === "plv" ? "🪧" : "🍾")} {p.sku} — {p.name}
+                  {(p.categoryId === "INV_PROMO_MATERIAL" ? "🪧" : "🍾")} {p.sku} — {p.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -459,18 +463,18 @@ function CreateOrderFormLite({
             </tr>
           </thead>
           <tbody>
-            {lines.length===0 && <tr><td colSpan={6} className="py-6 text-center text-muted-foreground">Sin líneas.</td></tr>}
-            {lines.map((l,i)=>(
-              <tr key={i} className="border-t">
-                <td className="py-2 px-3">{l.name}</td>
-                <td className="px-3">{l.sku}</td>
+            {fields.length===0 && <tr><td colSpan={6} className="py-6 text-center text-muted-foreground">Sin líneas.</td></tr>}
+            {fields.map((l,i)=>(
+              <tr key={l.id} className="border-t">
+                <td className="py-2 px-3">{lines[i]?.name}</td>
+                <td className="px-3">{lines[i]?.sku}</td>
                 <td className="px-3 text-right">
-                  <Input className="text-right" type="number" min={1} step="1" value={l.qty} onChange={(e)=> updateLine(i,{ qty: Number(e.target.value||0) })} />
+                  <Input className="text-right" type="number" min={1} step="1" value={lines[i]?.qty} onChange={(e)=> updateLine(i,{ qty: Number(e.target.value||0) })} />
                 </td>
                 <td className="px-3 text-right">
-                  <Input className="text-right" type="number" min={0} step="0.01" value={l.unitPrice} onChange={(e)=> updateLine(i,{ unitPrice: Number(e.target.value||0) })} />
+                  <Input className="text-right" type="number" min={0} step="0.01" value={lines[i]?.unitPrice} onChange={(e)=> updateLine(i,{ unitPrice: Number(e.target.value||0) })} />
                 </td>
-                <td className="px-3 text-right tabular-nums">{l.total.toFixed(2)}</td>
+                <td className="px-3 text-right tabular-nums">{lines[i]?.total.toFixed(2)}</td>
                 <td className="px-3 text-right"><Button size="icon" variant="ghost" onClick={()=> removeLine(i)}><Trash2 className="h-4 w-4" /></Button></td>
               </tr>
             ))}
@@ -506,13 +510,11 @@ function Field({ label, children, error, colSpan }: { label: string; children: R
   );
 }
 
-function useFormSafe<T>(schema: any, defaults: Partial<T>) {
-  // zodResolver con defaults seguros para evitar renders bruscos
-  // @ts-ignore
-  return (require("react-hook-form") as typeof import("react-hook-form")).useForm<T>({
-    resolver: (require("@hookform/resolvers/zod") as any).zodResolver(schema),
-    defaultValues: defaults as any,
-  });
+function useFormSafe<T extends z.ZodType<any, any, any>>(schema: T, defaults: z.infer<T>) {
+    return useForm<z.infer<T>>({
+        resolver: zodResolver(schema),
+        defaultValues: defaults,
+    });
 }
 
 function toLocalInputValue(d?: Date) {

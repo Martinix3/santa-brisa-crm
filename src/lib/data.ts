@@ -1,6 +1,6 @@
 
 
-import type { Kpi, StrategicObjective, OrderStatus, MarketingResourceType, UserRole, ClientType, AccountType, AccountStatus, NextActionType, FailureReasonType, CrmEvent, CrmEventType, CrmEventStatus, PromotionalMaterial, CanalOrigenColocacion, Purchase, PurchaseStatus, PaymentMethod, SampleRequestStatus, SampleRequestPurpose, DirectSaleStatus, PurchaseCategory, DirectSaleChannel, PotencialType, InteractionType, InteractionResult, Category, CategoryKind, Tank, RunStatus, RunType, TankStatus, UoM } from '@/types';
+import type { Kpi, StrategicObjective, OrderStatus, MarketingResourceType, UserRole, ClientType, AccountType, AccountStatus, NextActionType, FailureReasonType, CrmEvent, CrmEventType, CrmEventStatus, PromotionalMaterial, CanalOrigenColocacion, Purchase, PaymentMethod, SampleRequestStatus, SampleRequestPurpose, DirectSaleStatus, DirectSaleChannel, PotencialType, InteractionType, InteractionResult, Category, CategoryKind, Tank, RunStatus, RunType, TankStatus, UoM, TeamMember, Order, MarketingResourceCategory } from '@/types';
 import { TrendingUp, Users, Briefcase, CalendarPlus, Repeat } from "lucide-react"; 
 
 export const mockInitialAccounts = [
@@ -70,7 +70,7 @@ export const mockCategories: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>[] 
 export const potencialTypeList: PotencialType[] = ['alto', 'medio', 'bajo'];
 
 export const interactionTypeList: InteractionType[] = ['Visita', 'Llamada', 'Mail', 'Otro'];
-export const interactionResultList: InteractionResult[] = ['Programada', 'Requiere seguimiento', 'Pedido Exitoso', 'Fallida'];
+export const interactionResultList: InteractionResult[] = ['éxito', 'pendiente', 'perdido'];
 
 export const runStatusList: RunStatus[] = ["Borrador", "Programada", "En curso", "Pausada", "Finalizada", "Cancelada"];
 export const runTypeList: RunType[] = ["blend", "fill"];
@@ -79,7 +79,8 @@ export const uomList: UoM[] = ['unit', 'kg', 'g', 'l', 'ml'];
 
 export const orderStatusesList: OrderStatus[] = [
   'Programada', 'Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado',
-  'Facturado', 'Pagado', 'Cancelado', 'Fallido', 'Seguimiento', 'Completado'
+  'Facturado', 'Pagado', 'Cancelado', 'Fallido', 'Seguimiento', 'Completado',
+  'draft', 'confirmed', 'invoiced', 'shipped'
 ];
 
 export const clientTypeList: ClientType[] = ['Distribuidor', 'HORECA', 'Retail', 'Cliente Final', 'Otro'];

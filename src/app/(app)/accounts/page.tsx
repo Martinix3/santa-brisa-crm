@@ -2,7 +2,7 @@
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { BarChart, Users, ShoppingCart, Briefcase, Megaphone, Settings, Plus, Search, Filter, MapPin, Phone, Mail, Loader2, AlertCircle } from "lucide-react";
+import { PlusCircle, Search, ChevronDown, ChevronRight } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import type { EnrichedAccount, TeamMember } from "@/types";
 import { getCarteraBundle } from "@/features/accounts/repo";
@@ -14,39 +14,62 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { CANALES, TIPOS_CUENTA } from "@ssot";
 import { startOfDay, isBefore, isEqual, parseISO, isValid } from 'date-fns';
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+import { AccountRow } from "@/features/accounts/components/account-row";
+import { AccountHubDialog } from "@/features/accounts/components/account-hub-dialog";
 
-// Helpers
-const clsx = (...xs: Array<string | false | null | undefined>) => xs.filter(Boolean).join(" ");
 const hexToRgba = (hex: string, a: number) => { const h = hex.replace('#',''); const f = h.length === 3 ? h.split('').map(c=>c+c).join('') : h; const n = parseInt(f,16); const r=(n>>16)&255, g=(n>>8)&255, b=n&255; return `rgba(${r},${g},${b},${a})`; };
 
-// Header agua rápido (puedes omitir si usas sb-header + --sb-water)
-const waterHeader = (seed = "hdr", base = "#F7D15F") => {
-  const hash = Array.from(seed).reduce((s,c)=> (s*33+c.charCodeAt(0))>>>0,5381);
-  let a = hash||1; const rnd = ()=> (a = (a*1664525+1013904223)>>>0, (a>>>8)/16777216);
-  const L:string[]=[]; const blobs = 4;
-  const rgba=(h:string,x:number)=>{ const H=h.replace('#',''); const F=H.length===3?H.split('').map(c=>c+c).join(''):H; const N=parseInt(F,16); const R=(N>>16)&255,G=(N>>8)&255,B=N&255; return `rgba(${R},${G},${B},${x})`; };
-  for(let i=0;i<blobs;i++){
-    const x = (i%2? 80+ rnd()*18 : rnd()*18).toFixed(2);
-    const y = (rnd()*70+15).toFixed(2);
-    const rx = 100 + rnd()*120, ry = 60 + rnd()*120;
-    const a1 = 0.06 + rnd()*0.06; const a2 = a1*0.5; const s1=45+rnd()*10, s2=70+rnd()*12;
-    L.push(`radial-gradient(${rx}px ${ry}px at ${x}% ${y}%, ${rgba(base,a1)}, ${rgba(base,a2)} ${s1}%, rgba(255,255,255,0) ${s2}%)`);
-  }
-  L.push(`linear-gradient(to bottom, ${rgba(base,0.08)}, rgba(255,255,255,0.02))`);
-  return L.join(',');
+type BucketFilter = "Todos" | "Vencidas" | "Para Hoy";
+type SortOption = "leadScore_desc" | "nextAction_asc" | "lastInteraction_desc";
+
+const AccountGroup = ({
+  title, accounts, expandedRowId, onToggleExpand, onOpenHub, color,
+}: {
+  title: string;
+  accounts: EnrichedAccount[];
+  expandedRowId: string | null;
+  onToggleExpand: (id: string) => void;
+  onOpenHub: (accountId: string, mode: 'registrar'|'editar'|'pedido') => void;
+  color: string;
+}) => {
+  const [open, setOpen] = React.useState(true);
+  if (accounts.length === 0) return null;
+
+  return (
+    <React.Fragment>
+      <TableRow className="sb-group hover:bg-transparent" style={{ backgroundColor: hexToRgba(color, 0.15) }}>
+        <TableCell colSpan={8} className="p-0">
+          <button type="button" onClick={() => setOpen(!open)} className="w-full flex items-center gap-2 px-3 py-2 text-left">
+            {open ? <ChevronDown className="h-4 w-4"/> : <ChevronRight className="h-4 w-4" />}
+            <span>{title}</span>
+            <span className="sb-chip" style={{ backgroundColor: hexToRgba(color, 0.2), color: hexToRgba(color, 1), borderColor: hexToRgba(color, 0.4) }}>{accounts.length}</span>
+          </button>
+        </TableCell>
+      </TableRow>
+
+      {open && accounts.map(account => (
+        <AccountRow
+          key={account.id}
+          account={account}
+          isExpanded={expandedRowId === account.id}
+          onToggleExpand={() => onToggleExpand(account.id)}
+          onOpenHub={onOpenHub}
+          className="sb-tr"
+          tdClassName="sb-td"
+          style={{ backgroundColor: hexToRgba(color, 0.05) }}
+        />
+      ))}
+    </React.Fragment>
+  );
 };
 
-function Badge({color, text}:{color:string; text:string}){
-  const bg = hexToRgba(color,0.12), brd = hexToRgba(color,0.45);
-  return (
-    <span className="relative inline-flex items-center gap-1.5 px-2 py-0.5 text-xs rounded-md" style={{background:bg,border:`1px solid ${brd}`,color:"#24323"}}>
-      {text}
-    </span>
-  );
-}
 
-export default function AccountsPageDropIn(){
-  const { userRole } = useAuth();
+export default function AccountsPage(){
+  const { userRole, dataSignature } = useAuth();
   const { toast } = useToast();
   
   const [enrichedAccounts, setEnrichedAccounts] = React.useState<EnrichedAccount[]>([]);
@@ -54,17 +77,23 @@ export default function AccountsPageDropIn(){
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
-  // Dialog state
+  // Dialog states
   const [isAccountDialogOpen, setAccountDialogOpen] = React.useState(false);
+  const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
+  const [hubAccountId, setHubAccountId] = React.useState<string | null>(null);
+  const [hubMode, setHubMode] = React.useState<'registrar'|'editar'|'pedido'>('registrar');
+  const [isHubOpen, setIsHubOpen] = React.useState(false);
 
   // Filters
   const [searchTerm, setSearchTerm] = React.useState("");
   const [responsibleFilter, setResponsibleFilter] = React.useState("Todos");
-  const [bucketFilter, setBucketFilter] = React.useState<"Todos" | "Vencidas" | "Para Hoy">("Todos");
+  const [bucketFilter, setBucketFilter] = React.useState<BucketFilter>("Todos");
   const [channelFilter, setChannelFilter] = React.useState<string[]>([]);
+  const [sortOption, setSortOption] = React.useState<SortOption>("leadScore_desc");
+  const [typeFilter, setTypeFilter] = useState<string>("Todos");
   
   const isAdmin = userRole === 'Admin';
-  const salesAndAdminMembers = teamMembers.filter(m => m.role === 'Admin' || m.role === 'Ventas');
+  const salesAndAdminMembers = useMemo(() => teamMembers.filter(m => m.role === 'Admin' || m.role === 'Ventas'), [teamMembers]);
   
   const loadData = React.useCallback(async () => {
     setIsLoading(true);
@@ -76,11 +105,7 @@ export default function AccountsPageDropIn(){
     } catch (err: any) {
       console.error("Error fetching data:", err);
       setError("No se pudieron cargar los datos de las cuentas. Por favor, inténtalo de nuevo más tarde.");
-      toast({
-          title: "Error de Red",
-          description: err.message || "Error al conectar con el servidor.",
-          variant: "destructive"
-      });
+      toast({ title: "Error de Red", description: err.message || "Error al conectar con el servidor.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -88,21 +113,25 @@ export default function AccountsPageDropIn(){
 
   React.useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, [loadData, dataSignature]);
   
-  const grupos = {
-    Activas: { color: '#A7D8D9', data: [] as EnrichedAccount[] },
-    Seguimiento: { color: '#F7D15F', data: [] as EnrichedAccount[] },
-    Potenciales: { color: '#559091', data: [] as EnrichedAccount[] },
-    Fallidas: { color: '#E25B52', data: [] as EnrichedAccount[] },
-  } as const;
+  const handleToggleExpand = (rowId: string) => {
+    setExpandedRowId(prev => (prev === rowId ? null : rowId));
+  };
 
-  const filteredCuentas = useMemo(() => {
+  const handleOpenHub = (accountId: string, mode: 'registrar'|'editar'|'pedido') => {
+      setHubAccountId(accountId);
+      setHubMode(mode);
+      setIsHubOpen(true);
+  };
+  
+  const filteredAndSortedAccounts = useMemo(() => {
     const todayStart = startOfDay(new Date());
 
     return enrichedAccounts
       .filter(acc => !searchTerm || acc.name.toLowerCase().includes(searchTerm.toLowerCase()) || (acc.city && acc.city.toLowerCase().includes(searchTerm.toLowerCase())))
       .filter(acc => channelFilter.length === 0 || (acc.channel && channelFilter.includes(acc.channel)))
+      .filter(acc => typeFilter === "Todos" || (acc.type === typeFilter))
       .filter(acc => !isAdmin || responsibleFilter === "Todos" || acc.responsableId === responsibleFilter)
       .filter(acc => {
         if (bucketFilter === 'Todos') return true;
@@ -111,89 +140,183 @@ export default function AccountsPageDropIn(){
         if (bucketFilter === 'Vencidas') return isBefore(nextActionDate, todayStart);
         if (bucketFilter === 'Para Hoy') return isEqual(startOfDay(nextActionDate), todayStart);
         return false;
+      })
+      .sort((a, b) => {
+        switch(sortOption) {
+            case 'leadScore_desc': return (b.leadScore ?? 0) - (a.leadScore ?? 0);
+            case 'nextAction_asc': {
+                const dateA = a.nextInteraction?.nextActionDate ? parseISO(a.nextInteraction.nextActionDate) : null;
+                const dateB = b.nextInteraction?.nextActionDate ? parseISO(b.nextInteraction.nextActionDate) : null;
+                if (!dateA) return 1; if (!dateB) return -1;
+                return dateA.getTime() - dateB.getTime();
+            }
+            case 'lastInteraction_desc': {
+                const dateA = a.lastInteractionDate ? parseISO(a.lastInteractionDate) : null;
+                const dateB = b.lastInteractionDate ? parseISO(b.lastInteractionDate) : null;
+                if (!dateA) return 1; if (!dateB) return -1;
+                return dateB.getTime() - dateA.getTime();
+            }
+            default: return 0;
+        }
       });
-  }, [searchTerm, channelFilter, enrichedAccounts, responsibleFilter, bucketFilter, isAdmin]);
+  }, [searchTerm, channelFilter, typeFilter, enrichedAccounts, responsibleFilter, bucketFilter, isAdmin, sortOption]);
 
-  filteredCuentas.forEach(c => {
-    if (c.status === 'Activo' || c.status === 'Repetición' || c.status === 'Inactivo') grupos.Activas.data.push(c);
-    else if (c.status === 'Seguimiento' || c.status === 'Programada') grupos.Seguimiento.data.push(c);
-    else if (c.status === 'Pendiente') grupos.Potenciales.data.push(c);
-    else if (c.status === 'Fallido') grupos.Fallidas.data.push(c);
-  });
-
-  const headerBG = waterHeader('sb:accounts');
+  const activeAccounts = useMemo(() => filteredAndSortedAccounts.filter(c => c.status === 'Activo' || c.status === 'Repetición'), [filteredAndSortedAccounts]);
+  const potentialAccounts = useMemo(() => filteredAndSortedAccounts.filter(c => c.status === 'Pendiente'), [filteredAndSortedAccounts]);
+  const followUpAccounts = useMemo(() => filteredAndSortedAccounts.filter(c => c.status === 'Seguimiento' || c.status === 'Programada'), [filteredAndSortedAccounts]);
+  const failedAccounts = useMemo(() => filteredAndSortedAccounts.filter(c => c.status === 'Fallido'), [filteredAndSortedAccounts]);
+  
+  const totalCount = filteredAndSortedAccounts.length;
 
   return (
-    <div className="sb-theme flex-1 flex flex-col min-w-0">
-        <header className="relative border-b border-zinc-200 shadow-sm" style={{background: headerBG}}>
-          <div className="px-sb6 py-sb3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg" style={{background:'var(--sb-primary)'}}/>
-              <div className="font-semibold">Cuentas</div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="h-4 w-4 text-zinc-600 absolute left-3 top-1/2 -translate-y-1/2"/>
-                <Input value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} placeholder="Buscar…" className="sb-input pl-9 pr-3"/>
+    <div className="space-y-6">
+      <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Search */}
+              <div className="relative flex-1 min-w-[220px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"/>
+                <Input
+                  placeholder="Buscar cuenta, ciudad..."
+                  value={searchTerm}
+                  onChange={(e)=>setSearchTerm(e.target.value)}
+                  className="pl-9"
+                />
               </div>
-              <Button onClick={()=>setAccountDialogOpen(true)} className="sb-btn sb-btn--solid"><Plus className="h-4 w-4"/>Nueva cuenta</Button>
+
+              {/* Filtros */}
+              <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v)}>
+                  <SelectTrigger className="w-full sm:w-[160px]"><SelectValue placeholder="Tipo de Cuenta..." /></SelectTrigger>
+                  <SelectContent>
+                      <SelectItem value="Todos">Todos los Tipos</SelectItem>
+                      {TIPOS_CUENTA.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                  </SelectContent>
+              </Select>
               <MultiSelect
                 options={CANALES.map(c => ({ value: c, label: c.charAt(0).toUpperCase() + c.slice(1) }))}
                 selected={channelFilter}
                 onChange={setChannelFilter}
-                className="w-[200px]"
+                className="w-full sm:w-[200px]"
                 placeholder="Canal..."
               />
-            </div>
-          </div>
-        </header>
+               <Select value={bucketFilter} onValueChange={(v)=>setBucketFilter(v as BucketFilter)}>
+                <SelectTrigger className="w-full sm:w-[160px]"><SelectValue placeholder="Tareas"/></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Todos">Todas</SelectItem>
+                  <SelectItem value="Vencidas">Vencidas</SelectItem>
+                  <SelectItem value="Para Hoy">Para Hoy</SelectItem>
+                </SelectContent>
+              </Select>
 
-        <main className="p-sb6 space-y-sb6">
-          <div className="flex items-center gap-sb2 text-xs">
-            {Object.entries(grupos).map(([key, {color}]) => (
-              <Badge key={key} color={color} text={key} />
-            ))}
-          </div>
-          
-          <section className="sb-table">
-             <div className="grid grid-cols-[1.3fr_1fr_1fr_1fr] gap-3 px-4 py-2 text-[11px] uppercase tracking-wide text-zinc-500 border-b bg-white rounded-t-2xl">
-              <span>Cuenta</span><span>Ubicación</span><span>Tipo</span><span className="text-right">Contacto</span>
+              {isAdmin && (
+                <Select value={responsibleFilter} onValueChange={setResponsibleFilter}>
+                  <SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Responsable"/></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Todos">Todos</SelectItem>
+                    {salesAndAdminMembers.map(m=> <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
+
+              <Select value={sortOption} onValueChange={(v)=>setSortOption(v as any)}>
+                <SelectTrigger className="w-full sm:w-[200px]"><SelectValue placeholder="Ordenar por"/></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="leadScore_desc">Prioridad</SelectItem>
+                  <SelectItem value="nextAction_asc">Próxima tarea</SelectItem>
+                  <SelectItem value="lastInteraction_desc">Última interacción</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="ml-auto flex items-center gap-2">
+                <Button onClick={()=>setAccountDialogOpen(true)} className="rounded-full bg-amber-400 hover:bg-amber-500 text-amber-950">
+                  <PlusCircle className="mr-2 h-4 w-4"/> Nueva Cuenta
+                </Button>
+              </div>
             </div>
+          </CardHeader>
+          <CardContent>
             {isLoading ? (
-              <div><Loader2 className="animate-spin m-4" /></div>
+                <Table className="sb-table">
+                    <TableHeader>
+                        <TableRow className="sb-tr">
+                            <TableHead className="sb-th w-8"></TableHead>
+                            <TableHead className="sb-th w-[22%]">Cuenta</TableHead>
+                            <TableHead className="sb-th w-[16%]">Responsable</TableHead>
+                            <TableHead className="sb-th w-[20%]">Última Interacción</TableHead>
+                            <TableHead className="sb-th w-[16%]">Próxima Tarea</TableHead>
+                            <TableHead className="sb-th w-[10%] text-right">Valor Total</TableHead>
+                            <TableHead className="sb-th w-[8%] text-center">Estado</TableHead>
+                            <TableHead className="sb-th w-[8%] text-right pr-4">Acciones</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                    {Array.from({ length: 6 }).map((_,i)=>(
+                        <TableRow key={i} className="sb-tr">
+                        {Array.from({ length: 8 }).map((__,j)=>(
+                            <TableCell key={j} className="sb-td">
+                            <div className="h-3 w-[80%] bg-muted rounded animate-pulse" />
+                            </TableCell>
+                        ))}
+                        </TableRow>
+                    ))}
+                    </TableBody>
+                </Table>
             ) : error ? (
-              <div className="p-4"><AlertCircle className="inline-block mr-2" />{error}</div>
-            ) : Object.entries(grupos).map(([groupName, { color, data }]) => (
-                data.length > 0 && (
-                  <React.Fragment key={groupName}>
-                     <div className="grid grid-cols-1 px-4 py-2 text-sm font-bold text-gray-800" style={{background: hexToRgba(color, 0.1)}}>
-                       {groupName}
-                     </div>
-                     {data.map((c, i) => (
-                         <div key={c.id} className={clsx("grid grid-cols-[1.3fr_1fr_1fr_1fr] items-center gap-3 px-4 py-3 border-b hover:bg-zinc-50")} style={{background: hexToRgba(color, 0.04), borderColor: hexToRgba(color,0.15)}}>
-                           <div className="min-w-0">
-                             <Link href={`/accounts/${c.id}`} className="truncate text-sm font-medium hover:underline text-primary">{c.name}</Link>
-                             <div className="text-xs text-zinc-500">{c.status}</div>
-                           </div>
-                           <div className="text-sm text-zinc-700 flex items-center gap-2"><MapPin className="h-4 w-4"/>{c.city}, {c.country}</div>
-                           <div className="text-sm text-zinc-700">{c.type}</div>
-                           <div className="text-sm text-zinc-700 flex items-center justify-end gap-4">
-                             <a className="inline-flex items-center gap-1 hover:underline" href={`tel:${c.mainContactPhone}`}><Phone className="h-4 w-4"/>{c.mainContactPhone || '-'}</a>
-                             <a className="inline-flex items-center gap-1 hover:underline" href={`mailto:${c.mainContactEmail}`}><Mail className="h-4 w-4"/>{c.mainContactEmail || '-'}</a>
-                           </div>
-                         </div>
-                     ))}
-                  </React.Fragment>
-                )
-            ))}
-          </section>
-        </main>
-        <AccountDialog
-          open={isAccountDialogOpen}
-          onOpenChange={setAccountDialogOpen}
-          initial={null}
-          onSaved={() => loadData()}
-        />
+                <Alert variant="destructive"><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>
+            ) : (
+                <Table className="sb-table">
+                    <TableHeader>
+                        <TableRow className="sb-tr">
+                        <TableHead className="sb-th w-8"></TableHead>
+                        <TableHead className="sb-th w-[22%]">Cuenta</TableHead>
+                        <TableHead className="sb-th w-[16%]">Responsable</TableHead>
+                        <TableHead className="sb-th w-[20%]">Última Interacción</TableHead>
+                        <TableHead className="sb-th w-[16%]">Próxima Tarea</TableHead>
+                        <TableHead className="sb-th w-[10%] text-right">Valor Total</TableHead>
+                        <TableHead className="sb-th w-[8%] text-center">Estado</TableHead>
+                        <TableHead className="sb-th w-[8%] text-right pr-4">Acciones</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        <AccountGroup title="Activas y en Repetición" accounts={activeAccounts} expandedRowId={expandedRowId} onToggleExpand={handleToggleExpand} onOpenHub={handleOpenHub} color="#9CD7D8" />
+                        <AccountGroup title="En Seguimiento" accounts={followUpAccounts} expandedRowId={expandedRowId} onToggleExpand={handleToggleExpand} onOpenHub={handleOpenHub} color="#F6C851"/>
+                        <AccountGroup title="Potenciales (Nuevas)" accounts={potentialAccounts} expandedRowId={expandedRowId} onToggleExpand={handleToggleExpand} onOpenHub={handleOpenHub} color="#559091"/>
+                        <AccountGroup title="Cuentas con Interacción Fallida" accounts={failedAccounts} expandedRowId={expandedRowId} onToggleExpand={handleToggleExpand} onOpenHub={handleOpenHub} color="#E06B2F"/>
+                        
+                        {totalCount === 0 && (
+                            <TableRow>
+                                <TableCell colSpan={8} className="h-40">
+                                <div className="h-full flex flex-col items-center justify-center text-center gap-2">
+                                    <p className="text-sm text-muted-foreground">No hay cuentas que coincidan con los filtros.</p>
+                                    <div className="flex gap-2">
+                                    <Button variant="outline" onClick={()=> { setSearchTerm(""); setTypeFilter("Todos"); setBucketFilter("Todos"); setChannelFilter([]); setResponsibleFilter("Todos"); }}>
+                                        Limpiar filtros
+                                    </Button>
+                                    <Button onClick={()=> setAccountDialogOpen(true)} className="rounded-full bg-amber-400 hover:bg-amber-500 text-amber-950">
+                                        <PlusCircle className="mr-2 h-4 w-4"/> Crear nueva cuenta
+                                    </Button>
+                                    </div>
+                                </div>
+                                </TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
+            )}
+          </CardContent>
+      </Card>
+      <AccountDialog
+        open={isAccountDialogOpen}
+        onOpenChange={setAccountDialogOpen}
+        initial={null}
+        onSaved={() => loadData()}
+      />
+      <AccountHubDialog
+        open={isHubOpen}
+        onOpenChange={setIsHubOpen}
+        accountId={hubAccountId}
+        defaultMode={hubMode}
+       />
     </div>
   );
 }
+

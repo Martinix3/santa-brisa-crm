@@ -13,7 +13,9 @@ let app: App;
 if (getApps().find(a => a.name === ADMIN_APP_NAME)) {
   app = getApps().find(a => a.name === ADMIN_APP_NAME)!;
 } else {
-  // Try to use a service account first, which is more robust for servers.
+  // This logic attempts to use a service account first, which is more robust for servers.
+  // It falls back to Application Default Credentials for local development or environments
+  // where the service account JSON isn't provided as an env var.
   const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT || (
     process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 
       ? Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString('utf8')
@@ -23,15 +25,15 @@ if (getApps().find(a => a.name === ADMIN_APP_NAME)) {
   let appOptions: AppOptions;
 
   if (serviceAccountKey) {
-    // This is the recommended production/server setup
+    // Recommended for production/server environments
+    console.log("Initializing Firebase Admin with explicit Service Account credentials.");
     appOptions = {
         credential: cert(JSON.parse(serviceAccountKey)),
         projectId: process.env.FIREBASE_PROJECT_ID,
     };
-     console.log("Initializing Firebase Admin with Service Account credentials.");
   } else {
-    // Fallback to Application Default Credentials for local dev, workstations, etc.
-    console.log("Service account not found. Initializing Firebase Admin with Application Default Credentials.");
+    // Fallback for local development, Cloud Workstations, etc.
+    console.log("Service account credentials not found. Initializing Firebase Admin with Application Default Credentials.");
     appOptions = {
         credential: applicationDefault(),
         projectId: process.env.GCLOUD_PROJECT || 'santa-brisa-crm',

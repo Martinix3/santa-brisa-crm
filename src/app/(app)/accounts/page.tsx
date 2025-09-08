@@ -12,7 +12,7 @@ import AccountDialog from "@/features/accounts/components/account-dialog";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { CANALES_ORIGEN_COLOCACION, OPCIONES_TIPO_CUENTA } from "@ssot";
+import { OPCIONES_CANAL_ORIGEN, OPCIONES_TIPO_CUENTA } from "@ssot";
 import { startOfDay, isBefore, isEqual, parseISO, isValid } from 'date-fns';
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
@@ -193,7 +193,7 @@ export default function AccountsPage(){
                   </SelectContent>
               </Select>
               <MultiSelect
-                options={CANALES_ORIGEN_COLOCACION.map(c => ({ value: c, label: c.charAt(0).toUpperCase() + c.slice(1) }))}
+                options={OPCIONES_CANAL_ORIGEN as any}
                 selected={channelFilter}
                 onChange={setChannelFilter}
                 className="w-full sm:w-[200px]"

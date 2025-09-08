@@ -10,11 +10,12 @@ import { getAccountsFS } from "@/services/account-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { useAuth } from "@/contexts/auth-context";
 
-// Importar los nuevos componentes de formulario
-import { CreateAccountForm } from './CreateAccountForm';
-import { CreateInteractionForm } from './CreateInteractionForm';
-import { CreateOrderFormLite } from './CreateOrderFormLite';
-import { AccountSelector } from "./AccountSelector";
+import { CreateAccountForm } from "./CreateAccountForm";
+import { CreateInteractionForm } from "./CreateInteractionForm";
+import { CreateOrderFormLite } from "./CreateOrderFormLite";
+
+import { useAccountAutocomplete } from "@/features/accounts/hooks/use-account-autocomplete";
+import { AccountAutocompleteInput } from "@/features/accounts/components/account-autocomplete-input";
 
 type HubMode = "cuenta" | "interaccion" | "pedido";
 
@@ -35,91 +36,156 @@ export default function QuickHubDialog({
   const { refreshDataSignature } = useAuth();
 
   const [mode, setMode] = React.useState<HubMode>(defaultMode);
-  const [selectedAccount, setSelectedAccount] = React.useState<Account | null>(initialAccount || null);
-  
   const [allAccounts, setAllAccounts] = React.useState<Account[]>([]);
   const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
 
+  // Autocomplete reutilizable
+  const {
+    inputValue,
+    draftAccountName,
+    selectedAccount,
+    matches,
+    setInputValue,
+    selectAccount,
+    reset,
+  } = useAccountAutocomplete({ accounts: allAccounts, initialAccount });
+
+  // Carga segura con flag de montaje + roles canónicos
   React.useEffect(() => {
-    if (open) {
-      setIsLoading(true);
-      Promise.all([
-        getAccountsFS(),
-        getTeamMembersFS(['Ventas', 'Admin', 'Clavadista', 'Líder Clavadista'])
-      ]).then(([accounts, members]) => {
+    if (!open) return;
+
+    let mounted = true;
+    setIsLoading(true);
+
+    const roleFilter = ["Admin", "Ventas", "Manager", "Operaciones", "Marketing", "Distributor"];
+
+    Promise.all([getAccountsFS(), getTeamMembersFS(roleFilter as any)])
+      .then(([accounts, members]) => {
+        if (!mounted) return;
         setAllAccounts(accounts);
         setTeamMembers(members);
-      }).catch(() => toast({ title: "Error", description: "No se pudieron cargar los datos necesarios."}))
-        .finally(() => setIsLoading(false));
-      
-      setMode(initialAccount ? 'interaccion' : defaultMode);
-      setSelectedAccount(initialAccount || null);
-    }
-  }, [open, defaultMode, initialAccount, toast]);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        toast({ title: "Error", description: "No se pudieron cargar los datos necesarios." });
+      })
+      .finally(() => {
+        if (mounted) setIsLoading(false);
+      });
 
-  const handleSuccess = (type: 'account' | 'interaction' | 'order', id: string, name: string) => {
+    setMode(initialAccount ? "interaccion" : defaultMode);
+
+    return () => {
+      mounted = false;
+    };
+  }, [open, defaultMode, initialAccount?.id, toast]);
+
+  // Firma unificada y llamadas coherentes
+  const handleSuccess = (
+    type: "account" | "interaction" | "order",
+    payload: { id: string; accountId?: string; accountName?: string }
+  ) => {
+    const { id, accountId, accountName } = payload;
+
+    if (type === "account") {
+      toast({ title: "Cuenta guardada", description: accountName || "Cuenta actualizada" });
+      // Selecciona la cuenta guardada y pasa a interacción (UX rápida)
+      const a = allAccounts.find(x => x.id === id) || ({ id, name: accountName || "" } as Account);
+      selectAccount(a);
+      setMode("interaccion");
+      // No cierres el diálogo: el user puede registrar ya la interacción
+      refreshDataSignature();
+      return;
+    }
+
+    // Interacción o pedido
+    toast({
+      title: type === "interaction" ? "Interacción registrada" : "Pedido creado",
+      description: accountName ? `Para “${accountName}”` : "Acción registrada",
+    });
+
     refreshDataSignature();
     onOpenChange(false);
-    
-    if (type === 'interaction' || type === 'order') {
-       toast({
-          title: "Acción registrada",
-          description: `Se ha creado la interacción/pedido para "${name}".`,
-       });
-       // If a new account was implicitly created, we don't automatically switch tabs anymore
-       // The user can do it manually if they want to add more details.
-    }
   };
 
-  const handleAccountSelection = (account: Account | null) => {
-    setSelectedAccount(account);
-    if(account && account.id !== 'new') {
-        // if an existing account is selected, move to interaction
-        if (mode === 'cuenta') setMode('interaccion');
-    }
-  };
+  // Invitación no intrusiva (si no existe cuenta y hay texto en Interacción/Pedido)
+  const showInviteCreate =
+    (mode === "interaccion" || mode === "pedido") &&
+    !selectedAccount &&
+    (draftAccountName?.trim().length ?? 0) > 0;
 
-  const handleGoCreateAccount = (name: string) => {
-      setSelectedAccount({ name, id: 'new' } as Partial<Account> as Account); 
-      setMode('cuenta');
-  }
+  const goCreateFromDraft = () => {
+    // Placeholder canónico mínimo
+    selectAccount({
+      id: "new",
+      name: (draftAccountName || "Nueva cuenta").trim(),
+      type: "Otro",
+    } as Account);
+    setMode("cuenta");
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) reset();
+        onOpenChange(v);
+      }}
+    >
       <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Acciones rápidas</DialogTitle>
-          <DialogDescription>
-            Busca una cuenta, registra una interacción o crea un pedido.
-          </DialogDescription>
+          <DialogDescription>Busca una cuenta, registra una interacción o crea un pedido.</DialogDescription>
         </DialogHeader>
 
-        <AccountSelector
-            accounts={allAccounts}
-            selectedAccount={selectedAccount}
-            onAccountSelected={handleAccountSelection}
-            onGoCreateAccount={handleGoCreateAccount}
-            isLoading={isLoading}
+        {/* Autocomplete de cuenta — match por nombre/ciudad; si eliges, selecciona; si editas, des-selecciona y deja borrador */}
+        <AccountAutocompleteInput
+          inputValue={inputValue}
+          matches={matches}
+          selectedAccount={selectedAccount}
+          onInputChange={setInputValue}
+          onPick={(acc) => {
+            selectAccount(acc);
+            // Si el user estaba en "cuenta" y elige una existente, UX: saltamos a "interacción"
+            if (mode === "cuenta") setMode("interaccion");
+          }}
+          isLoading={isLoading}
         />
 
-        <Tabs value={mode} onValueChange={(v) => setMode(v as HubMode)} className="w-full">
+        {showInviteCreate && (
+          <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-zinc-800">
+            La cuenta <span className="font-medium">“{draftAccountName.trim()}”</span> no existe.
+            Puedes seguir con la {mode === "interaccion" ? "interacción" : "creación del pedido"} sin crearla,
+            o{" "}
+            <button type="button" className="underline underline-offset-2" onClick={goCreateFromDraft}>
+              rellenar ahora la nueva cuenta
+            </button>.
+          </div>
+        )}
+
+        {/* Pestañas SIEMPRE habilitadas */}
+        <Tabs value={mode} onValueChange={(v) => setMode(v as HubMode)} className="w-full mt-3">
           <TabsList className="grid grid-cols-3 w-full">
             <TabsTrigger value="cuenta">Cuenta</TabsTrigger>
             <TabsTrigger value="interaccion">Interacción</TabsTrigger>
             <TabsTrigger value="pedido">Pedido</TabsTrigger>
           </TabsList>
 
+          {/* CUENTA */}
           <TabsContent value="cuenta" className="mt-4">
             <CreateAccountForm
-              key={`account-form-${selectedAccount?.id || 'new'}`}
-              initialAccount={selectedAccount}
+              key={`account-form-${selectedAccount?.id || "draft"}`}
+              initialAccount={
+                selectedAccount ??
+                ({
+                  id: "new",
+                  name: draftAccountName || "",
+                  type: "OTRO",
+                } as Account)
+              }
               onCreated={(id, name) => {
-                handleSuccess('account', id);
-                // After creating/editing, select the account and switch to interaction
-                const newOrUpdatedAccount = allAccounts.find(a => a.id === id) || {id, name} as Account;
-                setSelectedAccount(newOrUpdatedAccount);
-                setMode('interaccion');
+                handleSuccess("account", { id, accountName: name });
               }}
               allAccounts={allAccounts}
               allTeamMembers={teamMembers}
@@ -127,28 +193,30 @@ export default function QuickHubDialog({
             />
           </TabsContent>
 
+          {/* INTERACCIÓN */}
           <TabsContent value="interaccion" className="mt-4">
-             {selectedAccount ? (
-                 <CreateInteractionForm
-                    key={`interaction-form-${selectedAccount.id}`}
-                    selectedAccount={selectedAccount}
-                    onCreated={(iid, accId) => {
-                        handleSuccess('interaction', iid, accId, selectedAccount.name);
-                    }}
-                />
-             ) : <div className="text-center p-4 text-muted-foreground">Selecciona o crea una cuenta para registrar una interacción.</div>}
+            <CreateInteractionForm
+              key={`interaction-form-${selectedAccount?.id || "draft"}`}
+              selectedAccount={selectedAccount}
+              accountNameFallback={!selectedAccount ? (draftAccountName || "").trim() : undefined}
+              onCreated={(iid, accId) => {
+                const name = selectedAccount?.name ?? draftAccountName;
+                handleSuccess("interaction", { id: iid, accountId: accId, accountName: name });
+              }}
+            />
           </TabsContent>
 
+          {/* PEDIDO */}
           <TabsContent value="pedido" className="mt-4">
-            {selectedAccount ? (
-                <CreateOrderFormLite
-                    key={`order-form-${selectedAccount.id}`}
-                    selectedAccount={selectedAccount}
-                    onCreated={(oid, accId) => {
-                         handleSuccess('order', oid, accId, selectedAccount.name);
-                    }}
-                />
-            ) : <div className="text-center p-4 text-muted-foreground">Selecciona o crea una cuenta para registrar un pedido.</div>}
+            <CreateOrderFormLite
+              key={`order-form-${selectedAccount?.id || "draft"}`}
+              selectedAccount={selectedAccount}
+              accountNameFallback={!selectedAccount ? (draftAccountName || "").trim() : undefined}
+              onCreated={(oid, accId) => {
+                const name = selectedAccount?.name ?? draftAccountName;
+                handleSuccess("order", { id: oid, accountId: accId, accountName: name });
+              }}
+            />
           </TabsContent>
         </Tabs>
       </DialogContent>

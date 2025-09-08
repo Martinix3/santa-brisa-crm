@@ -1,11 +1,12 @@
+
 "use server";
 
 import { getAccountsFS } from "@/services/account-service";
 import { getInventoryItemsFS } from "@/services/inventory-item-service";
-import type { InventoryItem } from "@/types";
+import type { InventoryItem, Account } from "@/types";
 
 type HubData = {
-  distributors: { id: string; name: string }[];
+  distributors: Account[];
   inventoryItems: InventoryItem[];
 };
 
@@ -19,12 +20,10 @@ export async function getHubDialogDataAction(params?: {
     ]);
 
     const distributors = allAccounts
-      .filter((a) => a.type === "distributor" || a.type === "importer")
-      .map((a) => ({ id: a.id, name: a.name }));
+      .filter((a) => a.type === "Distribuidor" || a.type === "Importador");
     
-    const inventoryItems = params?.inventoryKind
-        ? allInventoryItems.filter(i => (i.categoryId) === params.inventoryKind)
-        : allInventoryItems;
+    // Filtering on the client now, so we return all items
+    const inventoryItems = allInventoryItems;
 
     return {
       distributors,
@@ -32,7 +31,6 @@ export async function getHubDialogDataAction(params?: {
     };
   } catch (error) {
     console.error("Error fetching data for Hub Dialog:", error);
-    // En una app real, podrías loggear esto a un servicio de monitoreo
     return { distributors: [], inventoryItems: [] };
   }
 }

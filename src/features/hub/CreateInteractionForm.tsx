@@ -15,18 +15,22 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 type Props = {
-  selectedAccount: Account;
+  selectedAccount?: Account | null;
+  accountNameFallback?: string;
   onCreated: (interactionId: string, accountId: string) => void;
 };
 
-export function CreateInteractionForm({ selectedAccount, onCreated }: Props) {
+export function CreateInteractionForm({ selectedAccount, accountNameFallback, onCreated }: Props) {
+  const { toast } = useToast();
+  
   const form = useForm<InteractionFormValues>({
     resolver: zodResolver(interactionSchema),
     defaultValues: {
-      accountId: selectedAccount?.id ?? "",
-      accountName: selectedAccount?.name ?? "",
+      accountId: selectedAccount?.id,
+      accountName: selectedAccount?.name ?? accountNameFallback,
       type: "VISITA",
       date: new Date(),
       outcome: "PENDIENTE",
@@ -37,8 +41,16 @@ export function CreateInteractionForm({ selectedAccount, onCreated }: Props) {
   const busy = form.formState.isSubmitting;
 
   async function onSubmit(values: InteractionFormValues) {
-    const res = await createInteractionAction(values);
-    onCreated(res.id, res.accountId);
+    try {
+      const res = await createInteractionAction(values);
+      onCreated(res.id, res.accountId!);
+    } catch(e:any) {
+       toast({
+            title: "Error al guardar",
+            description: e.message || "No se pudo registrar la interacción.",
+            variant: "destructive"
+        });
+    }
   }
 
   function toLocalInputValue(d?: Date) {
@@ -61,7 +73,7 @@ export function CreateInteractionForm({ selectedAccount, onCreated }: Props) {
           </Select>
         </Field>
         <Field label="Resultado">
-          <Select value={form.watch("outcome") ?? "pendiente"} onValueChange={(v) => form.setValue("outcome", v as any)}>
+          <Select value={form.watch("outcome") ?? "PENDIENTE"} onValueChange={(v) => form.setValue("outcome", v as any)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {RESULTADOS_INTERACCION.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
@@ -83,6 +95,6 @@ export function CreateInteractionForm({ selectedAccount, onCreated }: Props) {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label:string; children:React.ReactNode }) {
   return <div className="space-y-2"><Label>{label}</Label>{children}</div>;
 }

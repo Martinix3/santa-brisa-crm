@@ -31,11 +31,6 @@ export function CreateAccountForm({
         ...data,
       } as any);
 
-      toast({
-        title: res.op === "created" ? "Cuenta creada" : "Cuenta actualizada",
-        description: data.name,
-      });
-
       onCreated(res.id, data.name!);
     } catch (e: any) {
       toast({
@@ -47,7 +42,7 @@ export function CreateAccountForm({
   };
   
   return (
-    <div className="p-1">
+    <div className="p-1 -m-6">
         <AccountDialog
             isOpen={true} // It's always "open" inside its container
             onOpenChange={(open) => { if(!open) onCancel() }}

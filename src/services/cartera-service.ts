@@ -1,10 +1,10 @@
 
+'use server';
 
 import type { Account, Order, TeamMember, EnrichedAccount, AccountStatus, DirectSale } from '@/types';
 import { parseISO, isValid, isAfter, subDays, differenceInDays } from 'date-fns';
 import { calculateCommercialStatus, calculateLeadScore } from '@/lib/account-logic';
 import { VALID_SALE_STATUSES } from '@/lib/constants';
-import { getDirectSalesFS } from './venta-directa-sb-service';
 
 /**
  * Processes raw accounts and interactions data to return enriched account objects for the Cartera view.
@@ -19,27 +19,14 @@ export async function processCarteraData(
     const accountsMap = new Map(accounts.map(acc => [acc.id, acc]));
     const accountNameMap = new Map(accounts.map(acc => [acc.nombre.toLowerCase().trim(), acc]));
     
-    // Fetch direct sales once
-    const directSales = await getDirectSalesFS();
+    // NOTE: `directSales` are now excluded as they don't define the commercial status of HORECA/Retail accounts.
+    // The `cartera` (portfolio) is specifically about end-customer accounts managed by the sales team.
+    
+    const interactionsByAccountId = new Map<string, Order[]>();
 
-    // Unify all interactions into a single structure
-    const allInteractions: (Order | DirectSale & { interactionType: 'directSale' })[] = [
-        ...orders,
-        ...directSales.map(ds => ({
-            ...ds,
-            interactionType: 'directSale' as const,
-            createdAt: ds.issueDate, 
-            clientName: ds.customerName,
-            accountId: ds.customerId,
-            value: ds.totalAmount,
-            status: ds.status as any, // Cast to avoid type mismatch, logic will handle it
-        }))
-    ];
-
-    const interactionsByAccountId = new Map<string, (Order | DirectSale)[]>();
-    for (const interaction of allInteractions) {
+    for (const interaction of orders) { // Only process orders, not directSales
         let accountId = interaction.accountId;
-        // If accountId is missing, try to find it by the client name (case-insensitive)
+        
         if (!accountId && interaction.clientName) {
             const matchedAccount = accountNameMap.get(interaction.clientName.toLowerCase().trim());
             if (matchedAccount) {
@@ -51,7 +38,7 @@ export async function processCarteraData(
             if (!interactionsByAccountId.has(accountId)) {
                 interactionsByAccountId.set(accountId, []);
             }
-            interactionsByAccountId.get(accountId)!.push(interaction as Order); // Cast as Order for simplicity in the array
+            interactionsByAccountId.get(accountId)!.push(interaction);
         }
     }
     

@@ -19,7 +19,7 @@ import { parseISO, isSameMonth, isSameYear, isValid } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from "@/contexts/auth-context";
 import { VALID_SALE_STATUSES, ALL_VISIT_STATUSES } from '@/lib/constants';
-import { EstadoPedido as OrderStatus } from "@ssot";
+import { EstadoPedido } from "@ssot";
 
 interface EnrichedTeamMember extends TeamMember {
   monthlyAccountsAchieved: number;
@@ -73,7 +73,7 @@ export default function TeamTrackingPage() {
             const [fetchedOrders, fetchedAccounts, fetchedMembers] = await Promise.all([
                 getOrdersFS(),
                 getAccountsFS(),
-                getTeamMembersFS(['SalesRep', 'Líder Clavadista'])
+                getTeamMembersFS(['Ventas', 'Líder Clavadista'])
             ]);
             
             const currentDate = new Date();
@@ -86,7 +86,7 @@ export default function TeamTrackingPage() {
             });
 
             const allSuccessfulOrders = fetchedOrders
-                .filter(o => VALID_SALE_STATUSES.includes(o.status) && (o.createdAt || o.visitDate))
+                .filter(o => VALID_SALE_STATUSES.includes(o.status as EstadoPedido) && (o.createdAt || o.visitDate))
                 .map(o => {
                     const dateString = o.visitDate || o.createdAt!;
                     const isoDateString = dateString.includes(' ') ? dateString.replace(' ', 'T') : dateString;
@@ -103,12 +103,12 @@ export default function TeamTrackingPage() {
                 const memberInteractions = fetchedOrders.filter(o => o.salesRep === member.name);
                 
                 const bottlesSold = memberInteractions
-                    .filter(order => VALID_SALE_STATUSES.includes(order.status))
+                    .filter(order => VALID_SALE_STATUSES.includes(order.status as EstadoPedido))
                     .reduce((sum, order) => sum + (order.numberOfUnits || 0), 0);
                 
                 const monthlyVisitsAchieved = memberInteractions.filter(order => {
                     const date = order.visitDate || order.createdAt;
-                    return date && isValid(parseISO(date)) && isSameMonth(parseISO(date), currentDate) && isSameYear(parseISO(date), currentDate) && ALL_VISIT_STATUSES.includes(order.status);
+                    return date && isValid(parseISO(date)) && isSameMonth(parseISO(date), currentDate) && isSameYear(parseISO(date), currentDate) && ALL_VISIT_STATUSES.includes(order.status as EstadoPedido);
                 }).length;
                 
                 const firstOrdersForMemberAccounts = new Map<string, typeof allSuccessfulOrders[0]>();

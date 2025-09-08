@@ -3,7 +3,7 @@
       
 "use client";
 
-import React, { useMemo, useState, useEffect } from "react";
+import * as React from "react";
 import type { Order, Account, TeamMember, Kpi, StrategicObjective, StickyNote, DirectSale } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { parseISO, isSameYear, isSameMonth, isValid, subDays, addDays } from 'date-fns';
@@ -14,7 +14,7 @@ import {
   kpiDataLaunch as initialKpiDataLaunch,
   mockStrategicObjectives,
 } from "@/lib/seeds";
-import { VALID_SALE_STATUSES, ALL_VISIT_STATUSES } from "@/lib/constants";
+import { VALID_SALE_STATUSES, ALL_VISIT_STATUSES } from '@/lib/constants';
 import { KpiGrid } from "@/components/app/dashboard/kpi-grid";
 import { MonthlyProgress } from "@/components/app/dashboard/monthly-progress";
 import { StrategicObjectivesList } from "@/components/app/dashboard/strategic-objectives-list";
@@ -35,7 +35,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { DateRange } from "react-day-picker";
 import EditOrderDialog, { type EditOrderFormValues } from "@/components/app/edit-order-dialog";
 import { getDashboardDataAction, updateDistributorOrderStatusAction } from "@/services/server/dashboard-actions";
-import { RolUsuario as UserRole, EstadoPedido as OrderStatus, ESTADOS_PEDIDO as orderStatusesList } from "@ssot";
+import { RolUsuario, EstadoPedido, ESTADOS_PEDIDO } from "@ssot";
 
 // --- Distributor Portal Component ---
 function DistributorPortal({ teamMember, dataSignature, refreshDataSignature }: { teamMember: TeamMember, dataSignature: number, refreshDataSignature: () => void }) {
@@ -50,11 +50,11 @@ function DistributorPortal({ teamMember, dataSignature, refreshDataSignature }: 
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
 
   // Filters
-  const [statusFilter, setStatusFilter] = useState<OrderStatus | "Todos">("Todos");
+  const [statusFilter, setStatusFilter] = useState<EstadoPedido | "Todos">("Todos");
   const [cityFilter, setCityFilter] = useState<string>("Todos");
   const [dateRange, setDateRange] = useState<DateRange | undefined>({ from: subDays(new Date(), 90), to: new Date() });
   
-  const placementOrderStatuses: OrderStatus[] = ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Pagado', 'Cancelado'];
+  const placementOrderStatuses: EstadoPedido[] = ['Confirmado', 'Procesando', 'Enviado', 'Entregado', 'Facturado', 'Pagado', 'Cancelado'];
 
   useEffect(() => {
     async function loadDistributorData() {
@@ -241,7 +241,7 @@ export default function DashboardPage() {
         setOrders(orders);
         setAccounts(accounts);
         setAllTeamMembers(teamMembers);
-        setSalesReps(teamMembers.filter(m => m.role === 'SalesRep'));
+        setSalesReps(teamMembers.filter(m => m.role === 'Ventas'));
         setDirectSales(directSales);
         
       } catch (error) {
@@ -331,7 +331,7 @@ export default function DashboardPage() {
     });
 
     let monthlyProgressMetrics: any[] = [];
-    if(userRole === 'SalesRep' && teamMember) {
+    if(userRole === 'Ventas' && teamMember) {
       const monthlyAccounts = teamFirstSuccessfulOrders.filter(o => o.salesRep === teamMember.name && isSameMonth(o.relevantDate, currentDate)).length;
       const monthlyVisits = orders.filter(o => o.salesRep === teamMember.name && (o.createdAt || o.visitDate) && isValid(parseISO((o.createdAt || o.visitDate)!)) && isSameMonth(parseISO((o.createdAt || o.visitDate)!), currentDate) && ALL_VISIT_STATUSES.includes(o.status)).length;
       monthlyProgressMetrics = [
@@ -368,7 +368,7 @@ export default function DashboardPage() {
       isClavadista: false,
       kpis: calculatedKpis,
       monthlyProgressTitle: userRole === 'Admin' ? "Progreso Mensual del Equipo" : "Tu Progreso Mensual",
-      showMonthlyProgress: userRole === 'Admin' || userRole === 'SalesRep',
+      showMonthlyProgress: userRole === 'Admin' || userRole === 'Ventas',
       monthlyProgressMetrics,
       teamPlacementSalesValue,
       inConsignmentValue,
@@ -395,7 +395,7 @@ export default function DashboardPage() {
     );
   }
   
-  const showActionButtons = userRole === 'Admin' || userRole === 'SalesRep' || userRole === 'Clavadista' || userRole === 'Líder Clavadista';
+  const showActionButtons = userRole === 'Admin' || userRole === 'Ventas' || userRole === 'Clavadista' || userRole === 'Líder Clavadista';
   
   if (userRole === 'Distributor' && teamMember) {
     return <DistributorPortal teamMember={teamMember} dataSignature={dataSignature} refreshDataSignature={useAuth().refreshDataSignature} />;
@@ -505,5 +505,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    

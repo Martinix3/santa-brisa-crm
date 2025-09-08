@@ -25,20 +25,20 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { ROLES_USUARIO as userRolesList } from "@/lib/data"; 
-import type { TeamMember, RolUsuario as UserRole, TeamMemberFormValues } from "@/types";
+import type { TeamMember, TeamMemberFormValues } from "@/types";
 import { Loader2, Check, Users, Edit, Trash2 } from "lucide-react";
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import { useAuth } from "@/contexts/auth-context";
 import EditUserDialog from "@/components/app/edit-user-dialog"; 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { getTeamMembersFS, deleteTeamMemberFS, updateTeamMemberFS, initializeMockTeamMembersInFirestore, getTeamMemberByIdFS } from "@/services/team-member-service";
+import { ROLES_USUARIO, type RolUsuario } from "@ssot";
 
 
 const userFormSchema = z.object({
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres."),
   email: z.string().email("El formato del correo electrónico no es válido."),
-  role: z.enum(userRolesList as [UserRole, ...UserRole[]], { required_error: "El rol es obligatorio." }),
+  role: z.enum(ROLES_USUARIO as [RolUsuario, ...RolUsuario[]], { required_error: "El rol es obligatorio." }),
   monthlyTargetAccounts: z.coerce.number().positive("El objetivo de cuentas debe ser un número positivo.").optional(),
   monthlyTargetVisits: z.coerce.number().positive("El objetivo de visitas debe ser un número positivo.").optional(),
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres.").optional(),
@@ -185,8 +185,8 @@ export default function UserManagementPage() {
     }
   };
 
-  const getRoleDisplayName = (role: UserRole): string => {
-    const roleMap: Record<UserRole, string> = {
+  const getRoleDisplayName = (role: RolUsuario): string => {
+    const roleMap: Record<RolUsuario, string> = {
         'Admin': 'Admin',
         'Ventas': 'Rep. Ventas',
         'Distributor': 'Distribuidor',
@@ -218,7 +218,7 @@ export default function UserManagementPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Nombre Completo</FormLabel><FormControl><Input placeholder="Nombre y apellidos" {...field} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="email" render={({ field }) => (<FormItem><FormLabel>Correo Electrónico (Login)</FormLabel><FormControl><Input type="email" placeholder="usuario@ejemplo.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="role" render={({ field }) => (<FormItem><FormLabel>Rol del Usuario</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un rol" /></SelectTrigger></FormControl><SelectContent>{userRolesList.map(roleValue => (<SelectItem key={roleValue} value={roleValue}>{getRoleDisplayName(roleValue)}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="role" render={({ field }) => (<FormItem><FormLabel>Rol del Usuario</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un rol" /></SelectTrigger></FormControl><SelectContent>{ROLES_USUARIO.map(roleValue => (<SelectItem key={roleValue} value={roleValue}>{getRoleDisplayName(roleValue)}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                 <FormField control={form.control} name="password" render={({ field }) => (<FormItem><FormLabel>Contraseña Temporal</FormLabel><FormControl><Input type="text" {...field} /></FormControl><FormMessage /></FormItem>)} />
                 {selectedRole === "Ventas" && (
                   <>

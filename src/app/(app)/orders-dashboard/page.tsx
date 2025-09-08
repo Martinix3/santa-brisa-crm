@@ -1,4 +1,5 @@
 
+
       
 "use client";
 
@@ -21,7 +22,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
 import Link from 'next/link';
-import { RolUsuario as UserRole, EstadoPedido as OrderStatus, ESTADOS_PEDIDO as orderStatusesList } from "@ssot";
+import { RolUsuario, EstadoPedido, ESTADOS_PEDIDO } from "@ssot";
 
 export default function OrdersDashboardPage() {
   const { toast } = useToast();
@@ -36,7 +37,7 @@ export default function OrdersDashboardPage() {
 
   // Filters
   const [searchTerm, setSearchTerm] = React.useState("");
-  const [statusFilter, setStatusFilter] = React.useState<OrderStatus | "Todos">("Todos");
+  const [statusFilter, setStatusFilter] = React.useState<EstadoPedido | "Todos">("Todos");
   const [cityFilter, setCityFilter] = React.useState<string>("Todos");
 
   React.useEffect(() => {
@@ -46,7 +47,7 @@ export default function OrdersDashboardPage() {
         const [fetchedOrders, fetchedAccounts, fetchedMembers] = await Promise.all([
           getOrdersFS(),
           getAccountsFS(),
-          getTeamMembersFS(['SalesRep', 'Admin', 'Clavadista', 'Líder Clavadista'])
+          getTeamMembersFS(['Ventas', 'Admin', 'Clavadista', 'Líder Clavadista'])
         ]);
         
         let relevantOrders = fetchedOrders.filter(o => o.status !== 'Programada' && o.status !== 'Seguimiento' && o.status !== 'Fallido' && o.status !== 'Completado');
@@ -54,7 +55,7 @@ export default function OrdersDashboardPage() {
         if (userRole === 'Distributor' && teamMember?.accountId) {
           const managedAccountIds = new Set(fetchedAccounts.filter(acc => acc.distributorId === teamMember.accountId).map(acc => acc.id));
           relevantOrders = relevantOrders.filter(o => o.accountId && managedAccountIds.has(o.accountId));
-        } else if (userRole === 'SalesRep' && teamMember) {
+        } else if (userRole === 'Ventas' && teamMember) {
           relevantOrders = relevantOrders.filter(o => o.salesRep === teamMember.name);
         } else if (userRole === 'Clavadista' && teamMember) {
             relevantOrders = relevantOrders.filter(o => o.clavadistaId === teamMember.id);
@@ -123,7 +124,7 @@ export default function OrdersDashboardPage() {
           <h1 className="text-3xl font-headline font-semibold">Panel de Pedidos</h1>
           <p className="text-muted-foreground">Consulta el estado y los detalles de todos los pedidos de colocación.</p>
         </div>
-        {(userRole === 'Admin' || userRole === 'SalesRep' || userRole === 'Clavadista') && (
+        {(userRole === 'Admin' || userRole === 'Ventas' || userRole === 'Clavadista') && (
             <Button asChild>
                 <Link href="/order-form"><PlusCircle className="mr-2 h-4 w-4"/> Registrar Interacción/Pedido</Link>
             </Button>
@@ -142,11 +143,11 @@ export default function OrdersDashboardPage() {
                   className="pl-9 w-full sm:max-w-xs"
                 />
               </div>
-              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as OrderStatus | 'Todos')}>
+              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as EstadoPedido | 'Todos')}>
                   <SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Estado..." /></SelectTrigger>
                   <SelectContent>
                       <SelectItem value="Todos">Todos los Estados</SelectItem>
-                      {orderStatusesList.filter(s => s !== 'Programada' && s !== 'Seguimiento' && s !== 'Fallido' && s !== 'Completado').map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      {ESTADOS_PEDIDO.filter(s => s !== 'borrador' && s !== 'cancelado').map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                   </SelectContent>
               </Select>
               <Select value={cityFilter} onValueChange={(v) => setCityFilter(v)}>
@@ -219,5 +220,3 @@ export default function OrdersDashboardPage() {
     </div>
   );
 }
-
-    

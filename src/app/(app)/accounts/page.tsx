@@ -4,7 +4,7 @@
 import * as React from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
-import type { EnrichedAccount, TeamMember, Order, AccountStatus, AccountType } from "@/types";
+import type { EnrichedAccount, TeamMember, Order, AccountStatus } from "@/types";
 import { processCarteraData } from "@/services/cartera-service";
 import { startOfDay, endOfDay, isBefore, isEqual, parseISO, isValid } from 'date-fns';
 import { format } from "date-fns";
@@ -23,7 +23,7 @@ import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
 import AccountHistoryTable from "@/components/app/account-history-table";
 import { InteractionDialog } from "@/components/app/interaction-dialog";
 import { getAccountsAction } from "@/services/server/account-actions";
-import { TIPOS_CUENTA as accountTypeList } from "@ssot";
+import { TIPOS_CUENTA, type TipoCuenta } from "@ssot";
 
 function AccountTableRow({ account, isExpanded, onToggleExpand }: { account: EnrichedAccount; isExpanded: boolean; onToggleExpand: () => void; }) {
     const [isInteractionDialogOpen, setIsInteractionDialogOpen] = React.useState(false);
@@ -151,11 +151,11 @@ export default function AccountsPage() {
   const [responsibleFilter, setResponsibleFilter] = React.useState("Todos");
   const [bucketFilter, setBucketFilter] = React.useState<BucketFilter>("Todos");
   const [sortOption, setSortOption] = React.useState<SortOption>("leadScore_desc");
-  const [typeFilter, setTypeFilter] = React.useState<AccountType | "Todos">('Todos');
+  const [typeFilter, setTypeFilter] = React.useState<TipoCuenta | "Todos">('Todos');
   const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
   
   const isAdmin = userRole === 'Admin';
-  const salesAndAdminMembers = teamMembers.filter(m => m.role === 'Admin' || m.role === 'SalesRep');
+  const salesAndAdminMembers = teamMembers.filter(m => m.role === 'Admin' || m.role === 'Ventas');
 
   React.useEffect(() => {
     async function loadData() {
@@ -308,11 +308,11 @@ export default function AccountsPage() {
                   className="pl-9 w-full sm:max-w-xs"
                 />
               </div>
-              <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as AccountType | 'Todos')}>
+              <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as TipoCuenta | 'Todos')}>
                   <SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Tipo de Cuenta..." /></SelectTrigger>
                   <SelectContent>
                       <SelectItem value="Todos">Todos los Tipos</SelectItem>
-                      {accountTypeList.map(type => (
+                      {TIPOS_CUENTA.map(type => (
                         <SelectItem key={type} value={type}>{type}</SelectItem>
                       ))}
                   </SelectContent>

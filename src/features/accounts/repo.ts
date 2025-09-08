@@ -16,6 +16,7 @@ import { fromFirestore } from '@/services/account-mapper';
 import { fromFirestoreOrder, getOrders } from '@/services/order-service';
 import { fromFirestoreTeamMember } from '@/services/utils/firestore-converters';
 import { enrichCartera } from './cartera';
+import { selectAccountsByActivity as selectAccountsByActivityFS } from '@/services/reports/select-accounts';
 
 
 const ACCOUNTS = 'accounts';
@@ -107,4 +108,13 @@ export async function saveOrder(
     lastUpdated: Timestamp.now(),
   });
   return { ok: true, id: ref.id };
+}
+
+// ---- Nuevas Acciones de Servidor ----
+export async function selectAccountsByActivityAction(opts: any = {}) {
+    const [result, allTeamMembers] = await Promise.all([
+        selectAccountsByActivityFS(opts),
+        getTeamMembers()
+    ]);
+    return { ...result, allTeamMembers };
 }

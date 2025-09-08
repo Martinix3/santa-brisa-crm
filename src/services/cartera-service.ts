@@ -18,13 +18,14 @@ export async function processCarteraData(
     const teamMembersMap = new Map(teamMembers.map(tm => [tm.id, tm]));
     const accountsMap = new Map(accounts.map(acc => [acc.id, acc]));
     
-    // FIX: Ensure acc.nombre is a non-empty string before mapping.
-    // This was the source of the error and the reason for missing accounts.
-    const accountNameMap = new Map(
-      accounts
-        .filter(acc => acc.nombre && typeof acc.nombre === 'string') 
-        .map(acc => [acc.nombre.toLowerCase().trim(), acc])
-    );
+    // Create a map from lowercase, trimmed account names to the account object.
+    // This will be used to link legacy orders (that only have a clientName) to an account.
+    const accountNameMap = new Map<string, Account>();
+    accounts.forEach(acc => {
+        if (acc.nombre && typeof acc.nombre === 'string') {
+            accountNameMap.set(acc.nombre.toLowerCase().trim(), acc);
+        }
+    });
     
     // NOTE: `directSales` are now excluded as they don't define the commercial status of HORECA/Retail accounts.
     // The `cartera` (portfolio) is specifically about end-customer accounts managed by the sales team.
@@ -34,7 +35,8 @@ export async function processCarteraData(
     for (const interaction of orders) { // Only process orders, not directSales
         let accountId = interaction.accountId;
         
-        // Match by name only if the name is valid
+        // Robustly try to link interaction to an account.
+        // If it doesn't have an ID, try to match by name.
         if (!accountId && interaction.clientName && typeof interaction.clientName === 'string') {
             const matchedAccount = accountNameMap.get(interaction.clientName.toLowerCase().trim());
             if (matchedAccount) {
@@ -107,7 +109,7 @@ export async function processCarteraData(
             nextInteraction,
             totalSuccessfulOrders,
             totalValue,
-            lastInteractionDate,
+            lastInteractionDate: lastInteractionDate?.toISOString(),
             interactions: accountInteractions as Order[],
             responsableId: responsable?.id || '',
             responsableName: responsable?.name,

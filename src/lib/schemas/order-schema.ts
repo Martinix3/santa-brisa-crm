@@ -20,7 +20,7 @@ export const orderSchema = z.object({
   accountId: z.string().optional(),
   accountName: z.string().optional(),
 
-  channel: z.enum(ORDER_CHANNEL_VALUES as [OrderChannel,...OrderChannel[]]),
+  channel: z.enum(ORDER_CHANNEL_VALUES),
   distributorId: z.string().optional().nullable(),
   currency: z.enum(MONEDAS).default("EUR"),
   lines: z.array(orderLineSchema).min(1, "Debe añadir al menos una línea al pedido."),

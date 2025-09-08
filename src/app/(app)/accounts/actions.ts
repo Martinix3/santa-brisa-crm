@@ -2,7 +2,7 @@
 'use server';
 
 import { adminDb as db } from '@/lib/firebaseAdmin';
-import { collection, addDoc, updateDoc, doc, FieldValue, getDocs, query, where, Timestamp } from 'firebase-admin/firestore';
+import { addDoc, updateDoc, doc, FieldValue, getDocs, query, where, Timestamp, collection } from 'firebase-admin/firestore';
 import { accountSchema, type AccountFormValues, toSearchName } from '@/lib/schemas/account-schema';
 
 const ACCOUNTS_COLLECTION = 'accounts';
@@ -56,7 +56,8 @@ export async function upsertAccountAction(input: AccountFormValues) {
     await updateDoc(doc(db, ACCOUNTS_COLLECTION, data.id), payload);
     return { ok: true, id: data.id, op: 'updated' as const };
   } else {
-    const ref = await addDoc(collection(db, ACCOUNTS_COLLECTION), {
+    const accountsCollection = db.collection(ACCOUNTS_COLLECTION);
+    const ref = await addDoc(accountsCollection, {
       ...payload,
       createdAt: FieldValue.serverTimestamp(),
       createdBy: user.id,
@@ -80,8 +81,10 @@ export async function findOrCreateAccountByName(input: {
   const name = input.name.trim();
   const searchName = toSearchName(name);
 
+  const accountsCollection = db.collection(ACCOUNTS_COLLECTION);
+
   // 1) buscar por searchName
-  const snap = await getDocs(query(collection(db, ACCOUNTS_COLLECTION), where("searchName", "==", searchName)));
+  const snap = await getDocs(query(accountsCollection, where("searchName", "==", searchName)));
   if (!snap.empty) {
     const d = snap.docs[0];
     const x = d.data() as any;
@@ -91,7 +94,7 @@ export async function findOrCreateAccountByName(input: {
   // 2) crear mínima si no existe
   const now = Timestamp.now();
   const ownership = input.ownership ?? "propio";
-  const docRef = await addDoc(collection(db, ACCOUNTS_COLLECTION), {
+  const docRef = await addDoc(accountsCollection, {
     name,
     searchName,
     type: "prospect",                 // por defecto

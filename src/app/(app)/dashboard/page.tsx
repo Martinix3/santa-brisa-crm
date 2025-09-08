@@ -230,8 +230,8 @@ export default function DashboardPage() {
       return;
     }
     
-    setIsLoadingData(true);
     async function loadDashboardData() {
+      setIsLoadingData(true);
       try {
         const { orders, accounts, teamMembers, directSales } = await getDashboardDataAction();
 

@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import AccountDialog from "@/features/accounts/components/account-dialog";
-import { TIPOS_CUENTA_VALUES, type TipoCuenta } from "@ssot";
+import { TIPOS_CUENTA, type TipoCuenta } from "@ssot";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getCarteraBundle } from "@/features/accounts/repo";
@@ -163,20 +163,17 @@ export default function AccountsPage() {
     };
 
     filtered.forEach(acc => {
-      const hasSuccessfulOrder = (acc.totalSuccessfulOrders || 0) > 0;
-      const hasInteractions = acc.interactions && acc.interactions.length > 0;
-      const lastInteractionStatus = hasInteractions ? acc.interactions![0].status : null;
-      
-      if (hasSuccessfulOrder) {
-          groups.activeAccounts.push(acc);
-      } else if (lastInteractionStatus === 'Fallido') {
-          groups.failedAccounts.push(acc);
-      } else if (hasInteractions) {
-          groups.followUpAccounts.push(acc);
-      } else {
-          groups.potentialAccounts.push(acc);
-      }
+        if (acc.status === 'Activo' || acc.status === 'Repetición') {
+            groups.activeAccounts.push(acc);
+        } else if (acc.status === 'Fallido') {
+            groups.failedAccounts.push(acc);
+        } else if (acc.status === 'Seguimiento' || acc.status === 'Programada') {
+            groups.followUpAccounts.push(acc);
+        } else if (acc.status === 'Pendiente') {
+            groups.potentialAccounts.push(acc);
+        }
     });
+
 
     Object.values(groups).forEach(group => group.sort(sortFunction));
     return groups as { 
@@ -215,7 +212,7 @@ export default function AccountsPage() {
               <SelectTrigger className="w-[160px]"><SelectValue placeholder="Tipo"/></SelectTrigger>
               <SelectContent>
                 <SelectItem value="Todos">Todos los Tipos</SelectItem>
-                {(TIPOS_CUENTA_VALUES as readonly string[]).map(t=> <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                {TIPOS_CUENTA.map(t=> <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
               </SelectContent>
             </Select>
 
@@ -344,3 +341,5 @@ export default function AccountsPage() {
 type BucketFilter = "Todos" | "Vencidas" | "Para Hoy";
 type SortOption = "leadScore_desc" | "nextAction_asc" | "lastInteraction_desc";
 type AccountFormValues = import('@/lib/schemas/account-schema').AccountFormValues;
+
+      

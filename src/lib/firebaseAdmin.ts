@@ -13,32 +13,16 @@ let app: App;
 if (getApps().find(a => a.name === ADMIN_APP_NAME)) {
   app = getApps().find(a => a.name === ADMIN_APP_NAME)!;
 } else {
-  // This logic attempts to use a service account first, which is more robust for servers.
-  // It falls back to Application Default Credentials for local development or environments
-  // where the service account JSON isn't provided as an env var.
-  const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT || (
-    process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 
-      ? Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString('utf8')
-      : undefined
-  );
-
-  let appOptions: AppOptions;
-
-  if (serviceAccountKey) {
-    // Recommended for production/server environments
-    console.log("Initializing Firebase Admin with explicit Service Account credentials.");
-    appOptions = {
-        credential: cert(JSON.parse(serviceAccountKey)),
-        projectId: process.env.FIREBASE_PROJECT_ID || 'santa-brisa-crm',
-    };
-  } else {
-    // Fallback for local development, Cloud Workstations, etc.
-    console.log("Service account credentials not found. Initializing Firebase Admin with Application Default Credentials.");
-    appOptions = {
-        credential: applicationDefault(),
-        projectId: process.env.GCLOUD_PROJECT || 'santa-brisa-crm',
-    };
-  }
+  // This logic attempts to use Application Default Credentials.
+  // This is the most reliable method for Cloud Workstations, Cloud Run, etc.,
+  // as it doesn't require hardcoding service account keys.
+  // The error the user is seeing stems from the user's account lacking
+  // the 'Service Account Token Creator' role on the target service account.
+  console.log("Initializing Firebase Admin with Application Default Credentials.");
+  const appOptions: AppOptions = {
+      credential: applicationDefault(),
+      projectId: process.env.GCLOUD_PROJECT || 'santa-brisa-crm',
+  };
   
   app = initializeApp(appOptions, ADMIN_APP_NAME);
 }

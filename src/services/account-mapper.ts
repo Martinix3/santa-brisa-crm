@@ -1,7 +1,8 @@
 
 import type { Account, AccountFormValues } from '@/types';
 
-const norm = (s?: string | null) => (s ?? '').trim() || undefined;
+// Helper to normalize strings: ensures undefined for empty/whitespace strings.
+const norm = (s?: string | null): string | undefined => (s?.trim() ? s.trim() : undefined);
 
 export function fromFirestore(raw: any): Account {
   const name = raw.name ?? raw.nombre ?? '';

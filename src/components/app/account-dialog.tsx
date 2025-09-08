@@ -32,8 +32,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Account, AccountType, TeamMember, AccountFormValues } from "@/types";
-import { TIPOS_CUENTA, PROVINCIAS_ES } from "@/lib/data";
+import type { Account, TeamMember } from "@/types";
+import { TIPOS_CUENTA, PROVINCIAS_ES, type TipoCuenta } from "@ssot";
 import { Loader2, Truck } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { getTeamMembersFS } from "@/services/team-member-service";
@@ -44,7 +44,7 @@ const NO_SALES_REP_VALUE = "##NONE##";
 
 const B2B_TYPES = ["Distribuidor", "Importador"] as const;
 type B2BType = typeof B2B_TYPES[number];
-const isB2B = (t?: AccountType | null): t is B2BType =>
+const isB2B = (t?: TipoCuenta | null): t is B2BType =>
   !!t && (B2B_TYPES as readonly string[]).includes(t as string);
 
 const accountFormSchemaBase = z.object({
@@ -63,7 +63,7 @@ const accountFormSchemaBase = z.object({
         message: "Formato de CIF/NIF no válido. Use 1 letra, 7 números y 1 carácter de control.",
       }
     ),
-  type: z.enum(TIPOS_CUENTA as [AccountType, ...AccountType[]], {
+  type: z.enum(TIPOS_CUENTA as [TipoCuenta, ...TipoCuenta[]], {
     required_error: "El tipo de cuenta es obligatorio.",
   }),
   iban: z.string().optional(),
@@ -112,6 +112,10 @@ const accountFormSchemaBase = z.object({
   }
 });
 
+// We define the form values type directly from the schema
+export type AccountFormValues = z.infer<typeof accountFormSchemaBase>;
+
+
 interface AccountDialogProps {
   account: Account | null;
   isOpen: boolean;
@@ -137,8 +141,9 @@ export default function AccountDialog({
     return accountFormSchemaBase.refine(
       (data) => {
         if (!data.cif || data.cif.trim() === "") return true;
+        const cifToCompare = data.cif.toLowerCase();
         const existingAccountWithCif = allAccounts.find(
-          (acc) => acc.cif && acc.cif.toLowerCase() === data.cif!.toLowerCase() && acc.id !== account?.id
+          (acc) => acc.cif && acc.cif.toLowerCase() === cifToCompare && acc.id !== account?.id
         );
         return !existingAccountWithCif;
       },

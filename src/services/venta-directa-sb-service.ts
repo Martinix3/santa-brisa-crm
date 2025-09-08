@@ -1,9 +1,8 @@
-
-import { db } from '@/lib/firebase';
+import { adminDb } from '@/lib/firebaseAdmin';
 import {
   collection, query, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, Timestamp, orderBy,
   type DocumentSnapshot, runTransaction, FieldValue, increment, where
-} from "firebase/firestore";
+} from "firebase-admin/firestore";
 import type { DirectSale, ItemBatch, InventoryItem, DirectSaleItem, OrderType } from '@/types';
 import { format, parseISO, isValid } from 'date-fns';
 import { addStockTxnFSTransactional } from './stock-txn-service';
@@ -13,23 +12,23 @@ import { fromFirestoreDirectSale, toFirestoreDirectSale } from './utils/firestor
 const DIRECT_SALES_COLLECTION = 'directSales'; 
 
 export const getDirectSalesFS = async (): Promise<DirectSale[]> => {
-  const salesCol = collection(db, DIRECT_SALES_COLLECTION);
+  const salesCol = adminDb.collection(DIRECT_SALES_COLLECTION);
   const q = query(salesCol, orderBy('issueDate', 'desc'));
-  const salesSnapshot = await getDocs(q);
+  const salesSnapshot = await q.get();
   return salesSnapshot.docs.map(docSnap => fromFirestoreDirectSale(docSnap));
 };
 
 export const addDirectSaleFS = async (data: any): Promise<string> => {
   const saleCode = await generateDirectSaleCode();
-  const newSaleDocRef = doc(db, DIRECT_SALES_COLLECTION, saleCode);
+  const newSaleDocRef = doc(adminDb, DIRECT_SALES_COLLECTION, saleCode);
 
-  return await runTransaction(db, async (transaction) => {
+  return await runTransaction(adminDb, async (transaction) => {
     let totalCostOfGoods = 0;
 
     const { subtotal, tax, totalAmount } = data; // Use client-calculated totals
 
-    const itemRefs = data.items.map((item: any) => doc(db, 'inventoryItems', item.productId));
-    const batchRefs = data.items.map((item: any) => item.batchId ? doc(db, 'itemBatches', item.batchId) : null).filter(Boolean);
+    const itemRefs = data.items.map((item: any) => doc(adminDb, 'inventoryItems', item.productId));
+    const batchRefs = data.items.map((item: any) => item.batchId ? doc(adminDb, 'itemBatches', item.batchId) : null).filter(Boolean);
     
     const allRefs = [...itemRefs, ...batchRefs];
     const allDocs = await Promise.all(allRefs.map(ref => transaction.get(ref!)));
@@ -58,11 +57,11 @@ export const addDirectSaleFS = async (data: any): Promise<string> => {
             const newBatchQty = batchData.qtyRemaining - item.quantity;
             totalCostOfGoods += (batchData.unitCost || 0) * item.quantity;
 
-            transaction.update(doc(db, 'itemBatches', item.batchId), {
+            transaction.update(doc(adminDb, 'itemBatches', item.batchId), {
                 qtyRemaining: newBatchQty,
                 isClosed: newBatchQty <= 0
             });
-            transaction.update(doc(db, 'inventoryItems', item.productId), {
+            transaction.update(doc(adminDb, 'inventoryItems', item.productId), {
                 stock: increment(-item.quantity)
             });
 
@@ -81,7 +80,7 @@ export const addDirectSaleFS = async (data: any): Promise<string> => {
     } else { // 'deposito'
         for (let i = 0; i < data.items.length; i++) {
              const item = data.items[i];
-             const itemRef = doc(db, 'inventoryItems', item.productId);
+             const itemRef = doc(adminDb, 'inventoryItems', item.productId);
              const itemDoc = itemDocsMap.get(item.productId);
              if (!itemDoc?.exists()) throw new Error(`Producto ${item.productName} no encontrado.`);
 
@@ -110,8 +109,8 @@ export const addDirectSaleFS = async (data: any): Promise<string> => {
 };
 
 export const regularizeConsignmentDirectSaleFS = async (originalSaleId: string, unitsToInvoice: number): Promise<void> => {
-  return await runTransaction(db, async (transaction) => {
-    const originalSaleRef = doc(db, DIRECT_SALES_COLLECTION, originalSaleId);
+  return await runTransaction(adminDb, async (transaction) => {
+    const originalSaleRef = doc(adminDb, DIRECT_SALES_COLLECTION, originalSaleId);
     const originalSaleDoc = await transaction.get(originalSaleRef);
     if (!originalSaleDoc.exists()) throw new Error("La orden de depósito original no existe.");
     
@@ -129,7 +128,7 @@ export const regularizeConsignmentDirectSaleFS = async (originalSaleId: string, 
     }
 
     const newSaleCode = await generateDirectSaleCode();
-    const newSaleRef = doc(db, DIRECT_SALES_COLLECTION, newSaleCode);
+    const newSaleRef = doc(adminDb, DIRECT_SALES_COLLECTION, newSaleCode);
 
     const pricePerUnit = 8;
     const subtotal = unitsToInvoice * pricePerUnit;
@@ -179,14 +178,14 @@ export const regularizeConsignmentDirectSaleFS = async (originalSaleId: string, 
 };
 
 export const updateDirectSaleFS = async (id: string, data: Partial<any>): Promise<void> => {
-  const saleDocRef = doc(db, DIRECT_SALES_COLLECTION, id);
+  const saleDocRef = doc(adminDb, DIRECT_SALES_COLLECTION, id);
   const firestoreData = toFirestoreDirectSale(data, false);
   await updateDoc(saleDocRef, firestoreData);
 };
 
 export const deleteDirectSaleFS = async (id: string): Promise<void> => {
-    return runTransaction(db, async (transaction) => {
-        const saleRef = doc(db, DIRECT_SALES_COLLECTION, id);
+    return await runTransaction(adminDb, async (transaction) => {
+        const saleRef = doc(adminDb, DIRECT_SALES_COLLECTION, id);
         const saleDoc = await transaction.get(saleRef);
         if (!saleDoc.exists()) throw new Error("El pedido que intentas eliminar no existe o ya ha sido eliminado.");
 
@@ -196,7 +195,7 @@ export const deleteDirectSaleFS = async (id: string): Promise<void> => {
         const itemRefsToRead: DocumentReference[] = [];
         if (saleData.type === 'directa' || saleData.type === 'deposito') {
             for (const item of saleData.items) {
-                if(item.productId) itemRefsToRead.push(doc(db, 'inventoryItems', item.productId));
+                if(item.productId) itemRefsToRead.push(doc(adminDb, 'inventoryItems', item.productId));
             }
         }
         const itemDocs = await Promise.all(itemRefsToRead.map(ref => ref ? transaction.get(ref) : Promise.resolve(null)));
@@ -216,7 +215,7 @@ export const deleteDirectSaleFS = async (id: string): Promise<void> => {
                     console.warn(`Item with ID ${item.productId} not found. Skipping stock reversal for this item.`);
                 }
 
-                const batchRef = doc(db, 'itemBatches', item.batchId);
+                const batchRef = doc(adminDb, 'itemBatches', item.batchId);
                 transaction.update(batchRef, { qtyRemaining: increment(item.quantity), isClosed: false });
 
                 await addStockTxnFSTransactional(transaction, {

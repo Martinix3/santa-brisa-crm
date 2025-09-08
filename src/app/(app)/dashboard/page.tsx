@@ -4,10 +4,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import type { Order, Account, TeamMember, UserRole, Kpi, StrategicObjective, StickyNote, DirectSale, OrderStatus } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
-import { getOrdersFS, updateOrderStatusFS, updateFullOrderFS } from "@/services/order-service";
-import { getDirectSalesFS } from "@/services/venta-directa-sb-service";
-import { getAccountsFS } from "@/services/account-service";
-import { getTeamMembersFS } from "@/services/team-member-service";
 import { parseISO, isSameYear, isSameMonth, isValid, subDays, addDays } from 'date-fns';
 import { Loader2, PlusCircle, SendHorizonal, FileText, Target, AlertTriangle, Briefcase, ShoppingCart, Award, TrendingUp, DollarSign, Truck, Users, Activity, Banknote, ChevronDown, Filter, CalendarDays, Eye } from "lucide-react";
 import Link from 'next/link';
@@ -37,6 +33,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { DateRange } from "react-day-picker";
 import EditOrderDialog, { type EditOrderFormValues } from "@/components/app/edit-order-dialog";
+import { getAccountsAction } from "@/services/server/account-actions";
+import { getDashboardDataAction, updateDistributorOrderStatusAction } from "@/services/server/dashboard-actions";
+import { getTeamMembersFS } from "@/services/team-member-service";
+import { updateFullOrderFS } from "@/services/order-service";
 
 // --- Distributor Portal Component ---
 function DistributorPortal({ teamMember, dataSignature, refreshDataSignature }: { teamMember: TeamMember, dataSignature: number, refreshDataSignature: () => void }) {
@@ -64,22 +64,18 @@ function DistributorPortal({ teamMember, dataSignature, refreshDataSignature }: 
       }
       setIsLoading(true);
       try {
-        const [fetchedOrders, fetchedSales, fetchedAccounts] = await Promise.all([
-          getOrdersFS(),
-          getDirectSalesFS(),
-          getAccountsFS()
-        ]);
+        const { orders, directSales, accounts } = await getDashboardDataAction();
         
-        setAllAccounts(fetchedAccounts);
-        const managedAccountIds = new Set(fetchedAccounts.filter(acc => acc.distributorId === teamMember.accountId).map(acc => acc.id));
+        setAllAccounts(accounts);
+        const managedAccountIds = new Set(accounts.filter(acc => acc.distributorId === teamMember.accountId).map(acc => acc.id));
 
-        const managedOrders = fetchedOrders.filter(o => {
+        const managedOrders = orders.filter(o => {
             const isPlacementOrder = VALID_SALE_STATUSES.includes(o.status) || o.status === 'Pagado' || o.status === 'Cancelado';
             return o.accountId && managedAccountIds.has(o.accountId) && isPlacementOrder;
         });
 
         setAllManagedOrders(managedOrders);
-        setAllInvoices(fetchedSales.filter(s => s.customerId === teamMember.accountId));
+        setAllInvoices(directSales.filter(s => s.customerId === teamMember.accountId));
 
       } catch (error) {
         console.error("Error loading distributor data:", error);
@@ -135,7 +131,7 @@ function DistributorPortal({ teamMember, dataSignature, refreshDataSignature }: 
         invoiceUrl: data.invoiceUrl,
         invoiceFileName: data.invoiceFileName
       };
-      await updateFullOrderFS(orderId, orderUpdateData);
+      await updateDistributorOrderStatusAction(orderId, orderUpdateData);
       refreshDataSignature();
       toast({ title: "¡Pedido Actualizado!", description: "Los detalles del pedido han sido guardados." });
     } catch (error) {
@@ -237,17 +233,12 @@ export default function DashboardPage() {
     setIsLoadingData(true);
     async function loadDashboardData() {
       try {
-        const [fetchedOrders, fetchedAccounts, fetchedTeamMembers, fetchedDirectSales] = await Promise.all([
-          getOrdersFS(),
-          getAccountsFS(),
-          getTeamMembersFS(['SalesRep']),
-          getDirectSalesFS(),
-        ]);
+        const { orders, accounts, teamMembers, directSales } = await getDashboardDataAction();
 
-        setOrders(fetchedOrders as Order[]);
-        setAccounts(fetchedAccounts as Account[]);
-        setSalesReps(fetchedTeamMembers as TeamMember[]);
-        setDirectSales(fetchedDirectSales as DirectSale[]);
+        setOrders(orders);
+        setAccounts(accounts);
+        setSalesReps(teamMembers.filter(m => m.role === 'SalesRep'));
+        setDirectSales(directSales);
         
       } catch (error) {
         console.error("Error loading dashboard data:", error);

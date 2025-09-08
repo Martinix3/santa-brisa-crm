@@ -5,7 +5,6 @@ import {
 } from "firebase-admin/firestore";
 import type { TeamMember, TeamMemberFormValues, UserRole } from '@/types';
 import { format, parseISO } from 'date-fns';
-import { mockTeamMembers as initialMockTeamMembersForSeeding } from '@/lib/data';
 
 const TEAM_MEMBERS_COLLECTION = 'teamMembers';
 
@@ -134,26 +133,8 @@ export const deleteTeamMemberFS = async (id: string): Promise<void> => {
 export const initializeMockTeamMembersInFirestore = async () => {
     const membersCol = adminDb.collection(TEAM_MEMBERS_COLLECTION);
     const snapshot = await membersCol.limit(1).get();
-    if (snapshot.empty && initialMockTeamMembersForSeeding.length > 0) {
-        for (const member of initialMockTeamMembersForSeeding) {
-            const { id, performanceData, bottlesSold, orders, visits, ...memberData } = member;
-            
-            const formValues: TeamMemberFormValues = {
-                authUid: member.id,
-                name: member.name,
-                email: member.email.toLowerCase(),
-                role: member.role,
-                avatarUrl: member.avatarUrl,
-                monthlyTargetAccounts: member.monthlyTargetAccounts,
-                monthlyTargetVisits: member.monthlyTargetVisits,
-            };
-            const firestoreReadyData = toFirestoreTeamMember(formValues, true);
-            
-            await membersCol.add(firestoreReadyData);
-        }
-        console.log('Mock team members initialized in Firestore.');
-    } else if (initialMockTeamMembersForSeeding.length === 0) {
-        console.log('No mock team members to seed or data source empty.');
+    if (snapshot.empty) {
+        console.log('No team members found, skipping initialization.');
     } else {
         console.log('Team members collection is not empty. Skipping initialization.');
     }

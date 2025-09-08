@@ -23,7 +23,7 @@ interface MultiSelectProps {
   disabled?: boolean;
 }
 
-function MultiSelect({ options, selected, onChange, className, disabled, ...props }: MultiSelectProps) {
+function MultiSelect({ options = [], selected, onChange, className, disabled, ...props }: MultiSelectProps) {
   const [open, setOpen] = React.useState(false);
 
   const handleUnselect = (item: string) => {
@@ -99,7 +99,7 @@ function MultiSelect({ options, selected, onChange, className, disabled, ...prop
           <CommandEmpty>No options found.</CommandEmpty>
           <CommandList>
             <CommandGroup>
-              {options.map((option) => (
+              {(options ?? []).map((option) => (
                 <CommandItem
                   key={option.value}
                   onSelect={() => {

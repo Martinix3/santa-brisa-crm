@@ -22,7 +22,7 @@ const TEAM_MEMBERS = 'teamMembers';
 
 // ---- Lecturas ---------------------------------------------------------------
 export async function getAccounts(): Promise<Account[]> {
-  const snap = await getDocs(query(collection(db, ACCOUNTS), orderBy('name', 'asc')));
+  const snap = await db.collection(ACCOUNTS).orderBy('name', 'asc').get();
   return snap.docs.map(d => fromFirestore({ id: d.id, ...d.data() }));
 }
 
@@ -58,13 +58,13 @@ export async function getRecentHistoryByAccount(
 }
 
 export async function getTeamMembers(): Promise<TeamMember[]> {
-  const snap = await getDocs(collection(db, TEAM_MEMBERS));
+  const snap = await db.collection(TEAM_MEMBERS).get();
   return snap.docs.map(d => fromFirestoreTeamMember(d));
 }
 
 // ---- Escrituras -------------------------------------------------------------
 export async function updateAccount(accountId: string, patch: Partial<Account>): Promise<void> {
-  await updateDoc(doc(db, ACCOUNTS, accountId), {
+  await db.collection(ACCOUNTS).doc(accountId).update({
     ...patch,
     updatedAt: Timestamp.now(),
   });
@@ -73,7 +73,7 @@ export async function updateAccount(accountId: string, patch: Partial<Account>):
 export async function saveInteraction(
   input: Omit<Interaction, 'id' | 'createdAt' | 'lastUpdated'>
 ): Promise<{ ok: true; id: string }> {
-  const ref = await addDoc(collection(db, ORDERS), {
+  const ref = await db.collection(ORDERS).add({
     ...input,
     kind: 'interaction',
     createdAt: Timestamp.now(),
@@ -85,7 +85,7 @@ export async function saveInteraction(
 export async function saveOrder(
   input: Omit<Order, 'id' | 'createdAt' | 'lastUpdated' | 'status'> & { status?: OrderStatus }
 ): Promise<{ ok: true; id: string }> {
-  const ref = await addDoc(collection(db, ORDERS), {
+  const ref = await db.collection(ORDERS).add({
     ...input,
     kind: 'order',
     status: input.status ?? 'Borrador',

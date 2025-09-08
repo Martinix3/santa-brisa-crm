@@ -70,7 +70,7 @@ export function enrichCartera(
             status = nextInteraction.status as 'Programada' | 'Seguimiento';
         } else {
             if (successfulOrders.length === 0) {
-                 status = accountInteractions.some(o => o.status === 'Fallido') ? 'Fallido' : 'Pendiente';
+                 status = accountInteractions.length > 0 ? 'Fallido' : 'Pendiente';
             } else {
                  const lastOrderDate = parseISO(successfulOrders[0].createdAt!);
                  const daysSinceLastOrder = differenceInDays(new Date(), lastOrderDate);

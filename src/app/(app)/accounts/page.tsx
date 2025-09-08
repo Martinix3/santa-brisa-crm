@@ -40,7 +40,7 @@ const AccountGroup = ({
 
   return (
     <React.Fragment>
-      <TableRow className="sb-group" style={style} role="rowgroup">
+      <TableRow className="sb-group" style={style}>
         <TableCell colSpan={8} className="p-0">
           <button
             type="button"
@@ -163,7 +163,7 @@ export default function AccountsPage() {
     };
 
     filtered.forEach(acc => {
-      const hasSuccessfulOrder = acc.totalSuccessfulOrders > 0;
+      const hasSuccessfulOrder = (acc.totalSuccessfulOrders || 0) > 0;
       const hasInteractions = acc.interactions && acc.interactions.length > 0;
       const lastInteractionStatus = hasInteractions ? acc.interactions![0].status : null;
       
@@ -344,4 +344,3 @@ export default function AccountsPage() {
 type BucketFilter = "Todos" | "Vencidas" | "Para Hoy";
 type SortOption = "leadScore_desc" | "nextAction_asc" | "lastInteraction_desc";
 type AccountFormValues = import('@/lib/schemas/account-schema').AccountFormValues;
-

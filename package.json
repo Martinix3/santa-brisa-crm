@@ -12,6 +12,7 @@
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "migrate:skus": "tsx src/scripts/migrate-skus.ts",
     "seed:accounts": "tsx src/scripts/seed-accounts.ts",
+    "seed:test-accounts": "tsx src/scripts/seed-test-accounts.ts",
     "migrate:erp": "tsx src/scripts/migrate-erp-data.ts",
     "migrate:categories": "tsx src/scripts/migrate-categories.ts",
     "assign-distributor": "tsx src/scripts/assign-distributor-to-orders.ts",

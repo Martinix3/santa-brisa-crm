@@ -63,11 +63,15 @@ export function AccountRow({
   isExpanded,
   onToggleExpand,
   onOpenHub,
+  className,
+  tdClassName,
 }: {
   account: EnrichedAccount;
   isExpanded: boolean;
   onToggleExpand: () => void;
   onOpenHub: (accountId: string, mode: 'registrar' | 'editar' | 'pedido') => void;
+  className?: string;
+  tdClassName?: string;
 }) {
   const nextInteractionDate = account.nextInteraction?.status === 'Programada'
     ? account.nextInteraction.visitDate
@@ -75,8 +79,8 @@ export function AccountRow({
 
   return (
     <React.Fragment>
-      <TableRow className={cn("group", isExpanded && "bg-muted/50")}>
-        <TableCell className="w-8 pl-2">
+      <TableRow className={cn("group", className, isExpanded && "bg-muted/50")}>
+        <TableCell className={cn("w-8 pl-2", tdClassName)}>
           <Button
             aria-label={isExpanded ? 'Contraer' : 'Expandir'}
             variant="ghost"
@@ -87,28 +91,28 @@ export function AccountRow({
             {isExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
           </Button>
         </TableCell>
-        <TableCell className="font-medium p-2">
+        <TableCell className={cn("font-medium p-2", tdClassName)}>
             <Link href={`/accounts/${account.id}`} className="hover:underline text-primary">
                 {account.name}
             </Link>
             <p className="text-xs text-muted-foreground">{account.city ?? '--'}</p>
         </TableCell>
-        <TableCell className="p-2">{account.responsableName || 'N/A'}</TableCell>
-        <TableCell className="p-2 text-sm">
+        <TableCell className={cn("p-2", tdClassName)}>{account.responsableName || 'N/A'}</TableCell>
+        <TableCell className={cn("p-2 text-sm", tdClassName)}>
             {account.lastInteractionDate && isValid(parseISO(account.lastInteractionDate))
                 ? format(parseISO(account.lastInteractionDate), 'dd MMM yyyy', {locale: es})
                 : 'Nunca'
             }
         </TableCell>
-        <TableCell className="p-2 text-sm">
+        <TableCell className={cn("p-2 text-sm", tdClassName)}>
             {nextInteractionDate && isValid(parseISO(nextInteractionDate))
                 ? format(parseISO(nextInteractionDate), 'dd MMM yyyy', {locale: es})
                 : 'No programada'
             }
         </TableCell>
-        <TableCell className="text-right p-2"><FormattedNumericValue value={account.totalValue}/></TableCell>
-        <TableCell className="text-center p-2"><StatusBadge type="account" status={account.status}/></TableCell>
-        <TableCell className="text-right p-2 pr-4">
+        <TableCell className={cn("text-right p-2", tdClassName)}><FormattedNumericValue value={account.totalValue}/></TableCell>
+        <TableCell className={cn("text-center p-2", tdClassName)}><StatusBadge type="account" status={account.status}/></TableCell>
+        <TableCell className={cn("text-right p-2 pr-4", tdClassName)}>
              <Button size="sm" onClick={() => onOpenHub(account.id, 'registrar')}>
                 <Send className="mr-2 h-4 w-4"/>
                     Registrar

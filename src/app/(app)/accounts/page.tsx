@@ -5,7 +5,7 @@ import * as React from "react";
 import { useAuth } from "@/contexts/auth-context";
 import type { EnrichedAccount, TeamMember } from "@/types";
 import { startOfDay, endOfDay, isBefore, isEqual, parseISO, isValid } from 'date-fns';
-import { Loader2, Search, PlusCircle, AlertCircle } from "lucide-react";
+import { Loader2, Search, PlusCircle, AlertCircle, ChevronDown, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -19,26 +19,47 @@ import { getCarteraBundle } from "@/features/accounts/repo";
 import { AccountRow } from "@/features/accounts/components/account-row";
 
 
-const AccountGroup = ({ title, accounts, expandedRowId, onToggleExpand, onOpenHub }: { title: string; accounts: EnrichedAccount[]; expandedRowId: string | null; onToggleExpand: (id: string) => void; onOpenHub: (accountId: string, mode: 'registrar' | 'editar' | 'pedido') => void; }) => {
-    if (accounts.length === 0) return null;
-    return (
-        <>
-            <TableRow className="bg-muted/30 hover:bg-muted/30 sticky top-0 z-10">
-                <TableCell colSpan={8} className="font-semibold text-gray-800 p-2">
-                   {title} ({accounts.length})
-                </TableCell>
-            </TableRow>
-            {accounts.map(account => (
-                <AccountRow
-                    key={account.id}
-                    account={account}
-                    isExpanded={expandedRowId === account.id}
-                    onToggleExpand={() => onToggleExpand(account.id)}
-                    onOpenHub={onOpenHub}
-                />
-            ))}
-        </>
-    )
+const AccountGroup = ({
+  title, accounts, expandedRowId, onToggleExpand, onOpenHub,
+}: {
+  title: string;
+  accounts: EnrichedAccount[];
+  expandedRowId: string | null;
+  onToggleExpand: (id: string) => void;
+  onOpenHub: (accountId: string, mode: 'registrar'|'editar'|'pedido') => void;
+}) => {
+  const [open, setOpen] = React.useState(true);
+  if (accounts.length === 0) return null;
+
+  return (
+    <React.Fragment>
+      <TableRow className="sb-group" role="rowgroup">
+        <TableCell colSpan={8} className="p-0">
+          <button
+            type="button"
+            onClick={()=> setOpen(!open)}
+            className="w-full flex items-center gap-2 px-3 py-2 text-left"
+          >
+            {open ? <ChevronDown className="h-4 w-4"/> : <ChevronRight className="h-4 w-4" />}
+            <span>{title}</span>
+            <span className="ml-2 sb-chip">{accounts.length}</span>
+          </button>
+        </TableCell>
+      </TableRow>
+
+      {open && accounts.map(account => (
+        <AccountRow
+          key={account.id}
+          account={account}
+          isExpanded={expandedRowId === account.id}
+          onToggleExpand={()=> onToggleExpand(account.id)}
+          onOpenHub={onOpenHub}
+          className="sb-tr"
+          tdClassName="sb-td"
+        />
+      ))}
+    </React.Fragment>
+  );
 };
 
 
@@ -149,22 +170,96 @@ export default function AccountsPage() {
       console.log('Open hub for', accountId, 'in mode', mode);
   };
   
+  const totalCount = activeAccounts.length + potentialAccounts.length + pendingAccounts.length + inactiveAccounts.length + failedAccounts.length;
+
   return (
     <div className="space-y-6">
       <header><h1 className="text-3xl font-headline font-semibold">Cuentas y Seguimiento</h1><p className="text-muted-foreground">Gestiona tus cuentas, programa visitas y haz seguimiento de tus tareas comerciales.</p></header>
       <Card className="shadow-subtle">
         <CardHeader>
-          <div className="flex flex-col sm:flex-row items-center gap-4 flex-wrap">
-              <div className="relative flex-grow w-full sm:w-auto"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Buscar cuenta, ciudad..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 w-full sm:max-w-xs"/></div>
-              <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as TipoCuenta | 'Todos')}><SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Tipo de Cuenta..." /></SelectTrigger><SelectContent><SelectItem value="Todos">Todos los Tipos</SelectItem>{(TIPOS_CUENTA_VALUES as readonly string[]).map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent></Select>
-              <Select value={bucketFilter} onValueChange={(v) => setBucketFilter(v as BucketFilter)}><SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Filtrar por fecha..." /></SelectTrigger><SelectContent><SelectItem value="Todos">Todas las Tareas</SelectItem><SelectItem value="Vencidas">Vencidas</SelectItem><SelectItem value="Para Hoy">Para Hoy</SelectItem></SelectContent></Select>
-               {isAdmin && (<Select value={responsibleFilter} onValueChange={setResponsibleFilter}><SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Filtrar responsable..." /></SelectTrigger><SelectContent><SelectItem value="Todos">Todos</SelectItem>{salesAndAdminMembers.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent></Select>)}
-               <Select value={sortOption} onValueChange={(v) => setSortOption(v as SortOption)}><SelectTrigger className="w-full sm:w-[240px]"><SelectValue placeholder="Ordenar por..." /></SelectTrigger><SelectContent><SelectItem value="leadScore_desc">Prioridad</SelectItem><SelectItem value="nextAction_asc">Fecha Próxima Tarea</SelectItem><SelectItem value="lastInteraction_desc">Fecha Última Interacción</SelectItem></SelectContent></Select>
-               <Button onClick={() => setDialogOpen(true)} className="ml-auto"><PlusCircle className="mr-2 h-4 w-4"/> Nueva Cuenta</Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[220px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"/>
+              <Input
+                placeholder="Buscar cuenta, ciudad..."
+                value={searchTerm}
+                onChange={(e)=>setSearchTerm(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+
+            <Select value={typeFilter} onValueChange={(v)=>setTypeFilter(v as any)}>
+              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Tipo"/></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Todos">Todos los Tipos</SelectItem>
+                {(TIPOS_CUENTA_VALUES as readonly string[]).map(t=> <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              </SelectContent>
+            </Select>
+
+            <Select value={bucketFilter} onValueChange={(v)=>setBucketFilter(v as BucketFilter)}>
+              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Tareas"/></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Todos">Todas</SelectItem>
+                <SelectItem value="Vencidas">Vencidas</SelectItem>
+                <SelectItem value="Para Hoy">Para Hoy</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {isAdmin && (
+              <Select value={responsibleFilter} onValueChange={setResponsibleFilter}>
+                <SelectTrigger className="w-[180px]"><SelectValue placeholder="Responsable"/></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Todos">Todos</SelectItem>
+                  {salesAndAdminMembers.map(m=> <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+
+            <Select value={sortOption} onValueChange={(v)=>setSortOption(v as any)}>
+              <SelectTrigger className="w-[200px]"><SelectValue placeholder="Ordenar por"/></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="leadScore_desc">Prioridad</SelectItem>
+                <SelectItem value="nextAction_asc">Próxima tarea</SelectItem>
+                <SelectItem value="lastInteraction_desc">Última interacción</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <div className="ml-auto flex items-center gap-2">
+              <span className="sb-chip">Activas {activeAccounts.length}</span>
+              <span className="sb-chip">Seguimiento {potentialAccounts.length}</span>
+              <Button onClick={()=>setDialogOpen(true)} className="rounded-full bg-amber-400 hover:bg-amber-500 text-amber-950">
+                <PlusCircle className="mr-2 h-4 w-4"/> Nueva Cuenta
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
-            {isLoading ? (<div className="flex justify-center items-center h-64"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>
+            {isLoading ? (
+              <Table className="sb-table">
+                <TableHeader>
+                    <TableRow className="sb-tr">
+                    <TableHead className="sb-th w-8"></TableHead>
+                    <TableHead className="sb-th w-[22%]">Cuenta</TableHead>
+                    <TableHead className="sb-th w-[16%]">Responsable</TableHead>
+                    <TableHead className="sb-th w-[20%]">Última Interacción</TableHead>
+                    <TableHead className="sb-th w-[16%]">Próxima Tarea</TableHead>
+                    <TableHead className="sb-th w-[10%] text-right">Valor Total</TableHead>
+                    <TableHead className="sb-th w-[8%] text-center">Estado</TableHead>
+                    <TableHead className="sb-th w-[8%] text-right pr-4">Acciones</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {Array.from({ length: 6 }).map((_,i)=>(
+                    <TableRow key={i} className="sb-tr">
+                      {Array.from({ length: 8 }).map((__,j)=>(
+                        <TableCell key={j} className="sb-td">
+                          <div className="h-3 w-[80%] bg-muted rounded animate-pulse" />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             ) : error ? (
                 <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
@@ -172,15 +267,42 @@ export default function AccountsPage() {
                     <AlertDescription>{error}</AlertDescription>
                 </Alert>
             ) : (
-                <Table>
-                    <TableHeader><TableRow><TableHead className="w-8"></TableHead><TableHead className="w-[20%]">Cuenta</TableHead><TableHead className="w-[15%]">Responsable</TableHead><TableHead className="w-[20%]">Última Interacción</TableHead><TableHead className="w-[15%]">Próxima Tarea</TableHead><TableHead className="w-[10%] text-right">Valor Total</TableHead><TableHead className="w-[10%] text-center">Estado</TableHead><TableHead className="w-[10%] text-right pr-4">Acciones</TableHead></TableRow></TableHeader>
+                <Table className="sb-table">
+                    <TableHeader>
+                        <TableRow className="sb-tr">
+                            <TableHead className="sb-th w-8"></TableHead>
+                            <TableHead className="sb-th w-[22%]">Cuenta</TableHead>
+                            <TableHead className="sb-th w-[16%]">Responsable</TableHead>
+                            <TableHead className="sb-th w-[20%]">Última Interacción</TableHead>
+                            <TableHead className="sb-th w-[16%]">Próxima Tarea</TableHead>
+                            <TableHead className="sb-th w-[10%] text-right">Valor Total</TableHead>
+                            <TableHead className="sb-th w-[8%] text-center">Estado</TableHead>
+                            <TableHead className="sb-th w-[8%] text-right pr-4">Acciones</TableHead>
+                        </TableRow>
+                    </TableHeader>
                     <TableBody>
                         <AccountGroup title="Cuentas Activas y en Repetición" accounts={activeAccounts} expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} onOpenHub={handleOpenHub}/>
                         <AccountGroup title="Potenciales (en seguimiento)" accounts={potentialAccounts} expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} onOpenHub={handleOpenHub}/>
                         <AccountGroup title="Pendientes (Nuevas y Programadas)" accounts={pendingAccounts} expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} onOpenHub={handleOpenHub}/>
                         <AccountGroup title="Cuentas Inactivas" accounts={inactiveAccounts} expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} onOpenHub={handleOpenHub}/>
                         <AccountGroup title="Fallidos / Descartados" accounts={failedAccounts} expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} onOpenHub={handleOpenHub}/>
-                        {(activeAccounts.length + potentialAccounts.length + pendingAccounts.length + inactiveAccounts.length + failedAccounts.length) === 0 && (<TableRow><TableCell colSpan={8} className="text-center h-24 text-muted-foreground">No se encontraron cuentas con los filtros actuales.</TableCell></TableRow>)}
+                        {totalCount === 0 && (
+                            <TableRow>
+                                <TableCell colSpan={8} className="h-40">
+                                <div className="h-full flex flex-col items-center justify-center text-center gap-2">
+                                    <p className="text-sm text-muted-foreground">No hay cuentas que coincidan con los filtros.</p>
+                                    <div className="flex gap-2">
+                                    <Button variant="outline" onClick={()=> { setSearchTerm(""); setTypeFilter("Todos"); setBucketFilter("Todos"); }}>
+                                        Limpiar filtros
+                                    </Button>
+                                    <Button onClick={()=> setDialogOpen(true)} className="rounded-full bg-amber-400 hover:bg-amber-500 text-amber-950">
+                                        <PlusCircle className="mr-2 h-4 w-4"/> Crear nueva cuenta
+                                    </Button>
+                                    </div>
+                                </div>
+                                </TableCell>
+                            </TableRow>
+                        )}
                     </TableBody>
                 </Table>
             )}

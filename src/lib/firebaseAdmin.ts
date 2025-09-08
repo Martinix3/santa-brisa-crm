@@ -1,6 +1,7 @@
+
 // src/lib/firebaseAdmin.ts
 import 'server-only';
-import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
+import { initializeApp, getApps, App, cert, applicationDefault } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { getStorage } from 'firebase-admin/storage';
@@ -12,20 +13,11 @@ let app: App;
 if (getApps().find(a => a.name === ADMIN_APP_NAME)) {
   app = getApps().find(a => a.name === ADMIN_APP_NAME)!;
 } else {
-  // This is the recommended approach for server environments like Vercel or Cloud Run
-  const serviceAccountRaw = process.env.FIREBASE_SERVICE_ACCOUNT
-    ?? (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64
-        ? Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString('utf8')
-        : undefined);
-
-  if (!serviceAccountRaw) {
-    throw new Error('Firebase Admin SDK credentials are not set. Please set FIREBASE_SERVICE_ACCOUNT or FIREBASE_SERVICE_ACCOUNT_BASE64 environment variables.');
-  }
-
-  const serviceAccount = JSON.parse(serviceAccountRaw);
-
+  // Use Application Default Credentials. This is the most robust way for Cloud Workstations.
+  // The developer should be authenticated via `gcloud auth application-default login`.
   app = initializeApp({
-    credential: cert(serviceAccount)
+    credential: applicationDefault(),
+    projectId: process.env.GCLOUD_PROJECT || 'santa-brisa-crm',
   }, ADMIN_APP_NAME);
 }
 

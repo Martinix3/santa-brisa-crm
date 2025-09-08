@@ -1,3 +1,4 @@
+
 // This service now exclusively uses the ADMIN SDK for all Firestore operations.
 
 import { adminDb } from '@/lib/firebaseAdmin';
@@ -18,8 +19,13 @@ export const fromFirestoreOrder = (docSnap: DocumentSnapshot): Order => {
   const toDateString = (ts: any, defaultNow = true): string | undefined => {
       if (!ts) return defaultNow ? new Date().toISOString() : undefined;
       if (ts instanceof Timestamp) return ts.toDate().toISOString();
-      if (typeof ts === 'string') return ts;
-      if (typeof ts === 'object' && ts.seconds) return new Timestamp(ts.seconds, ts.nanoseconds).toDate().toISOString();
+      if (typeof ts === 'string') {
+        const parsedDate = parseISO(ts);
+        if (isValid(parsedDate)) return parsedDate.toISOString();
+      }
+      if (typeof ts === 'object' && ts.seconds) {
+        return new Timestamp(ts.seconds, ts.nanoseconds).toDate().toISOString();
+      }
       const directParsed = new Date(ts);
       if(isValid(directParsed)) return directParsed.toISOString();
       return defaultNow ? new Date().toISOString() : undefined;
@@ -185,3 +191,4 @@ export const updateOrderStatusFS = async (id: string, status: OrderStatus): Prom
     lastUpdated: Timestamp.now(),
   });
 };
+

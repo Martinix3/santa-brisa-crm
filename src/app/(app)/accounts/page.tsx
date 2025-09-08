@@ -3,10 +3,10 @@
 
 import * as React from "react";
 import { useAuth } from "@/contexts/auth-context";
-import type { EnrichedAccount, TeamMember, Order, AccountStatus } from "@/types";
+import type { EnrichedAccount, TeamMember } from "@/types";
 import { startOfDay, endOfDay, isBefore, isEqual, parseISO, isValid } from 'date-fns';
-import { Loader2, Search, PlusCircle } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Loader2, Search, PlusCircle, AlertCircle } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,8 @@ import { getCarteraBundle } from "@/app/(app)/accounts/actions";
 import { AccountRow } from "@/features/accounts/components/account-row";
 import { AccountHubDialog } from "@/features/accounts/components/account-hub-dialog";
 import { TIPOS_CUENTA, type TipoCuenta } from "@ssot";
+import { useToast } from "@/hooks/use-toast";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const AccountGroup = ({ title, accounts, expandedRowId, onToggleExpand, onOpenHub }: { title: string; accounts: EnrichedAccount[]; expandedRowId: string | null; onToggleExpand: (id: string) => void; onOpenHub: (accountId: string, mode: 'registrar' | 'editar' | 'pedido') => void; }) => {
     if (accounts.length === 0) return null;
@@ -40,11 +42,13 @@ const AccountGroup = ({ title, accounts, expandedRowId, onToggleExpand, onOpenHu
 
 
 export default function AccountsPage() {
-  const { userRole, teamMember } = useAuth();
+  const { userRole } = useAuth();
+  const { toast } = useToast();
   
   const [enrichedAccounts, setEnrichedAccounts] = React.useState<EnrichedAccount[]>([]);
   const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
 
   // Dialog state
   const [hubOpen, setHubOpen] = React.useState(false);
@@ -66,18 +70,25 @@ export default function AccountsPage() {
   React.useEffect(() => {
     async function loadData() {
       setIsLoading(true);
+      setError(null);
       try {
         const { enrichedAccounts, teamMembers: members } = await getCarteraBundle();
         setEnrichedAccounts(enrichedAccounts);
         setTeamMembers(members);
-      } catch (error) {
-        console.error("Error fetching data:", error);
+      } catch (err: any) {
+        console.error("Error fetching data:", err);
+        setError("No se pudieron cargar los datos de las cuentas. Por favor, inténtalo de nuevo más tarde.");
+        toast({
+            title: "Error de Red",
+            description: err.message || "Error al conectar con el servidor.",
+            variant: "destructive"
+        });
       } finally {
         setIsLoading(false);
       }
     }
     loadData();
-  }, []);
+  }, [toast]);
   
   const { activeAccounts, potentialAccounts, pendingAccounts, failedAccounts, inactiveAccounts } = React.useMemo(() => {
     const todayStart = startOfDay(new Date());
@@ -113,7 +124,7 @@ export default function AccountsPage() {
         return false;
       });
 
-    const groups = { activeAccounts: [], potentialAccounts: [], pendingAccounts: [], inactiveAccounts: [], failedAccounts: [] } as Record<string, EnrichedAccount[]>;
+    const groups: Record<string, EnrichedAccount[]> = { activeAccounts: [], potentialAccounts: [], pendingAccounts: [], inactiveAccounts: [], failedAccounts: [] };
 
     filtered.forEach(acc => {
       switch (acc.status) {
@@ -127,7 +138,7 @@ export default function AccountsPage() {
     });
 
     Object.values(groups).forEach(group => group.sort(sortFunction));
-    return groups;
+    return groups as { activeAccounts: EnrichedAccount[], potentialAccounts: EnrichedAccount[], pendingAccounts: EnrichedAccount[], inactiveAccounts: EnrichedAccount[], failedAccounts: EnrichedAccount[] };
 
   }, [searchTerm, typeFilter, enrichedAccounts, responsibleFilter, bucketFilter, isAdmin, sortOption]);
 
@@ -152,6 +163,12 @@ export default function AccountsPage() {
         </CardHeader>
         <CardContent>
             {isLoading ? (<div className="flex justify-center items-center h-64"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>
+            ) : error ? (
+                <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Error al cargar datos</AlertTitle>
+                    <AlertDescription>{error}</AlertDescription>
+                </Alert>
             ) : (
                 <Table>
                     <TableHeader><TableRow><TableHead className="w-8"></TableHead><TableHead className="w-[20%]">Cuenta</TableHead><TableHead className="w-[15%]">Responsable</TableHead><TableHead className="w-[20%]">Última Interacción</TableHead><TableHead className="w-[15%]">Próxima Tarea</TableHead><TableHead className="w-[10%] text-right">Valor Total</TableHead><TableHead className="w-[10%] text-center">Estado</TableHead><TableHead className="w-[10%] text-right pr-4">Acciones</TableHead></TableRow></TableHeader>
@@ -161,7 +178,7 @@ export default function AccountsPage() {
                         <AccountGroup title="Pendientes (Nuevas y Programadas)" accounts={pendingAccounts} expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} onOpenHub={handleOpenHub}/>
                         <AccountGroup title="Cuentas Inactivas" accounts={inactiveAccounts} expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} onOpenHub={handleOpenHub}/>
                         <AccountGroup title="Fallidos / Descartados" accounts={failedAccounts} expandedRowId={expandedRowId} onToggleExpand={setExpandedRowId} onOpenHub={handleOpenHub}/>
-                        {(activeAccounts.length + potentialAccounts.length + pendingAccounts.length + inactiveAccounts.length + failedAccounts.length) === 0 && (<TableRow><TableCell colSpan={8} className="text-center h-24 text-muted-foreground">No se encontraron cuentas.</TableCell></TableRow>)}
+                        {(activeAccounts.length + potentialAccounts.length + pendingAccounts.length + inactiveAccounts.length + failedAccounts.length) === 0 && (<TableRow><TableCell colSpan={8} className="text-center h-24 text-muted-foreground">No se encontraron cuentas con los filtros actuales.</TableCell></TableRow>)}
                     </TableBody>
                 </Table>
             )}

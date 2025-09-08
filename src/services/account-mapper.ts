@@ -34,7 +34,7 @@ export function fromFirestore(raw: any): Account {
 
   return {
     id: String(raw.id),
-    name: name, // This is the fix. Use the resolved name.
+    name: name,
     nombre: raw.nombre,
     legalName: raw.legalName,
     type: raw.type,

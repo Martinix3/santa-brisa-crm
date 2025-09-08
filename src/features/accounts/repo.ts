@@ -5,7 +5,7 @@
 import { adminDb as db } from '@/lib/firebaseAdmin';
 import {
   collection, doc, getDoc, getDocs, query, where, orderBy, limit,
-  addDoc, updateDoc, Timestamp, WriteBatch, CollectionReference
+  addDoc, updateDoc, Timestamp
 } from "firebase-admin/firestore";
 import type {
   Account, Order, TeamMember, Interaction, // ajusta según tu /types
@@ -29,7 +29,7 @@ export async function getAccounts(): Promise<Account[]> {
 export async function getAccountById(accountId: string): Promise<Account | null> {
   const ref = doc(db, ACCOUNTS, accountId);
   const snap = await getDoc(ref);
-  return snap.exists() ? fromFirestore({ id: snap.id, ...snap.data() }) : null;
+  return snap.exists ? fromFirestore({ id: snap.id, ...snap.data() }) : null;
 }
 
 export async function getOrdersByAccount(accountId: string): Promise<Order[]> {

@@ -2,7 +2,7 @@
 'use server';
 
 import type { Account, Order, TeamMember, EnrichedAccount } from '@/types';
-import { getAccounts, getOrdersByAccount, getTeamMembers, getRecentHistoryByAccount, getAccountById } from '@/features/accounts/repo';
+import { getAccounts, getOrdersByAccount, getTeamMembers, getRecentHistoryByAccount } from '@/features/accounts/repo';
 import { enrichCartera } from '@/features/accounts/cartera';
 import { getOrdersFS } from '@/services/order-service';
 

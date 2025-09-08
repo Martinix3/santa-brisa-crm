@@ -6,7 +6,9 @@ import { getEventsFS, addEventFS, deleteEventFS, updateEventFS, reorderEventsBat
 import { getTeamMembersFS } from '@/services/team-member-service';
 import { getAllNotesFS, getNotesForUserFS } from '@/services/note-service';
 import { getAccountsFS } from '@/services/account-service';
-import type { Order, CrmEvent, TeamMember, RolUsuario as UserRole, NewScheduledTaskData, EventFormValues, StickyNote, Account } from '@/types';
+import { getInventoryItemsFS } from './inventory-actions';
+import { getCostCentersFS } from './costcenter-actions';
+import type { Order, CrmEvent, TeamMember, RolUsuario as UserRole, NewScheduledTaskData, EventFormValues, StickyNote, Account, InventoryItem, CostCenter } from '@/types';
 import { getDailyTasks as getDailyTasksService } from '@/services/agenda-service';
 
 // This is now an empty type definition for the page, as it's not used elsewhere.
@@ -19,16 +21,20 @@ export async function getAgendaDataAction(userRole: UserRole | null, userId?: st
     teamMembers: TeamMember[],
     notes: StickyNote[],
     accounts: Account[],
+    inventoryItems: InventoryItem[],
+    costCenters: CostCenter[],
 }> {
     if (!userRole) {
         throw new Error("User role is not defined.");
     }
     try {
-        const [orders, events, teamMembers, accounts] = await Promise.all([
+        const [orders, events, teamMembers, accounts, inventoryItems, costCenters] = await Promise.all([
             getOrdersFS(),
             getEventsFS(),
             getTeamMembersFS(['Ventas', 'Clavadista', 'Admin', 'Líder Clavadista']),
             getAccountsFS(),
+            getInventoryItemsFS(),
+            getCostCentersFS(),
         ]);
         
         let notes: StickyNote[] = [];
@@ -43,7 +49,9 @@ export async function getAgendaDataAction(userRole: UserRole | null, userId?: st
             events: JSON.parse(JSON.stringify(events)), 
             teamMembers: JSON.parse(JSON.stringify(teamMembers)), 
             notes: JSON.parse(JSON.stringify(notes)), 
-            accounts: JSON.parse(JSON.stringify(accounts)) 
+            accounts: JSON.parse(JSON.stringify(accounts)),
+            inventoryItems: JSON.parse(JSON.stringify(inventoryItems)),
+            costCenters: JSON.parse(JSON.stringify(costCenters)),
         };
     } catch (error) {
         console.error("Error in getAgendaDataAction:", error);

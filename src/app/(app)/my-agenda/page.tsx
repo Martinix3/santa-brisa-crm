@@ -1,3 +1,4 @@
+
 import { getAgendaDataAction } from "@/services/server/agenda-actions";
 import MyAgendaClientPage from "@/components/app/my-agenda/my-agenda-client-page";
 import { headers } from 'next/headers';
@@ -35,7 +36,7 @@ export default async function MyAgendaPage() {
   // This is a simplified way to get user info on the server.
   const teamMember = await getServerSideUser();
 
-  const { orders, events, teamMembers, notes, accounts } = await getAgendaDataAction(teamMember?.role || null, teamMember?.id);
+  const { orders, events, teamMembers, notes, accounts, inventoryItems, costCenters } = await getAgendaDataAction(teamMember?.role || null, teamMember?.id);
 
   return (
     <MyAgendaClientPage
@@ -46,6 +47,8 @@ export default async function MyAgendaPage() {
       initialTeamMembers={teamMembers}
       initialAccounts={accounts}
       initialNotes={notes}
+      initialInventoryItems={inventoryItems}
+      initialCostCenters={costCenters}
     />
   );
 }

@@ -11,11 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { StickyNote, TeamMember } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import {
-  addNoteFS,
-  updateNoteStatusFS,
-  deleteNoteFS,
-} from '@/services/note-service';
+import { addNoteAction, updateNoteStatusAction, deleteNoteAction } from '@/services/server/note-actions';
 
 interface StickyNotesWidgetProps {
   initialNotes: StickyNote[];
@@ -57,7 +53,7 @@ export function StickyNotesWidget({
 
     setIsAdding(true);
     try {
-      await addNoteFS(newNoteContent, currentUserId, assignedToId);
+      await addNoteAction(newNoteContent, currentUserId, assignedToId);
       setNewNoteContent('');
       if (!isAdmin) {
           setAssignedToId(currentUserId);
@@ -77,7 +73,7 @@ export function StickyNotesWidget({
   const handleToggleStatus = async (noteId: string, isCompleted: boolean) => {
     setIsUpdating(noteId);
     try {
-      await updateNoteStatusFS(noteId, isCompleted);
+      await updateNoteStatusAction(noteId, isCompleted);
       onNotesChange();
     } catch (error) {
       toast({
@@ -93,7 +89,7 @@ export function StickyNotesWidget({
   const handleDeleteNote = async (noteId: string) => {
     setIsUpdating(noteId);
     try {
-      await deleteNoteFS(noteId);
+      await deleteNoteAction(noteId);
       onNotesChange();
     } catch (error) {
       toast({

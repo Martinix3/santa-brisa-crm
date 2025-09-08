@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { Account, Order, AddressDetails, TeamMember, AccountStage, CrmEvent } from "@/types";
 import { useAuth } from "@/contexts/auth-context";
 import { Building2, Edit, ArrowLeft, AlertTriangle, UserCircle, Mail, Phone, ShoppingCart, CalendarDays, Send, Info, Euro, Printer, Loader2, MapPin, Link as LinkIcon, CheckCircle, PartyPopper, Award, Truck } from "lucide-react";
-import AccountDialog, { type AccountFormValues } from "@/components/app/account-dialog";
+import AccountDialog from "@/components/app/account-dialog";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from 'date-fns/locale';
 import StatusBadge from "@/components/app/status-badge";
@@ -68,7 +68,6 @@ export default function AccountDetailPage() {
   const { toast } = useToast();
 
   const [account, setAccount] = React.useState<Account | null>(null);
-  const [calculatedStatus, setCalculatedStatus] = React.useState<AccountStage | null>(null);
   const [allAccountsForValidation, setAllAccountsForValidation] = React.useState<Account[]>([]);
   const [allTeamMembers, setAllTeamMembers] = React.useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -125,8 +124,6 @@ export default function AccountDetailPage() {
 
         setRelatedInteractions(combinedInteractions);
         
-        setCalculatedStatus(foundAccount.stage);
-
       } catch (error) {
         console.error("Error fetching account details or related data:", error);
         toast({ title: "Error al Cargar Datos", description: "No se pudo cargar la información de la cuenta o su historial.", variant: "destructive" });
@@ -150,13 +147,13 @@ export default function AccountDetailPage() {
     setIsAccountDialogOpen(true);
   };
 
-  const handleSaveAccountDetails = async (data: AccountFormValues) => {
+  const handleSaveAccountDetails = async (data: Partial<Account>) => {
     if (!canEditAccount || !account) return;
     
     try {
       await updateAccountAction(account.id, data); 
       refreshDataSignature();
-      toast({ title: "¡Cuenta Actualizada!", description: `La cuenta "${data.name}" ha sido actualizada.` });
+      toast({ title: "¡Cuenta Actualizada!", description: `La cuenta "${data.name || account.name}" ha sido actualizada.` });
       setIsAccountDialogOpen(false);
       router.replace(`/accounts/${accountId}`); 
     } catch (error) {
@@ -234,7 +231,7 @@ export default function AccountDetailPage() {
               <Separator />
               <div className="flex justify-between"><span>Tipo:</span> <strong className="font-medium">{account.type}</strong></div>
               <Separator />
-              <div className="flex justify-between items-center"><span>Etapa:</span> {calculatedStatus ? <StatusBadge type="account" stage={calculatedStatus} /> : <span className="text-muted-foreground">Calculando...</span>}</div>
+              <div className="flex justify-between items-center"><span>Etapa:</span> {account.stage ? <StatusBadge type="account" stage={account.stage} /> : <span className="text-muted-foreground">Calculando...</span>}</div>
               <Separator />
               <div className="flex justify-between items-center">
                   <span className="flex items-center gap-1.5"><Truck className="h-4 w-4"/>Distribuidor:</span>
@@ -397,3 +394,5 @@ export default function AccountDetailPage() {
     </div>
   );
 }
+
+    

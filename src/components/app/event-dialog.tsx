@@ -45,8 +45,6 @@ import { cn } from "@/lib/utils";
 import { format, parseISO, isValid, subDays, isEqual } from "date-fns";
 import { es } from 'date-fns/locale';
 import FormattedNumericValue from "@/components/lib/formatted-numeric-value";
-import { getInventoryItemsAction } from "@/services/server/inventory-actions";
-import { getCostCentersFS } from "@/services/costcenter-service";
 import { useToast } from "@/hooks/use-toast";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { TipoEventoCrm as CrmEventType, EstadoEventoCrm as CrmEventStatus, Moneda as Currency, TIPOS_EVENTO_CRM as crmEventTypeList, ESTADOS_EVENTO_CRM as crmEventStatusList } from "@ssot";
@@ -131,27 +129,7 @@ export default function EventDialog({ event, isOpen, onOpenChange, onSave, isRea
 
   const watchedMaterials = form.watch("assignedMaterials");
 
-  React.useEffect(() => {
-    async function loadDropdownData() {
-      if (isOpen) {
-        setIsLoadingDropdowns(true);
-        try {
-          const [materials, costCenters] = await Promise.all([
-            getInventoryItemsAction(),
-            getCostCentersFS()
-          ]);
-          setAvailableMaterials(materials);
-          setAvailableCostCenters(costCenters);
-        } catch (error) {
-          console.error("Error loading dropdown data for event dialog:", error);
-          toast({ title: "Error de carga de datos", description: "No se pudieron cargar los materiales o centros de coste.", variant: "destructive"});
-        } finally {
-          setIsLoadingDropdowns(false);
-        }
-      }
-    }
-    loadDropdownData();
-  }, [isOpen, toast]);
+  // No data loading inside this component anymore
 
   const totalEstimatedMaterialCost = React.useMemo(() => {
     return watchedMaterials.reduce((total, current) => {

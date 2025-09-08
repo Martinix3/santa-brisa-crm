@@ -35,14 +35,17 @@ export async function getAccountDetailsAction(accountId: string): Promise<{
 }> {
     if (!accountId) return { account: null, interactions: [], events: [], allAccounts: [], allTeamMembers: [] };
 
-    const accountDocRef = db.collection(ACCOUNTS_COLLECTION).doc(accountId);
-    const snap = await accountDocRef.get();
-    const account = snap.exists ? fromFirestore({ id: snap.id, ...snap.data() }) : null;
+    // Fetch the main account document first.
+    const accountDocRef = db.collection('accounts').doc(accountId);
+    const accountSnap = await accountDocRef.get();
 
-    if (!account) {
+    if (!accountSnap.exists) {
         return { account: null, interactions: [], events: [], allAccounts: [], allTeamMembers: [] };
     }
+    
+    const account = fromFirestore({ id: accountSnap.id, ...accountSnap.data() });
 
+    // Fetch all other data in parallel
     const [interactions, events, allAccounts, allTeamMembers] = await Promise.all([
       getInteractionsForAccountFS(accountId, account.name),
       getEventsForAccountFS(accountId),
@@ -52,17 +55,17 @@ export async function getAccountDetailsAction(accountId: string): Promise<{
 
     return {
       account,
-      interactions,
-      events,
-      allAccounts,
-      allTeamMembers,
+      interactions: JSON.parse(JSON.stringify(interactions)),
+      events: JSON.parse(JSON.stringify(events)),
+      allAccounts: JSON.parse(JSON.stringify(allAccounts)),
+      allTeamMembers: JSON.parse(JSON.stringify(allTeamMembers)),
     };
 }
 
 
 export async function updateAccountAction(accountId: string, data: Partial<Account>): Promise<void> {
   const batch = db.batch();
-  const accountDocRef = db.collection(ACCOUNTS_COLLECTION).doc(accountId);
+  const accountDocRef = db.collection('accounts').doc(accountId);
 
   const firestoreData = { ...toFirestore(data), updatedAt: Timestamp.now() };
   batch.update(accountDocRef, firestoreData);
@@ -72,7 +75,7 @@ export async function updateAccountAction(accountId: string, data: Partial<Accou
     const currentAccountSnap = await accountDocRef.get();
     const currentName = currentAccountSnap.exists() ? currentAccountSnap.data()?.name : null;
     if (currentName && currentName !== data.name) {
-      const ordersQuery = db.collection(ORDERS_COLLECTION).where("accountId", "==", accountId);
+      const ordersQuery = db.collection('orders').where("accountId", "==", accountId);
       const ordersSnapshot = await ordersQuery.get();
       ordersSnapshot.forEach(orderDoc => {
         batch.update(orderDoc.ref, { clientName: data.name });
@@ -114,10 +117,10 @@ export async function upsertAccountAction(input: AccountFormValues) {
   };
 
   if (data.id) {
-    await db.collection(ACCOUNTS_COLLECTION).doc(data.id).update(payload);
+    await db.collection('accounts').doc(data.id).update(payload);
     return { ok: true, id: data.id, op: 'updated' as const };
   } else {
-    const ref = await db.collection(ACCOUNTS_COLLECTION).add({
+    const ref = await db.collection('accounts').add({
       ...payload,
       createdAt: FieldValue.serverTimestamp(),
       createdBy: user.id,
@@ -141,7 +144,7 @@ export async function findOrCreateAccountByName(input: {
   const name = input.name.trim();
   const searchName = toSearchName(name);
 
-  const accountsCollection = db.collection(ACCOUNTS_COLLECTION);
+  const accountsCollection = db.collection('accounts');
   const q = accountsCollection.where("searchName", "==", searchName).limit(1);
   const snap = await getDocs(q);
 
@@ -171,3 +174,5 @@ export async function findOrCreateAccountByName(input: {
 
   return { id: docRef.id, name, ownership, distributorId: ownership === "distribuidor" ? (input.distributorId ?? null) : null };
 }
+
+    

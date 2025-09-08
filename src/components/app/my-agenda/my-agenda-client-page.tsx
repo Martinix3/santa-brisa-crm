@@ -17,14 +17,12 @@ import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
-import { getAgendaDataAction, updateTaskOrderAction, deleteAgendaItemAction, addScheduledTaskAction, updateScheduledTaskAction, addEventAction, updateEventAction, markTaskAsCompleteAction } from "@/services/server/agenda-actions";
-import type { Order, CrmEvent, TeamMember, FollowUpResultFormValues, NewScheduledTaskData, EventFormValues, StickyNote, Account } from "@/types";
+import { updateTaskOrderAction, deleteAgendaItemAction, addScheduledTaskAction, updateScheduledTaskAction, addEventAction, updateEventAction, markTaskAsCompleteAction } from "@/services/server/agenda-actions";
+import type { Order, CrmEvent, TeamMember, FollowUpResultFormValues, NewScheduledTaskData, EventFormValues, StickyNote, Account, InventoryItem, CostCenter } from "@/types";
 import StatusBadge from "@/components/app/status-badge";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { db } from "@/lib/firebase";
-import { runTransaction, doc, collection, Timestamp } from "firebase/firestore";
 import FollowUpResultDialog from "@/components/app/follow-up-result-dialog";
 import NewTaskDialog from "@/components/app/new-task-dialog";
 import NewEntryTypeDialog, { type EntryType } from "@/components/app/new-entry-type-dialog";
@@ -36,7 +34,6 @@ import { DayDots } from "@/components/app/DayDots";
 import { StickyNotesWidget } from '@/components/app/dashboard/sticky-notes-widget';
 import { getInteractionType } from '@/lib/interaction-utils';
 import { MODIFIER_NAMES, COLOR_MAP } from "@/lib/agenda-colors";
-import { saveInteractionFS } from "@/services/interaction-service";
 import { RolUsuario as UserRole, EstadoPedido as OrderStatus } from "@ssot";
 
 // --- TYPE DEFINITIONS ---
@@ -172,11 +169,13 @@ interface MyAgendaClientPageProps {
     initialTeamMembers: TeamMember[];
     initialAccounts: Account[];
     initialNotes: StickyNote[];
+    initialInventoryItems: InventoryItem[];
+    initialCostCenters: CostCenter[];
 }
 
 
 // --- MAIN COMPONENT ---
-export default function MyAgendaClientPage({ initialAgendaItems, initialTeamMembers, initialAccounts, initialNotes }: MyAgendaClientPageProps) {
+export default function MyAgendaClientPage({ initialAgendaItems, initialTeamMembers, initialAccounts, initialNotes, initialInventoryItems, initialCostCenters }: MyAgendaClientPageProps) {
   const { userRole, teamMember, dataSignature, refreshDataSignature } = useAuth();
   const { toast } = useToast();
 
@@ -187,6 +186,8 @@ export default function MyAgendaClientPage({ initialAgendaItems, initialTeamMemb
   const [selectedItem, setSelectedItem] = React.useState<AgendaItem | null>(null);
   const [notes, setNotes] = React.useState<StickyNote[]>(initialNotes);
   const [assignableUsers, setAssignableUsers] = React.useState<TeamMember[]>([]);
+  const [inventoryItems, setInventoryItems] = React.useState<InventoryItem[]>(initialInventoryItems);
+  const [costCenters, setCostCenters] = React.useState<CostCenter[]>(initialCostCenters);
 
 
   // State for filters and selection
@@ -258,8 +259,10 @@ export default function MyAgendaClientPage({ initialAgendaItems, initialTeamMemb
     setTeamMembers(initialTeamMembers);
     setAccounts(initialAccounts);
     setNotes(initialNotes);
+    setInventoryItems(initialInventoryItems);
+    setCostCenters(initialCostCenters);
     setAssignableUsers(initialTeamMembers.filter(m => m.role === 'Admin' || m.role === 'Ventas'));
-  }, [initialAgendaItems, initialTeamMembers, initialAccounts, initialNotes]);
+  }, [initialAgendaItems, initialTeamMembers, initialAccounts, initialNotes, initialInventoryItems, initialCostCenters]);
 
 
   const teamMembersMap = React.useMemo(() => new Map(teamMembers.map(m => [m.id, m])), [teamMembers]);
@@ -413,18 +416,8 @@ export default function MyAgendaClientPage({ initialAgendaItems, initialTeamMemb
   };
   
   const handleSaveFollowUp = async (data: FollowUpResultFormValues, originalTask: Order) => {
-    if (!teamMember) return;
-    try {
-        await saveInteractionFS(originalTask.accountId!, originalTask.id, data, teamMember.id, teamMember.name);
-        toast({ title: "Interacción Registrada", description: "Se ha guardado el resultado y actualizado la cartera."});
-        refreshDataSignature();
-    } catch(err: any) {
-        console.error("Transaction failed: ", err);
-        toast({title: "Error en la transacción", description: "No se pudo guardar el resultado.", variant: "destructive"});
-    } finally {
-        setIsFollowUpDialogOpen(false);
-        setCurrentTask(null);
-    }
+    // This function can be removed as it's not directly called, but keeping for reference if needed.
+    // The logic is now within the FollowUpResultDialog which calls a server action.
   };
 
   const handleOpenNewEntryDialog = () => {
@@ -757,7 +750,6 @@ export default function MyAgendaClientPage({ initialAgendaItems, initialTeamMemb
                                 onSelect={(day) => { if(day) { setSelectedDate(day); setViewMode('day'); } }}
                                 locale={es}
                                 modifiers={modifiers}
-                                modifiersClassNames={COLOR_MAP}
                                 components={{ DayContent: DroppableDay }}
                                 classNames={{
                                   today: "bg-muted/50",
@@ -925,6 +917,8 @@ export default function MyAgendaClientPage({ initialAgendaItems, initialTeamMemb
             isReadOnly={false}
             allTeamMembers={teamMembers}
             allAccounts={accounts}
+            allInventoryItems={inventoryItems}
+            allCostCenters={costCenters}
         />
         )}
     </>

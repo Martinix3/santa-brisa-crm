@@ -2,7 +2,8 @@
 'use server';
 
 import { getInventoryItemsFS } from '@/services/inventory-item-service';
-import type { InventoryItem } from '@/types';
+import { getCostCentersFS } from '@/services/costcenter-service';
+import type { InventoryItem, CostCenter } from '@/types';
 
 export async function getInventoryItemsAction(): Promise<InventoryItem[]> {
   try {
@@ -14,4 +15,14 @@ export async function getInventoryItemsAction(): Promise<InventoryItem[]> {
     // es mejor relanzar el error para que el cliente pueda manejarlo.
     throw new Error("Failed to fetch inventory items via server action.");
   }
+}
+
+export async function getCostCentersAction(): Promise<CostCenter[]> {
+    try {
+        const items = await getCostCentersFS();
+        return items;
+    } catch (error) {
+        console.error("Error in getCostCentersAction:", error);
+        throw new Error("Failed to fetch cost centers via server action.");
+    }
 }

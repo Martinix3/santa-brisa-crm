@@ -193,7 +193,6 @@ export async function POST(req: Request) {
     const { name } = await req.json();
     if (!name) return NextResponse.json({ error: "Falta 'name'" }, { status: 400 });
 
-    const db = getFirestore();
     const matches = await findAccountsByName(name, db);
     if (matches.length === 0) {
       return NextResponse.json({ matches: 0, bundles: [], message: "Sin resultados" });

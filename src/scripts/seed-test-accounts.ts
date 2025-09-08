@@ -1,3 +1,4 @@
+
 // To run this script: npx tsx src/scripts/seed-test-accounts.ts
 // This script creates a set of test accounts, each representing a specific commercial status.
 // It's designed to be idempotent; it won't create duplicate accounts if they already exist.
@@ -33,11 +34,12 @@ const ORDERS_COLLECTION = 'orders';
 
 const TEST_REP = { id: 'TEST_USER_ID', name: 'Comercial de Pruebas' };
 
-const accountsToSeed: { name: string, statusTarget: AccountStage, interactions: Partial<Order>[] }[] = [
-    { name: 'Test Potencial (Sin Interacciones)', statusTarget: 'Pendiente', interactions: [] },
+const accountsToSeed: { name: string; statusTarget: AccountStage; accountType: Account['type'], interactions: Partial<Order>[] }[] = [
+    { name: 'Test Potencial (Sin Interacciones)', statusTarget: 'Pendiente', accountType: 'prospect', interactions: [] },
     { 
         name: 'Test Activa (1 Pedido)', 
         statusTarget: 'Activo',
+        accountType: 'customer',
         interactions: [
             { status: 'Entregado', value: 100, createdAt: subDays(new Date(), 15).toISOString() }
         ]
@@ -45,6 +47,7 @@ const accountsToSeed: { name: string, statusTarget: AccountStage, interactions: 
     { 
         name: 'Test Repetición (2 Pedidos)', 
         statusTarget: 'Repetición',
+        accountType: 'customer',
         interactions: [
             { status: 'Entregado', value: 150, createdAt: subDays(new Date(), 20).toISOString() },
             { status: 'Facturado', value: 120, createdAt: subDays(new Date(), 50).toISOString() }
@@ -53,6 +56,7 @@ const accountsToSeed: { name: string, statusTarget: AccountStage, interactions: 
     { 
         name: 'Test Inactiva (>90 días)', 
         statusTarget: 'Inactivo',
+        accountType: 'customer',
         interactions: [
             { status: 'Pagado', value: 200, createdAt: subDays(new Date(), 100).toISOString() }
         ]
@@ -60,6 +64,7 @@ const accountsToSeed: { name: string, statusTarget: AccountStage, interactions: 
     { 
         name: 'Test Seguimiento (Interacción sin Venta)', 
         statusTarget: 'Seguimiento',
+        accountType: 'prospect',
         interactions: [
             { status: 'Completado', value: 0, createdAt: subDays(new Date(), 10).toISOString() }
         ]
@@ -67,6 +72,7 @@ const accountsToSeed: { name: string, statusTarget: AccountStage, interactions: 
      { 
         name: 'Test Fallida (Última Interacción Fallida)', 
         statusTarget: 'Fallido',
+        accountType: 'prospect',
         interactions: [
             { status: 'Fallido', value: 0, createdAt: subDays(new Date(), 5).toISOString() },
             { status: 'Completado', value: 0, createdAt: subDays(new Date(), 30).toISOString() },
@@ -75,6 +81,7 @@ const accountsToSeed: { name: string, statusTarget: AccountStage, interactions: 
     { 
         name: 'Test Programada (Visita Futura)', 
         statusTarget: 'Programada',
+        accountType: 'prospect',
         interactions: [
             { status: 'Programada', value: 0, visitDate: subDays(new Date(), -5).toISOString() } // 5 days in the future
         ]
@@ -83,6 +90,7 @@ const accountsToSeed: { name: string, statusTarget: AccountStage, interactions: 
 
 async function seedTestAccounts() {
     console.log("Starting test accounts seeder...");
+    const createdAccountsData = [];
     
     const accountsRef = db.collection(ACCOUNTS_COLLECTION);
     const ordersRef = db.collection(ORDERS_COLLECTION);
@@ -94,21 +102,22 @@ async function seedTestAccounts() {
         let accountId: string;
         let account: Account;
 
+        const accountDataForCreation = {
+            name: seed.name,
+            searchName: searchName,
+            type: seed.accountType,
+            accountStage: seed.statusTarget,
+            potencial: 'medio',
+            leadScore: 50,
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
+            owner_user_id: TEST_REP.id,
+            city: 'Madrid',
+        };
+
         if (accountQuery.empty) {
             console.log(`  - Creating account: "${seed.name}"`);
-            const newAccountData = {
-                name: seed.name,
-                searchName: searchName,
-                type: 'customer',
-                accountStage: seed.statusTarget,
-                potencial: 'medio',
-                leadScore: 50,
-                createdAt: Timestamp.now(),
-                updatedAt: Timestamp.now(),
-                owner_user_id: TEST_REP.id,
-                city: 'Madrid', // Add a default city
-            };
-            const docRef = await accountsRef.add(newAccountData);
+            const docRef = await accountsRef.add(accountDataForCreation);
             accountId = docRef.id;
             const newDocSnap = await docRef.get();
             account = fromFirestore({ id: newDocSnap.id, ...newDocSnap.data() });
@@ -117,6 +126,11 @@ async function seedTestAccounts() {
             accountId = accountQuery.docs[0].id;
             account = fromFirestore({id: accountId, ...accountQuery.docs[0].data()});
         }
+        
+        createdAccountsData.push({
+            ...accountDataForCreation,
+            id: accountId,
+        });
 
         // Check and create interactions if they don't exist
         for (const interaction of seed.interactions) {
@@ -147,7 +161,17 @@ async function seedTestAccounts() {
         }
     }
     
-    console.log("✅ Seeding script completed.");
+    console.log("\n✅ Seeding script completed.");
+    console.log("--- Resumen de Cuentas Creadas/Verificadas ---");
+    console.table(createdAccountsData.map(acc => ({
+        ID: acc.id.substring(0, 10) + '...',
+        Nombre: acc.name,
+        'Tipo Cuenta': acc.type,
+        'Etapa': acc.accountStage,
+        Ciudad: acc.city,
+        Responsable: acc.owner_user_id,
+    })));
 }
 
 seedTestAccounts().catch(console.error);
+

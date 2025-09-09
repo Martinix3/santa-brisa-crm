@@ -10,7 +10,7 @@ import {
   where,
   Timestamp,
 } from "firebase-admin/firestore";
-import type { Account } from '@/types';
+import type { Account, Order } from '@/types';
 import { fromFirestore } from '@/services/account-mapper';
 import { fromFirestoreOrder } from '@/services/order-service';
 import { VALID_SALE_STATUSES } from '@/lib/constants';
@@ -51,10 +51,7 @@ export async function selectAccountsByActivity(opts: SelectAccountsOptions = {})
   accounts.forEach(a => accountsById.set(a.id, a));
 
   // 2. Fetch all orders (interactions are a subset of orders).
-  let ordersQuery: FirebaseFirestore.Query = db.collection("orders");
-  // The user reported an issue where accounts with old orders were not showing up.
-  // We remove the date range filter from here to fetch ALL orders and then filter client-side if needed
-  // or apply the date range only for certain logic, but not for the main grouping.
+  const ordersQuery: FirebaseFirestore.Query = db.collection("orders");
   const ordersSnap = await ordersQuery.get();
   const allInteractions = ordersSnap.docs.map(fromFirestoreOrder);
 

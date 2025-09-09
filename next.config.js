@@ -1,7 +1,7 @@
-// next.config.js
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // No experimental features are needed at this time.
+  // Permite el proxy de Firebase Studio / Cloud Workstations en desarrollo
+  allowedDevOrigins: ['*.cloudworkstations.dev'],
 };
 
 module.exports = nextConfig;

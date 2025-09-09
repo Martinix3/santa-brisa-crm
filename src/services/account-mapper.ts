@@ -1,8 +1,9 @@
 
+
 import type { Account } from '@/types';
 import type { AccountFormValues } from '@/lib/schemas/account-schema';
 import { parseISO, isValid } from 'date-fns';
-import { Timestamp } from "firebase-admin/firestore";
+import { Timestamp } from "firebase/firestore";
 
 const norm = (s?: string | null): string | undefined => (s?.trim() ? s.trim() : undefined);
 

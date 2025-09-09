@@ -8,34 +8,20 @@ const ADMIN_APP_NAME = 'firebase-admin-app-instance';
 
 let app: App;
 
-const existing = getApps().find(a => a.name === ADMIN_APP_NAME);
-if (existing) {
-  app = existing;
+// Check if the app is already initialized to prevent duplicates
+if (getApps().some((app) => app.name === ADMIN_APP_NAME)) {
+  app = getApps().find((app) => app.name === ADMIN_APP_NAME)!;
 } else {
-  const hasEnvCreds = !!process.env.FIREBASE_CLIENT_EMAIL && !!process.env.FIREBASE_PRIVATE_KEY;
-
+  // Use ADC as the primary, robust method for managed environments
+  // Fallback to service account from env vars is not included as ADC is preferred
   app = initializeApp(
-    hasEnvCreds
-      ? {
-          credential: cert({
-            projectId: process.env.FIREBASE_PROJECT_ID_PROD || 'santa-brisa-crm',
-            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-            privateKey: process.env.FIREBASE_PRIVATE_KEY!.replace(/\\n/g, '\n'),
-          }),
-        }
-      : {
-          // Fallback: ADC (Workstations/Cloud Run/Hosting con cuenta de servicio del entorno)
-          credential: applicationDefault(),
-          projectId: process.env.GCLOUD_PROJECT || process.env.FIREBASE_PROJECT_ID_PROD || 'santa-brisa-crm',
-        },
+    {
+      credential: applicationDefault(),
+      projectId: process.env.GCLOUD_PROJECT || 'santa-brisa-crm',
+    },
     ADMIN_APP_NAME
   );
-
-  console.log(
-    hasEnvCreds
-      ? 'Firebase Admin con Service Account (env).'
-      : 'Firebase Admin con Application Default Credentials (ADC).'
-  );
+  console.log('Firebase Admin initialized with Application Default Credentials (ADC).');
 }
 
 export const adminDb = getFirestore(app);

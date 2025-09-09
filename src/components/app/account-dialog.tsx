@@ -2,9 +2,8 @@
 "use client";
 
 import * as React from "react";
-import { useEffect, useMemo } from "react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
+import { useEffect } from "react";
+import { useForm } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Dialog,
@@ -32,15 +31,16 @@ import {
   AccordionContent,
 } from "@/components/ui/accordion";
 import { Textarea } from "@/components/ui/textarea";
-import { Building2, UserRound, Link2, MapPin, Tag, PlusCircle } from "lucide-react";
+import { Building2, UserRound, Link2, MapPin, Tag, PlusCircle, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import type { TeamMember, Account } from "@/types";
-import { TIPOS_CUENTA_VALUES, type TipoCuenta } from "@ssot";
-import { updateAccountAction, upsertAccountAction } from "@/app/(app)/accounts/actions";
+import { TIPOS_CUENTA_VALUES, type TipoCuenta, OWNERSHIP_OPTIONS } from "@ssot";
 import { useToast } from "@/hooks/use-toast";
 import { accountToForm, formToAccountPartial } from "@/services/account-mapper";
 import type { AccountFormValues } from "@/lib/schemas/account-schema";
 import { accountSchema } from "@/lib/schemas/account-schema";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+
 
 /** Helpers de estilo Santa Brisa (resumen) */
 const hexToRgba = (hex: string, a: number) => {
@@ -72,6 +72,7 @@ export function AccountForm({
   distributors,
   parentAccounts,
   isSaving,
+  isReadOnly,
 }: {
   onSubmit: (data: AccountFormValues) => Promise<void> | void;
   onCancel?: () => void;
@@ -80,6 +81,7 @@ export function AccountForm({
   distributors?: Array<{ id: string; name: string }>;
   parentAccounts?: Array<{ id: string; name: string }>;
   isSaving: boolean;
+  isReadOnly?: boolean;
 }) {
   const { user } = useAuth();
 
@@ -87,244 +89,58 @@ export function AccountForm({
     resolver: zodResolver(accountSchema),
     defaultValues: {
       name: "",
-      accountType: TIPOS_CUENTA_VALUES[0],
-      city: "",
-      country: "ES",
-      salesRepId: user?.id ?? "",
-      mainContactName: "",
-      mainContactEmail: "",
-      mainContactPhone: "",
-      distributorId: "",
-      parentAccountId: "",
-      addressBilling: "",
-      addressShipping: "",
-      notes: "",
-      tags: [],
+      type: "HORECA",
+      ownership: 'propio',
       ...defaultValues,
     },
   });
 
   useEffect(() => {
-    if (user?.id && !form.getValues('salesRepId')) {
-      form.setValue("salesRepId", user.id, { shouldDirty: false });
-    }
-  }, [user?.id, form]);
-  
-  useEffect(() => {
     form.reset({
       name: "",
-      accountType: TIPOS_CUENTA_VALUES[0],
-      city: "",
-      country: "ES",
-      salesRepId: user?.id ?? "",
-      mainContactName: "",
-      mainContactEmail: "",
-      mainContactPhone: "",
-      distributorId: "",
-      parentAccountId: "",
-      addressBilling: "",
-      addressShipping: "",
-      notes: "",
-      tags: [],
+      type: "HORECA",
+      ownership: 'propio',
       ...defaultValues,
-    })
-  }, [defaultValues, form, user?.id]);
+    });
+  }, [defaultValues, form]);
 
-  const [tagInput, setTagInput] = React.useState("");
-  const tags = form.watch("tags") ?? [];
-  const addTag = () => {
-    const t = tagInput.trim();
-    if (!t) return;
-    if (!tags.includes(t)) form.setValue("tags", [...tags, t], { shouldDirty: true });
-    setTagInput("");
-  };
-  const removeTag = (t: string) => form.setValue("tags", tags.filter(x => x!==t), { shouldDirty: true });
 
   return (
+    <Form {...form}>
     <form
       className="space-y-4"
       onSubmit={form.handleSubmit(async (data) => {
         await onSubmit(data);
       })}
     >
-      <div className="rounded-2xl overflow-hidden border border-zinc-200 bg-white">
-        <div className="px-4 py-3 border-b" style={{ background: waterHeader("NuevaCuenta:basicos") }}>
-          <div className="flex items-center gap-2 text-zinc-800"><Building2 className="h-4 w-4"/> <span className="text-sm font-medium">Datos básicos</span></div>
-        </div>
-        <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <Label htmlFor="name">Nombre de la cuenta</Label>
-            <Input id="name" {...form.register("name")} placeholder="Ej. Bar Pepe" />
-            {form.formState.errors.name && (
-              <p className="mt-1 text-xs text-red-600">{form.formState.errors.name.message as string}</p>
+        <div className="space-y-4 p-4 border rounded-lg">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Nombre Comercial</FormLabel><FormControl><Input placeholder="Ej: Bar Manolo" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="legalName" render={({ field }) => (<FormItem><FormLabel>Nombre Fiscal</FormLabel><FormControl><Input placeholder="Ej: Restauración Manolo S.L." {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF/NIF</FormLabel><FormControl><Input placeholder="Ej: B12345678" {...field} value={field.value ?? ""} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="type" render={({ field }) => (<FormItem><FormLabel>Tipo de Cuenta</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{(OPCIONES_TIPO_CUENTA ?? []).map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField control={form.control} name="ownership" render={({ field }) => (<FormItem><FormLabel>Vinculada a</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{(OWNERSHIP_OPTIONS ?? []).map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+            {form.watch('ownership') === 'distribuidor' && (
+                <FormField control={form.control} name="distributorId" render={({ field }) => (<FormItem><FormLabel>Distribuidor</FormLabel><Select onValueChange={field.onChange} value={field.value ?? "##DIRECT##"} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger></FormControl><SelectContent><SelectItem value="##DIRECT##">Venta Directa (Gestiona Santa Brisa)</SelectItem>{(distributors ?? []).map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
             )}
-          </div>
-
-          <div>
-            <Label>Tipo de cuenta</Label>
-            <Select
-              value={String(form.watch("accountType") ?? "")}
-              onValueChange={(v) => form.setValue("accountType", v as TipoCuenta, { shouldDirty: true })}
-            >
-              <SelectTrigger><SelectValue placeholder="Selecciona tipo"/></SelectTrigger>
-              <SelectContent>
-                {TIPOS_CUENTA_VALUES.map((t) => (
-                  <SelectItem key={t} value={t}>{t.replaceAll("_"," ")}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label>Ciudad</Label>
-            <Input {...form.register("city")} placeholder="Ej. Zaragoza" />
-          </div>
-
-          <div>
-            <Label>País</Label>
-            <Input {...form.register("country")} placeholder="Ej. ES" />
-          </div>
-
-          <div className="md:col-span-2">
-            <Label>Responsable comercial</Label>
-            <Select
-              value={form.watch("salesRepId")}
-              onValueChange={(v) => form.setValue("salesRepId", v, { shouldDirty: true })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecciona responsable" />
-              </SelectTrigger>
-              <SelectContent>
-                {(teamMembers && teamMembers.length>0 ? teamMembers : (user ? [{ id: user.id, name: (user as any).name || (user as any).email || "Usuario actual" }] : [])).map(tm => (
-                  <SelectItem key={tm.id} value={tm.id}>{tm.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {form.formState.errors.salesRepId && (
-              <p className="mt-1 text-xs text-red-600">{form.formState.errors.salesRepId.message as string}</p>
-            )}
-          </div>
+            </div>
         </div>
-      </div>
-
-      <Accordion type="multiple" defaultValue={["contacto"]} className="space-y-3">
-        <AccordionItem value="contacto" className="border border-zinc-200 rounded-2xl overflow-hidden">
-          <AccordionTrigger className="px-4 py-3">
-            <div className="flex items-center gap-2 text-zinc-800"><UserRound className="h-4 w-4"/> <span className="text-sm font-medium">Contacto principal</span></div>
-          </AccordionTrigger>
-          <AccordionContent className="p-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <Label>Nombre</Label>
-              <Input {...form.register("mainContactName")} placeholder="Nombre y apellidos" />
-            </div>
-            <div>
-              <Label>Email</Label>
-              <Input type="email" {...form.register("mainContactEmail")} placeholder="nombre@empresa.com" />
-              {form.formState.errors.mainContactEmail && (
-                <p className="mt-1 text-xs text-red-600">{form.formState.errors.mainContactEmail.message as string}</p>
-              )}
-            </div>
-            <div>
-              <Label>Teléfono</Label>
-              <Input {...form.register("mainContactPhone")} placeholder="+34 …" />
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-
-        <AccordionItem value="relacion" className="border border-zinc-200 rounded-2xl overflow-hidden">
-          <AccordionTrigger className="px-4 py-3">
-            <div className="flex items-center gap-2 text-zinc-800"><Link2 className="h-4 w-4"/> <span className="text-sm font-medium">Relación comercial</span></div>
-          </AccordionTrigger>
-          <AccordionContent className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <Label>Distribuidor asignado</Label>
-              <Select
-                value={form.watch("distributorId") || ""}
-                onValueChange={(v) => form.setValue("distributorId", v, { shouldDirty: true })}
-              >
-                <SelectTrigger><SelectValue placeholder="(Opcional)" /></SelectTrigger>
-                <SelectContent>
-                  {(distributors ?? []).map(d => (
-                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Cuenta matriz</Label>
-              <Select
-                value={form.watch("parentAccountId") || ""}
-                onValueChange={(v) => form.setValue("parentAccountId", v, { shouldDirty: true })}
-              >
-                <SelectTrigger><SelectValue placeholder="(Opcional)" /></SelectTrigger>
-                <SelectContent>
-                  {(parentAccounts ?? []).map(a => (
-                    <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-
-        <AccordionItem value="direcciones" className="border border-zinc-200 rounded-2xl overflow-hidden">
-          <AccordionTrigger className="px-4 py-3">
-            <div className="flex items-center gap-2 text-zinc-800"><MapPin className="h-4 w-4"/> <span className="text-sm font-medium">Direcciones</span></div>
-          </AccordionTrigger>
-          <AccordionContent className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <Label>Facturación</Label>
-              <Textarea rows={3} {...form.register("addressBilling")} placeholder="Calle…, CP… Ciudad…, País" />
-            </div>
-            <div>
-              <Label>Envío</Label>
-              <Textarea rows={3} {...form.register("addressShipping")} placeholder="Calle…, CP… Ciudad…, País" />
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-
-        <AccordionItem value="extras" className="border border-zinc-200 rounded-2xl overflow-hidden">
-          <AccordionTrigger className="px-4 py-3">
-            <div className="flex items-center gap-2 text-zinc-800"><Tag className="h-4 w-4"/> <span className="text-sm font-medium">Extras</span></div>
-          </AccordionTrigger>
-          <AccordionContent className="p-4 space-y-3">
-            <div>
-              <Label>Notas</Label>
-              <Textarea rows={3} {...form.register("notes")} placeholder="Información adicional…" />
-            </div>
-            <div>
-              <Label>Tags</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  value={tagInput}
-                  onChange={(e)=>setTagInput(e.target.value)}
-                  onKeyDown={(e)=>{ if(e.key==='Enter'){ e.preventDefault(); addTag(); } }}
-                  placeholder="Escribe un tag y Enter"
-                />
-                <Button type="button" variant="secondary" onClick={addTag} className="inline-flex items-center gap-1"><PlusCircle className="h-4 w-4"/>Añadir</Button>
-              </div>
-              {tags.length>0 && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {tags.map(t => (
-                    <span key={t} className="px-2 py-0.5 text-xs rounded-md border border-zinc-300 bg-zinc-50">
-                      {t}
-                      <button type="button" className="ml-2 text-zinc-500 hover:text-zinc-700" onClick={()=>removeTag(t)}>×</button>
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
 
       <div className="flex items-center justify-end gap-2 pt-2">
         {onCancel && (
           <Button type="button" variant="outline" onClick={onCancel} disabled={isSaving}>Cancelar</Button>
         )}
-        <Button type="submit" disabled={isSaving} className="bg-[var(--sb-primary)] text-zinc-900 hover:brightness-95">Guardar cuenta</Button>
+        <Button type="submit" disabled={isSaving || !form.formState.isDirty} className="bg-[var(--sb-primary)] text-zinc-900 hover:brightness-95">
+            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Guardar
+        </Button>
       </div>
     </form>
+    </Form>
   );
 }
 
@@ -368,11 +184,11 @@ export default function AccountDialog({
     }
   };
   
-  const distributors = useMemo(() => {
+  const distributors = React.useMemo(() => {
     return allAccounts.filter(a => a.accountType === "DISTRIBUIDOR" || a.accountType === "IMPORTADOR").map(a => ({ id: a.id, name: a.name }));
   }, [allAccounts]);
   
-  const parentAccounts = useMemo(() => {
+  const parentAccounts = React.useMemo(() => {
     return allAccounts.map(a => ({ id: a.id, name: a.name }));
   }, [allAccounts]);
 
@@ -392,7 +208,7 @@ export default function AccountDialog({
             </DialogDescription>
         </DialogHeader>
         <div className="px-6 pb-6">
-          <AccountFormCore
+          <AccountForm
               onSubmit={handleSubmit}
               onCancel={() => onOpenChange(false)}
               defaultValues={account ? accountToForm(account as Account) : undefined}
@@ -400,9 +216,11 @@ export default function AccountDialog({
               distributors={distributors}
               parentAccounts={parentAccounts}
               isSaving={isSaving}
+              isReadOnly={isReadOnly}
           />
         </div>
       </DialogContent>
     </Dialog>
   );
 }
+

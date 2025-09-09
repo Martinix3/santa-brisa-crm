@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AccountForm } from "@/components/app/account-dialog";
+import { AccountFormCore } from "@/components/app/account-dialog";
 import type { Account, TeamMember } from "@/types";
 import { upsertAccountAction } from "@/app/(app)/accounts/actions";
 import { useToast } from "@/hooks/use-toast";
@@ -54,12 +54,12 @@ export function CreateAccountForm({
     return allAccounts.map(a => ({ id: a.id, name: a.name }));
   }, [allAccounts]);
   
-  // This is the fix: The component was receiving `initialAccount` but `AccountForm` expects `defaultValues`.
+  // This is the fix: The component was receiving `initialAccount` but `AccountFormCore` expects `defaultValues`.
   // We use the `accountToForm` mapper to correctly transform the data.
   const defaultValues = initialAccount ? accountToForm(initialAccount as Account) : undefined;
   
   return (
-    <AccountForm
+    <AccountFormCore
         onSubmit={handleSubmit}
         onCancel={onCancel}
         defaultValues={defaultValues}

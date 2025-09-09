@@ -20,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body className={cn("min-h-screen bg-background font-sans antialiased", "sb-theme")}>
+      <body className={cn("min-h-screen bg-background font-sans antialiased")}>
         <AuthProvider>
           {children}
           <Toaster />

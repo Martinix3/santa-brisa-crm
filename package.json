@@ -10,6 +10,9 @@
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0 --port 3000",
     "emu": "firebase emulators:start --project santa-brisa-crm",
+    "enable:web": "firebase experiments:enable webframeworks || true",
+    "fix:adc": "gcloud auth application-default set-quota-project santa-brisa-crm || true",
+    "predev:all": "npm run enable:web && npm run fix:adc",
     "dev:all": "concurrently -k \"npm:emu\" \"npm:dev\"",
     "build": "next build",
     "start": "next start",
@@ -110,6 +113,16 @@
     "ts-node": "^10.9.2",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2"
+  },
+  "emulators": {
+    "hub":      { "host": "127.0.0.1", "port": 4400 },
+    "ui":       { "enabled": true, "host": "127.0.0.1", "port": 4000 },
+    "auth":     { "host": "127.0.0.1", "port": 9099 },
+    "firestore":{ "host": "127.0.0.1", "port": 8080 },
+    "functions":{ "host": "127.0.0.1", "port": 5001 },
+    "hosting":  { "host": "127.0.0.1", "port": 5000 },
+    "pubsub":   { "host": "127.0.0.1", "port": 8085 },
+    "storage":  { "host": "127.0.0.1", "port": 9199 }
   },
   "overrides": {
     "next": "15.5.2",

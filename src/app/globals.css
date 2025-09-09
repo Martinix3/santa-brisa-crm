@@ -1,156 +1,163 @@
-/* ========================
-   Santa Brisa — THEME GLOBAL
-   ======================== */
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* 1) TOKENS */
 @layer base {
   :root {
-    /* Colores marca */
-    --sb-primary: #F7D15F;
-    --sb-orange: #D7713E;
-    --sb-aqua:   #A7D8D9;
-    --sb-teal:   #618E8F;
-    --sb-danger: #E25B52;
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
 
-    --sb-primary-rgb: 247 209 95;
-    --sb-orange-rgb:  215 113 62;
-    --sb-aqua-rgb:    167 216 217;
-    --sb-teal-rgb:     97 142 143;
-    --sb-danger-rgb:  226  91  82;
-
-    /* Gris / papel */
-    --sb-ink-900: #0f172a;
-    --sb-ink-700: #374151;
-    --sb-ink-500: #6b7280;
-    --sb-ink-300: #d1d5db;
-    --sb-ink-200: #e5e7eb;
-    --sb-ink-100: #f1f5f9;
-    --sb-paper:   #ffffff;
-
-    /* Superficies */
-    --sb-surface-1: #ffffff;
-    --sb-surface-2: #f8fafc;
-
-
-    /* Espacios + radios */
-    --sb-radius-sm: 8px;
-    --sb-radius-md: 12px;
-    --sb-radius-lg: 16px;
-    --sb-radius-pill: 999px;
-
-    --sb-space-2: .5rem;   /* 8px */
-    --sb-space-3: .75rem;  /* 12px */
-    --sb-space-4: 1rem;    /* 16px */
-    --sb-space-6: 1.5rem;  /* 24px */
-
-    --sb-control-sm: 32px;
-    --sb-control-md: 40px;
-    --sb-control-lg: 48px;
-
-    /* Sombras */
-    --sb-shadow-0: 0 0 0 rgba(0,0,0,0);
-    --sb-shadow-1: 0 1px 2px rgba(16,24,40,0.06), 0 8px 24px -12px rgba(16,24,40,0.08);
-    --sb-shadow-2: 0 2px 6px rgba(16,24,40,0.08), 0 10px 30px -12px rgba(16,24,40,0.10);
-    --sb-shadow-3: 0 4px 12px rgba(16,24,40,0.10), 0 12px 40px -16px rgba(16,24,40,0.12);
-
-    /* Gradiente agua */
-    --sb-water: radial-gradient(120px 80px at 12% 28%, rgb(var(--sb-primary-rgb)/.10), transparent 60%),
-                radial-gradient(160px 120px at 78% 35%, rgb(var(--sb-primary-rgb)/.09), transparent 68%),
-                radial-gradient(100px 70px at 42% 70%,  rgb(var(--sb-primary-rgb)/.07), transparent 70%),
-                linear-gradient(to bottom, rgb(var(--sb-primary-rgb)/.08), transparent);
-    
-    /* Mapeo a ShadCN */
-    --background: 240 10% 98%;
-    --foreground: 222 47% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 222.2 84% 4.9%;
+
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 45 90% 67%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 181 40% 75%;
-    --secondary-foreground: 222 47% 11%;
-    --destructive: 4 71% 60%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 45 90% 67%;
-    --radius: 0.75rem;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+
+    --radius: 0.5rem;
   }
 
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
   body {
-    background: hsl(var(--background));
-    color: hsl(var(--foreground));
-  }
-  *:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(247,209,95,.55);
+    @apply bg-background text-foreground;
   }
 }
 
+/* Custom table cell styling */
+.table-header-std {
+    @apply px-4 py-3 text-left align-middle font-medium text-muted-foreground;
+}
+.table-cell-std {
+    @apply p-4 align-middle;
+}
+.table-cell-main-text {
+    @apply font-medium text-foreground;
+}
+.table-row-std {
+    @apply border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted;
+}
 
-/* 4) COMPONENTES BASE */
-@layer components {
-  /* Botones */
-  .sb-btn {
-    display:inline-flex;align-items:center;gap:.5rem;
-    padding: var(--sb-space-3) var(--sb-space-4);
-    border-radius: var(--sb-radius-md);
-    font-size:.875rem;line-height:1.2;
-    transition: filter .15s, background-color .15s, box-shadow .15s;
-    box-shadow: var(--sb-shadow-1);
-  }
-  .sb-btn:hover {
-    box-shadow: var(--sb-shadow-2);
-  }
-  .sb-btn--solid { background: var(--sb-primary); color:#111; }
-  .sb-btn--outline { border:1px solid hsl(var(--border)); background:#fff; }
-  .sb-btn--subtle { background: var(--sb-ink-100); }
 
-  /* Inputs */
-  .sb-input, .sb-select, .sb-textarea {
-    width:100%;padding:var(--sb-space-3) var(--sb-space-4);
-    border:1px solid hsl(var(--border));border-radius:var(--sb-radius-md);
-    font-size:.875rem;color:var(--sb-ink-700);
-    min-height:var(--sb-control-md);
-    box-shadow: var(--sb-shadow-0);
-    transition: box-shadow .15s;
+/* Print dialog styles */
+@media print {
+  body * {
+    visibility: hidden;
   }
-  .sb-input:focus, .sb-select:focus, .sb-textarea:focus {
-    box-shadow: var(--sb-shadow-1);
+  .print-dialog, .print-dialog * {
+    visibility: visible;
   }
-
-  /* Tablas */
-  .sb-table {
-    width:100%;border-collapse:separate;border-spacing:0;
-    border:1px solid hsl(var(--border));
-    border-radius: var(--sb-radius-lg);
-    overflow:hidden;background: var(--sb-paper);
+  .print-dialog {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
   }
-  
-  /* Relieve en bloques */
-  .sb-card,
-  .sb-results,
-  .sb-toolbar {
-    background: var(--sb-surface-1, #fff);
-    border: 1px solid var(--sb-ink-200,#e5e7eb);
-    border-radius: var(--sb-radius-lg,16px);
-    box-shadow: var(--sb-shadow-1);
-    transition: box-shadow .2s;
-  }
-  .sb-card:hover, .sb-results:hover {
-    box-shadow: var(--sb-shadow-2);
-  }
-
-  /* Headers / toolbars con sombra corta inferior */
-  .sb-header,
-  .sb-block-head {
-    box-shadow: 0 1px 2px rgba(16,24,40,0.08);
+  .print-hide-in-dialog {
+    display: none !important;
   }
 }
 
-    
+/* Print styles for general pages */
+@media print {
+  .print-hide {
+    display: none !important;
+  }
+  #printable-account-details, #printable-account-details * {
+    visibility: visible;
+  }
+  #printable-account-details {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 2rem;
+  }
+}
+
+/* Styles for shipping label dialog */
+.shipping-label-dialog {
+  width: 4in; /* Approx 4 inches */
+  height: 6in; /* Approx 6 inches */
+  padding: 0.25in;
+  box-sizing: border-box;
+}
+
+@media print {
+  @page {
+    size: 4in 6in;
+    margin: 0;
+  }
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .shipping-label-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 4in;
+    height: 6in;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    overflow: hidden;
+  }
+  .shipping-label-dialog-content {
+      visibility: visible;
+  }
+  .print-hide {
+      display: none !important;
+  }
+}

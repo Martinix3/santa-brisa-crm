@@ -1,10 +1,10 @@
-// Import the functions you need from the SDKs you need
+// src/lib/firebase.ts
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
-import { getAuth, initializeAuth, indexedDBLocalPersistence, browserLocalPersistence, type Auth } from "firebase/auth";
-import { getFirestore, Timestamp } from "firebase/firestore"; // Import Firestore
+import { getAuth, type Auth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { Timestamp } from "firebase/firestore";
 
-// Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
@@ -14,7 +14,7 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
 };
 
-// Initialize Firebase using a more robust singleton pattern for Next.js
+// Singleton pattern to initialize Firebase app only once
 function initializeFirebaseApp(): FirebaseApp {
   const apps = getApps();
   if (apps.length > 0) {
@@ -24,23 +24,13 @@ function initializeFirebaseApp(): FirebaseApp {
 }
 
 const app = initializeFirebaseApp();
-// Use getAuth directly. Firebase SDK is smart enough to handle initialization.
-const auth = getAuth(app);
+const db = getFirestore(app);
+const storage = getStorage(app);
 
-// For client-side persistence, this setup is more robust.
-if (typeof window !== 'undefined') {
-  try {
-    // This will attempt to set persistence. It's fine if it's called multiple times
-    // as Firebase handles the initialization logic internally.
-    initializeAuth(app, {
-      persistence: [browserLocalPersistence, indexedDBLocalPersistence]
-    });
-  } catch (e) {
-    console.warn("Could not initialize auth persistence:", e);
-  }
+// This function can be safely called from client components to get the auth instance.
+// It will not be executed on the server.
+const getFirebaseAuth = (): Auth => {
+    return getAuth(app);
 }
 
-export { auth, Timestamp };
-export const db = getFirestore(app);
-export const storage = getStorage(app);
-export default app;
+export { app, db, storage, Timestamp, getFirebaseAuth };

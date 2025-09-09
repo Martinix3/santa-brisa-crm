@@ -8,13 +8,15 @@ import {
   onAuthStateChanged, 
   signInWithEmailAndPassword, 
   signOut as firebaseSignOut,
+  signInWithPopup,
+  GoogleAuthProvider,
   type Auth,
 } from 'firebase/auth';
 import { auth, ensureAuthPersistence, assertFirebaseEnv } from '@/lib/firebase-client';
 import type { TeamMember, TeamMemberFormValues } from '@/types';
 import { useToast } from "@/hooks/use-toast";
 import { getTeamMemberByAuthUidFS } from '@/services/client/team-member-service.client';
-import { createTeamMemberAction } from '@/services/server/team-member-actions';
+import { createTeamMemberAction, findOrCreateTeamMemberForSocialAuthAction } from '@/services/server/team-member-actions';
 import type { RolUsuario } from "@ssot";
 
 interface AuthContextType {
@@ -23,6 +25,7 @@ interface AuthContextType {
   userRole: RolUsuario | null;
   loading: boolean;
   login: (email: string, pass: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   createUserInAuthAndFirestore: (userData: TeamMemberFormValues, pass: string) => Promise<{firebaseUser: FirebaseUser | null, teamMemberId: string | null}>;
   dataSignature: number;
@@ -39,7 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast();
   
   useEffect(() => {
-    // This effect runs once to set up persistence.
+    // This effect runs once to set up persistence and env checks.
     assertFirebaseEnv();
     void ensureAuthPersistence();
   }, []);
@@ -56,10 +59,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setTeamMember(profile);
           } else {
             console.error("AuthContext: Profile not found for UID:", firebaseUser.uid);
-            setTeamMember(null);
-            toast({ title: "Error de Perfil", description: "No se pudo encontrar tu perfil de usuario. Contacta con el administrador.", variant: "destructive" });
-            await firebaseSignOut(auth);
-            setUser(null);
+            // This might happen with a new social auth user. Let's try to create it.
+            const newProfile = await findOrCreateTeamMemberForSocialAuthAction({
+                uid: firebaseUser.uid,
+                email: firebaseUser.email || '',
+                displayName: firebaseUser.displayName || 'Nuevo Usuario',
+                photoURL: firebaseUser.photoURL,
+            });
+            if (newProfile) {
+                setTeamMember(newProfile);
+            } else {
+                toast({ title: "Error de Perfil", description: "No se pudo encontrar ni crear tu perfil. Contacta con el administrador.", variant: "destructive" });
+                await firebaseSignOut(auth);
+                setUser(null);
+            }
           }
         } catch (error) {
           console.error("AuthContext: Error fetching profile:", error);
@@ -90,6 +103,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       toast({ title: "Error de Inicio de Sesión", description: description, variant: "destructive" });
       setLoading(false); 
+      throw error;
+    }
+  };
+
+  const loginWithGoogle = async () => {
+    setLoading(true);
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+      // onAuthStateChanged will handle the rest
+    } catch (error: any) {
+      console.error("AuthContext: Google login error:", error);
+      let description = "No se pudo iniciar sesión con Google.";
+      if (error.code === 'auth/popup-closed-by-user') {
+          description = "Has cerrado la ventana de inicio de sesión de Google.";
+      } else if (error.code === 'auth/account-exists-with-different-credential') {
+          description = "Ya existe una cuenta con este correo electrónico pero con un método de inicio de sesión diferente.";
+      }
+      toast({ title: "Error de Inicio de Sesión", description: description, variant: "destructive" });
+      setLoading(false);
       throw error;
     }
   };
@@ -126,7 +159,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     teamMember,
     userRole: teamMember?.role || null,
     loading, 
-    login, 
+    login,
+    loginWithGoogle, 
     logout, 
     createUserInAuthAndFirestore, 
     dataSignature, 

@@ -1,8 +1,9 @@
+
 // src/lib/firebase-client.ts
 import 'client-only';
 
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
-import { getAuth, setPersistence, browserLocalPersistence, type Auth } from 'firebase/auth';
+import { getAuth, setPersistence, browserLocalPersistence, type Auth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
@@ -52,4 +53,4 @@ export function assertFirebaseEnv() {
   }
 }
 
-export { app, auth, db, storage };
+export { app, auth, db, storage, GoogleAuthProvider, signInWithPopup };

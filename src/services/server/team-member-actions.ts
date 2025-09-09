@@ -1,11 +1,11 @@
 
-
 'use server';
+import 'server-only';
 
 import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
 import { addTeamMemberFS, getTeamMemberByAuthUidFS as getTeamMemberByAuthUidFromServiceFS } from '@/services/team-member-service';
 import type { TeamMember, TeamMemberFormValues } from '@/types';
-import type { RolUsuario } from '@ssot';
+import type { RolUsuario } from "@ssot";
 
 /**
  * Fetches a team member profile from Firestore using their Firebase Authentication UID.
@@ -66,4 +66,38 @@ export async function createTeamMemberAction(
     }
     return { error: errorMessage };
   }
+}
+
+interface SocialAuthUserData {
+  uid: string;
+  email: string;
+  displayName: string;
+  photoURL?: string | null;
+}
+
+export async function findOrCreateTeamMemberForSocialAuthAction(
+    authUserData: SocialAuthUserData
+): Promise<TeamMember | null> {
+    const existingMember = await getTeamMemberByAuthUidFromServiceFS(authUserData.uid);
+    if (existingMember) {
+        return existingMember;
+    }
+
+    // User does not exist, create a new profile.
+    console.log(`Creating new team member profile for social auth user: ${authUserData.email}`);
+    try {
+        const userDataForFirestore: TeamMemberFormValues = {
+            name: authUserData.displayName,
+            email: authUserData.email,
+            role: 'Ventas', // Assign a default role
+            avatarUrl: authUserData.photoURL || undefined,
+            authUid: authUserData.uid,
+        };
+        const teamMemberId = await addTeamMemberFS(userDataForFirestore);
+        const newMember = await getTeamMemberByAuthUidFromServiceFS(authUserData.uid);
+        return newMember;
+    } catch (error) {
+        console.error("Error creating team member profile for social auth user:", error);
+        return null;
+    }
 }

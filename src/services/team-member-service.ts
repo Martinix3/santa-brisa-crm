@@ -100,6 +100,10 @@ export const getTeamMemberByEmailFS = async (email: string): Promise<TeamMember 
 };
 
 export const addTeamMemberFS = async (data: TeamMemberFormValues): Promise<string> => {
+  const existingUser = await getTeamMemberByEmailFS(data.email);
+  if (existingUser) {
+    throw new Error(`Un usuario con el email ${data.email} ya existe.`);
+  }
   const firestoreData = toFirestoreTeamMember(data, true);
   const docRef = await adminDb.collection(TEAM_MEMBERS_COLLECTION).add(firestoreData);
   return docRef.id;

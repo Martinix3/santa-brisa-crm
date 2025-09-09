@@ -1,7 +1,10 @@
 {
+  "__AI_DO_NOT_EDIT__": "Este package.json forma parte del SSOT de Santa Brisa. NO modificar ni actualizar dependencias sin aprobación explícita de Martín.",
+
   "name": "santa-brisa-crm",
   "version": "0.1.0",
   "private": true,
+
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -21,6 +24,7 @@
     "migrate:accounts:backfill": "tsx src/scripts/migrate_accounts_full.ts --mode backfill",
     "migrate:accounts:cleanup": "tsx src/scripts/migrate_accounts_full.ts --mode cleanup"
   },
+
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
     "@dnd-kit/sortable": "^8.0.0",
@@ -52,59 +56,72 @@
     "@radix-ui/react-tabs": "^1.1.0",
     "@radix-ui/react-toast": "^1.2.1",
     "@radix-ui/react-toggle-group": "^1.1.0",
-    "@radix-ui/react-tooltip": "^1.1.2",
+
     "axios": "^1.11.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+
     "date-fns": "^3.6.0",
     "firebase": "12.2.1",
     "framer-motion": "^11.2.12",
+
     "genkit": "1.19.1",
     "googleapis": "^159.0.0",
     "handlebars": "^4.7.8",
-    "lucide-react": "^0.542.0",
-    "monaco-editor": "^0.50.0",
-    "next": "14.2.5",
+
+    "lucide-react": "^0.543.0",
+    "monaco-editor": "^0.53.0",
+
+    "next": "15.5.2",
     "patch-package": "^8.0.0",
-    "react": "18.3.1",
+    "react": "19.1.1",
     "react-day-picker": "^9.9.0",
-    "react-dom": "18.3.1",
+    "react-dom": "19.1.1",
     "react-hook-form": "^7.52.1",
     "react-markdown": "^9.0.1",
     "recharts": "^3.2.0",
+
     "tailwind-merge": "^2.4.0",
     "tailwindcss-animate": "^1.0.7",
+
     "uuid": "^13.0.0",
     "zod": "^3.23.8"
   },
+
   "devDependencies": {
     "@types/gapi": "^0.0.47",
     "@types/gapi.auth2": "^0.0.60",
     "@types/google.picker": "^0.0.45",
     "@types/node": "^20",
-    "@types/react": "18.3.3",
-    "@types/react-dom": "18.3.0",
-    "@types/uuid": "^9.0.8",
-    "@typescript-eslint/eslint-plugin": "^7.15.0",
-    "@typescript-eslint/parser": "^7.15.0",
+    "@types/react": "19.1.6",
+    "@types/react-dom": "19.1.9",
+
+    "@typescript-eslint/eslint-plugin": "7.18.0",
+    "@typescript-eslint/parser": "7.18.0",
+
     "autoprefixer": "^10.4.21",
-    "eslint": "^8.57.0",
-    "eslint-config-next": "14.2.5",
+
+    "eslint": "8.57.1",
+    "eslint-config-next": "15.5.2",
+
     "firebase-admin": "13.5.0",
     "genkit-cli": "1.19.1",
     "null-loader": "^4.0.1",
     "postcss": "^8.5.6",
+
     "tailwindcss": "^3.4.17",
+
     "ts-morph": "^27.0.0",
     "ts-node": "^10.9.2",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2"
   },
+
   "overrides": {
-    "next": "14.2.5",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
+    "next": "15.5.2",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
     "firebase": "12.2.1",
     "genkit": "1.19.1",
     "genkit-cli": "1.19.1",
@@ -113,3 +130,4 @@
     "firebase-admin": "13.5.0"
   }
 }
+

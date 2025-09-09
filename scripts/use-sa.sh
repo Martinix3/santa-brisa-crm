@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-CFG="sb-crm-sa"
+CFG="firebase-adminsdk"
 PROJECT_ID="santa-brisa-crm"
 SA="firebase-app-hosting-compute@${PROJECT_ID}.iam.gserviceaccount.com"
 
@@ -17,7 +17,7 @@ if ! grep -q "GOOGLE_IMPERSONATE_SERVICE_ACCOUNT" "$HOME/.bashrc"; then
     echo '# --- Santa Brisa CRM Service Account Impersonation ---'
     echo 'export CLOUDSDK_ACTIVE_CONFIG_NAME=sb-crm-sa'
     echo 'export GOOGLE_CLOUD_PROJECT=santa-brisa-crm'
-    echo 'export GOOGLE_IMPERSONATE_SERVICE_ACCOUNT=firebase-app-hosting-compute@santa-brisa-crm.iam.gserviceaccount.com'
+    echo 'export GOOGLE_IMPERSONATE_SERVICE_ACCOUNT=firerebase-adminsdk-fbsvc@santa-brisa-crm.iam.gserviceaccount.com'
   } >> "$HOME/.bashrc"
 fi
 

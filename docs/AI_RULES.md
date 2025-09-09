@@ -69,7 +69,7 @@ A partir de ahora trabajas bajo este **CONTRATO**:
 
 18. Cuando te pida un cambio, responde **solo con un PLAN** que incluya:
     A. **Explicación para no técnicos** (clara y breve).
-    B. **Clasificación** (Menor/Medio/Mayor) y por qué.
+    B. **Clasificación** (Menor/Medio/Major) y por qué.
     C. **Archivos a tocar** (rutas).
     D. **Pasos concretos** (qué harás y en qué orden).
     E. **Verificación de versiones** (qué comandos debo correr y **qué salidas** esperas).

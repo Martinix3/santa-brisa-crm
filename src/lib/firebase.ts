@@ -17,14 +17,20 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
-if (process.env.NEXT_PUBLIC_USE_EMULATORS === "true") {
-  // Firestore & Storage a emulador siempre en dev
+if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_USE_EMULATORS === "true") {
+  console.log("🔌 Conectando a Firebase Emulators...");
+  
+  // Conectar a Firestore Emulator
   connectFirestoreEmulator(db, "127.0.0.1", 8080);
+  
+  // Conectar a Storage Emulator
   connectStorageEmulator(storage, "127.0.0.1", 9199);
-
-  // Auth a emulador sólo si lo pediste explícitamente
+  
+  // Conectar a Auth Emulator solo si se especifica, para permitir logins reales con Google
   if (process.env.NEXT_PUBLIC_USE_AUTH_EMULATOR === "true") {
     connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+    console.log("    -> Auth Emulator conectado.");
   }
-}
 
+  console.log("✅ Conexión con Emuladores lista.");
+}

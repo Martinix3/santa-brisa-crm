@@ -161,13 +161,14 @@ Para conectar con la API de Holded, la clave de API debe guardarse de forma segu
 ### Ejecutar la Aplicación
 La aplicación requiere dos procesos para funcionar completamente: el servidor de desarrollo de Next.js y el inspector de flujos de Genkit.
 
-1.  **Iniciar el Servidor de Desarrollo de Next.js:**
+1.  **Iniciar el Servidor de Desarrollo y Emuladores (Recomendado):**
+    En una terminal, ejecuta el comando unificado que levanta tanto Next.js como los emuladores de Firebase:
     ```bash
-    npm run dev
+    npm run dev:all
     ```
-    La aplicación estará disponible en `http://localhost:3000`.
+    La aplicación estará disponible en `http://localhost:3000` y la UI de los emuladores en `http://localhost:4000`.
 
-2.  **Iniciar el Inspector de Genkit (Opcional, pero recomendado):**
+2.  **Iniciar el Inspector de Genkit (Opcional, si usas IA):**
     En una terminal separada, ejecuta:
     ```bash
     npm run genkit:dev

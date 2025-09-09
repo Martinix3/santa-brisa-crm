@@ -10,9 +10,6 @@
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0 --port 3000",
     "emu": "firebase emulators:start --project santa-brisa-crm",
-    "enable:web": "firebase experiments:enable webframeworks || true",
-    "fix:adc": "gcloud auth application-default set-quota-project santa-brisa-crm || true",
-    "predev:all": "npm run enable:web && npm run fix:adc",
     "dev:all": "concurrently -k \"npm:emu\" \"npm:dev\"",
     "build": "next build",
     "start": "next start",
@@ -106,6 +103,7 @@
     "firebase-functions": "^6.4.0",
     "firebase-functions-test": "^3.3.0",
     "genkit-cli": "1.19.1",
+    "monaco-editor-webpack-plugin": "^7.1.0",
     "null-loader": "^4.0.1",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",

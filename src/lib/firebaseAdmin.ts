@@ -45,23 +45,6 @@ if (getApps().some((app) => app.name === ADMIN_APP_NAME)) {
   // It automatically finds credentials in managed environments or from gcloud.
   const credential = applicationDefault();
   
-  // Log the service account email if available
-  if (typeof credential.getAccessToken === 'function') {
-      credential.getAccessToken().then(token => {
-          // This might not always provide the email, but it's a good attempt
-          if (token && token.token) {
-              try {
-                  const payload = JSON.parse(Buffer.from(token.token.split('.')[1], 'base64').toString());
-                  console.log('INFO: Service Account Email (from token):', payload.email);
-              } catch (e) {
-                  console.log('INFO: Could not decode access token to find service account email.');
-              }
-          }
-      }).catch(() => {
-        // This might fail if called in a context without async support, but it's worth trying
-      });
-  }
-  
   app = initializeApp(
     {
       credential,

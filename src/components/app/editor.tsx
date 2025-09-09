@@ -12,23 +12,22 @@ const configureMonacoWorkers = () => {
         return;
     }
 
-    // Define how Monaco loads its web workers
-    // This is the modern ESM-compatible way
+    // Define how Monaco loads its web workers using absolute paths
     self.MonacoEnvironment = {
-        getWorker: function (moduleId, label) {
-            if (label === 'json') {
-                return new Worker(new URL('monaco-editor/esm/vs/language/json/json.worker', import.meta.url), { type: 'module' });
+        getWorkerUrl: function (moduleId, label) {
+            const workerPath = {
+                json: '/_next/static/monaco/json.worker.js',
+                css: '/_next/static/monaco/css.worker.js',
+                html: '/_next/static/monaco/html.worker.js',
+                typescript: '/_next/static/monaco/ts.worker.js',
+                javascript: '/_next/static/monaco/ts.worker.js',
+            }[label];
+
+            if (workerPath) {
+                return workerPath;
             }
-            if (label === 'css' || label === 'scss' || label === 'less') {
-                return new Worker(new URL('monaco-editor/esm/vs/language/css/css.worker', import.meta.url), { type: 'module' });
-            }
-            if (label === 'html' || label === 'handlebars' || label === 'razor') {
-                return new Worker(new URL('monaco-editor/esm/vs/language/html/html.worker', import.meta.url), { type: 'module' });
-            }
-            if (label === 'typescript' || label === 'javascript') {
-                return new Worker(new URL('monaco-editor/esm/vs/language/typescript/ts.worker', import.meta.url), { type: 'module' });
-            }
-            return new Worker(new URL('monaco-editor/esm/vs/editor/editor.worker', import.meta.url), { type: 'module' });
+            
+            return '/_next/static/monaco/editor.worker.js';
         },
     };
 };

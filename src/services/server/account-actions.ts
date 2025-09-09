@@ -15,7 +15,7 @@ export async function getAccountsAction(): Promise<{ accounts: Account[], orders
     const [accounts, orders, teamMembers] = await Promise.all([
       getAccountsFS(),
       getOrdersFS(),
-      getTeamMembersFS(['SalesRep', 'Admin', 'Clavadista', 'Líder Clavadista'])
+      getTeamMembersFS(['Ventas', 'Admin', 'Clavadista', 'Líder Clavadista'])
     ]);
     
     // Data is already serializable because services use the Admin SDK

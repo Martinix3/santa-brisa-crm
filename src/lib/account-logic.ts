@@ -2,7 +2,7 @@
 
 'use server';
 
-import type { Account, Order, AccountStatus, PotencialType } from '@/types';
+import type { Account, Order, AccountStage } from '@/types';
 import { parseISO, differenceInDays, isValid } from 'date-fns';
 import { VALID_SALE_STATUSES } from '@/lib/constants';
 
@@ -15,11 +15,11 @@ import { VALID_SALE_STATUSES } from '@/lib/constants';
  */
 export async function calculateCommercialStatus(
     ordersForAccount: Order[]
-): Promise<Exclude<AccountStatus, 'Programada' | 'Seguimiento'>> {
+): Promise<Exclude<AccountStage, 'Programada' | 'Seguimiento'>> {
     
     // If there are no interactions at all, it's a new potential client.
     if (!ordersForAccount || ordersForAccount.length === 0) {
-        return 'Pendiente';
+        return 'POTENCIAL';
     }
 
     const successfulOrders = ordersForAccount
@@ -31,22 +31,22 @@ export async function calculateCommercialStatus(
     if (count === 0) {
         // If there are no successful orders, check for failed attempts.
         const hasInteractions = ordersForAccount.some(o => o.status === 'Fallido');
-        return hasInteractions ? 'Fallido' : 'Pendiente';
+        return hasInteractions ? 'FALLIDA' : 'POTENCIAL';
     }
 
     const lastOrderDate = parseISO(successfulOrders[0].createdAt!);
     const daysSinceLastOrder = differenceInDays(new Date(), lastOrderDate);
 
     if (daysSinceLastOrder > 90) {
-        return 'Inactivo';
+        return 'INACTIVA';
     }
     
     if (count >= 2) {
-        return 'Repetición';
+        return 'ACTIVA'; // Could be 'Repetición', but ACTIVA is a safe bet
     }
     
     // If there's at least one successful order and it's recent, it's active.
-    return 'Activo';
+    return 'ACTIVA';
 }
 
 
@@ -54,39 +54,20 @@ export async function calculateCommercialStatus(
  * Calculates the lead score for an account based on its calculated status and potential.
  */
 export async function calculateLeadScore(
-    accountStatus: AccountStatus, 
-    potencial: PotencialType, 
-    lastInteractionDate?: Date,
+    accountStage: AccountStage,
     recentOrderValue: number = 0
 ): Promise<number> {
     let score = 0;
     const now = new Date();
 
     // Base score from status
-    switch (accountStatus) {
-        case 'Repetición': score = 90; break;
-        case 'Activo': score = 75; break;
-        case 'Seguimiento': score = 60; break;
-        case 'Programada': score = 50; break;
-        case 'Inactivo': score = 40; break; 
-        case 'Fallido': score = 10; break;
-        default: score = 0;
-    }
-
-    // Bonus from 'potencial'
-    switch (potencial) {
-        case 'alto': score += 15; break;
-        case 'medio': score += 10; break;
-        case 'bajo': score += 5; break;
-    }
-    
-    // Penalty/Bonus for recency
-    if (lastInteractionDate && isValid(lastInteractionDate)) {
-        const daysSinceLastInteraction = differenceInDays(now, lastInteractionDate);
-        if (daysSinceLastInteraction <= 7) score += 5;
-        else if (daysSinceLastInteraction > 60) score -= 10;
-    } else {
-        score -= 5; // Penalty if no interactions
+    switch (accountStage) {
+        case 'ACTIVA': score = 90; break;
+        case 'SEGUIMIENTO': score = 60; break;
+        case 'POTENCIAL': score = 50; break;
+        case 'INACTIVA': score = 30; break; 
+        case 'FALLIDA': score = 10; break;
+        default: score = 20;
     }
 
     // Bonus for recent sales value (1 point per 100€, capped at 10 points)

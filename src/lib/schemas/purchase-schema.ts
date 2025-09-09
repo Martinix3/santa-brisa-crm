@@ -3,6 +3,8 @@
 "use client";
 
 import * as z from "zod";
+import { ESTADOS_DOCUMENTO, ESTADOS_PAGO } from "@ssot";
+import type { EstadoDocumento, EstadoPago } from "@ssot";
 
 const expenseItemSchema = z.object({
     productoId: z.string().min(1, 'Debe seleccionar un artículo.'),
@@ -19,8 +21,8 @@ export const purchaseFormSchema = z.object({
   isInventoryPurchase: z.boolean().default(false),
 
   // States
-  estadoDocumento: z.enum(['proforma', 'factura_pendiente', 'factura_recibida', 'factura_validada']),
-  estadoPago: z.enum(['pendiente', 'parcial', 'pagado', 'pagado_adelantado']),
+  estadoDocumento: z.custom<EstadoDocumento>(),
+  estadoPago: z.custom<EstadoPago>(),
 
   // Core Details
   concepto: z.string().min(3, "El concepto es obligatorio."),

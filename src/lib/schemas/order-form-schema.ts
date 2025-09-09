@@ -1,10 +1,8 @@
 
 
 import * as z from "zod";
-import { userRolesList } from "@/lib/data";
-import { 
-    RolUsuario as UserRole 
-} from "@ssot";
+import { ROLES_USUARIO as userRolesList, MetodoPago, SiguienteAccion, MotivoFallo } from "@ssot";
+import type { RolUsuario } from "@ssot";
 
 export const NO_CLAVADISTA_VALUE = "##NONE##";
 export const ADMIN_SELF_REGISTER_VALUE = "##ADMIN_SELF##";
@@ -18,7 +16,7 @@ const assignedMaterialSchema = z.object({
 
 const baseOrderFormSchema = z.object({
   // Internal state
-  userRole: z.string().nullable(), // Changed from enum
+  userRole: z.custom<RolUsuario>().nullable(),
   isNewClient: z.boolean().default(false),
   
   // Step 2: Outcome
@@ -32,7 +30,7 @@ const baseOrderFormSchema = z.object({
   assignedMaterials: z.array(assignedMaterialSchema).optional(),
 
   // Step 3: Details - Pedido Exitoso
-  paymentMethod: z.string().optional(),
+  paymentMethod: z.custom<MetodoPago>().optional(),
   iban: z.string().optional(),
   clientType: z.string().optional(),
   numberOfUnits: z.coerce.number().optional(),
@@ -60,14 +58,14 @@ const baseOrderFormSchema = z.object({
   observacionesAlta: z.string().optional(),
 
   // Step 3: Details - Seguimiento
-  nextActionType: z.string().optional(),
+  nextActionType: z.custom<SiguienteAccion>().optional(),
   nextActionCustom: z.string().optional(),
   nextActionDate: z.date().optional(),
   selectedSalesRepId: z.string().optional(), // For Admin to re-assign
   clavadistaSelectedSalesRepId: z.string().optional(), // For Clavadista to assign
   
   // Step 3: Details - Fallido
-  failureReasonType: z.string().optional(),
+  failureReasonType: z.custom<MotivoFallo>().optional(),
   failureReasonCustom: z.string().optional(),
 });
 

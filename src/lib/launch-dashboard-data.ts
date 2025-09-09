@@ -2,7 +2,7 @@
 
 import type { Kpi, StrategicObjective } from "@/types";
 import { TrendingUp, Users, Briefcase, CalendarPlus, Repeat } from "lucide-react";
-import { EstadoPedido as OrderStatus } from "@ssot";
+import { EstadoPedido } from "@ssot";
 
 // Datos de KPI para el lanzamiento del producto
 // These currentValue fields will be dynamically calculated in the dashboard by fetching data from Firestore.
@@ -19,7 +19,7 @@ export const objetivoTotalVentasEquipo = kpiDataLaunch.find(kpi => kpi.id === 'k
 export const objetivoTotalCuentasEquipoAnual = kpiDataLaunch.find(kpi => kpi.id === 'kpi3')!.targetValue;
 
 export const mockStrategicObjectives: StrategicObjective[] = [
-  { id: 'obj1', text: 'Expandirse al nuevo mercado de la región Sur para Q4.', completed: false },
+  { id: 'obj1', text: 'Expandir al nuevo mercado de la región Sur para Q4.', completed: false },
   { id: 'obj2', text: 'Aumentar el promedio de botellas por pedido en un 10% en Q3.', completed: true },
   { id: 'obj3', text: 'Lanzar nueva línea de productos premium (botellas especiales) para fin de año.', completed: false },
   { id: 'obj4', text: 'Alcanzar una tasa de satisfacción del cliente del 95%.', completed: false },
@@ -27,7 +27,7 @@ export const mockStrategicObjectives: StrategicObjective[] = [
   { id: 'obj6', text: 'Implementar un programa de fidelización de clientes HORECA para Q2.', completed: true },
 ];
 
-export const orderStatusesList: OrderStatus[] = [
+export const orderStatusesList: EstadoPedido[] = [
   'Programada', 'Pendiente', 'Confirmado', 'Procesando', 'Enviado', 'Entregado',
-  'Facturado', 'Cancelado', 'Fallido', 'Seguimiento', 'Completado'
+  'Facturado', 'Pagado', 'Cancelado', 'Fallido', 'Seguimiento', 'Completado'
 ];

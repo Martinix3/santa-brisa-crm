@@ -3,17 +3,17 @@ import type {
     Kpi, 
     StrategicObjective, 
     CrmEvent,
-    EstadoTanque as TankStatus,
-    UdM as UoM,
+    EstadoTanque,
+    UdM,
     Category,
-    TipoRecursoMarketing as MarketingResourceType
+    TipoRecursoMarketing
 } from "@/types";
-import type { MarketingResourceCategory } from "@/types";
 import { TrendingUp, Users, Briefcase, CalendarPlus, Repeat } from "lucide-react"; 
 
 // --- SEMILLAS DE DESARROLLO ---
+type AccountSeed = { nombre: string; type: TipoCuenta; potencial: 'alto'|'medio'|'bajo' };
 
-export const mockInitialAccounts: Array<Pick<Account, 'nombre' | 'type' | 'potencial'>> = [
+export const mockInitialAccounts: AccountSeed[] = [
     "Sello Copil", "Grupo Tragaluz", "MARRIOT", "AC HOTELES", "Bokaxankla Bar",
     "Florida Park", "Restaurante Bajio", "Restaurante Trompo", "NH HOTELES", "Casa de Mexico",
     "Grupo Dejate Llevar", "Chiton", "Martina por el Norte", "Boheme", "4 Latas",
@@ -26,12 +26,12 @@ export const mockInitialAccounts: Array<Pick<Account, 'nombre' | 'type' | 'poten
     "ella Sky Bar", "Botania", "Dofia Tomasa", "Mantequerias Bravo", "Catering Samantha",
     "Grupo Mentidero", "Catering Laurel", "Cristine Bedfor", "Estrella Galicia", "Tierra del Queiles",
     "Restaurante Her", "Noneta", "Makila", "Golda", "Vinoteca Collado", "Petit Apetit",
-].map((nombre) => ({ nombre, type: "HORECA" as TipoCuenta, potencial: "medio" as const }));
+].map((nombre) => ({ nombre, type: "HORECA", potencial: "medio" }));
 
-export const mockTanks: Array<{ name: string, capacity: number, status: TankStatus, location: string, currentUom?: UoM }> = [
-    { name: "Tanque Mezcla 1", capacity: 1000, status: "libre", location: "Zona de Mezcla", currentUom: 'l' },
-    { name: "Tanque Mezcla 2", capacity: 1000, status: "libre", location: "Zona de Mezcla", currentUom: 'l' },
-    { name: "Tanque Pulmón 1", capacity: 500, status: "libre", location: "Línea 1", currentUom: 'l' },
+export const mockTanks: Array<{ name: string, capacity: number, status: EstadoTanque, location: string, currentUom?: UdM }> = [
+    { name: "Tanque Mezcla 1", capacity: 1000, status: "Libre", location: "Zona de Mezcla", currentUom: 'l' },
+    { name: "Tanque Mezcla 2", capacity: 1000, status: "Libre", location: "Zona de Mezcla", currentUom: 'l' },
+    { name: "Tanque Pulmón 1", capacity: 500, status: "Libre", location: "Línea 1", currentUom: 'l' },
 ];
 
 export const mockCategories: Array<Omit<Category, 'id' | 'createdAt' | 'updatedAt'>> = [
@@ -72,6 +72,19 @@ export const mockStrategicObjectives: StrategicObjective[] = [
   { id: 'obj5', text: 'Optimizar la cadena de suministro para reducir costes de envío en un 5%.', completed: false },
   { id: 'obj6', text: 'Implementar un programa de fidelización de clientes HORECA para Q2.', completed: true },
 ];
+
+export interface MarketingResourceCategory {
+  id: string;
+  name: string;
+  resources: {
+    id: string;
+    title: string;
+    description: string;
+    link: string;
+    type: TipoRecursoMarketing;
+  }[];
+}
+
 
 export const mockMarketingResources: MarketingResourceCategory[] = [
     {

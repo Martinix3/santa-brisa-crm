@@ -1,10 +1,9 @@
 
-
 import { Timestamp, type DocumentSnapshot } from "firebase-admin/firestore";
 import { format, parseISO, isValid } from "date-fns";
 import type { Order, TeamMember, CrmEvent, Account, Supplier, Expense, BomLine, ItemBatch, Tank, DirectSale, DirectSaleItem } from '@/types';
 import { fromFirestoreOrder } from '../order-service';
-import { CanalVentaDirecta as DirectSaleChannel } from "@ssot";
+import type { CanalVentaDirecta } from "@ssot";
 
 const toDateString = (ts: any, defaultNow = true): string | undefined => {
     if (ts === null || ts === undefined) {
@@ -44,7 +43,7 @@ export const fromFirestoreTeamMember = (docSnap: DocumentSnapshot): TeamMember =
     name: data.name || '',
     email: data.email || '',
     avatarUrl: data.avatarUrl || '',
-    role: data.role || 'SalesRep',
+    role: data.role || 'Ventas',
     monthlyTargetAccounts: data.monthlyTargetAccounts,
     monthlyTargetVisits: data.monthlyTargetVisits,
     createdAt: toDateString(data.createdAt),
@@ -105,7 +104,7 @@ export const fromFirestoreDirectSale = (docSnap: DocumentSnapshot): DirectSale =
     id: docSnap.id,
     customerId: data.customerId,
     customerName: data.customerName,
-    channel: data.channel as DirectSaleChannel | undefined,
+    channel: data.channel as CanalVentaDirecta | undefined,
     items: data.items || [],
     subtotal: data.subtotal,
     tax: data.tax,

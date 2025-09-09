@@ -32,8 +32,7 @@ export const getAccountByIdFS = async (id: string): Promise<Account | null> => {
 };
 
 export const addAccountFS = async (data: Partial<Account>): Promise<string> => {
-  const fullData: Account = {
-    id: '', // Will be assigned by Firestore
+  const fullData: Partial<Account> = {
     accountStage: 'POTENCIAL',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),

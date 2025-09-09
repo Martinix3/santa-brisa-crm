@@ -15,12 +15,12 @@ import type { TeamMember, TeamMemberFormValues } from '@/types';
 import { useToast } from "@/hooks/use-toast";
 import { getTeamMemberByAuthUidFS } from '@/services/client/team-member-service.client';
 import { createTeamMemberAction } from '@/services/server/team-member-actions';
-import { RolUsuario as UserRole } from "@ssot";
+import type { RolUsuario } from "@ssot";
 
 interface AuthContextType {
   user: FirebaseUser | null;
   teamMember: TeamMember | null;
-  userRole: UserRole | null;
+  userRole: RolUsuario | null;
   loading: boolean;
   login: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;

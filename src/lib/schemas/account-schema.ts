@@ -8,7 +8,7 @@ export const accountSchema = z.object({
   accountType: z.custom<TipoCuenta>(),
   city: z.string().optional().nullable(),
   country: z.string().optional().nullable(),
-  salesRepId: z.string().min(1, "Responsable obligatorio"),
+  salesRepId: z.string().optional().nullable(),
   mainContactName: z.string().optional().nullable(),
   mainContactEmail: z.string().email("Email no válido").optional().or(z.literal("")).nullable(),
   mainContactPhone: z.string().optional().nullable(),

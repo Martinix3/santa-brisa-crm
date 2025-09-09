@@ -1,39 +1,18 @@
-{
+{{
   "hosting": {
     "source": ".",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "frameworksBackend": {
-      "region": "europe-west1"
-    }
+    "frameworksBackend": { "region": "europe-west1" }
   },
-  "firestore": {
-    "rules": "firestore.rules"
-  },
+  "firestore": { "rules": "firestore.rules" },
   "emulators": {
-    "ui": {
-      "enabled": true,
-      "port": 4000
-    },
-    "hub": {
-      "port": 4400
-    },
-    "logging": {
-      "port": 4500
-    },
-    "functions": {
-      "port": 5001
-    },
-    "firestore": {
-      "port": 8080
-    },
-    "auth": {
-      "port": 9099
-    },
-    "storage": {
-      "port": 9199
-    },
-    "pubsub": {
-      "port": 8085
-    }
+    "ui": { "enabled": true },
+    "hub": {},
+    "logging": {},
+    "functions": {},
+    "firestore": {},
+    "auth": {},
+    "storage": {},
+    "pubsub": {}
   }
 }

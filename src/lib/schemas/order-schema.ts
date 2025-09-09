@@ -1,10 +1,11 @@
 
 import * as z from "zod";
 import { LINE_TYPE_VALUES, ORDER_CHANNEL_VALUES, MONEDAS } from "@ssot";
+import type { OrderChannel, LineType, Moneda } from "@ssot";
 
 export const orderLineSchema = z.object({
   inventoryId: z.string(),
-  lineType: z.enum(LINE_TYPE_VALUES),
+  lineType: z.custom<LineType>(),
   sku: z.string(),
   name: z.string(),
   uom: z.string().default("ud"),
@@ -20,9 +21,9 @@ export const orderSchema = z.object({
   accountId: z.string().optional(),
   accountName: z.string().optional(),
 
-  channel: z.enum(ORDER_CHANNEL_VALUES),
+  channel: z.custom<OrderChannel>(),
   distributorId: z.string().optional().nullable(),
-  currency: z.enum(MONEDAS).default("EUR"),
+  currency: z.custom<Moneda>().default("EUR"),
   lines: z.array(orderLineSchema).min(1, "Debe añadir al menos una línea al pedido."),
   notes: z.string().optional().nullable(),
 

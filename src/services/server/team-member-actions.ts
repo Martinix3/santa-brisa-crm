@@ -4,7 +4,8 @@
 
 import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
 import { addTeamMemberFS, getTeamMemberByAuthUidFS as getTeamMemberByAuthUidFromServiceFS } from '@/services/team-member-service';
-import type { TeamMember, TeamMemberFormValues, RolUsuario as UserRole } from '@/types';
+import type { TeamMember, TeamMemberFormValues } from '@/types';
+import type { RolUsuario } from '@ssot';
 
 /**
  * Fetches a team member profile from Firestore using their Firebase Authentication UID.

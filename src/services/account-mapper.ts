@@ -2,11 +2,15 @@
 import type { Account } from '@/types';
 import type { AccountFormValues } from '@/lib/schemas/account-schema';
 import { parseISO, isValid } from 'date-fns';
+import { Timestamp } from "firebase-admin/firestore";
 
 const norm = (s?: string | null): string | undefined => (s?.trim() ? s.trim() : undefined);
 
-const toISOString = (dateValue: any): string | undefined => {
+const toDateString = (dateValue: any): string | undefined => {
   if (!dateValue) return undefined;
+  if (dateValue instanceof Timestamp) {
+    return dateValue.toDate().toISOString();
+  }
   if (typeof dateValue.toDate === 'function') {
     return dateValue.toDate().toISOString();
   }
@@ -40,8 +44,8 @@ export function fromFirestore(data: any): Account {
     mainContactName: data.mainContactName,
     mainContactEmail: data.mainContactEmail,
     mainContactPhone: data.mainContactPhone,
-    createdAt: toISOString(data.createdAt)!,
-    updatedAt: toISOString(data.updatedAt)!,
+    createdAt: toDateString(data.createdAt)!,
+    updatedAt: toDateString(data.updatedAt)!,
     notes: data.notes,
   } as Account;
 }
@@ -54,8 +58,8 @@ export function toFirestore(a: Partial<Account>) {
     city: a.city ?? undefined,
     distributorId: a.distributorId ?? null,
     parentAccountId: a.parentAccountId ?? null,
-    createdAt: a.createdAt ?? new Date(),
-    updatedAt: new Date(),
+    createdAt: a.createdAt ? Timestamp.fromDate(new Date(a.createdAt)) : Timestamp.now(),
+    updatedAt: Timestamp.now(),
   };
 }
 

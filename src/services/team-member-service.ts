@@ -8,7 +8,7 @@ import {
   type DocumentSnapshot,
 } from "firebase-admin/firestore";
 import type { TeamMember, TeamMemberFormValues } from '@/types';
-import { RolUsuario as UserRole } from "@ssot";
+import type { RolUsuario } from "@ssot";
 import { fromFirestoreTeamMember } from './utils/firestore-converters';
 
 const TEAM_MEMBERS_COLLECTION = 'teamMembers';
@@ -55,7 +55,7 @@ const toFirestoreTeamMember = (data: Partial<TeamMemberFormValues>, isNew: boole
   return firestoreData;
 };
 
-export const getTeamMembersFS = async (roles?: UserRole[]): Promise<TeamMember[]> => {
+export const getTeamMembersFS = async (roles?: RolUsuario[]): Promise<TeamMember[]> => {
   let q: FirebaseFirestore.Query = adminDb.collection(TEAM_MEMBERS_COLLECTION);
 
   if (roles && roles.length > 0) {
@@ -126,4 +126,3 @@ export const initializeMockTeamMembersInFirestore = async () => {
         console.log('Team members collection is not empty. Skipping initialization.');
     }
 };
-

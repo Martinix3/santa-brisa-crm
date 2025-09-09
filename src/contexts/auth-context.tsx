@@ -39,9 +39,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast();
   
   useEffect(() => {
+    // This effect runs once to set up persistence.
     assertFirebaseEnv();
     void ensureAuthPersistence();
-    
+  }, []);
+  
+  useEffect(() => {
+    // This effect handles auth state changes.
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setLoading(true);
       if (firebaseUser) {

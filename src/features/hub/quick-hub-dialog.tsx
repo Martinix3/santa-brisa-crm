@@ -5,12 +5,13 @@ import * as React from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import type { Account, TeamMember } from "@/types";
+import type { Account, TeamMember, InventoryItem } from "@/types";
 import { getAccountsFS } from "@/services/account-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
+import { getHubDialogDataAction } from "./actions";
 import { useAuth } from "@/contexts/auth-context";
 
-import { NewAccountHubPanel } from "./NewAccountHubPanel"; // Corrected import
+import { AccountFormCore } from "@/components/app/account-dialog";
 import { CreateInteractionForm } from "./CreateInteractionForm";
 import { CreateOrderFormLite } from "./CreateOrderFormLite";
 
@@ -38,6 +39,8 @@ export default function QuickHubDialog({
   const [mode, setMode] = React.useState<HubMode>(defaultMode);
   const [allAccounts, setAllAccounts] = React.useState<Account[]>([]);
   const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([]);
+  const [inventoryItems, setInventoryItems] = React.useState<InventoryItem[]>([]);
+  const [distributors, setDistributors] = React.useState<Account[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
 
   // Autocomplete reutilizable
@@ -60,11 +63,17 @@ export default function QuickHubDialog({
 
     const roleFilter = ["Admin", "Ventas", "Manager", "Operaciones", "Marketing", "Distributor"];
 
-    Promise.all([getAccountsFS(), getTeamMembersFS(roleFilter)])
-      .then(([accounts, members]) => {
+    Promise.all([
+        getAccountsFS(), 
+        getTeamMembersFS(roleFilter),
+        getHubDialogDataAction(),
+    ])
+      .then(([accounts, members, hubData]) => {
         if (!mounted) return;
         setAllAccounts(accounts);
         setTeamMembers(members);
+        setInventoryItems(hubData.inventoryItems);
+        setDistributors(hubData.distributors);
       })
       .catch(() => {
         if (!mounted) return;
@@ -82,7 +91,6 @@ export default function QuickHubDialog({
     };
   }, [open, defaultMode, initialAccount?.id, toast]);
 
-  // Firma unificada y llamadas coherentes
   const handleSuccess = (
     type: "account" | "interaction" | "order",
     payload: { id: string; accountId?: string; accountName?: string }
@@ -91,16 +99,14 @@ export default function QuickHubDialog({
 
     if (type === "account") {
       toast({ title: "Cuenta guardada", description: accountName || "Cuenta actualizada" });
-      // Selecciona la cuenta guardada y pasa a interacción (UX rápida)
-      const a = allAccounts.find(x => x.id === id) || ({ id, name: accountName || "" } as Account);
-      selectAccount(a);
+      const createdAccount = { id, name: accountName || "", type: 'HORECA' } as Account;
+      selectAccount(createdAccount);
+      setAllAccounts(prev => [...prev, createdAccount]);
       setMode("interaccion");
-      // No cierres el diálogo: el user puede registrar ya la interacción
       refreshDataSignature();
       return;
     }
 
-    // Interacción o pedido
     toast({
       title: type === "interaction" ? "Interacción registrada" : "Pedido creado",
       description: accountName ? `Para “${accountName}”` : "Acción registrada",
@@ -109,15 +115,8 @@ export default function QuickHubDialog({
     refreshDataSignature();
     onOpenChange(false);
   };
-
-  // Invitación no intrusiva (si no existe cuenta y hay texto en Interacción/Pedido)
-  const showInviteCreate =
-    (mode === "interaccion" || mode === "pedido") &&
-    !selectedAccount &&
-    (draftAccountName?.trim().length ?? 0) > 0;
-
+  
   const goCreateFromDraft = () => {
-    // Placeholder canónico mínimo
     selectAccount({
       id: "new",
       name: (draftAccountName || "Nueva cuenta").trim(),
@@ -140,7 +139,6 @@ export default function QuickHubDialog({
           <DialogDescription>Busca una cuenta, registra una interacción o crea un pedido.</DialogDescription>
         </DialogHeader>
 
-        {/* Autocomplete de cuenta — match por nombre/ciudad; si eliges, selecciona; si editas, des-selecciona y deja borrador */}
         <AccountAutocompleteInput
           inputValue={inputValue}
           matches={matches}
@@ -148,24 +146,21 @@ export default function QuickHubDialog({
           onInputChange={setInputValue}
           onPick={(acc) => {
             selectAccount(acc);
-            // Si el user estaba en "cuenta" y elige una existente, UX: saltamos a "interacción"
             if (mode === "cuenta") setMode("interaccion");
           }}
           isLoading={isLoading}
         />
 
-        {showInviteCreate && (
+        { (mode === "interaccion" || mode === "pedido") && !selectedAccount && (draftAccountName?.trim().length ?? 0) > 0 && (
           <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-zinc-800">
             La cuenta <span className="font-medium">“{draftAccountName.trim()}”</span> no existe.
-            Puedes seguir con la {mode === "interaccion" ? "interacción" : "creación del pedido"} sin crearla,
-            o{" "}
+            Puedes seguir o{" "}
             <button type="button" className="underline underline-offset-2" onClick={goCreateFromDraft}>
               rellenar ahora la nueva cuenta
             </button>.
           </div>
         )}
 
-        {/* Pestañas SIEMPRE habilitadas */}
         <Tabs value={mode} onValueChange={(v) => setMode(v as HubMode)} className="w-full mt-3">
           <TabsList className="grid grid-cols-3 w-full">
             <TabsTrigger value="cuenta">Cuenta</TabsTrigger>
@@ -173,28 +168,27 @@ export default function QuickHubDialog({
             <TabsTrigger value="pedido">Pedido</TabsTrigger>
           </TabsList>
 
-          {/* CUENTA */}
           <TabsContent value="cuenta" className="mt-4">
-            <NewAccountHubPanel
-              key={`account-form-${selectedAccount?.id || "draft"}`}
-              initialAccount={
-                selectedAccount ??
-                ({
-                  id: "new",
-                  name: draftAccountName || "",
-                  type: "HORECA",
-                } as Account)
-              }
-              onCreated={(id, name) => {
-                handleSuccess("account", { id, accountName: name });
-              }}
-              allAccounts={allAccounts}
-              allTeamMembers={teamMembers}
-              onCancel={() => onOpenChange(false)}
-            />
+             <AccountFormCore
+                key={`account-form-${selectedAccount?.id || "draft"}`}
+                defaultValues={selectedAccount ? accountToForm(selectedAccount as Account) : { name: draftAccountName || ""}}
+                onCancel={() => onOpenChange(false)}
+                onSubmit={async (data) => {
+                    // Logic from NewAccountHubPanel is now here
+                    // This is a simplified version, adapt if you have more complex logic
+                     const res = await upsertAccountAction({
+                        id: selectedAccount?.id !== 'new' ? selectedAccount?.id : undefined,
+                        ...data,
+                     });
+                     handleSuccess("account", { id: res.id, accountName: data.name });
+                }}
+                isSaving={isSaving}
+                teamMembers={teamMembers}
+                distributors={distributors}
+                parentAccounts={allAccounts}
+             />
           </TabsContent>
 
-          {/* INTERACCIÓN */}
           <TabsContent value="interaccion" className="mt-4">
             <CreateInteractionForm
               key={`interaction-form-${selectedAccount?.id || "draft"}`}
@@ -207,7 +201,6 @@ export default function QuickHubDialog({
             />
           </TabsContent>
 
-          {/* PEDIDO */}
           <TabsContent value="pedido" className="mt-4">
             <CreateOrderFormLite
               key={`order-form-${selectedAccount?.id || "draft"}`}

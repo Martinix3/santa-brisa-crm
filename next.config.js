@@ -1,7 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Permite el proxy de Firebase Studio / Cloud Workstations en desarrollo
-  allowedDevOrigins: ['*.cloudworkstations.dev'],
+  experimental: {
+    // Permite el proxy de Firebase Studio / Cloud Workstations en desarrollo
+    allowedDevOrigins: [process.env.NEXT_PUBLIC_DEV_ORIGIN].filter(Boolean)
+  },
 };
 
 module.exports = nextConfig;

@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -16,7 +17,7 @@ type Props = {
   onCancel: () => void;
 };
 
-export function CreateAccountForm({ 
+export function NewAccountHubPanel({ 
   initialAccount, 
   onCreated, 
   allAccounts, 
@@ -54,8 +55,6 @@ export function CreateAccountForm({
     return allAccounts.map(a => ({ id: a.id, name: a.name }));
   }, [allAccounts]);
   
-  // This is the fix: The component was receiving `initialAccount` but `AccountFormCore` expects `defaultValues`.
-  // We use the `accountToForm` mapper to correctly transform the data.
   const defaultValues = initialAccount ? accountToForm(initialAccount as Account) : undefined;
   
   return (

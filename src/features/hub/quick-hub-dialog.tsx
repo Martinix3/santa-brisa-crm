@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -9,7 +10,7 @@ import { getAccountsFS } from "@/services/account-service";
 import { getTeamMembersFS } from "@/services/team-member-service";
 import { useAuth } from "@/contexts/auth-context";
 
-import { CreateAccountForm } from "./CreateAccountForm";
+import { NewAccountHubPanel } from "./NewAccountHubPanel"; // Corrected import
 import { CreateInteractionForm } from "./CreateInteractionForm";
 import { CreateOrderFormLite } from "./CreateOrderFormLite";
 
@@ -174,7 +175,7 @@ export default function QuickHubDialog({
 
           {/* CUENTA */}
           <TabsContent value="cuenta" className="mt-4">
-            <CreateAccountForm
+            <NewAccountHubPanel
               key={`account-form-${selectedAccount?.id || "draft"}`}
               initialAccount={
                 selectedAccount ??

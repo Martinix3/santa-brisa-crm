@@ -1,6 +1,6 @@
 
 import { format, parseISO, isValid } from 'date-fns';
-import { db } from '@/lib/firebase';
+import { adminDb as db } from '@/lib/firebaseAdmin';
 import { doc, runTransaction } from "firebase/firestore";
 import type { Category } from '@/types';
 
@@ -48,10 +48,7 @@ function getSkuPrefix(categoryName: string): string {
 }
 
 function getSkuIdentifier(itemName: string, prefix: string): string {
-    if (prefix === 'FG' || prefix === 'BLK') {
-        return itemName.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 5).padEnd(5, 'X');
-    }
-    return itemName.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 3).padEnd(3, 'X');
+    return itemName.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 5).padEnd(5, 'X');
 }
 
 /**

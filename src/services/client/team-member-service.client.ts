@@ -1,8 +1,8 @@
 
 'use client';
 
-import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, type DocumentSnapshot, limit } from "firebase/firestore";
+import { db } from '@/lib/firebase-client';
 import type { TeamMember } from '@/types';
 import { fromFirestoreTeamMember } from '@/services/utils/firestore-converters.client';
 

@@ -10,8 +10,8 @@
 import 'server-only';
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { collection, query, where, getDocs, doc, getDoc, limit, type DocumentData, type DocumentSnapshot, type DocumentReference } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { collection, query, where, getDocs, doc, getDoc, limit, type DocumentData, type DocumentSnapshot, type DocumentReference } from 'firebase-admin/firestore';
+import { adminDb as db } from '@/lib/firebaseAdmin';
 import type { ItemBatch, StockTxn, ProductionRun, DirectSale, InventoryItem } from '@/types';
 import { fromFirestoreItemBatch } from '@/services/utils/firestore-converters';
 import { format, parseISO, isValid } from 'date-fns';

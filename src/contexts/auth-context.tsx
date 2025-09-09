@@ -7,10 +7,10 @@ import {
   User as FirebaseUser, 
   onAuthStateChanged, 
   signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
   signOut as firebaseSignOut,
+  type Auth,
 } from 'firebase/auth';
-import { getFirebaseAuth } from '@/lib/firebase'; // Use the new function
+import { auth, ensureAuthPersistence, assertFirebaseEnv } from '@/lib/firebase-client';
 import type { TeamMember, TeamMemberFormValues } from '@/types';
 import { useToast } from "@/hooks/use-toast";
 import { getTeamMemberByAuthUidFS } from '@/services/client/team-member-service.client';
@@ -37,9 +37,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [dataSignature, setDataSignature] = useState(0);
   const { toast } = useToast();
-
+  
   useEffect(() => {
-    const auth = getFirebaseAuth(); // Get auth instance safely on the client
+    assertFirebaseEnv();
+    void ensureAuthPersistence();
+    
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setLoading(true);
       if (firebaseUser) {
@@ -71,7 +73,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, pass: string) => {
     setLoading(true);
-    const auth = getFirebaseAuth();
     try {
       await signInWithEmailAndPassword(auth, email, pass);
       // onAuthStateChanged will handle the rest
@@ -91,7 +92,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      const auth = getFirebaseAuth();
       await firebaseSignOut(auth);
     } catch (error: any) {
       console.error("AuthContext: Logout error:", error);

@@ -2,10 +2,10 @@
 "use client";
 
 import * as React from "react";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
-import * as z from "zod";
-import { Button } from "@/components/ui/button";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Dialog,
   DialogContent,
@@ -13,10 +13,11 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
+  DialogClose,
 } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -24,90 +25,308 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Account, TeamMember } from "@/types";
-import { OPCIONES_TIPO_CUENTA, PROVINCIAS_ES, type TipoCuenta } from "@ssot";
-import { Loader2, Truck } from "lucide-react";
-import { Separator } from "@/components/ui/separator";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion";
+import { Textarea } from "@/components/ui/textarea";
+import { Building2, UserRound, Link2, MapPin, Tag, PlusCircle } from "lucide-react";
+import { useAuth } from "@/contexts/auth-context";
+import type { TeamMember, Account } from "@/types";
+import { TIPOS_CUENTA_VALUES, type TipoCuenta } from "@ssot";
+import { updateAccountAction, upsertAccountAction } from "@/app/(app)/accounts/actions";
+import { useToast } from "@/hooks/use-toast";
 import { accountToForm, formToAccountPartial } from "@/services/account-mapper";
-import { Label } from "../ui/label";
+import type { AccountFormValues } from "@/lib/schemas/account-schema";
+import { accountSchema } from "@/lib/schemas/account-schema";
 
-const NO_SALES_REP_VALUE = "##NONE##";
-const DIRECT_SALE_VALUE = "##DIRECT##";
-
-
-const B2B_TYPES = ["Distribuidor", "Importador"] as const;
-type B2BType = typeof B2B_TYPES[number];
-const isB2B = (t?: TipoCuenta | string | null): t is B2BType =>
-  !!t && (B2B_TYPES as readonly string[]).includes(t as string);
-
-const accountFormSchemaBase = z.object({
-  name: z.string().min(2, "El nombre comercial debe tener al menos 2 caracteres."),
-  legalName: z.string().optional(),
-  cif: z
-    .string()
-    .optional()
-    .refine(
-      (val) => {
-        if (!val || val.trim() === "") return true; // Optional, so it's valid if empty
-        const cifRegex = /^([A-Z]{1}|[0-9]{1})[0-9]{7}[A-Z0-9]{1}$/i;
-        return cifRegex.test(val);
-      },
-      {
-        message: "Formato de CIF/NIF no válido. Use 1 letra, 7 números y 1 carácter de control.",
-      }
-    ),
-  type: z.string({
-    required_error: "El tipo de cuenta es obligatorio.",
-  }),
-  iban: z.string().optional(),
-  distributorId: z.string().optional(),
-  addressBilling_street: z.string().optional(),
-  addressBilling_number: z.string().optional(),
-  addressBilling_city: z.string().optional(),
-  addressBilling_province: z.string().optional(),
-  addressBilling_postalCode: z.string().optional(),
-  addressBilling_country: z.string().optional().default("España"),
-  addressShipping_street: z.string().optional(),
-  addressShipping_number: z.string().optional(),
-  addressShipping_city: z.string().optional(),
-  addressShipping_province: z.string().optional(),
-  addressShipping_postalCode: z.string().optional(),
-  addressShipping_country: z.string().optional().default("España"),
-  mainContactName: z.string().optional(),
-  mainContactEmail: z.string().email("Formato de correo inválido.").optional().or(z.literal("")),
-  mainContactPhone: z.string().optional(),
-  notes: z.string().optional(),
-  internalNotes: z.string().optional(),
-  salesRepId: z.string().optional(),
-}).superRefine((data, ctx) => {
-  const billingFields = [
-    data.addressBilling_street, data.addressBilling_city,
-    data.addressBilling_province, data.addressBilling_postalCode,
-  ];
-  const someBillingFieldFilled = billingFields.some((field) => field && field.trim() !== "");
-  if (someBillingFieldFilled) {
-    if (!data.addressBilling_street?.trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["addressBilling_street"], message: "Calle es obligatoria." });
-    if (!data.addressBilling_city?.trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["addressBilling_city"], message: "Ciudad es obligatoria." });
-    if (!data.addressBilling_province?.trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["addressBilling_province"], message: "Provincia es obligatoria." });
-    if (!data.addressBilling_postalCode?.trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["addressBilling_postalCode"], message: "Código postal es obligatorio." });
+/** Helpers de estilo Santa Brisa (resumen) */
+const hexToRgba = (hex: string, a: number) => {
+  const h = hex.replace('#','');
+  const f = h.length === 3 ? h.split('').map(c=>c+c).join('') : h;
+  const n = parseInt(f,16); const r=(n>>16)&255, g=(n>>8)&255, b=n&255; return `rgba(${r},${g},${b},${a})`;
+};
+const waterHeader = (seed = "hdr", base = "#F7D15F") => {
+  let a = Array.from(seed).reduce((s,c)=> (s*33+c.charCodeAt(0))>>>0,5381) || 1;
+  const rnd = ()=> (a = (a*1664525+1013904223)>>>0, (a>>>8)/16777216);
+  const L:string[]=[]; const blobs=4;
+  for(let i=0;i<blobs;i++){
+    const x = (i%2? 80+ rnd()*18 : rnd()*18).toFixed(2);
+    const y = (rnd()*70+15).toFixed(2);
+    const rx = 100 + rnd()*120, ry = 60 + rnd()*120;
+    const a1 = 0.06 + rnd()*0.06; const a2 = a1*0.5; const s1=45+rnd()*10, s2=70+rnd()*12;
+    L.push(`radial-gradient(${rx}px ${ry}px at ${x}% ${y}%, ${hexToRgba(base,a1)}, ${hexToRgba(base,a2)} ${s1}%, rgba(255,255,255,0) ${s2}%)`);
   }
+  L.push(`linear-gradient(to bottom, ${hexToRgba(base,0.08)}, rgba(255,255,255,0.02))`);
+  return L.join(',');
+};
 
-  const shippingFields = [
-    data.addressShipping_street, data.addressShipping_city,
-    data.addressShipping_province, data.addressShipping_postalCode,
-  ];
-  const someShippingFieldFilled = shippingFields.some((field) => field && field.trim() !== "");
-  if (someShippingFieldFilled) {
-    if (!data.addressShipping_street?.trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["addressShipping_street"], message: "Calle de entrega es obligatoria." });
-    if (!data.addressShipping_city?.trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["addressShipping_city"], message: "Ciudad de entrega es obligatoria." });
-    if (!data.addressShipping_province?.trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["addressShipping_province"], message: "Provincia de entrega es obligatoria." });
-    if (!data.addressShipping_postalCode?.trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["addressShipping_postalCode"], message: "Código postal de entrega es obligatorio." });
-  }
-});
 
-// We define the form values type directly from the schema
-export type AccountFormValues = z.infer<typeof accountFormSchemaBase>;
+export function AccountForm({
+  onSubmit,
+  onCancel,
+  defaultValues,
+  teamMembers,
+  distributors,
+  parentAccounts,
+  isSaving,
+}: {
+  onSubmit: (data: AccountFormValues) => Promise<void> | void;
+  onCancel?: () => void;
+  defaultValues?: Partial<AccountFormValues>;
+  teamMembers?: TeamMember[];
+  distributors?: Array<{ id: string; name: string }>;
+  parentAccounts?: Array<{ id: string; name: string }>;
+  isSaving: boolean;
+}) {
+  const { user } = useAuth();
 
+  const form = useForm<AccountFormValues>({
+    resolver: zodResolver(accountSchema),
+    defaultValues: {
+      name: "",
+      accountType: TIPOS_CUENTA_VALUES[0],
+      city: "",
+      country: "ES",
+      salesRepId: user?.id ?? "",
+      mainContactName: "",
+      mainContactEmail: "",
+      mainContactPhone: "",
+      distributorId: "",
+      parentAccountId: "",
+      addressBilling: "",
+      addressShipping: "",
+      notes: "",
+      tags: [],
+      ...defaultValues,
+    },
+  });
+
+  useEffect(() => {
+    if (user?.id && !form.getValues('salesRepId')) {
+      form.setValue("salesRepId", user.id, { shouldDirty: false });
+    }
+  }, [user?.id, form]);
+  
+  useEffect(() => {
+    form.reset({
+      name: "",
+      accountType: TIPOS_CUENTA_VALUES[0],
+      city: "",
+      country: "ES",
+      salesRepId: user?.id ?? "",
+      mainContactName: "",
+      mainContactEmail: "",
+      mainContactPhone: "",
+      distributorId: "",
+      parentAccountId: "",
+      addressBilling: "",
+      addressShipping: "",
+      notes: "",
+      tags: [],
+      ...defaultValues,
+    })
+  }, [defaultValues, form, user?.id]);
+
+  const [tagInput, setTagInput] = React.useState("");
+  const tags = form.watch("tags") ?? [];
+  const addTag = () => {
+    const t = tagInput.trim();
+    if (!t) return;
+    if (!tags.includes(t)) form.setValue("tags", [...tags, t], { shouldDirty: true });
+    setTagInput("");
+  };
+  const removeTag = (t: string) => form.setValue("tags", tags.filter(x => x!==t), { shouldDirty: true });
+
+  return (
+    <form
+      className="space-y-4"
+      onSubmit={form.handleSubmit(async (data) => {
+        await onSubmit(data);
+      })}
+    >
+      <div className="rounded-2xl overflow-hidden border border-zinc-200 bg-white">
+        <div className="px-4 py-3 border-b" style={{ background: waterHeader("NuevaCuenta:basicos") }}>
+          <div className="flex items-center gap-2 text-zinc-800"><Building2 className="h-4 w-4"/> <span className="text-sm font-medium">Datos básicos</span></div>
+        </div>
+        <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <Label htmlFor="name">Nombre de la cuenta</Label>
+            <Input id="name" {...form.register("name")} placeholder="Ej. Bar Pepe" />
+            {form.formState.errors.name && (
+              <p className="mt-1 text-xs text-red-600">{form.formState.errors.name.message as string}</p>
+            )}
+          </div>
+
+          <div>
+            <Label>Tipo de cuenta</Label>
+            <Select
+              value={String(form.watch("accountType") ?? "")}
+              onValueChange={(v) => form.setValue("accountType", v as TipoCuenta, { shouldDirty: true })}
+            >
+              <SelectTrigger><SelectValue placeholder="Selecciona tipo"/></SelectTrigger>
+              <SelectContent>
+                {TIPOS_CUENTA_VALUES.map((t) => (
+                  <SelectItem key={t} value={t}>{t.replaceAll("_"," ")}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label>Ciudad</Label>
+            <Input {...form.register("city")} placeholder="Ej. Zaragoza" />
+          </div>
+
+          <div>
+            <Label>País</Label>
+            <Input {...form.register("country")} placeholder="Ej. ES" />
+          </div>
+
+          <div className="md:col-span-2">
+            <Label>Responsable comercial</Label>
+            <Select
+              value={form.watch("salesRepId")}
+              onValueChange={(v) => form.setValue("salesRepId", v, { shouldDirty: true })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecciona responsable" />
+              </SelectTrigger>
+              <SelectContent>
+                {(teamMembers && teamMembers.length>0 ? teamMembers : (user ? [{ id: user.id, name: (user as any).name || (user as any).email || "Usuario actual" }] : [])).map(tm => (
+                  <SelectItem key={tm.id} value={tm.id}>{tm.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {form.formState.errors.salesRepId && (
+              <p className="mt-1 text-xs text-red-600">{form.formState.errors.salesRepId.message as string}</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <Accordion type="multiple" defaultValue={["contacto"]} className="space-y-3">
+        <AccordionItem value="contacto" className="border border-zinc-200 rounded-2xl overflow-hidden">
+          <AccordionTrigger className="px-4 py-3">
+            <div className="flex items-center gap-2 text-zinc-800"><UserRound className="h-4 w-4"/> <span className="text-sm font-medium">Contacto principal</span></div>
+          </AccordionTrigger>
+          <AccordionContent className="p-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <Label>Nombre</Label>
+              <Input {...form.register("mainContactName")} placeholder="Nombre y apellidos" />
+            </div>
+            <div>
+              <Label>Email</Label>
+              <Input type="email" {...form.register("mainContactEmail")} placeholder="nombre@empresa.com" />
+              {form.formState.errors.mainContactEmail && (
+                <p className="mt-1 text-xs text-red-600">{form.formState.errors.mainContactEmail.message as string}</p>
+              )}
+            </div>
+            <div>
+              <Label>Teléfono</Label>
+              <Input {...form.register("mainContactPhone")} placeholder="+34 …" />
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="relacion" className="border border-zinc-200 rounded-2xl overflow-hidden">
+          <AccordionTrigger className="px-4 py-3">
+            <div className="flex items-center gap-2 text-zinc-800"><Link2 className="h-4 w-4"/> <span className="text-sm font-medium">Relación comercial</span></div>
+          </AccordionTrigger>
+          <AccordionContent className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <Label>Distribuidor asignado</Label>
+              <Select
+                value={form.watch("distributorId") || ""}
+                onValueChange={(v) => form.setValue("distributorId", v, { shouldDirty: true })}
+              >
+                <SelectTrigger><SelectValue placeholder="(Opcional)" /></SelectTrigger>
+                <SelectContent>
+                  {(distributors ?? []).map(d => (
+                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Cuenta matriz</Label>
+              <Select
+                value={form.watch("parentAccountId") || ""}
+                onValueChange={(v) => form.setValue("parentAccountId", v, { shouldDirty: true })}
+              >
+                <SelectTrigger><SelectValue placeholder="(Opcional)" /></SelectTrigger>
+                <SelectContent>
+                  {(parentAccounts ?? []).map(a => (
+                    <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="direcciones" className="border border-zinc-200 rounded-2xl overflow-hidden">
+          <AccordionTrigger className="px-4 py-3">
+            <div className="flex items-center gap-2 text-zinc-800"><MapPin className="h-4 w-4"/> <span className="text-sm font-medium">Direcciones</span></div>
+          </AccordionTrigger>
+          <AccordionContent className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <Label>Facturación</Label>
+              <Textarea rows={3} {...form.register("addressBilling")} placeholder="Calle…, CP… Ciudad…, País" />
+            </div>
+            <div>
+              <Label>Envío</Label>
+              <Textarea rows={3} {...form.register("addressShipping")} placeholder="Calle…, CP… Ciudad…, País" />
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="extras" className="border border-zinc-200 rounded-2xl overflow-hidden">
+          <AccordionTrigger className="px-4 py-3">
+            <div className="flex items-center gap-2 text-zinc-800"><Tag className="h-4 w-4"/> <span className="text-sm font-medium">Extras</span></div>
+          </AccordionTrigger>
+          <AccordionContent className="p-4 space-y-3">
+            <div>
+              <Label>Notas</Label>
+              <Textarea rows={3} {...form.register("notes")} placeholder="Información adicional…" />
+            </div>
+            <div>
+              <Label>Tags</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  value={tagInput}
+                  onChange={(e)=>setTagInput(e.target.value)}
+                  onKeyDown={(e)=>{ if(e.key==='Enter'){ e.preventDefault(); addTag(); } }}
+                  placeholder="Escribe un tag y Enter"
+                />
+                <Button type="button" variant="secondary" onClick={addTag} className="inline-flex items-center gap-1"><PlusCircle className="h-4 w-4"/>Añadir</Button>
+              </div>
+              {tags.length>0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {tags.map(t => (
+                    <span key={t} className="px-2 py-0.5 text-xs rounded-md border border-zinc-300 bg-zinc-50">
+                      {t}
+                      <button type="button" className="ml-2 text-zinc-500 hover:text-zinc-700" onClick={()=>removeTag(t)}>×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+
+      <div className="flex items-center justify-end gap-2 pt-2">
+        {onCancel && (
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isSaving}>Cancelar</Button>
+        )}
+        <Button type="submit" disabled={isSaving} className="bg-[var(--sb-primary)] text-zinc-900 hover:brightness-95">Guardar cuenta</Button>
+      </div>
+    </form>
+  );
+}
 
 interface AccountDialogProps {
   account: Partial<Account> | null;
@@ -129,28 +348,42 @@ export default function AccountDialog({
   isReadOnly = false,
 }: AccountDialogProps) {
   const [isSaving, setIsSaving] = React.useState(false);
+  const { toast } = useToast();
 
   const handleSubmit = async (data: AccountFormValues) => {
     if (isReadOnly) return;
     setIsSaving(true);
     try {
-      const patch = formToAccountPartial(data);
-      await onSave(patch);
-    } catch (e) {
-      // Error is handled by the parent
+      const { id, ...formData } = data;
+      const patch = formToAccountPartial(formData);
+      await onSave({ ...patch, id: account?.id });
+    } catch (e: any) {
+        toast({
+            title: "Error al guardar",
+            description: e.message,
+            variant: "destructive"
+        })
     } finally {
       setIsSaving(false);
     }
   };
+  
+  const distributors = useMemo(() => {
+    return allAccounts.filter(a => a.accountType === "DISTRIBUIDOR" || a.accountType === "IMPORTADOR").map(a => ({ id: a.id, name: a.name }));
+  }, [allAccounts]);
+  
+  const parentAccounts = useMemo(() => {
+    return allAccounts.map(a => ({ id: a.id, name: a.name }));
+  }, [allAccounts]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg md:max-w-xl lg:max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl p-0">
-        <DialogHeader className="px-4 pt-4">
+        <DialogHeader className="px-6 pt-6">
             <DialogTitle className="text-lg">
             {isReadOnly ? "Detalles de la Cuenta" : account?.id && account.id !== 'new' ? "Editar Cuenta" : "Añadir Nueva Cuenta"}
             </DialogTitle>
-            <DialogDescription className="text-zinc-500">
+            <DialogDescription>
             {isReadOnly
                 ? `Viendo detalles de ${account?.name}.`
                 : account?.id && account.id !== 'new'
@@ -158,136 +391,18 @@ export default function AccountDialog({
                 : "Introduce la información de la nueva cuenta."}
             </DialogDescription>
         </DialogHeader>
-        <AccountForm
-            account={account}
-            allAccounts={allAccounts}
-            allTeamMembers={allTeamMembers}
-            isReadOnly={isReadOnly}
-            isSaving={isSaving}
-            onSubmit={handleSubmit}
-            onCancel={() => onOpenChange(false)}
-        />
+        <div className="px-6 pb-6">
+          <AccountFormCore
+              onSubmit={handleSubmit}
+              onCancel={() => onOpenChange(false)}
+              defaultValues={account ? accountToForm(account as Account) : undefined}
+              teamMembers={allTeamMembers}
+              distributors={distributors}
+              parentAccounts={parentAccounts}
+              isSaving={isSaving}
+          />
+        </div>
       </DialogContent>
     </Dialog>
   );
-}
-
-
-interface AccountFormProps {
-    account: Partial<Account> | null;
-    allAccounts?: Account[];
-    allTeamMembers?: TeamMember[];
-    isReadOnly?: boolean;
-    isSaving: boolean;
-    onSubmit: (data: AccountFormValues) => void;
-    onCancel: () => void;
-}
-
-export function AccountForm({
-    account,
-    allAccounts = [],
-    allTeamMembers = [],
-    isReadOnly = false,
-    isSaving,
-    onSubmit,
-    onCancel,
-}: AccountFormProps) {
-    const salesRepList = React.useMemo(() => 
-        allTeamMembers.filter(m => m.role === 'Ventas' || m.role === 'Admin' || m.role === 'Manager'),
-        [allTeamMembers]
-    );
-    const distributors = React.useMemo(() => 
-        allAccounts.filter(a => isB2B(a.type)),
-        [allAccounts]
-    );
-
-    const accountFormSchema = React.useMemo(() => {
-        return accountFormSchemaBase.refine(
-        (data) => {
-            if (!data.cif || data.cif.trim() === "") return true;
-            const cifToCompare = data.cif.toLowerCase();
-            const existingAccountWithCif = allAccounts.find(
-            (acc) => acc.cif && acc.cif.toLowerCase() === cifToCompare && acc.id !== account?.id
-            );
-            return !existingAccountWithCif;
-        },
-        { message: "Ya existe otra cuenta con este CIF/NIF.", path: ["cif"] }
-        );
-    }, [allAccounts, account?.id]);
-
-    const form = useForm<AccountFormValues>({
-        resolver: zodResolver(accountFormSchema),
-        defaultValues: accountToForm(account as Account || {} as Account)
-    });
-
-    const accountType = form.watch("type");
-    const showDistributorField = !!accountType && !isB2B(accountType);
-
-    React.useEffect(() => {
-        if (account) {
-            form.reset(accountToForm(account as Account));
-        } else {
-            form.reset(accountToForm({} as Account));
-        }
-    }, [account, form]);
-
-    return (
-        <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 p-4">
-            <div className="space-y-4 p-4 border rounded-lg">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Nombre Comercial</FormLabel><FormControl><Input placeholder="Ej: Bar Manolo" {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="legalName" render={({ field }) => (<FormItem><FormLabel>Nombre Fiscal</FormLabel><FormControl><Input placeholder="Ej: Restauración Manolo S.L." {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField control={form.control} name="cif" render={({ field }) => (<FormItem><FormLabel>CIF/NIF</FormLabel><FormControl><Input placeholder="Identificador fiscal" {...field} value={field.value ?? ""} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="type" render={({ field }) => (<FormItem><FormLabel>Tipo de Cuenta</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccione un tipo" /></SelectTrigger></FormControl><SelectContent>{(OPCIONES_TIPO_CUENTA ?? []).map((type) => (<SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                </div>
-            </div>
-            <div className="space-y-4 p-4 border rounded-lg">
-                <h3 className="text-sm font-semibold text-zinc-600">Datos Financieros y Logísticos</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField control={form.control} name="iban" render={({ field }) => (<FormItem><FormLabel>IBAN</FormLabel><FormControl><Input placeholder="ES00..." {...field} value={field.value ?? ""} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
-                {showDistributorField && (
-                    <FormField control={form.control} name="distributorId" render={({ field }) => (<FormItem><FormLabel className="flex items-center gap-1.5"><Truck className="h-4 w-4 text-zinc-500" />Distribuidor</FormLabel><Select onValueChange={field.onChange} value={field.value || ""} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger></FormControl><SelectContent><SelectItem value={DIRECT_SALE_VALUE}>Venta Directa (Gestiona Santa Brisa)</SelectItem><Separator />{(distributors ?? []).map((d: Account) => (<SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                )}
-                </div>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="space-y-4 p-4 border rounded-lg">
-                <h3 className="text-sm font-semibold text-zinc-600">Dirección de Facturación</h3>
-                <FormField control={form.control} name="addressBilling_street" render={({ field }) => (<FormItem><FormLabel>Calle</FormLabel><FormControl><Input {...field} disabled={isReadOnly} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
-                <div className="grid grid-cols-2 gap-4">
-                    <FormField control={form.control} name="addressBilling_postalCode" render={({ field }) => (<FormItem><FormLabel>C. Postal</FormLabel><FormControl><Input {...field} disabled={isReadOnly} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="addressBilling_city" render={({ field }) => (<FormItem><FormLabel>Ciudad</FormLabel><FormControl><Input {...field} disabled={isReadOnly} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
-                </div>
-                <FormField control={form.control} name="addressBilling_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger></FormControl><SelectContent>{(PROVINCIAS_ES as readonly string[]).map((p: string) => (<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                </div>
-                <div className="space-y-4 p-4 border rounded-lg">
-                <h3 className="text-sm font-semibold text-zinc-600">Dirección de Envío</h3>
-                <FormField control={form.control} name="addressShipping_street" render={({ field }) => (<FormItem><FormLabel>Calle</FormLabel><FormControl><Input {...field} disabled={isReadOnly} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
-                <div className="grid grid-cols-2 gap-4">
-                    <FormField control={form.control} name="addressShipping_postalCode" render={({ field }) => (<FormItem><FormLabel>C. Postal</FormLabel><FormControl><Input {...field} disabled={isReadOnly} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="addressShipping_city" render={({ field }) => (<FormItem><FormLabel>Ciudad</FormLabel><FormControl><Input {...field} disabled={isReadOnly} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
-                </div>
-                <FormField control={form.control} name="addressShipping_province" render={({ field }) => (<FormItem><FormLabel>Provincia</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger></FormControl><SelectContent>{(PROVINCIAS_ES as readonly string[]).map((p: string) => (<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                </div>
-            </div>
-            <div className="space-y-4 p-4 border rounded-lg">
-                <h3 className="text-sm font-semibold text-zinc-600">Contacto y Notas</h3>
-                <FormField control={form.control} name="mainContactName" render={({ field }) => (<FormItem><FormLabel>Nombre del Contacto</FormLabel><FormControl><Input {...field} disabled={isReadOnly} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField control={form.control} name="mainContactEmail" render={({ field }) => (<FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} value={field.value ?? ""} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="mainContactPhone" render={({ field }) => (<FormItem><FormLabel>Teléfono</FormLabel><FormControl><Input type="tel" {...field} value={field.value ?? ""} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem>)} />
-                </div>
-                <FormField control={form.control} name="salesRepId" render={({ field }) => (<FormItem><FormLabel>Representante Asignado</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger></FormControl><SelectContent><SelectItem value={NO_SALES_REP_VALUE}>Sin asignar</SelectItem>{(salesRepList ?? []).map((rep) => (<SelectItem key={rep.id} value={rep.id}>{rep.name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                <FormField control={form.control} name="internalNotes" render={({ field }) => (<FormItem><FormLabel>Notas Internas (Equipo)</FormLabel><FormControl><Textarea {...field} disabled={isReadOnly} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
-            </div>
-            <DialogFooter className="pt-6">
-                <Button type="button" variant="outline" onClick={onCancel} disabled={isSaving && !isReadOnly}>{isReadOnly ? "Cerrar" : "Cancelar"}</Button>
-                {!isReadOnly && (<Button type="submit" disabled={isSaving || (!form.formState.isDirty && !!account?.id && account.id !== 'new')}>{isSaving ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</>) : account?.id && account.id !== 'new' ? "Guardar Cambios" : "Añadir Cuenta"}</Button>)}
-            </DialogFooter>
-            </form>
-        </Form>
-    );
 }

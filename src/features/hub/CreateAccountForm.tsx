@@ -2,11 +2,12 @@
 "use client";
 
 import * as React from "react";
-import { AccountForm } from "@/components/app/account-dialog";
+import { AccountFormCore } from "@/components/app/account-dialog";
 import type { Account, TeamMember } from "@/types";
 import { upsertAccountAction } from "@/app/(app)/accounts/actions";
 import { useToast } from "@/hooks/use-toast";
-import type { AccountFormValues } from "@/components/app/account-dialog";
+import type { AccountFormValues } from "@/lib/schemas/account-schema";
+import { formToAccountPartial, accountToForm } from "@/services/account-mapper";
 
 type Props = {
   initialAccount: Partial<Account> | null;
@@ -26,12 +27,13 @@ export function CreateAccountForm({
   const { toast } = useToast();
   const [isSaving, setIsSaving] = React.useState(false);
 
-  const handleSave = async (data: Partial<Account>) => {
+  const handleSubmit = async (data: AccountFormValues) => {
     setIsSaving(true);
     try {
+      const patch = formToAccountPartial(data);
       const res = await upsertAccountAction({
         id: initialAccount?.id !== 'new' ? initialAccount?.id : undefined,
-        ...data,
+        ...patch,
       } as any);
 
       onCreated(res.id, data.name!);
@@ -45,15 +47,24 @@ export function CreateAccountForm({
         setIsSaving(false);
     }
   };
+
+  const distributors = React.useMemo(() => {
+    return allAccounts.filter(a => a.accountType === "DISTRIBUIDOR" || a.accountType === "IMPORTADOR").map(a => ({ id: a.id, name: a.name }));
+  }, [allAccounts]);
+  
+  const parentAccounts = React.useMemo(() => {
+    return allAccounts.map(a => ({ id: a.id, name: a.name }));
+  }, [allAccounts]);
   
   return (
-    <AccountForm
-        account={initialAccount}
-        onSave={handleSave}
-        allAccounts={allAccounts}
-        allTeamMembers={allTeamMembers}
-        isSaving={isSaving}
+    <AccountFormCore
+        onSubmit={handleSubmit}
         onCancel={onCancel}
+        defaultValues={initialAccount ? accountToForm(initialAccount as Account) : undefined}
+        teamMembers={allTeamMembers}
+        distributors={distributors}
+        parentAccounts={parentAccounts}
+        isSaving={isSaving}
     />
   );
 }

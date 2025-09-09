@@ -48,7 +48,13 @@ export async function selectAccountsByActivity(opts: SelectAccountsOptions = {})
   const accounts = accountsSnap.docs.map(d => fromFirestore({ id: d.id, ...d.data() }));
 
   const accountsById = new Map<string, Account>();
-  accounts.forEach(a => accountsById.set(a.id, a));
+  const accountsByName = new Map<string, Account>();
+  accounts.forEach(a => {
+    accountsById.set(a.id, a);
+    if (a.name) {
+      accountsByName.set(a.name.toLowerCase().trim(), a);
+    }
+  });
 
   // 2. Fetch all orders (interactions are a subset of orders).
   const ordersQuery: FirebaseFirestore.Query = db.collection("orders");
@@ -60,10 +66,19 @@ export async function selectAccountsByActivity(opts: SelectAccountsOptions = {})
   const accountIdsWithInteraction = new Set<string>();
   
   allInteractions.forEach(interaction => {
-    if (interaction.accountId) {
-      accountIdsWithInteraction.add(interaction.accountId);
+    let accountId = interaction.accountId;
+    // Fallback to name matching if accountId is missing
+    if (!accountId && interaction.clientName) {
+        const matchedAccount = accountsByName.get(interaction.clientName.toLowerCase().trim());
+        if (matchedAccount) {
+            accountId = matchedAccount.id;
+        }
+    }
+
+    if (accountId) {
+      accountIdsWithInteraction.add(accountId);
       if (VALID_SALE_STATUSES.includes(interaction.status)) {
-        accountIdsWithOrder.add(interaction.accountId);
+        accountIdsWithOrder.add(accountId);
       }
     }
   });
@@ -87,7 +102,7 @@ export async function selectAccountsByActivity(opts: SelectAccountsOptions = {})
       sinPedidoNiInteraccionIds.push(a.id);
     }
     
-    if (isFallida && !hasOrder) { // An account with an order shouldn't be in 'fallidas'
+    if (isFallida && !hasOrder) { 
       fallidasIds.push(a.id);
     }
   });

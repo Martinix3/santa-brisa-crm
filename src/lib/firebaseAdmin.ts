@@ -8,28 +8,29 @@ import { getStorage } from 'firebase-admin/storage';
 /**
  * @fileoverview Initializes the Firebase Admin SDK.
  * 
- * This setup uses Application Default Credentials (ADC), the recommended method for both
- * local development and managed cloud environments.
+ * --- HOW AUTHENTICATION WORKS IN THIS ENVIRONMENT ---
  * 
- * --- How to Authenticate ---
+ * This application uses Application Default Credentials (ADC), the modern and secure
+ * method for authenticating to Google Cloud services. This means you DO NOT
+ * need to download or manage JSON service account keys.
  * 
- * There are two primary ways to provide credentials to this application:
+ * The environment (like Firebase Studio, Cloud Run, Cloud Functions) has a
+ * service account attached to it. The `applicationDefault()` method
+ * automatically and securely uses the identity of this attached service account.
  * 
- * 1. (RECOMMENDED LOCALLY) Using the gcloud CLI:
- *    Run the following command in your terminal ONCE:
- *    `gcloud auth application-default login`
- *    This will open a browser window to authenticate with your personal Google account.
- *    The credentials are saved locally and automatically picked up by this configuration.
+ * If you encounter permission errors, it's almost never a problem with the code
+ * or a missing key. Instead, you need to grant the correct IAM roles to the
+ * service account being used by your Cloud Workstation/Firebase Studio environment.
  * 
- * 2. (RECOMMENDED FOR PRODUCTION/CI) Using a Service Account JSON file:
- *    a. Download the JSON key file for a service account from your Google Cloud project.
- *    b. Save it securely in your project (e.g., in the root, and ensure it's in .gitignore).
- *    c. Set the `GOOGLE_APPLICATION_CREDENTIALS` environment variable to the path of this file.
- *       Example (.env.local):
- *       `GOOGLE_APPLICATION_CREDENTIALS=./path/to/your/service-account-key.json`
+ * Common roles needed:
+ * - `Firebase Admin SDK Administrator Service Agent`
+ * - `Cloud Datastore User` (for Firestore access)
+ * - `Document AI API User` (for Document AI)
+ * - `Secret Manager Secret Accessor` (for accessing secrets)
  * 
- * The `applicationDefault()` method will automatically detect and use the credentials
- * provided by either of these methods.
+ * For local development outside of a managed environment, you can use:
+ * `gcloud auth application-default login`
+ * This command uses your personal credentials temporarily and securely.
  */
 
 const ADMIN_APP_NAME = 'firebase-admin-app-instance';
@@ -40,8 +41,8 @@ let app: App;
 if (getApps().some((app) => app.name === ADMIN_APP_NAME)) {
   app = getApps().find((app) => app.name === ADMIN_APP_NAME)!;
 } else {
-  // Use ADC as the primary, robust method for managed environments
-  // Fallback to service account from env vars is not included as ADC is preferred
+  // Use ADC. This is the most secure and recommended method.
+  // It automatically finds credentials in managed environments or from gcloud.
   app = initializeApp(
     {
       credential: applicationDefault(),

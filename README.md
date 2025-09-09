@@ -196,4 +196,4 @@ El despliegue está automatizado a través de **GitHub Actions**.
 
 ## 8. Solución de Problemas
 
-Consulta el fichero `TROUBLESHOOTING.md` para ver una guía detallada de los errores más comunes y sus soluciones.
+Consulta el fichero `TROUBLESHOOTING.md` para ver una guía detallada de los errores más comunes y sus soluciones.# santa-brisa-crm

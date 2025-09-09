@@ -1,4 +1,3 @@
-
 // src/lib/firebase-client.ts
 import 'client-only';
 
@@ -21,6 +20,7 @@ if (process.env.NODE_ENV === 'development') {
   // console.log('Firebase web cfg', firebaseConfig);
 }
 
+// Initialize Firebase
 const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth: Auth = getAuth(app);
 const db = getFirestore(app);

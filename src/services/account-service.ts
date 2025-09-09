@@ -1,11 +1,10 @@
 
-
 'use server';
 
 import { adminDb } from '@/lib/firebaseAdmin'; // Use Admin SDK
 import { Timestamp } from "firebase-admin/firestore";
 import type { Account, AccountFormValues } from '@/types';
-import { accountToForm, fromFirestore, toFirestore } from './account-mapper';
+import { fromFirestore, toFirestore } from './account-mapper';
 import { getTeamMembersFS } from './team-member-service';
 
 const ACCOUNTS_COLLECTION = 'accounts';
@@ -35,14 +34,12 @@ export const getAccountByIdFS = async (id: string): Promise<Account | null> => {
 export const addAccountFS = async (data: Partial<Account>): Promise<string> => {
   const fullData: Account = {
     id: '', // Will be assigned by Firestore
-    status: 'Pendiente',
-    potencial: 'medio',
-    leadScore: 50,
+    accountStage: 'POTENCIAL',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     ...data,
     name: data.name || 'Nombre Desconocido',
-    type: data.type || 'prospect',
+    accountType: data.accountType || 'prospect',
   };
   const firestoreData = toFirestore(fullData);
   const docRef = await adminDb.collection(ACCOUNTS_COLLECTION).add(firestoreData);
@@ -62,7 +59,7 @@ export const updateAccountFS = async (id: string, data: Partial<Account>): Promi
   // If the account name changes, we must update all related interactions.
   if (data.name) {
       const currentAccountSnap = await accountDocRef.get();
-      const currentAccount = currentAccountSnap.exists ? fromFirestore(currentAccountSnap) : null;
+      const currentAccount = currentAccountSnap.exists ? fromFirestore(currentAccountSnap.data()) : null;
       if (currentAccount && currentAccount.name !== data.name) {
           const ordersQuery = adminDb.collection(ORDERS_COLLECTION).where("accountId", "==", id);
           const ordersSnapshot = await ordersQuery.get();

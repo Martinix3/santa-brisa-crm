@@ -20,30 +20,42 @@ const toISOString = (dateValue: any): string | undefined => {
   return undefined;
 };
 
-export function fromFirestore(raw: any): Account {
-  const name = raw.name ?? raw.nombre ?? '';
-  
+export function fromFirestore(data: any): Account {
+  if (!data) throw new Error("Received undefined data for account mapping");
   return {
-    id: String(raw.id),
-    name,
-    legalName: raw.legalName,
-    accountType: raw.accountType,
-    accountStage: raw.accountStage,
-    tags: raw.tags || [],
-    distributorId: raw.distributorId,
-    parentAccountId: raw.parentAccountId,
-    owner_user_id: raw.owner_user_id,
-    cif: raw.vat_number ?? raw.cif,
-    addressBilling: raw.addressBilling,
-    addressShipping: raw.addressShipping,
-    city: raw.city,
-    country: raw.country,
-    mainContactName: raw.mainContactName,
-    mainContactEmail: raw.mainContactEmail,
-    mainContactPhone: raw.mainContactPhone,
-    createdAt: toISOString(raw.createdAt)!,
-    updatedAt: toISOString(raw.updatedAt)!,
-    notes: raw.notes,
+    id: data.id,
+    name: data.name ?? "",
+    legalName: data.legalName,
+    accountType: data.accountType ?? "OTRO",
+    accountStage: data.accountStage ?? "POTENCIAL",
+    tags: data.tags || [],
+    distributorId: data.distributorId,
+    parentAccountId: data.parentAccountId,
+    owner_user_id: data.owner_user_id || data.salesRepId,
+    cif: data.cif,
+    addressBilling: data.addressBilling,
+    addressShipping: data.addressShipping,
+    city: data.city,
+    country: data.country,
+    mainContactName: data.mainContactName,
+    mainContactEmail: data.mainContactEmail,
+    mainContactPhone: data.mainContactPhone,
+    createdAt: toISOString(data.createdAt)!,
+    updatedAt: toISOString(data.updatedAt)!,
+    notes: data.notes,
+  } as Account;
+}
+
+export function toFirestore(a: Partial<Account>) {
+  return {
+    name: a.name ?? "",
+    accountType: a.accountType ?? "OTRO",
+    accountStage: a.accountStage ?? "POTENCIAL",
+    city: a.city ?? undefined,
+    distributorId: a.distributorId ?? null,
+    parentAccountId: a.parentAccountId ?? null,
+    createdAt: a.createdAt ?? new Date(),
+    updatedAt: new Date(),
   };
 }
 
@@ -64,7 +76,7 @@ export function formToAccountPartial(f: AccountFormValues): Partial<Account> {
     accountType: f.accountType,
     city: norm(f.city),
     country: norm(f.country),
-    salesRepId: f.salesRepId,
+    owner_user_id: f.salesRepId,
     mainContactName: norm(f.mainContactName),
     mainContactEmail: norm(f.mainContactEmail),
     mainContactPhone: norm(f.mainContactPhone),

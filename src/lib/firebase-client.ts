@@ -1,3 +1,4 @@
+
 // src/lib/firebase-client.ts
 import 'client-only';
 

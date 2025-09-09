@@ -3,7 +3,7 @@ import 'server-only';
 /**
  * @fileOverview An AI agent for processing invoices using Document AI.
  *
- * - processInvoice - A function that handles invoice data extraction.
+ * - processInvoice - a function that handles invoice data extraction.
  * - InvoiceProcessingInput - The input type for the processInvoice function.
  * - InvoiceProcessingOutput - The return type for the processInvoice function.
  */
@@ -57,10 +57,6 @@ const processInvoiceFlow = ai.defineFlow(
     outputSchema: InvoiceProcessingOutputSchema,
   },
   async (input) => {
-    // API is disabled, return an error immediately.
-    throw new Error('El servicio de procesamiento de facturas con IA está desactivado.');
-
-    /*
     if (!GCLOUD_PROJECT || !GCLOUD_LOCATION || !DOCUMENTAI_PROCESSOR_ID) {
       throw new Error('Variables de entorno de Document AI no configuradas en el servidor.');
     }
@@ -131,12 +127,9 @@ const processInvoiceFlow = ai.defineFlow(
         console.error('Error al llamar a Document AI:', err);
         throw new Error(`Error del servidor de Document AI: ${err.message || 'Error desconocido'}`);
     }
-    */
   }
 );
 
 export async function processInvoice(input: InvoiceProcessingInput): Promise<InvoiceProcessingOutput> {
-  // API is disabled.
-  throw new Error('El servicio de procesamiento de facturas con IA está desactivado.');
-  // return processInvoiceFlow(input);
+  return processInvoiceFlow(input);
 }

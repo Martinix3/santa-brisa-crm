@@ -23,8 +23,6 @@ const MarketingAssistantOutputSchema = z.object({
 export type MarketingAssistantOutput = z.infer<typeof MarketingAssistantOutputSchema>;
 
 export async function askMarketingAssistant(input: MarketingAssistantInput): Promise<MarketingAssistantOutput> {
-  // API is disabled
-  // return Promise.resolve({ answer: "El asistente de IA está desactivado temporalmente." });
   return marketingAssistantFlow(input);
 }
 
@@ -161,8 +159,6 @@ const marketingAssistantFlow = ai.defineFlow(
     outputSchema: MarketingAssistantOutputSchema,
   },
   async (input) => {
-    // API is disabled
-    // return { answer: "El asistente de IA está desactivado temporalmente." };
     const {output} = await prompt(input);
     if (!output) {
       // Esto no debería ocurrir si el LLM sigue el schema, pero es un fallback.

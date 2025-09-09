@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -44,11 +45,20 @@ export default function AccountDebuggerPage() {
         body: JSON.stringify({ name: accountName.trim() }),
       });
       
-      const result = await response.json();
-
       if (!response.ok) {
-        throw new Error(result.error || "Error desconocido del servidor.");
+        // Attempt to read the error message from the server, but handle cases where it might not be JSON
+        let errorText = `Error del servidor: ${response.status} ${response.statusText}`;
+        try {
+            const errorResult = await response.json();
+            errorText = errorResult.error || errorText;
+        } catch (jsonError) {
+            // The response was not JSON, maybe it's HTML or plain text
+            errorText = await response.text();
+        }
+        throw new Error(errorText);
       }
+      
+      const result = await response.json();
 
       setDebugBundles(result.bundles);
       setMessage(result.message || `Se encontraron ${result.matches} coincidencias.`);

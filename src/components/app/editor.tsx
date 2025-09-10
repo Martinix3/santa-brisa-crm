@@ -4,36 +4,7 @@ import * as React from 'react';
 import { useEffect, useRef } from 'react';
 import type * as monaco from 'monaco-editor';
 import { Loader2 } from 'lucide-react';
-
-// This is the new worker configuration logic
-const configureMonacoWorkers = () => {
-    // Check if running in a browser environment
-    if (typeof window === 'undefined') {
-        return;
-    }
-
-    // Define how Monaco loads its web workers using absolute paths
-    self.MonacoEnvironment = {
-        getWorkerUrl: function (moduleId, label) {
-            const workerPath = {
-                json: '/_next/static/monaco/json.worker.js',
-                css: '/_next/static/monaco/css.worker.js',
-                html: '/_next/static/monaco/html.worker.js',
-                typescript: '/_next/static/monaco/ts.worker.js',
-                javascript: '/_next/static/monaco/ts.worker.js',
-            }[label];
-
-            if (workerPath) {
-                return workerPath;
-            }
-            
-            return '/_next/static/monaco/editor.worker.js';
-        },
-    };
-};
-
-// Configure workers right away at the module level
-configureMonacoWorkers();
+import '@/lib/monaco-env'; // Ensure the environment is configured
 
 interface EditorProps {
   value: string;
@@ -52,7 +23,6 @@ export default function Editor({ value, language = 'typescript', onChange, optio
     let cancelled = false;
 
     const initMonaco = async () => {
-        // Now we import the ESM version directly
         const monacoInstance = await import('monaco-editor/esm/vs/editor/editor.api');
         
         if (cancelled || !containerRef.current) return;

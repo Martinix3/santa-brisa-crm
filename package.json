@@ -8,7 +8,7 @@
   },
   "packageManager": "npm@10.8.0",
   "scripts": {
-    "dev": "next dev --hostname 0.0.0.0 --port 3000",
+    "dev": "next dev -H 0.0.0.0 -p 9002",
     "emu": "firebase emulators:start --project santa-brisa-crm",
     "dev:all": "concurrently -k \"npm:emu\" \"npm:dev\"",
     "build": "next build",
@@ -71,7 +71,7 @@
     "googleapis": "^159.0.0",
     "handlebars": "^4.7.8",
     "lucide-react": "^0.543.0",
-    "monaco-editor": "^0.53.0",
+    "monaco-editor": "0.50.0",
     "next": "15.5.2",
     "patch-package": "^8.0.0",
     "react": "19.1.1",
@@ -97,6 +97,7 @@
     "@typescript-eslint/parser": "^8.43.0",
     "autoprefixer": "^10.4.21",
     "concurrently": "^8.2.2",
+    "dotenv": "^17.2.2",
     "eslint": "^9.35.0",
     "eslint-config-next": "15.5.2",
     "firebase-admin": "13.5.0",
@@ -112,7 +113,7 @@
     "tsx": "^4.20.5",
     "typescript": "^5.9.2"
   },
-"overrides": {
+  "overrides": {
     "next": "15.5.2",
     "react": "19.1.1",
     "react-dom": "19.1.1",

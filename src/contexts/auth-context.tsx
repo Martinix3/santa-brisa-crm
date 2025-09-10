@@ -1,16 +1,15 @@
-
+// src/contexts/auth-context.tsx
 "use client";
 
 import type React from 'react';
 import { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
-import { 
-  User as FirebaseUser, 
-  onAuthStateChanged, 
-  signInWithEmailAndPassword, 
+import {
+  User as FirebaseUser,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   signInWithPopup,
   GoogleAuthProvider,
-  type Auth,
 } from 'firebase/auth';
 import { auth, ensureAuthPersistence, assertFirebaseEnv } from '@/lib/firebase-client';
 import type { TeamMember, TeamMemberFormValues } from '@/types';
@@ -27,7 +26,10 @@ interface AuthContextType {
   login: (email: string, pass: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
-  createUserInAuthAndFirestore: (userData: TeamMemberFormValues, pass: string) => Promise<{firebaseUser: FirebaseUser | null, teamMemberId: string | null}>;
+  createUserInAuthAndFirestore: (
+    userData: TeamMemberFormValues,
+    pass: string
+  ) => Promise<{ firebaseUser: FirebaseUser | null; teamMemberId: string | null }>;
   dataSignature: number;
   refreshDataSignature: () => void;
 }
@@ -40,15 +42,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [dataSignature, setDataSignature] = useState(0);
   const { toast } = useToast();
-  
+
   useEffect(() => {
-    // This effect runs once to set up persistence and env checks.
-    assertFirebaseEnv();
+    // Config/env y persistencia
+    try {
+      assertFirebaseEnv();
+    } catch (e) {
+      console.error("[AuthProvider] Variables de entorno incompletas:", e);
+      // En producción podrías mostrar un toast más claro.
+    }
     void ensureAuthPersistence();
   }, []);
-  
+
   useEffect(() => {
-    // This effect handles auth state changes.
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setLoading(true);
       if (firebaseUser) {
@@ -59,25 +65,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setTeamMember(profile);
           } else {
             console.error("AuthContext: Profile not found for UID:", firebaseUser.uid);
-            // This might happen with a new social auth user. Let's try to create it.
             const newProfile = await findOrCreateTeamMemberForSocialAuthAction({
-                uid: firebaseUser.uid,
-                email: firebaseUser.email || '',
-                displayName: firebaseUser.displayName || 'Nuevo Usuario',
-                photoURL: firebaseUser.photoURL,
+              uid: firebaseUser.uid,
+              email: firebaseUser.email || '',
+              displayName: firebaseUser.displayName || 'Nuevo Usuario',
+              photoURL: firebaseUser.photoURL,
             });
             if (newProfile) {
-                setTeamMember(newProfile);
+              setTeamMember(newProfile);
             } else {
-                toast({ title: "Error de Perfil", description: "No se pudo encontrar ni crear tu perfil. Contacta con el administrador.", variant: "destructive" });
-                await firebaseSignOut(auth);
-                setUser(null);
+              toast({
+                title: "Error de Perfil",
+                description: "No se pudo encontrar ni crear tu perfil. Contacta con el administrador.",
+                variant: "destructive",
+              });
+              await firebaseSignOut(auth);
+              setUser(null);
             }
           }
         } catch (error) {
           console.error("AuthContext: Error fetching profile:", error);
           setTeamMember(null);
-          toast({ title: "Error de Carga de Perfil", description: "Ocurrió un error al cargar tu perfil.", variant: "destructive" });
+          toast({
+            title: "Error de Carga de Perfil",
+            description: "Ocurrió un error al cargar tu perfil.",
+            variant: "destructive",
+          });
         }
       } else {
         setUser(null);
@@ -92,7 +105,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, pass);
-      // onAuthStateChanged will handle the rest
     } catch (error: any) {
       console.error("AuthContext: Login error:", error);
       let description = "Credenciales incorrectas o usuario no encontrado.";
@@ -100,9 +112,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         description = "El correo electrónico o la contraseña no son correctos.";
       } else if (error.code === 'auth/too-many-requests') {
         description = "Demasiados intentos fallidos. Por favor, inténtalo más tarde o restablece tu contraseña.";
+      } else if (error.code === 'auth/network-request-failed') {
+        description = "Fallo de red al conectar con Firebase (¿emulador apagado o dominio no autorizado?).";
       }
-      toast({ title: "Error de Inicio de Sesión", description: description, variant: "destructive" });
-      setLoading(false); 
+      toast({ title: "Error de Inicio de Sesión", description, variant: "destructive" });
+      setLoading(false);
       throw error;
     }
   };
@@ -112,16 +126,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
-      // onAuthStateChanged will handle the rest
     } catch (error: any) {
       console.error("AuthContext: Google login error:", error);
       let description = "No se pudo iniciar sesión con Google.";
       if (error.code === 'auth/popup-closed-by-user') {
-          description = "Has cerrado la ventana de inicio de sesión de Google.";
+        description = "Has cerrado la ventana de inicio de sesión de Google.";
       } else if (error.code === 'auth/account-exists-with-different-credential') {
-          description = "Ya existe una cuenta con este correo electrónico pero con un método de inicio de sesión diferente.";
+        description = "Ya existe una cuenta con este correo electrónico pero con un método de inicio de sesión diferente.";
       }
-      toast({ title: "Error de Inicio de Sesión", description: description, variant: "destructive" });
+      toast({ title: "Error de Inicio de Sesión", description, variant: "destructive" });
       setLoading(false);
       throw error;
     }
@@ -132,11 +145,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await firebaseSignOut(auth);
     } catch (error: any) {
       console.error("AuthContext: Logout error:", error);
-       toast({ title: "Error al Cerrar Sesión", description: error.message || "Ocurrió un problema.", variant: "destructive" });
+      toast({
+        title: "Error al Cerrar Sesión",
+        description: error.message || "Ocurrió un problema.",
+        variant: "destructive",
+      });
     }
   };
 
-  const createUserInAuthAndFirestore = async (userData: TeamMemberFormValues, pass: string): Promise<{firebaseUser: FirebaseUser | null, teamMemberId: string | null}> => {
+  const createUserInAuthAndFirestore = async (
+    userData: TeamMemberFormValues,
+    pass: string
+  ): Promise<{ firebaseUser: FirebaseUser | null; teamMemberId: string | null }> => {
     try {
       const result = await createTeamMemberAction(userData, pass);
       if (result.error) {
@@ -151,22 +171,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const refreshDataSignature = useCallback(() => {
-    setDataSignature(prev => prev + 1);
+    setDataSignature((prev) => prev + 1);
   }, []);
-  
-  const value = useMemo(() => ({
-    user, 
-    teamMember,
-    userRole: teamMember?.role || null,
-    loading, 
-    login,
-    loginWithGoogle, 
-    logout, 
-    createUserInAuthAndFirestore, 
-    dataSignature, 
-    refreshDataSignature,
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [user, teamMember, loading, dataSignature, refreshDataSignature]); 
+
+  const value = useMemo(
+    () => ({
+      user,
+      teamMember,
+      userRole: teamMember?.role || null,
+      loading,
+      login,
+      loginWithGoogle,
+      logout,
+      createUserInAuthAndFirestore,
+      dataSignature,
+      refreshDataSignature,
+    }),
+    [user, teamMember, loading, dataSignature, refreshDataSignature]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

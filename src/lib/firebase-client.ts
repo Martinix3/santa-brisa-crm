@@ -1,63 +1,71 @@
 // src/lib/firebase-client.ts
-'use client';
+"use client";
 
-import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
-import { getAuth, setPersistence, browserLocalPersistence, connectAuthEmulator, type Auth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
-import { getStorage, connectStorageEmulator } from 'firebase/storage';
+import { initializeApp, getApps, getApp } from "firebase/app";
+import {
+  getAuth,
+  setPersistence,
+  browserLocalPersistence,
+  connectAuthEmulator,
+} from "firebase/auth";
+import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
+import { getStorage, connectStorageEmulator } from "firebase/storage";
 
+// --- Comprobación de env (la llamas desde el AuthProvider) ---
+export function assertFirebaseEnv(): void {
+  const apiKey = (process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "").trim();
+  const authDomain = (process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? "").trim();
+  const projectId = (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "").trim();
+  const appId = (process.env.NEXT_PUBLIC_FIREBASE_APP_ID ?? "").trim();
+
+  const missing: string[] = [];
+  if (!apiKey) missing.push("NEXT_PUBLIC_FIREBASE_API_KEY");
+  if (!authDomain) missing.push("NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN");
+  if (!projectId) missing.push("NEXT_PUBLIC_FIREBASE_PROJECT_ID");
+  if (!appId) missing.push("NEXT_PUBLIC_FIREBASE_APP_ID");
+
+  if (missing.length) {
+    console.error("Faltan variables de entorno de Firebase:", missing);
+    throw new Error(`Faltan variables de entorno de Firebase: ${missing.join(", ")}`);
+  }
+
+  if (!/^AIza[0-9A-Za-z_\-]{35}$/.test(apiKey)) {
+    console.warn("[SB/firebase] La API key no parece válida por patrón. Tail:", apiKey.slice(-6));
+  }
+  console.info("[SB/firebase] env OK. apiKeyTail:", apiKey.slice(-6));
+}
+
+// --- Config ---
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET!,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID!,
+  apiKey: (process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "").trim(),
+  authDomain: (process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? "").trim(),
+  projectId: (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "").trim(),
+  appId: (process.env.NEXT_PUBLIC_FIREBASE_APP_ID ?? "").trim(),
 };
 
-export function assertFirebaseEnv() {
-  const required = [
-    'NEXT_PUBLIC_FIREBASE_API_KEY',
-    'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
-    'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
-    'NEXT_PUBLIC_FIREBASE_APP_ID',
-  ] as const;
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export const storage = getStorage(app);
 
-  const missing = required.filter((k) => !process.env[k]);
-  if (missing.length > 0) {
-    // eslint-disable-next-line no-console
-    console.error('Faltan variables de entorno de Firebase:', missing);
+// --- Emuladores (solo si lo pides por env) ---
+const useEmulators = process.env.NEXT_PUBLIC_USE_EMULATORS === "1";
+console.info("[SB/firebase] useEmulators:", useEmulators);
+
+if (useEmulators) {
+  const host = typeof window !== "undefined" ? window.location.hostname : "127.0.0.1";
+  console.info("[SB/firebase] Conectando a emuladores en", host);
+  if (typeof window !== "undefined") {
+    connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true });
+    connectFirestoreEmulator(db, host, 8080);
+    connectStorageEmulator(storage, host, 9199);
   }
+  console.info("[SB/firebase] Conectado a emuladores.");
+} else {
+  console.info("[SB/firebase] Conectado a producción (Firebase real).");
 }
 
-// Initialize Firebase
-const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const auth: Auth = getAuth(app);
-const db = getFirestore(app);
-const storage = getStorage(app);
-
-// Persistencia de sesión (arregla “no conserva autenticación” en navegador)
-let persistencePromise: Promise<void> | null = null;
-export function ensureAuthPersistence() {
-  if (typeof window !== 'undefined' && !persistencePromise) {
-    persistencePromise = setPersistence(auth, browserLocalPersistence)
-      .catch((error) => {
-        console.warn("Firebase persistence error:", error.code, error.message);
-      });
-  }
-  return persistencePromise;
+// --- Persistencia Auth ---
+export async function ensureAuthPersistence(): Promise<void> {
+  await setPersistence(auth, browserLocalPersistence);
 }
-
-if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_USE_EMULATORS === 'true') {
-  console.log("Connecting to Firebase Emulators...");
-  try {
-      connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
-      connectFirestoreEmulator(db, 'localhost', 8080);
-      connectStorageEmulator(storage, 'localhost', 9199);
-      console.log("Successfully connected to Emulators.");
-  } catch (e) {
-      console.error("Error connecting to emulators. Make sure they are running.", e);
-  }
-}
-
-export { app, auth, db, storage, GoogleAuthProvider, signInWithPopup };

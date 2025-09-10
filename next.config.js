@@ -1,24 +1,22 @@
-/**
- * @type {import('next').NextConfig}
- */
+// next.config.js
+/** @type {import('next').NextConfig} */
 const MonacoWebpackPlugin = require('monaco-editor-webpack-plugin');
 
-const nextConfig = {
-  webpack: (config, { isServer }) => {
-    // Los workers de Monaco no funcionan en el lado del servidor,
-    // así que solo aplicamos el plugin para el build del cliente.
+module.exports = {
+  allowedDevOrigins: [
+    '9000-firebase-studio-1749550815469.cluster-6vyo4gb53jczovun3dxslzjahs.cloudworkstations.dev',
+    '9002-firebase-studio-1749550815469.cluster-6vyo4gb53jczovun3dxslzjahs.cloudworkstations.dev',
+    '*.cloudworkstations.dev', // opcional
+  ],
+  webpack(config, { isServer }) {
     if (!isServer) {
       config.plugins.push(
         new MonacoWebpackPlugin({
-          languages: ['json', 'typescript', 'javascript', 'css', 'html', 'handlebars'],
-          // Define una ruta de salida predecible para los workers
-          publicPath: '/_next/static/monaco',
-          filename: '[name].worker.js',
+          languages: ['json','typescript','javascript','css','html','handlebars'],
+          filename: 'static/monaco/[name].worker.js',
         })
       );
     }
     return config;
   },
-}
- 
-module.exports = nextConfig
+};
